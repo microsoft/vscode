@@ -90,11 +90,11 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 		const webview = this._webviewService.createWebview('' + handle, {
 			enableFindWidget: false,
-			extension: { id: extensionId, location: URI.revive(extensionLocation) }
 		}, {
 			allowScripts: options.enableScripts,
 			localResourceRoots: options.localResourceRoots ? options.localResourceRoots.map(uri => URI.revive(uri)) : undefined
 		});
+		webview.extension = { id: extensionId, location: URI.revive(extensionLocation) };
 
 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
 

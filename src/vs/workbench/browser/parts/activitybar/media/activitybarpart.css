@@ -30,3 +30,12 @@
 .monaco-workbench .activitybar .global-activity .monaco-action-bar .action-label.update-activity {
 	-webkit-mask: url('settings-activity-bar.svg') no-repeat 50% 50%;
 }
+
+.monaco-workbench .activitybar > .content > .composite-bar {
+	margin-bottom: auto;
+}
+
+.monaco-workbench .activitybar .menubar {
+	width: 100%;
+	height: 35px;
+}

@@ -54,9 +54,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 							type: 'string',
 							description: nls.localize('editor.editorAssociations.viewType', "Editor view type."),
 						},
-						'scheme': {
+						'mime': {
 							type: 'string',
-							description: nls.localize('editor.editorAssociations.scheme', "Uri scheme the editor should be used for."),
+							description: nls.localize('editor.editorAssociations.mime', "Mime type the editor should be used for. This is used for binary files."),
 						},
 						'filenamePattern': {
 							type: 'string',

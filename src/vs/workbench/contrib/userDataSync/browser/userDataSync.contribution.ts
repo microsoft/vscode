@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, registerConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
-import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -29,24 +28,19 @@ import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { isWeb } from 'vs/base/common/platform';
 import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IEditorInput } from 'vs/workbench/common/editor';
 
-const CONTEXT_SYNC_STATE = new RawContextKey<string>('userDataSyncStatus', SyncStatus.Uninitialized);
+class UserDataSyncConfigurationContribution implements IWorkbenchContribution {
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		id: 'userConfiguration',
-		order: 30,
-		title: localize('userConfiguration', "User Configuration"),
-		type: 'object',
-		properties: {
-			'userConfiguration.enableSync': {
-				type: 'boolean',
-				description: localize('userConfiguration.enableSync', "When enabled, synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
-				default: true,
-				scope: ConfigurationScope.APPLICATION
-			}
+	constructor(
+		@IProductService productService: IProductService
+	) {
+		if (productService.settingsSyncStoreUrl) {
+			registerConfiguration();
 		}
-	});
+	}
+}
 
 class UserDataAutoSyncContribution extends Disposable implements IWorkbenchContribution {
 
@@ -118,16 +112,20 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 				handle.onDidClose(() => this.conflictsWarningDisposable.clear());
 			}
 		} else {
+			const previewEditorInput = this.getPreviewEditorInput();
+			if (previewEditorInput) {
+				previewEditorInput.dispose();
+			}
 			this.conflictsWarningDisposable.clear();
 		}
 	}
 
 	private async continueSync(): Promise<void> {
 		// Get the preview editor
-		const editorInput = this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource))[0];
+		const previewEditorInput = this.getPreviewEditorInput();
 		// Save the preview
-		if (editorInput && editorInput.isDirty()) {
-			await this.textFileService.save(editorInput.getResource()!);
+		if (previewEditorInput && previewEditorInput.isDirty()) {
+			await this.textFileService.save(previewEditorInput.getResource()!);
 		}
 		try {
 			// Continue Sync
@@ -137,9 +135,13 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			return;
 		}
 		// Close the preview editor
-		if (editorInput) {
-			editorInput.dispose();
+		if (previewEditorInput) {
+			previewEditorInput.dispose();
 		}
+	}
+
+	private getPreviewEditorInput(): IEditorInput | undefined {
+		return this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource))[0];
 	}
 
 	private async handleConflicts(): Promise<void> {
@@ -173,11 +175,11 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.syncStart',
-				title: localize('start sync', "Sync: Start")
+				title: localize('start sync', "Configuration Sync: Turn On")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.enableSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.configurationSync.enable')),
 		};
-		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.configurationService.updateValue('userConfiguration.enableSync', true));
+		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.configurationService.updateValue('configurationSync.enable', true));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, startSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, startSyncMenuItem);
 
@@ -185,11 +187,11 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.stopSync',
-				title: localize('stop sync', "Sync: Stop")
+				title: localize('stop sync', "Configuration Sync: Turn Off")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.enableSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.configurationSync.enable')),
 		};
-		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.configurationService.updateValue('userConfiguration.enableSync', false));
+		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.configurationService.updateValue('configurationSync.enable', false));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, stopSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, stopSyncMenuItem);
 
@@ -197,7 +199,7 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			group: '5_sync',
 			command: {
 				id: 'sync.resolveConflicts',
-				title: localize('resolveConflicts', "Sync: Resolve Conflicts"),
+				title: localize('resolveConflicts', "Configuration Sync: Resolve Conflicts"),
 			},
 			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts),
 		};
@@ -210,14 +212,14 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue")
+				title: localize('continue sync', "Configuration Sync: Continue")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts)),
 		});
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			command: {
 				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue"),
+				title: localize('continue sync', "Configuration Sync: Continue"),
 				iconLocation: {
 					light: SYNC_PUSH_LIGHT_ICON_URI,
 					dark: SYNC_PUSH_DARK_ICON_URI
@@ -231,5 +233,6 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncConfigurationContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(SyncActionsContribution, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UserDataAutoSyncContribution, LifecyclePhase.Restored);

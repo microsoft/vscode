@@ -30,7 +30,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	private registeredWindowIds = new Set<number>();
 	private reloadingWindowIds = new Set<number>();
-	private onDidReloadingChange = new Emitter<void>();
+	private readonly onDidReloadingChange = new Emitter<void>();
 
 	constructor(
 		private windowServer: IPCServer,

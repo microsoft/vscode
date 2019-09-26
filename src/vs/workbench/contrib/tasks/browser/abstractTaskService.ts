@@ -129,9 +129,6 @@ interface TaskCustomizationTelemetryEvent {
 class TaskMap {
 	private _store: Map<string, Task[]> = new Map();
 
-	constructor() {
-	}
-
 	public forEach(callback: (value: Task[], folder: string) => void): void {
 		this._store.forEach(callback);
 	}

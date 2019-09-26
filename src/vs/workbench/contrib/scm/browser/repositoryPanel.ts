@@ -372,7 +372,7 @@ function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode): ICompres
 		? Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true }))
 		: Iterator.map(item.tree.root.children, node => asTreeElement(node, true));
 
-	return { element: item.group, children, incompressible: true };
+	return { element: item.group, children, incompressible: true, collapsible: true };
 }
 
 function asTreeElement(node: INode<ISCMResource, ISCMResourceGroup>, incompressible: boolean): ICompressedTreeElement<TreeElement> {
@@ -389,14 +389,13 @@ function asTreeElement(node: INode<ISCMResource, ISCMResourceGroup>, incompressi
 }
 
 const enum ViewModelMode {
-	List = 'list',
-	Tree = 'tree'
+	List,
+	Tree
 }
 
 class ViewModel {
 
-	private _mode = ViewModelMode.Tree;
-	private _onDidChangeMode = new Emitter<ViewModelMode>();
+	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
 	readonly onDidChangeMode = this._onDidChangeMode.event;
 
 	get mode(): ViewModelMode { return this._mode; }
@@ -413,7 +412,8 @@ class ViewModel {
 
 	constructor(
 		private groups: ISequence<ISCMResourceGroup>,
-		private tree: ObjectTree<TreeElement, FuzzyScore>
+		private tree: ObjectTree<TreeElement, FuzzyScore>,
+		private _mode: ViewModelMode
 	) { }
 
 	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
@@ -493,7 +493,7 @@ class ViewModel {
 export class ToggleViewModeAction extends Action {
 
 	static readonly ID = 'workbench.scm.action.toggleViewMode';
-	static readonly LABEL = localize('toggleViewMode', "ToggleViewMode");
+	static readonly LABEL = localize('toggleViewMode', "Toggle View Mode");
 
 	constructor(private viewModel: ViewModel) {
 		super(ToggleViewModeAction.ID, ToggleViewModeAction.LABEL);
@@ -507,7 +507,8 @@ export class ToggleViewModeAction extends Action {
 	}
 
 	private onDidChangeMode(mode: ViewModelMode): void {
-		this.class = `scm-action toggle-view-mode ${mode}`;
+		const iconClass = mode === ViewModelMode.List ? 'codicon-filter' : 'codicon-selection';
+		this.class = `scm-action toggle-view-mode ${iconClass}`;
 	}
 }
 
@@ -693,7 +694,8 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
-		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree);
+		const mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree, mode);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');

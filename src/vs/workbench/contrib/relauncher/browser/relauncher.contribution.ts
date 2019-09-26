@@ -6,7 +6,7 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -41,7 +41,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
-		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly envService: IEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService
@@ -124,22 +123,18 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	}
 
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
-		this.windowService.isFocused().then(focused => {
-			if (focused) {
-				return this.dialogService.confirm({
-					type: 'info',
-					message,
-					detail,
-					primaryButton
-				}).then(res => {
-					if (res.confirmed) {
-						confirmed();
-					}
-				});
-			}
-
-			return undefined;
-		});
+		if (this.hostService.hasFocus) {
+			this.dialogService.confirm({
+				type: 'info',
+				message,
+				detail,
+				primaryButton
+			}).then(res => {
+				if (res.confirmed) {
+					confirmed();
+				}
+			});
+		}
 	}
 }
 

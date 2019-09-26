@@ -8,7 +8,8 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
-import { HistoryInputBox, IMessage } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
+import { IMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Action } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
@@ -24,16 +25,15 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { attachFindInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachFindReplaceInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { appendKeyBindingLabel, isSearchViewFocused } from 'vs/workbench/contrib/search/browser/searchActions';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { isMacintosh } from 'vs/base/common/platform';
 
 export interface ISearchWidgetOptions {
@@ -62,7 +62,7 @@ class ReplaceAllAction extends Action {
 	private _searchWidget: SearchWidget | null = null;
 
 	constructor() {
-		super(ReplaceAllAction.ID, '', 'action-replace-all', false);
+		super(ReplaceAllAction.ID, '', 'codicon-replace-all', false);
 	}
 
 	set searchWidget(searchWidget: SearchWidget) {
@@ -79,6 +79,22 @@ class ReplaceAllAction extends Action {
 
 const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 
+function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
+	const isMultiline = !!value.match(/\n/);
+	if (textarea && isMultiline && textarea.selectionStart > 0) {
+		event.stopPropagation();
+		return;
+	}
+}
+
+function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
+	const isMultiline = !!value.match(/\n/);
+	if (textarea && isMultiline && textarea.selectionEnd < textarea.value.length) {
+		event.stopPropagation();
+		return;
+	}
+}
+
 export class SearchWidget extends Widget {
 
 	private static readonly REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
@@ -94,15 +110,14 @@ export class SearchWidget extends Widget {
 	private searchInputBoxFocused: IContextKey<boolean>;
 
 	private replaceContainer!: HTMLElement;
-	replaceInput!: HistoryInputBox;
+	replaceInput!: ReplaceInput;
+	replaceInputFocusTracker!: dom.IFocusTracker;
+	private replaceInputBoxFocused: IContextKey<boolean>;
 	private toggleReplaceButton!: Button;
 	private replaceAllAction!: ReplaceAllAction;
 	private replaceActive: IContextKey<boolean>;
 	private replaceActionBar!: ActionBar;
-	replaceInputFocusTracker!: dom.IFocusTracker;
-	private replaceInputBoxFocused: IContextKey<boolean>;
 	private _replaceHistoryDelayer: Delayer<void>;
-	private _preserveCase!: Checkbox;
 
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
@@ -180,12 +195,12 @@ export class SearchWidget extends Widget {
 	setWidth(width: number) {
 		this.searchInput.inputBox.layout();
 		this.replaceInput.width = width - 28;
-		this.replaceInput.layout();
+		this.replaceInput.inputBox.layout();
 	}
 
 	clear() {
 		this.searchInput.clear();
-		this.replaceInput.value = '';
+		this.replaceInput.setValue('');
 		this.setReplaceAllActionState(false);
 	}
 
@@ -198,7 +213,7 @@ export class SearchWidget extends Widget {
 	}
 
 	getReplaceValue(): string {
-		return this.replaceInput.value;
+		return this.replaceInput.getValue();
 	}
 
 	toggleReplace(show?: boolean): void {
@@ -212,7 +227,7 @@ export class SearchWidget extends Widget {
 	}
 
 	getReplaceHistory(): string[] {
-		return this.replaceInput.getHistory();
+		return this.replaceInput.inputBox.getHistory();
 	}
 
 	clearHistory(): void {
@@ -228,11 +243,11 @@ export class SearchWidget extends Widget {
 	}
 
 	showNextReplaceTerm() {
-		this.replaceInput.showNextValue();
+		this.replaceInput.inputBox.showNextValue();
 	}
 
 	showPreviousReplaceTerm() {
-		this.replaceInput.showPreviousValue();
+		this.replaceInput.inputBox.showPreviousValue();
 	}
 
 	searchInputHasFocus(): boolean {
@@ -240,7 +255,7 @@ export class SearchWidget extends Widget {
 	}
 
 	replaceInputHasFocus(): boolean {
-		return this.replaceInput.hasFocus();
+		return this.replaceInput.inputBox.hasFocus();
 	}
 
 	focusReplaceAllAction(): void {
@@ -280,7 +295,8 @@ export class SearchWidget extends Widget {
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
-		this.toggleReplaceButton.element.classList.add('collapse');
+		this.toggleReplaceButton.element.classList.add('codicon');
+		this.toggleReplaceButton.element.classList.add('codicon-chevron-right');
 		this.toggleReplaceButton.icon = 'toggle-replace-button';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
@@ -301,7 +317,7 @@ export class SearchWidget extends Widget {
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
 		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, true));
-		this._register(attachFindInputBoxStyler(this.searchInput, this.themeService));
+		this._register(attachFindReplaceInputBoxStyler(this.searchInput, this.themeService));
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
 		this.searchInput.setRegex(!!options.isRegex);
@@ -316,7 +332,7 @@ export class SearchWidget extends Widget {
 		this._register(this.searchInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fire()));
 
 		this._register(this.onReplaceValueChanged(() => {
-			this._replaceHistoryDelayer.trigger(() => this.replaceInput.addToHistory());
+			this._replaceHistoryDelayer.trigger(() => this.replaceInput.inputBox.addToHistory());
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
@@ -344,38 +360,24 @@ export class SearchWidget extends Widget {
 		this.replaceContainer = dom.append(parent, dom.$('.replace-container.disabled'));
 		const replaceBox = dom.append(this.replaceContainer, dom.$('.replace-input'));
 
-		this.replaceInput = this._register(new ContextScopedHistoryInputBox(replaceBox, this.contextViewService, {
-			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
+		this.replaceInput = this._register(new ContextScopedReplaceInput(replaceBox, this.contextViewService, {
+			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
-			history: options.replaceHistory || [],
+			history: options.replaceHistory,
 			flexibleHeight: true
-		}, this.contextKeyService));
+		}, this.contextKeyService, true));
 
-		this._preserveCase = this._register(new Checkbox({
-			actionClassName: 'monaco-preserve-case',
-			title: nls.localize('label.preserveCaseCheckbox', "Preserve Case"),
-			isChecked: !!options.preserveCase,
-		}));
-
-		this._register(this._preserveCase.onChange(viaKeyboard => {
+		this._register(this.replaceInput.onDidOptionChange(viaKeyboard => {
 			if (!viaKeyboard) {
-				this.replaceInput.focus();
-				this._onPreserveCaseChange.fire(this._preserveCase.checked);
+				this._onPreserveCaseChange.fire(this.replaceInput.getPreserveCase());
 			}
 		}));
 
-		const controls = document.createElement('div');
-		controls.className = 'controls';
-		controls.style.display = 'block';
-		controls.appendChild(this._preserveCase.domNode);
-		replaceBox.appendChild(controls);
-		this.replaceInput.paddingRight = this._preserveCase.width();
-
-		this._register(attachInputBoxStyler(this.replaceInput, this.themeService));
-		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
-		this.replaceInput.value = options.replaceValue || '';
-		this._register(this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire()));
-		this._register(this.replaceInput.onDidHeightChange(() => this._onDidHeightChange.fire()));
+		this._register(attachFindReplaceInputBoxStyler(this.replaceInput, this.themeService));
+		this.replaceInput.onKeyDown((keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
+		this.replaceInput.setValue(options.replaceValue || '');
+		this._register(this.replaceInput.inputBox.onDidChange(() => this._onReplaceValueChanged.fire()));
+		this._register(this.replaceInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fire()));
 
 		this.replaceAllAction = ReplaceAllAction.INSTANCE;
 		this.replaceAllAction.searchWidget = this;
@@ -384,7 +386,7 @@ export class SearchWidget extends Widget {
 		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
 		this.onkeydown(this.replaceActionBar.domNode, (keyboardEvent) => this.onReplaceActionbarKeyDown(keyboardEvent));
 
-		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputElement));
+		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputBox.inputElement));
 		this._register(this.replaceInputFocusTracker.onDidFocus(() => this.replaceInputBoxFocused.set(true)));
 		this._register(this.replaceInputFocusTracker.onDidBlur(() => this.replaceInputBoxFocused.set(false)));
 	}
@@ -396,8 +398,8 @@ export class SearchWidget extends Widget {
 
 	private onToggleReplaceButton(): void {
 		dom.toggleClass(this.replaceContainer, 'disabled');
-		dom.toggleClass(this.toggleReplaceButton.element, 'collapse');
-		dom.toggleClass(this.toggleReplaceButton.element, 'expand');
+		dom.toggleClass(this.toggleReplaceButton.element, 'codicon-chevron-right');
+		dom.toggleClass(this.toggleReplaceButton.element, 'codicon-chevron-down');
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
@@ -417,7 +419,7 @@ export class SearchWidget extends Widget {
 		if (currentState !== newState) {
 			this.replaceActive.set(newState);
 			this._onReplaceStateChange.fire(newState);
-			this.replaceInput.layout();
+			this.replaceInput.inputBox.layout();
 		}
 	}
 
@@ -475,19 +477,11 @@ export class SearchWidget extends Widget {
 		}
 
 		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
-			const ta = this.searchInput.domNode.querySelector('textarea');
-			const isMultiline = !!this.searchInput.getValue().match(/\n/);
-			if (ta && isMultiline && ta.selectionStart > 0) {
-				keyboardEvent.stopPropagation();
-			}
+			stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
 		}
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
-			const ta = this.searchInput.domNode.querySelector('textarea');
-			const isMultiline = !!this.searchInput.getValue().match(/\n/);
-			if (ta && isMultiline && ta.selectionEnd < ta.value.length) {
-				keyboardEvent.stopPropagation();
-			}
+			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
 		}
 	}
 
@@ -513,7 +507,7 @@ export class SearchWidget extends Widget {
 
 	private onReplaceInputKeyDown(keyboardEvent: IKeyboardEvent) {
 		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
-			this.searchInput.inputBox.insertAtCursor('\n');
+			this.replaceInput.inputBox.insertAtCursor('\n');
 			keyboardEvent.preventDefault();
 		}
 
@@ -533,17 +527,11 @@ export class SearchWidget extends Widget {
 		}
 
 		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
-			const ta = this.searchInput.domNode.querySelector('textarea');
-			if (ta && ta.selectionStart > 0) {
-				keyboardEvent.stopPropagation();
-			}
+			stopPropagationForMultiLineUpwards(keyboardEvent, this.replaceInput.getValue(), this.replaceInput.domNode.querySelector('textarea'));
 		}
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
-			const ta = this.searchInput.domNode.querySelector('textarea');
-			if (ta && ta.selectionEnd < ta.value.length) {
-				keyboardEvent.stopPropagation();
-			}
+			stopPropagationForMultiLineDownwards(keyboardEvent, this.replaceInput.getValue(), this.replaceInput.domNode.querySelector('textarea'));
 		}
 	}
 

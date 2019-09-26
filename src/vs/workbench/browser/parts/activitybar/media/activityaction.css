@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .activitybar > .content .monaco-action-bar .action-item {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item {
 	display: block;
 	position: relative;
 	padding: 5px 0;
 }
 
-.monaco-workbench .activitybar > .content .monaco-action-bar .action-label {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label {
 	display: flex;
 	overflow: hidden;
 	height: 40px;
@@ -20,7 +20,7 @@
 	font-size: 15px;
 }
 
-.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus:before {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 	content: "";
 	position: absolute;
 	top: 9px;
@@ -29,19 +29,19 @@
 	border-left: 2px solid;
 }
 
-.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.clicked:focus:before {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.clicked:focus:before {
 	border-left: none !important; /* no focus feedback when using mouse */
 }
 
-.monaco-workbench .activitybar.left > .content .monaco-action-bar .action-item:focus:before {
+.monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 	left: 1px;
 }
 
-.monaco-workbench .activitybar.right > .content .monaco-action-bar .action-item:focus:before {
+.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 	right: 1px;
 }
 
-.monaco-workbench .activitybar > .content .monaco-action-bar .badge {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge {
 	position: absolute;
 	top: 5px;
 	left: 0;
@@ -50,7 +50,7 @@
 	height: 40px;
 }
 
-.monaco-workbench .activitybar > .content .monaco-action-bar .badge .badge-content {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
 	position: absolute;
 	top: 20px;
 	right: 8px;
@@ -66,13 +66,13 @@
 
 /* Right aligned */
 
-.monaco-workbench .activitybar.right > .content .monaco-action-bar .action-label {
+.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-label {
 	margin-left: 0;
 	padding: 0 50px 0 0;
 	background-position: calc(100% - 9px) center;
 }
 
-.monaco-workbench .activitybar.right > .content .monaco-action-bar .badge {
+.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .badge {
 	left: auto;
 	right: 0;
 }

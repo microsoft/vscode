@@ -29,6 +29,7 @@ const SPECIFIC_STACK_FRAME = (filename: string) => `${STACK_FRAME} .file[title*=
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-list-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_EVALUATION_RESULT = `.repl .evaluation-result.expression .value`;
+const CONSOLE_LINK = `.repl .value a.link`;
 
 const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
 
@@ -139,6 +140,10 @@ export class Debug extends Viewlet {
 	// Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count
 	async waitForVariableCount(count: number, alternativeCount: number): Promise<void> {
 		await this.code.waitForElements(VARIABLE, false, els => els.length === count || els.length === alternativeCount);
+	}
+
+	async waitForLink(): Promise<void> {
+		await this.code.waitForElement(CONSOLE_LINK);
 	}
 
 	private async waitForOutput(fn: (output: string[]) => boolean): Promise<string[]> {

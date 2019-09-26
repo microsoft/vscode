@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.preferences-editor {
+	display: flex;
+	flex-direction: column;
+}
+
 .preferences-editor > .preferences-header {
 	padding-left: 27px;
 	padding-right: 32px;
@@ -11,7 +16,7 @@
 }
 
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {
-	position: relative;
+	flex: 1;
 }
 
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor .preferences-header-container {

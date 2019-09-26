@@ -442,7 +442,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private lastRequestId: number = 0;
 	private protocolListener: IDisposable | null;
 
-	private _onDidInitialize = new Emitter<void>();
+	private readonly _onDidInitialize = new Emitter<void>();
 	readonly onDidInitialize = this._onDidInitialize.event;
 
 	constructor(private protocol: IMessagePassingProtocol) {
@@ -660,7 +660,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	private channels = new Map<string, IServerChannel<TContext>>();
 	private _connections = new Set<Connection<TContext>>();
 
-	private _onDidChangeConnections = new Emitter<Connection<TContext>>();
+	private readonly _onDidChangeConnections = new Emitter<Connection<TContext>>();
 	readonly onDidChangeConnections: Event<Connection<TContext>> = this._onDidChangeConnections.event;
 
 	get connections(): Connection<TContext>[] {

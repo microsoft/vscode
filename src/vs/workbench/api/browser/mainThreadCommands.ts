@@ -58,7 +58,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 			id,
 			CommandsRegistry.registerCommand(id, (accessor, ...args) => {
 				return this._proxy.$executeContributedCommand(id, ...args).then(result => {
-					return revive(result, 0);
+					return revive(result);
 				});
 			})
 		);
@@ -74,7 +74,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 
 	async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
 		for (let i = 0; i < args.length; i++) {
-			args[i] = revive(args[i], 0);
+			args[i] = revive(args[i]);
 		}
 		if (retry && args.length > 0 && !CommandsRegistry.getCommand(id)) {
 			await this._extensionService.activateByEvent(`onCommand:${id}`);
