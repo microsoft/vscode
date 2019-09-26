@@ -185,7 +185,7 @@ export class AbstractFileDialogService {
 		return !this.environmentService.configuration.remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
 	}
 
-	protected getFileSystemSchema(options: { availableFileSystems?: string[], defaultUri?: URI }): string {
+	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {
 		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow();
 	}
 }

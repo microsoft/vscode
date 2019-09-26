@@ -433,7 +433,7 @@ export interface ISaveOptions {
 	overwriteEncoding?: boolean;
 	skipSaveParticipants?: boolean;
 	writeElevated?: boolean;
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
 export interface ILoadOptions {
