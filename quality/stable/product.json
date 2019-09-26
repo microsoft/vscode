@@ -758,6 +758,7 @@
 		"ms-vsliveshare.vsliveshare",
 		"ms-vsliveshare.cloudenv",
 		"ms-vsliveshare.cloudenv-explorer",
+		"ms-vsonline.vsonline",
 		"GitHub.vscode-pull-request-github",
 		"Microsoft.vscode-nmake-tools",
 		"atlassian.atlascode",
