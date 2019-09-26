@@ -375,15 +375,15 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarSelectedFgColor = theme.getColor(MENUBAR_SELECTION_FOREGROUND);
 			if (menubarSelectedFgColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within) > .menubar-menu-button:hover {
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
+					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover {
 						color: ${menubarSelectedFgColor};
 					}
 
-					.monaco-workbench .menubar  > .menubar-menu-button.open .toolbar-toggle-more,
-					.monaco-workbench .menubar > .menubar-menu-button:focus .toolbar-toggle-more,
-					.monaco-workbench .menubar:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .toolbar-toggle-more,
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .toolbar-toggle-more,
+					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .toolbar-toggle-more {
 						background-color: ${menubarSelectedFgColor}
 					}
 				`);
@@ -392,9 +392,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
 			if (menubarSelectedBgColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within) > .menubar-menu-button:hover {
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
+					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover {
 						background-color: ${menubarSelectedBgColor};
 					}
 				`);
