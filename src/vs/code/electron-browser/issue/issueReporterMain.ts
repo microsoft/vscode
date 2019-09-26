@@ -39,6 +39,8 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { createChannelSender } from 'vs/platform/ipc/node/ipcChannelCreator';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -301,7 +303,9 @@ export class IssueReporter extends Disposable {
 		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
 		this.logService = new FollowerLogService(loggerClient, logService);
 
-		const sharedProcess = mainProcessService.getChannel('sharedProcess').call('whenSharedProcessReady')
+		const sharedProcessService = createChannelSender<ISharedProcessService>(mainProcessService.getChannel('sharedProcess'));
+
+		const sharedProcess = sharedProcessService.whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
