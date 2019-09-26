@@ -8,10 +8,10 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { OpenContext, INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions, IOpenedWindow, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
@@ -354,6 +354,23 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 
 	async clearRecentlyOpened(windowId: number): Promise<void> {
 		return this.historyMainService.clearRecentlyOpened();
+	}
+
+	//#endregion
+
+	//#region Debug
+
+	// TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
+
+	async openExtensionDevelopmentHostWindow(windowId: number, args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+		const extDevPaths = args.extensionDevelopmentPath;
+		if (extDevPaths) {
+			this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
+				context: OpenContext.API,
+				cli: args,
+				userEnv: Object.keys(env).length > 0 ? env : undefined
+			});
+		}
 	}
 
 	//#endregion

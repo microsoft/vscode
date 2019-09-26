@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -13,8 +12,6 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export const IWindowsService = createDecorator<IWindowsService>('windowsService');
-
 export interface INativeOpenDialogOptions {
 	forceNewWindow?: boolean;
 
@@ -22,10 +19,6 @@ export interface INativeOpenDialogOptions {
 
 	telemetryEventName?: string;
 	telemetryExtraData?: ITelemetryData;
-}
-
-export interface IWindowsService {
-	_serviceBrand: undefined;
 }
 
 export interface IOpenedWindow {

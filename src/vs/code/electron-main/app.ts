@@ -6,10 +6,8 @@
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService, OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windows';
-import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
-import { LegacyWindowsMainService } from 'vs/platform/windows/electron-main/legacyWindowsMainService';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -79,6 +77,7 @@ import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/ext
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
+import { assign } from 'vs/base/common/objects';
 
 export class CodeApplication extends Disposable {
 
@@ -451,7 +450,6 @@ export class CodeApplication extends Disposable {
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
 		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
-		services.set(IWindowsService, new SyncDescriptor(LegacyWindowsMainService));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
 		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
@@ -557,10 +555,6 @@ export class CodeApplication extends Disposable {
 		const workspacesChannel = new WorkspacesChannel(workspacesMainService, accessor.get(IWindowsMainService));
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
-		const windowsService = accessor.get(IWindowsService);
-		const windowsChannel = new WindowsChannel(windowsService);
-		electronIpcServer.registerChannel('windows', windowsChannel);
-
 		const menubarService = accessor.get(IMenubarService);
 		const menubarChannel = createChannelReceiver(menubarService);
 		electronIpcServer.registerChannel('menubar', menubarChannel);
@@ -586,6 +580,25 @@ export class CodeApplication extends Disposable {
 		// Propagate to clients
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 
+		// Create a URL handler to open file URIs in the active window
+		const environmentService = accessor.get(IEnvironmentService);
+		urlService.registerHandler({
+			async handleURL(uri: URI): Promise<boolean> {
+
+				// Catch file URLs
+				if (uri.authority === Schemas.file && !!uri.path) {
+					const cli = assign(Object.create(null), environmentService.args);
+					const urisToOpen = [{ fileUri: uri }];
+
+					windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
+
+					return true;
+				}
+
+				return false;
+			}
+		});
+
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(electronService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
@@ -596,8 +609,6 @@ export class CodeApplication extends Disposable {
 		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
 		// if there is none
 		if (isMacintosh) {
-			const environmentService = accessor.get(IEnvironmentService);
-
 			urlService.registerHandler({
 				async handleURL(uri: URI): Promise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {

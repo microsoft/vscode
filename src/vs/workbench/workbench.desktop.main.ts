@@ -62,8 +62,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateService } from 'vs/platform/update/electron-browser/updateService';
 import { IIssueService } from 'vs/platform/issue/node/issue';
@@ -75,7 +73,6 @@ import { NativeWorkspaceEditingService } from 'vs/workbench/services/workspace/e
 
 registerSingleton(IClipboardService, ClipboardService, true);
 registerSingleton(ILocalizationsService, LocalizationsService);
-registerSingleton(IWindowsService, WindowsService);
 registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
 registerSingleton(IMenubarService, MenubarService);

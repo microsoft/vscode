@@ -10,6 +10,8 @@ import { INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions, IOpene
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { URI } from 'vs/base/common/uri';
+import { ParsedArgs } from 'vscode-minimist';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
 
@@ -92,4 +94,7 @@ export interface IElectronService {
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
+
+	// Debug (TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void>;
 }
