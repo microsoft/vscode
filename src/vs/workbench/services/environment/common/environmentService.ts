@@ -24,6 +24,7 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
 	readonly debugSearch: IDebugParams;
 
+	readonly webviewExternalEndpoint: string;
 	readonly webviewResourceRoot: string;
 	readonly webviewCspSource: string;
 

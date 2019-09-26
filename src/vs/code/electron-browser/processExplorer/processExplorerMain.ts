@@ -7,7 +7,7 @@ import 'vs/css!./media/processExplorer';
 import { webFrame, ipcRenderer, clipboard } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/node/issue';
 import * as browser from 'vs/base/browser/browser';

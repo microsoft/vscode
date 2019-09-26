@@ -97,9 +97,11 @@ class OutlineModel extends QuickOpenModel {
 			}
 		});
 
-		this.entries.sort(SymbolEntry.compareByRank);
-
-
+		// select comparator based on the presence of the colon-prefix
+		this.entries.sort(searchValuePos === 0
+			? SymbolEntry.compareByRank
+			: SymbolEntry.compareByKindAndRank
+		);
 
 		// Mark all type groups
 		const visibleResults = <SymbolEntry[]>this.getEntries(true);
@@ -297,7 +299,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		const kindB = NLS_SYMBOL_KIND_CACHE[b.getKind()] || FALLBACK_NLS_SYMBOL_KIND;
 		let r = kindA.localeCompare(kindB);
 		if (r === 0) {
-			r = this.compareByRank(a, b);
+			r = SymbolEntry.compareByRank(a, b);
 		}
 		return r;
 	}

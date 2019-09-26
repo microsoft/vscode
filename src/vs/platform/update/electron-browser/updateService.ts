@@ -12,7 +12,7 @@ export class UpdateService implements IUpdateService {
 
 	_serviceBrand: undefined;
 
-	private _onStateChange = new Emitter<State>();
+	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	private _state: State = State.Uninitialized;

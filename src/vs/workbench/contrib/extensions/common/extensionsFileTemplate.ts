@@ -11,7 +11,7 @@ export const ExtensionsConfigurationSchemaId = 'vscode://schemas/extensions';
 export const ExtensionsConfigurationSchema: IJSONSchema = {
 	id: ExtensionsConfigurationSchemaId,
 	allowComments: true,
-	allowsTrailingCommas: true,
+	allowTrailingCommas: true,
 	type: 'object',
 	title: localize('app.extensions.json.title', "Extensions"),
 	additionalProperties: false,
@@ -39,7 +39,7 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 
 export const ExtensionsConfigurationInitialContent: string = [
 	'{',
-	'\t// See http://go.microsoft.com/fwlink/?LinkId=827846 to learn about workspace recommendations.',
+	'\t// See https://go.microsoft.com/fwlink/?LinkId=827846 to learn about workspace recommendations.',
 	'\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
 	'',
 	'\t// List of extensions which should be recommended for users of this workspace.',

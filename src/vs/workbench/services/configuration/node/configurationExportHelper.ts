@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { writeFile } from 'vs/base/node/pfs';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';

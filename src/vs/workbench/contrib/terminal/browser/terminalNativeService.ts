@@ -18,8 +18,6 @@ export class TerminalNativeService implements ITerminalNativeService {
 	private readonly _onOsResume = new Emitter<void>();
 	public get onOsResume(): Event<void> { return this._onOsResume.event; }
 
-	constructor() { }
-
 	public whenFileDeleted(): Promise<void> {
 		throw new Error('Not implemented');
 	}

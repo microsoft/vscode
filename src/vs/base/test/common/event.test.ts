@@ -25,7 +25,7 @@ namespace Samples {
 
 	export class Document3 {
 
-		private _onDidChange = new Emitter<string>();
+		private readonly _onDidChange = new Emitter<string>();
 
 		onDidChange: Event<string> = this._onDidChange.event;
 

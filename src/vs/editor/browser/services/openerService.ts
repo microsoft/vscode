@@ -13,7 +13,7 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IOpener, IOpenerService, IValidator } from 'vs/platform/opener/common/opener';
+import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions } from 'vs/platform/opener/common/opener';
 
 export class OpenerService extends Disposable implements IOpenerService {
 
@@ -21,6 +21,7 @@ export class OpenerService extends Disposable implements IOpenerService {
 
 	private readonly _openers = new LinkedList<IOpener>();
 	private readonly _validators = new LinkedList<IValidator>();
+	private readonly _resolvers = new LinkedList<IExternalUriResolver>();
 
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
@@ -39,7 +40,12 @@ export class OpenerService extends Disposable implements IOpenerService {
 		return { dispose: remove };
 	}
 
-	async open(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
+	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable {
+		const remove = this._resolvers.push(resolver);
+		return { dispose: remove };
+	}
+
+	async open(resource: URI, options?: OpenOptions): Promise<boolean> {
 		// no scheme ?!?
 		if (!resource.scheme) {
 			return Promise.resolve(false);
@@ -59,22 +65,33 @@ export class OpenerService extends Disposable implements IOpenerService {
 				return true;
 			}
 		}
+
 		// use default openers
 		return this._doOpen(resource, options);
 	}
 
-	private _doOpen(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
+	public async resolveExternalUri(resource: URI, options?: { readonly allowTunneling?: boolean }): Promise<{ resolved: URI, dispose(): void }> {
+		for (const resolver of this._resolvers.toArray()) {
+			const result = await resolver.resolveExternalUri(resource, options);
+			if (result) {
+				return result;
+			}
+		}
+		return { resolved: resource, dispose: () => { } };
+	}
+
+	private _doOpen(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
 
 		const { scheme, path, query, fragment } = resource;
 
 		if (equalsIgnoreCase(scheme, Schemas.mailto) || (options && options.openExternal)) {
 			// open default mail application
-			return this._doOpenExternal(resource);
+			return this._doOpenExternal(resource, options);
 		}
 
 		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
 			// open link in default browser
-			return this._doOpenExternal(resource);
+			return this._doOpenExternal(resource, options);
 		} else if (equalsIgnoreCase(scheme, Schemas.command)) {
 			// run command or bail out if command isn't known
 			if (!CommandsRegistry.getCommand(path)) {
@@ -118,9 +135,9 @@ export class OpenerService extends Disposable implements IOpenerService {
 		}
 	}
 
-	private _doOpenExternal(resource: URI): Promise<boolean> {
-		dom.windowOpenNoOpener(encodeURI(resource.toString(true)));
-
+	private async _doOpenExternal(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
+		const { resolved } = await this.resolveExternalUri(resource, options);
+		dom.windowOpenNoOpener(encodeURI(resolved.toString(true)));
 		return Promise.resolve(true);
 	}
 

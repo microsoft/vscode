@@ -6,7 +6,8 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IWindowsService, IWindowService, IURIToOpen, IOpenSettings, INewWindowOptions, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenInWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -25,9 +26,8 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { sequence } from 'vs/base/common/async';
 import { getResourceForCommand, getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -46,8 +46,6 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 
 // Commands
 
-export const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
-export const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
 export const REVEAL_IN_EXPLORER_COMMAND_ID = 'revealInExplorer';
 export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
 export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
@@ -80,29 +78,29 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
-export const openWindowCommand = (accessor: ServicesAccessor, urisToOpen: IURIToOpen[], options?: IOpenSettings) => {
-	if (Array.isArray(urisToOpen)) {
-		const windowService = accessor.get(IWindowService);
+export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenInWindowOptions) => {
+	if (Array.isArray(toOpen)) {
+		const hostService = accessor.get(IHostService);
 		const environmentService = accessor.get(IEnvironmentService);
 
 		// rewrite untitled: workspace URIs to the absolute path on disk
-		urisToOpen = urisToOpen.map(uriToOpen => {
-			if (isWorkspaceToOpen(uriToOpen) && uriToOpen.workspaceUri.scheme === Schemas.untitled) {
+		toOpen = toOpen.map(openable => {
+			if (isWorkspaceToOpen(openable) && openable.workspaceUri.scheme === Schemas.untitled) {
 				return {
-					workspaceUri: joinPath(environmentService.untitledWorkspacesHome, uriToOpen.workspaceUri.path, UNTITLED_WORKSPACE_NAME)
+					workspaceUri: joinPath(environmentService.untitledWorkspacesHome, openable.workspaceUri.path, UNTITLED_WORKSPACE_NAME)
 				};
 			}
 
-			return uriToOpen;
+			return openable;
 		});
 
-		windowService.openWindow(urisToOpen, options);
+		hostService.openInWindow(toOpen, options);
 	}
 };
 
-export const newWindowCommand = (accessor: ServicesAccessor, options?: INewWindowOptions) => {
-	const windowsService = accessor.get(IWindowsService);
-	windowsService.openNewWindow(options);
+export const newWindowCommand = (accessor: ServicesAccessor, options?: IOpenEmptyWindowOptions) => {
+	const hostService = accessor.get(IHostService);
+	hostService.openEmptyWindow(options);
 };
 
 async function save(
@@ -403,44 +401,6 @@ CommandsRegistry.registerCommand({
 				rightResource
 			});
 		}
-	}
-});
-
-function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
-	if (resources.length) {
-		sequence(resources.map(r => () => windowsService.showItemInFolder(r.scheme === Schemas.userData ? r.with({ scheme: Schemas.file }) : r)));
-	} else if (workspaceContextService.getWorkspace().folders.length) {
-		windowsService.showItemInFolder(workspaceContextService.getWorkspace().folders[0].uri);
-	} else {
-		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
-	}
-}
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: REVEAL_IN_OS_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: EditorContextKeys.focus.toNegated(),
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
-	win: {
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
-	},
-	handler: (accessor: ServicesAccessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService));
-		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: undefined,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
-	id: 'workbench.action.files.revealActiveFileInWindows',
-	handler: (accessor: ServicesAccessor) => {
-		const editorService = accessor.get(IEditorService);
-		const activeInput = editorService.activeEditor;
-		const resource = activeInput ? activeInput.getResource() : null;
-		const resources = resource ? [resource] : [];
-		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
 

@@ -30,6 +30,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import Severity from 'vs/base/common/severity';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -82,7 +83,7 @@ export class DefineKeybindingController extends Disposable implements editorComm
 		this._createKeybindingDecorationRenderer();
 
 		// The button to define keybindings is shown only for the user keybindings.json
-		if (!this._editor.getConfiguration().readOnly) {
+		if (!this._editor.getOption(EditorOption.readOnly)) {
 			this._createKeybindingWidgetRenderer();
 		} else {
 			this._disposeKeybindingWidgetRenderer();
@@ -377,7 +378,7 @@ class DefineKeybindingCommand extends EditorCommand {
 	}
 
 	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!isInterestingEditorModel(editor) || editor.getConfiguration().readOnly) {
+		if (!isInterestingEditorModel(editor) || editor.getOption(EditorOption.readOnly)) {
 			return;
 		}
 		const controller = DefineKeybindingController.get(editor);

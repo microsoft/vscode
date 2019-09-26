@@ -10,19 +10,20 @@ import * as platform from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromString } from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Range } from 'vs/editor/common/core/range';
@@ -33,6 +34,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { distinct } from 'vs/base/common/arrays';
 
 export class DebugSession implements IDebugSession {
 
@@ -40,9 +43,11 @@ export class DebugSession implements IDebugSession {
 	private _subId: string | undefined;
 	private raw: RawDebugSession | undefined;
 	private initialized = false;
+	private _options: IDebugSessionOptions;
 
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
+	private cancellationMap = new Map<number, CancellationTokenSource[]>();
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private repl: ReplModel;
@@ -55,24 +60,32 @@ export class DebugSession implements IDebugSession {
 
 	private readonly _onDidChangeREPLElements = new Emitter<void>();
 
+	private name: string | undefined;
+	private readonly _onDidChangeName = new Emitter<string>();
+
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
 		public root: IWorkspaceFolder,
 		private model: DebugModel,
-		private _parentSession: IDebugSession | undefined,
+		options: IDebugSessionOptions | undefined,
 		@IDebugService private readonly debugService: IDebugService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
-		@IWindowsService private readonly windowsService: IWindowsService,
+		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		this.id = generateUuid();
-		this.repl = new ReplModel(this);
+		this._options = options || {};
+		if (this.hasSeparateRepl()) {
+			this.repl = new ReplModel();
+		} else {
+			this.repl = (this.parentSession as DebugSession).repl;
+		}
 	}
 
 	getId(): string {
@@ -96,7 +109,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	get parentSession(): IDebugSession | undefined {
-		return this._parentSession;
+		return this._options.parentSession;
 	}
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
@@ -105,7 +118,13 @@ export class DebugSession implements IDebugSession {
 
 	getLabel(): string {
 		const includeRoot = this.workspaceContextService.getWorkspace().folders.length > 1;
-		return includeRoot && this.root ? `${this.configuration.name} (${resources.basenameOrAuthority(this.root.uri)})` : this.configuration.name;
+		const name = this.name || this.configuration.name;
+		return includeRoot && this.root ? `${name} (${resources.basenameOrAuthority(this.root.uri)})` : name;
+	}
+
+	setName(name: string): void {
+		this.name = name;
+		this._onDidChangeName.fire(name);
 	}
 
 	get state(): State {
@@ -144,6 +163,10 @@ export class DebugSession implements IDebugSession {
 		return this._onDidChangeREPLElements.event;
 	}
 
+	get onDidChangeName(): Event<string> {
+		return this._onDidChangeName.event;
+	}
+
 	//---- DAP events
 
 	get onDidCustomEvent(): Event<DebugProtocol.Event> {
@@ -170,7 +193,7 @@ export class DebugSession implements IDebugSession {
 
 			return dbgr.createDebugAdapter(this).then(debugAdapter => {
 
-				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.windowsService, this.openerService);
+				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService);
 
 				return this.raw.start().then(() => {
 
@@ -222,6 +245,7 @@ export class DebugSession implements IDebugSession {
 	 */
 	terminate(restart = false): Promise<void> {
 		if (this.raw) {
+			this.cancelAllRequests();
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				return this.raw.terminate(restart).then(response => {
 					return undefined;
@@ -239,6 +263,7 @@ export class DebugSession implements IDebugSession {
 	 */
 	disconnect(restart = false): Promise<void> {
 		if (this.raw) {
+			this.cancelAllRequests();
 			return this.raw.disconnect(restart).then(response => {
 				return undefined;
 			});
@@ -251,6 +276,7 @@ export class DebugSession implements IDebugSession {
 	 */
 	restart(): Promise<void> {
 		if (this.raw) {
+			this.cancelAllRequests();
 			return this.raw.restart().then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
@@ -266,15 +292,7 @@ export class DebugSession implements IDebugSession {
 			return Promise.resolve(undefined);
 		}
 
-		const source = this.getSourceForUri(modelUri);
-		let rawSource: DebugProtocol.Source;
-		if (source) {
-			rawSource = source.raw;
-		} else {
-			const data = Source.getEncodedDebugData(modelUri);
-			rawSource = { name: data.name, path: data.path, sourceReference: data.sourceReference };
-		}
-
+		const rawSource = this.getRawSource(modelUri);
 		if (breakpointsToSend.length && !rawSource.adapterData) {
 			rawSource.adapterData = breakpointsToSend[0].adapterData;
 		}
@@ -295,7 +313,7 @@ export class DebugSession implements IDebugSession {
 					data.set(breakpointsToSend[i].getId(), response.body.breakpoints[i]);
 				}
 
-				this.model.setBreakpointSessionData(this.getId(), data);
+				this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 			}
 		});
 	}
@@ -309,7 +327,7 @@ export class DebugSession implements IDebugSession {
 						for (let i = 0; i < fbpts.length; i++) {
 							data.set(fbpts[i].getId(), response.body.breakpoints[i]);
 						}
-						this.model.setBreakpointSessionData(this.getId(), data);
+						this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 					}
 				});
 			}
@@ -349,11 +367,22 @@ export class DebugSession implements IDebugSession {
 						for (let i = 0; i < dataBreakpoints.length; i++) {
 							data.set(dataBreakpoints[i].getId(), response.body.breakpoints[i]);
 						}
-						this.model.setBreakpointSessionData(this.getId(), data);
+						this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 					}
 				});
 			}
 			return Promise.resolve(undefined);
+		}
+		return Promise.reject(new Error('no debug adapter'));
+	}
+
+	async breakpointsLocations(uri: URI, lineNumber: number): Promise<IPosition[]> {
+		if (this.raw) {
+			const source = this.getRawSource(uri);
+			const response = await this.raw.breakpointLocations({ source, line: lineNumber });
+			const positions = response.body.breakpoints.map(bp => ({ lineNumber: bp.line, column: bp.column || 1 }));
+
+			return distinct(positions, p => `${p.lineNumber}:${p.column}`);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
@@ -367,7 +396,8 @@ export class DebugSession implements IDebugSession {
 
 	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse> {
 		if (this.raw) {
-			return this.raw.stackTrace({ threadId, startFrame, levels });
+			const token = this.getNewCancellationToken(threadId);
+			return this.raw.stackTrace({ threadId, startFrame, levels }, token);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
@@ -389,16 +419,18 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse> {
+	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse> {
 		if (this.raw) {
-			return this.raw.scopes({ frameId });
+			const token = this.getNewCancellationToken(threadId);
+			return this.raw.scopes({ frameId }, token);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	variables(variablesReference: number, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse> {
+	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse> {
 		if (this.raw) {
-			return this.raw.variables({ variablesReference, filter, start, count });
+			const token = threadId ? this.getNewCancellationToken(threadId) : undefined;
+			return this.raw.variables({ variablesReference, filter, start, count }, token);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
@@ -506,17 +538,8 @@ export class DebugSession implements IDebugSession {
 			rawSource = source.raw;
 		} else {
 			// create a Source
-
-			let sourceRef: number | undefined;
-			if (resource.query) {
-				const data = Source.getEncodedDebugData(resource);
-				sourceRef = data.sourceReference;
-			}
-
-			rawSource = {
-				path: resource.with({ scheme: '', query: '' }).toString(true),	// Remove debug: scheme
-				sourceReference: sourceRef
-			};
+			const data = Source.getEncodedDebugData(resource);
+			rawSource = { path: data.path, sourceReference: data.sourceReference };
 		}
 
 		return this.raw.source({ sourceReference: rawSource.sourceReference || 0, source: rawSource });
@@ -537,14 +560,14 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]> {
+	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<CompletionItem[]> {
 		if (this.raw) {
 			return this.raw.completions({
 				frameId,
 				text,
 				column: position.column,
-				line: position.lineNumber
-			}).then(response => {
+				line: position.lineNumber,
+			}, token).then(response => {
 
 				const result: CompletionItem[] = [];
 				if (response && response.body && response.body.targets) {
@@ -708,7 +731,7 @@ export class DebugSession implements IDebugSession {
 								}
 
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak) {
-									this.windowService.focusWindow();
+									this.hostService.focus();
 								}
 							}
 						}
@@ -753,6 +776,16 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidContinued(event => {
 			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
+			if (threadId) {
+				const tokens = this.cancellationMap.get(threadId);
+				this.cancellationMap.delete(threadId);
+				if (tokens) {
+					tokens.forEach(t => t.cancel());
+				}
+			} else {
+				this.cancelAllRequests();
+			}
+
 			this.model.clearThreads(this.getId(), false, threadId);
 			this._onDidChangeState.fire();
 		}));
@@ -783,7 +816,7 @@ export class DebugSession implements IDebugSession {
 				source: this.getSource(event.body.source)
 			} : undefined;
 			if (event.body.variablesReference) {
-				const container = new ExpressionContainer(this, event.body.variablesReference, generateUuid());
+				const container = new ExpressionContainer(this, undefined, event.body.variablesReference, generateUuid());
 				outpuPromises.push(container.getChildren().then(children => {
 					return Promise.all(waitFor).then(() => children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
@@ -811,7 +844,7 @@ export class DebugSession implements IDebugSession {
 				}], false);
 				if (bps.length === 1) {
 					const data = new Map<string, DebugProtocol.Breakpoint>([[bps[0].getId(), event.body.breakpoint]]);
-					this.model.setBreakpointSessionData(this.getId(), data);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 				}
 			}
 
@@ -830,11 +863,11 @@ export class DebugSession implements IDebugSession {
 						event.body.breakpoint.column = undefined;
 					}
 					const data = new Map<string, DebugProtocol.Breakpoint>([[breakpoint.getId(), event.body.breakpoint]]);
-					this.model.setBreakpointSessionData(this.getId(), data);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 				}
 				if (functionBreakpoint) {
 					const data = new Map<string, DebugProtocol.Breakpoint>([[functionBreakpoint.getId(), event.body.breakpoint]]);
-					this.model.setBreakpointSessionData(this.getId(), data);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 				}
 			}
 		}));
@@ -852,6 +885,7 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
 			this.initialized = true;
+			this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
 			this._onDidEndAdapter.fire(event);
 		}));
 	}
@@ -860,6 +894,7 @@ export class DebugSession implements IDebugSession {
 		dispose(this.rawListeners);
 		if (this.raw) {
 			this.raw.disconnect();
+			this.raw.dispose();
 		}
 		this.raw = undefined;
 		this.model.clearThreads(this.getId(), true);
@@ -891,6 +926,30 @@ export class DebugSession implements IDebugSession {
 		return source;
 	}
 
+	private getRawSource(uri: URI): DebugProtocol.Source {
+		const source = this.getSourceForUri(uri);
+		if (source) {
+			return source.raw;
+		} else {
+			const data = Source.getEncodedDebugData(uri);
+			return { name: data.name, path: data.path, sourceReference: data.sourceReference };
+		}
+	}
+
+	private getNewCancellationToken(threadId: number): CancellationToken {
+		const tokenSource = new CancellationTokenSource();
+		const tokens = this.cancellationMap.get(threadId) || [];
+		tokens.push(tokenSource);
+		this.cancellationMap.set(threadId, tokens);
+
+		return tokenSource.token;
+	}
+
+	private cancelAllRequests(): void {
+		this.cancellationMap.forEach(tokens => tokens.forEach(t => t.cancel()));
+		this.cancellationMap.clear();
+	}
+
 	private getUriKey(uri: URI): string {
 		// TODO: the following code does not make sense if uri originates from a different platform
 		return platform.isLinux ? uri.toString() : uri.toString().toLowerCase();
@@ -902,27 +961,31 @@ export class DebugSession implements IDebugSession {
 		return this.repl.getReplElements();
 	}
 
+	hasSeparateRepl(): boolean {
+		return !this.parentSession || this._options.repl !== 'mergeWithParent';
+	}
+
 	removeReplExpressions(): void {
 		this.repl.removeReplExpressions();
 		this._onDidChangeREPLElements.fire();
 	}
 
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		const viewModel = this.debugService.getViewModel();
-		await this.repl.addReplExpression(stackFrame, name);
+		const expressionEvaluated = this.repl.addReplExpression(this, stackFrame, name);
+		this._onDidChangeREPLElements.fire();
+		await expressionEvaluated;
 		this._onDidChangeREPLElements.fire();
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-		this.debugService.focusStackFrame(viewModel.focusedStackFrame, viewModel.focusedThread, viewModel.focusedSession);
 		variableSetEmitter.fire();
 	}
 
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
-		this.repl.appendToRepl(data, severity, source);
+		this.repl.appendToRepl(this, data, severity, source);
 		this._onDidChangeREPLElements.fire();
 	}
 
 	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
-		this.repl.logToRepl(sev, args, frame);
+		this.repl.logToRepl(this, sev, args, frame);
 		this._onDidChangeREPLElements.fire();
 	}
 }

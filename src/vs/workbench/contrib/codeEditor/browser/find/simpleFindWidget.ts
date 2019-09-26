@@ -59,7 +59,7 @@ export abstract class SimpleFindWidget extends Widget {
 					return null;
 				} catch (e) {
 					this.foundMatch = false;
-					this._updateButtons();
+					this.updateButtons(this.foundMatch);
 					return { content: e.message };
 				}
 			}
@@ -70,7 +70,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this.oninput(this._findInput.domNode, (e) => {
 			this.foundMatch = this.onInputChanged();
-			this._updateButtons();
+			this.updateButtons(this.foundMatch);
 			this._delayedUpdateHistory();
 		});
 
@@ -209,7 +209,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
-		this._updateButtons();
+		this.updateButtons(this.foundMatch);
 
 		setTimeout(() => {
 			dom.addClass(this._innerDomNode, 'visible');
@@ -240,7 +240,7 @@ export abstract class SimpleFindWidget extends Widget {
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
-				this._updateButtons();
+				this.updateButtons(this.foundMatch);
 				dom.removeClass(this._innerDomNode, 'visible');
 			}, 200);
 		}
@@ -266,10 +266,10 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._findInput.getCaseSensitive();
 	}
 
-	private _updateButtons() {
-		let hasInput = this.inputValue.length > 0;
-		this.prevBtn.setEnabled(this._isVisible && hasInput && this.foundMatch);
-		this.nextBtn.setEnabled(this._isVisible && hasInput && this.foundMatch);
+	protected updateButtons(foundMatch: boolean) {
+		const hasInput = this.inputValue.length > 0;
+		this.prevBtn.setEnabled(this._isVisible && hasInput && foundMatch);
+		this.nextBtn.setEnabled(this._isVisible && hasInput && foundMatch);
 	}
 }
 

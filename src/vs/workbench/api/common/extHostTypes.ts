@@ -1146,12 +1146,6 @@ export class SelectionRange {
 	}
 }
 
-
-export enum CallHierarchyDirection {
-	CallsFrom = 1,
-	CallsTo = 2,
-}
-
 export class CallHierarchyItem {
 	kind: SymbolKind;
 	name: string;
@@ -1167,6 +1161,27 @@ export class CallHierarchyItem {
 		this.uri = uri;
 		this.range = range;
 		this.selectionRange = selectionRange;
+	}
+}
+
+export class CallHierarchyIncomingCall {
+
+	source: vscode.CallHierarchyItem;
+	sourceRanges: vscode.Range[];
+
+	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
+		this.sourceRanges = sourceRanges;
+		this.source = item;
+	}
+}
+export class CallHierarchyOutgoingCall {
+
+	target: vscode.CallHierarchyItem;
+	sourceRanges: vscode.Range[];
+
+	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
+		this.sourceRanges = sourceRanges;
+		this.target = item;
 	}
 }
 
@@ -2337,6 +2352,22 @@ export enum CommentMode {
 
 //#endregion
 
+//#region debug
+export enum DebugConsoleMode {
+	/**
+	 * Debug session should have a separate debug console.
+	 */
+	Separate = 0,
+
+	/**
+	 * Debug session should share debug console with its parent session.
+	 * This value has no effect for sessions which do not have a parent session.
+	 */
+	MergeWithParent = 1
+}
+
+//#endregion
+
 @es5ClassCompat
 export class QuickInputButtons {
 
@@ -2366,4 +2397,10 @@ export class Decoration {
 	color?: vscode.ThemeColor;
 	priority?: number;
 	bubble?: boolean;
+}
+
+export enum WebviewEditorState {
+	Readonly = 1,
+	Unchanged = 2,
+	Dirty = 3,
 }

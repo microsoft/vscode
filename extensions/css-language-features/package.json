@@ -59,6 +59,12 @@
             "default": true,
             "description": "%css.completion.triggerPropertyValueCompletion.desc%"
           },
+          "css.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.completion.completePropertyWithSemicolon.desc%"
+          },
           "css.validate": {
             "type": "boolean",
             "scope": "resource",

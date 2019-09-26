@@ -224,7 +224,7 @@ export class SearchView extends ViewletPanel {
 
 		// Toggle query details button
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
-			$('.more', { tabindex: 0, role: 'button', title: nls.localize('moreSearch', "Toggle Search Details") }));
+			$('.more.codicon.codicon-ellipsis', { tabindex: 0, role: 'button', title: nls.localize('moreSearch', "Toggle Search Details") }));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -298,7 +298,7 @@ export class SearchView extends ViewletPanel {
 		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
 
 		this._register(this.searchWidget.searchInput.onInput(() => this.updateActions()));
-		this._register(this.searchWidget.replaceInput.onDidChange(() => this.updateActions()));
+		this._register(this.searchWidget.replaceInput.onInput(() => this.updateActions()));
 
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
@@ -711,7 +711,7 @@ export class SearchView extends ViewletPanel {
 		const [selected] = this.tree.getSelection();
 
 		// Expand the initial selected node, if needed
-		if (selected instanceof FileMatch) {
+		if (selected && !(selected instanceof Match)) {
 			if (this.tree.isCollapsed(selected)) {
 				this.tree.expand(selected);
 			}
@@ -721,23 +721,24 @@ export class SearchView extends ViewletPanel {
 
 		let next = navigator.next();
 		if (!next) {
-			// Reached the end - get a new navigator from the root.
-			navigator = this.tree.navigate();
 			next = navigator.first();
 		}
 
-		// Expand and go past FileMatch nodes
+		// Expand until first child is a Match
 		while (!(next instanceof Match)) {
 			if (this.tree.isCollapsed(next)) {
 				this.tree.expand(next);
 			}
 
-			// Select the FileMatch's first child
+			// Select the first child
 			next = navigator.next();
 		}
 
 		// Reveal the newly selected element
 		if (next) {
+			if (next === selected) {
+				this.tree.setFocus([]);
+			}
 			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false));
 			this.tree.reveal(next);
 		}
@@ -749,34 +750,24 @@ export class SearchView extends ViewletPanel {
 
 		let prev = navigator.previous();
 
-		// Expand and go past FileMatch nodes
-		if (!(prev instanceof Match)) {
-			prev = navigator.previous();
-			if (!prev) {
-				// Wrap around
-				prev = navigator.last();
+		// Select previous until find a Match or a collapsed item
+		while (!prev || (!(prev instanceof Match) && !this.tree.isCollapsed(prev))) {
+			prev = prev ? navigator.previous() : navigator.last();
+		}
 
-				// This is complicated because .last will set the navigator to the last FileMatch,
-				// so expand it and FF to its last child
-				this.tree.expand(prev);
-				let tmp: RenderableMatch | null;
-				while (tmp = navigator.next()) {
-					prev = tmp;
-				}
-			}
-
-			if (!(prev instanceof Match)) {
-				// There is a second non-Match result, which must be a collapsed FileMatch.
-				// Expand it then select its last child.
-				const nextItem = navigator.next();
-				this.tree.expand(prev);
-				navigator = this.tree.navigate(nextItem); // recreate navigator because modifying the tree can invalidate it
-				prev = navigator.previous();
-			}
+		// Expand until last child is a Match
+		while (!(prev instanceof Match)) {
+			const nextItem = navigator.next();
+			this.tree.expand(prev);
+			navigator = this.tree.navigate(nextItem); // recreate navigator because modifying the tree can invalidate it
+			prev = nextItem ? navigator.previous() : navigator.last(); // select last child
 		}
 
 		// Reveal the newly selected element
 		if (prev) {
+			if (prev === selected) {
+				this.tree.setFocus([]);
+			}
 			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false));
 			this.tree.reveal(prev);
 		}
@@ -1057,10 +1048,10 @@ export class SearchView extends ViewletPanel {
 			this.searchWidget.searchInput.setValue(args.query);
 		}
 		if (typeof args.replace === 'string') {
-			this.searchWidget.replaceInput.value = args.replace;
+			this.searchWidget.replaceInput.setValue(args.replace);
 		} else {
-			if (this.searchWidget.replaceInput.value !== '') {
-				this.searchWidget.replaceInput.value = '';
+			if (this.searchWidget.replaceInput.getValue() !== '') {
+				this.searchWidget.replaceInput.setValue('');
 			}
 		}
 		if (typeof args.triggerSearch === 'boolean' && args.triggerSearch) {
@@ -1232,7 +1223,7 @@ export class SearchView extends ViewletPanel {
 				return this.fileService.exists(fq.folder);
 			});
 
-		return Promise.resolve(folderQueriesExistP).then(existResults => {
+		return Promise.all(folderQueriesExistP).then(existResults => {
 			// If no folders exist, show an error message about the first one
 			const existingFolderQueries = query.folderQueries.filter((folderQuery, i) => existResults[i]);
 			if (!query.folderQueries.length || existingFolderQueries.length) {

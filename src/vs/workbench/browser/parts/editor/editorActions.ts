@@ -467,7 +467,7 @@ export class CloseEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'close-editor-action');
+		super(id, label, 'codicon-close');
 	}
 
 	run(context?: IEditorCommandsContext): Promise<any> {
@@ -485,7 +485,7 @@ export class CloseOneEditorAction extends Action {
 		label: string,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, 'close-editor-action');
+		super(id, label, 'codicon-close');
 	}
 
 	run(context?: IEditorCommandsContext): Promise<any> {
@@ -669,7 +669,7 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, 'action-close-all-files', textFileService, editorGroupService);
+		super(id, label, 'codicon-close-all', textFileService, editorGroupService);
 	}
 
 	protected doCloseAll(): Promise<any> {

@@ -19,7 +19,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import { IWorkspaceEditDto, IResourceTextEditDto, IResourceFileEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -30,6 +30,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+
 
 export interface PositionLike {
 	line: number;
@@ -473,8 +474,8 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): IWorkspaceEditDto {
-		const result: IWorkspaceEditDto = {
+	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): extHostProtocol.IWorkspaceEditDto {
+		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
 		for (const entry of (value as types.WorkspaceEdit)._allEntries()) {
@@ -482,28 +483,28 @@ export namespace WorkspaceEdit {
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
 				const doc = documents && uri ? documents.getDocument(uri) : undefined;
-				result.edits.push(<IResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
+				result.edits.push(<extHostProtocol.IResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
-				result.edits.push(<IResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
+				result.edits.push(<extHostProtocol.IResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
 			}
 		}
 		return result;
 	}
 
-	export function to(value: IWorkspaceEditDto) {
+	export function to(value: extHostProtocol.IWorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
-			if (Array.isArray((<IResourceTextEditDto>edit).edits)) {
+			if (Array.isArray((<extHostProtocol.IResourceTextEditDto>edit).edits)) {
 				result.set(
-					URI.revive((<IResourceTextEditDto>edit).resource),
-					<types.TextEdit[]>(<IResourceTextEditDto>edit).edits.map(TextEdit.to)
+					URI.revive((<extHostProtocol.IResourceTextEditDto>edit).resource),
+					<types.TextEdit[]>(<extHostProtocol.IResourceTextEditDto>edit).edits.map(TextEdit.to)
 				);
 			} else {
 				result.renameFile(
-					URI.revive((<IResourceFileEditDto>edit).oldUri!),
-					URI.revive((<IResourceFileEditDto>edit).newUri!),
-					(<IResourceFileEditDto>edit).options
+					URI.revive((<extHostProtocol.IResourceFileEditDto>edit).oldUri!),
+					URI.revive((<extHostProtocol.IResourceFileEditDto>edit).newUri!),
+					(<extHostProtocol.IResourceFileEditDto>edit).options
 				);
 			}
 		}
@@ -625,6 +626,32 @@ export namespace DocumentSymbol {
 		return result;
 	}
 }
+
+export namespace CallHierarchyItem {
+
+	export function from(item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
+		return {
+			name: item.name,
+			detail: item.detail,
+			kind: SymbolKind.from(item.kind),
+			uri: item.uri,
+			range: Range.from(item.range),
+			selectionRange: Range.from(item.selectionRange),
+		};
+	}
+
+	export function to(item: extHostProtocol.ICallHierarchyItemDto): vscode.CallHierarchyItem {
+		return new types.CallHierarchyItem(
+			SymbolKind.to(item.kind),
+			item.name,
+			item.detail || '',
+			URI.revive(item.uri),
+			Range.to(item.range),
+			Range.to(item.selectionRange)
+		);
+	}
+}
+
 
 export namespace location {
 	export function from(value: vscode.Location): modes.Location {
@@ -1134,5 +1161,15 @@ export namespace LogLevel {
 		}
 
 		return types.LogLevel.Info;
+	}
+}
+export namespace WebviewEditorState {
+	export function from(state: vscode.WebviewEditorState): modes.WebviewEditorState {
+		switch (state) {
+			case types.WebviewEditorState.Readonly: return modes.WebviewEditorState.Readonly;
+			case types.WebviewEditorState.Unchanged: return modes.WebviewEditorState.Unchanged;
+			case types.WebviewEditorState.Dirty: return modes.WebviewEditorState.Dirty;
+			default: throw new Error('Unknown vscode.WebviewEditorState');
+		}
 	}
 }

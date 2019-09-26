@@ -422,6 +422,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
 		});
+		this._taskService.setJsonTasksSupported(Promise.resolve(this._proxy.$jsonTasksSupported()));
 	}
 
 	public dispose(): void {
@@ -626,6 +627,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 						});
 					});
 				});
+			},
+			getDefaultShellAndArgs: (): Promise<{ shell: string, args: string[] | string | undefined }> => {
+				return Promise.resolve(this._proxy.$getDefaultShellAndArgs());
 			}
 		});
 	}

@@ -5691,7 +5691,7 @@ declare module 'vscode' {
 		 * event should fire for resources that are being [watched](#FileSystemProvider.watch)
 		 * by clients of this provider.
 		 */
-		readonly onDidChangeFile: Event<FileChangeEvent[]>;
+		readonly onDidChangeFile: Event<readonly FileChangeEvent[]>;
 
 		/**
 		 * Subscribe to events in the file or folder denoted by `uri`.
@@ -6398,7 +6398,7 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the array of [visible editors](#window.visibleTextEditors)
 		 * has changed.
 		 */
-		export const onDidChangeVisibleTextEditors: Event<TextEditor[]>;
+		export const onDidChangeVisibleTextEditors: Event<readonly TextEditor[]>;
 
 		/**
 		 * An [event](#Event) which fires when the selection in an editor has changed.
@@ -7015,6 +7015,11 @@ declare module 'vscode' {
 		readonly onDidChangeVisibility: Event<TreeViewVisibilityChangeEvent>;
 
 		/**
+		 * An optional human-readable message that will be rendered in the view.
+		 */
+		message?: string;
+
+		/**
 		 * Reveals the given element in the tree view.
 		 * If the tree view is not visible then the tree view is shown and element is revealed.
 		 *
@@ -7588,7 +7593,7 @@ declare module 'vscode' {
 		/**
 		 * An event signaling when the active items have changed.
 		 */
-		readonly onDidChangeActive: Event<T[]>;
+		readonly onDidChangeActive: Event<readonly T[]>;
 
 		/**
 		 * Selected items. This can be read and updated by the extension.
@@ -7598,7 +7603,7 @@ declare module 'vscode' {
 		/**
 		 * An event signaling when the selected items have changed.
 		 */
-		readonly onDidChangeSelection: Event<T[]>;
+		readonly onDidChangeSelection: Event<readonly T[]>;
 	}
 
 	/**
@@ -8059,7 +8064,8 @@ declare module 'vscode' {
 		 * * `file`-scheme: Open a file on disk, will be rejected if the file does not exist or cannot be loaded.
 		 * * `untitled`-scheme: A new file that should be saved on disk, e.g. `untitled:c:\frodo\new.js`. The language
 		 * will be derived from the file name.
-		 * * For all other schemes the registered text document content [providers](#TextDocumentContentProvider) are consulted.
+		 * * For all other schemes contributed [text document content providers](#TextDocumentContentProvider) and
+		 * [file system providers](#FileSystemProvider) are consulted.
 		 *
 		 * *Note* that the lifecycle of the returned document is owned by the editor and not by the extension. That means an
 		 * [`onDidClose`](#workspace.onDidCloseTextDocument)-event can occur at any time after opening it.
@@ -8192,7 +8198,7 @@ declare module 'vscode' {
 		 * @param options Immutable metadata about the provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { isCaseSensitive?: boolean, isReadonly?: boolean }): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean, readonly isReadonly?: boolean }): Disposable;
 	}
 
 	/**
@@ -8902,9 +8908,10 @@ declare module 'vscode' {
 		readonly type: string;
 
 		/**
-		 * The debug session's name from the [debug configuration](#DebugConfiguration).
+		 * The debug session's name is initially taken from the [debug configuration](#DebugConfiguration).
+		 * Any changes will be properly reflected in the UI.
 		 */
-		readonly name: string;
+		name: string;
 
 		/**
 		 * The workspace folder of this session or `undefined` for a folderless setup.

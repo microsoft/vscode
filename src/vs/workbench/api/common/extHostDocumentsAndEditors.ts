@@ -7,19 +7,16 @@ import * as assert from 'vs/base/common/assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
 	readonly _serviceBrand: undefined;
-
-	private _disposables: Disposable[] = [];
 
 	private _activeEditorId: string | null = null;
 
@@ -39,10 +36,6 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	constructor(
 		@IExtHostRpcService private readonly _extHostRpc: IExtHostRpcService,
 	) { }
-
-	dispose() {
-		this._disposables = dispose(this._disposables);
-	}
 
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
 

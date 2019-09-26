@@ -469,11 +469,11 @@
         },
         {
           "command": "git.clean",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && !gitFreshRepository"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.cleanAll",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && !gitFreshRepository"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.commit",
@@ -763,7 +763,7 @@
         {
           "command": "git.cleanAll",
           "group": "5_stage",
-          "when": "scmProvider == git && !gitFreshRepository"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.stashIncludeUntracked",
@@ -831,7 +831,7 @@
         },
         {
           "command": "git.cleanAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification"
         },
         {
@@ -841,13 +841,60 @@
         },
         {
           "command": "git.cleanAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
         },
         {
           "command": "git.stageAll",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
+        }
+      ],
+      "scm/resourceFolder/context": [
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "inline"
+        },
+        {
+          "command": "git.unstage",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.unstage",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "inline"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline"
+        },
+        {
+          "command": "git.ignore",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification@3"
         }
       ],
       "scm/resourceState/context": [
@@ -933,12 +980,12 @@
         },
         {
           "command": "git.clean",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification"
         },
         {
           "command": "git.clean",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
         },
         {

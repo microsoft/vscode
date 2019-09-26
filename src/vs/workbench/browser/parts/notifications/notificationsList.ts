@@ -8,7 +8,7 @@ import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
-import { Themable, NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND } from 'vs/workbench/common/theme';
+import { Themable, NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
@@ -103,7 +103,7 @@ export class NotificationsList extends Themable {
 
 		// Clear focus when DOM focus moves out
 		// Use document.hasFocus() to not clear the focus when the entire window lost focus
-		// This ensures that when the focus comes back, the notifciation is still focused
+		// This ensures that when the focus comes back, the notification is still focused
 		const listFocusTracker = this._register(trackFocus(this.list.getHTMLElement()));
 		this._register(listFocusTracker.onDidBlur(() => {
 			if (document.hasFocus()) {
@@ -254,6 +254,36 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 		.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
 			outline-color: ${focusOutline};
+		}`);
+	}
+
+	// Notification Error Icon
+	const notificationErrorIconForegroundColor = theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND);
+	if (notificationErrorIconForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .notifications-center .codicon-error,
+		.monaco-workbench .notifications-toasts .codicon-error {
+			color: ${notificationErrorIconForegroundColor};
+		}`);
+	}
+
+	// Notification Warning Icon
+	const notificationWarningIconForegroundColor = theme.getColor(NOTIFICATIONS_WARNING_ICON_FOREGROUND);
+	if (notificationWarningIconForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .notifications-center .codicon-warning,
+		.monaco-workbench .notifications-toasts .codicon-warning {
+			color: ${notificationWarningIconForegroundColor};
+		}`);
+	}
+
+	// Notification Info Icon
+	const notificationInfoIconForegroundColor = theme.getColor(NOTIFICATIONS_INFO_ICON_FOREGROUND);
+	if (notificationInfoIconForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .notifications-center .codicon-info,
+		.monaco-workbench .notifications-toasts .codicon-info {
+			color: ${notificationInfoIconForegroundColor};
 		}`);
 	}
 });
