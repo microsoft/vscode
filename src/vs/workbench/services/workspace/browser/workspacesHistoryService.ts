@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event } from 'vs/base/common/event';
+import { IRecent, IRecentlyOpened, isRecentFolder, isRecentFile } from 'vs/platform/workspaces/common/workspacesHistory';
+import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
+import { restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspacesHistoryStorage';
+import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 
-//#region Window
+export class BrowserWorkspacesHistoryService extends Disposable implements IWorkspacesHistoryService {
 
-export class SimpleWindowService extends Disposable implements IWindowService {
+	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
 
 	_serviceBrand: undefined;
 
-	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
+	private readonly _onRecentlyOpenedChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onRecentlyOpenedChange: Event<void> = this._onRecentlyOpenedChange.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -30,6 +31,16 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		super();
 
 		this.addWorkspaceToRecentlyOpened();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.storageService.onDidChangeStorage(event => {
+			if (event.key === BrowserWorkspacesHistoryService.RECENTLY_OPENED_KEY && event.scope === StorageScope.GLOBAL) {
+				this._onRecentlyOpenedChange.fire();
+			}
+		}));
 	}
 
 	private addWorkspaceToRecentlyOpened(): void {
@@ -45,7 +56,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	}
 
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
-		const recentlyOpenedRaw = this.storageService.get(SimpleWindowService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
+		const recentlyOpenedRaw = this.storageService.get(BrowserWorkspacesHistoryService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
 		if (recentlyOpenedRaw) {
 			return restoreRecentlyOpened(JSON.parse(recentlyOpenedRaw), this.logService);
 		}
@@ -91,41 +102,12 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	}
 
 	private async saveRecentlyOpened(data: IRecentlyOpened): Promise<void> {
-		return this.storageService.store(SimpleWindowService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL);
+		return this.storageService.store(BrowserWorkspacesHistoryService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL);
+	}
+
+	async clearRecentlyOpened(): Promise<void> {
+		this.storageService.remove(BrowserWorkspacesHistoryService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
 	}
 }
 
-registerSingleton(IWindowService, SimpleWindowService);
-
-//#endregion
-
-//#region Window
-
-export class SimpleWindowsService implements IWindowsService {
-	_serviceBrand: undefined;
-
-	readonly onRecentlyOpenedChange: Event<void> = Event.None;
-
-	addRecentlyOpened(recents: IRecent[]): Promise<void> {
-		return Promise.resolve();
-	}
-
-	removeFromRecentlyOpened(_paths: URI[]): Promise<void> {
-		return Promise.resolve();
-	}
-
-	clearRecentlyOpened(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	getRecentlyOpened(_windowId: number): Promise<IRecentlyOpened> {
-		return Promise.resolve({
-			workspaces: [],
-			files: []
-		});
-	}
-}
-
-registerSingleton(IWindowsService, SimpleWindowsService);
-
-//#endregion
+registerSingleton(IWorkspacesHistoryService, BrowserWorkspacesHistoryService, true);

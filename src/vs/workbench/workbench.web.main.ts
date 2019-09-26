@@ -45,7 +45,8 @@ import 'vs/workbench/services/dialogs/browser/dialogService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/request/browser/requestService';
-import 'vs/workbench/browser/web.simpleservices';
+import 'vs/workbench/services/workspace/browser/workspacesHistoryService';
+import 'vs/workbench/services/workspace/browser/workspaceEditingService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -62,11 +63,12 @@ import { IExtensionManagementService } from 'vs/platform/extensionManagement/com
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';
-import { IUserDataSyncStoreService, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { ILoggerService } from 'vs/platform/log/common/log';
+import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { WorkspaceEditingService } from 'vs/workbench/services/workspace/browser/workspaceEditingService';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
@@ -75,9 +77,10 @@ registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
 registerSingleton(ILifecycleService, BrowserLifecycleService);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ITunnelService, NoOpTunnelService, true);
+registerSingleton(ILoggerService, FileLoggerService);
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
-registerSingleton(IWorkspaceEditingService, WorkspaceEditingService, true);
 
 //#endregion
 

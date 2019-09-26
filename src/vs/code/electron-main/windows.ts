@@ -24,8 +24,8 @@ import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { IRecent } from 'vs/platform/history/common/history';
-import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
+import { IRecent } from 'vs/platform/workspaces/common/workspacesHistory';
+import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension, IEnterWorkspaceResult } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -192,7 +192,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHistoryMainService private readonly historyMainService: IHistoryMainService,
+		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -508,7 +508,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 					recents.push({ label: pathToOpen.label, fileUri: pathToOpen.fileUri });
 				}
 			}
-			this.historyMainService.addRecentlyOpened(recents);
+			this.workspacesHistoryMainService.addRecentlyOpened(recents);
 		}
 
 		// If we got started with --wait from the CLI, we need to signal to the outside when the window
@@ -1128,7 +1128,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			}
 		} catch (error) {
 			const fileUri = URI.file(candidate);
-			this.historyMainService.removeFromRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
+			this.workspacesHistoryMainService.removeFromRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
 
 			// assume this is a file that does not yet exist
 			if (options && options.ignoreFileNotFound) {
@@ -1589,7 +1589,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	private doEnterWorkspace(win: ICodeWindow, result: IEnterWorkspaceResult): IEnterWorkspaceResult {
 
 		// Mark as recently opened
-		this.historyMainService.addRecentlyOpened([{ workspace: result.workspace }]);
+		this.workspacesHistoryMainService.addRecentlyOpened([{ workspace: result.workspace }]);
 
 		// Trigger Eevent to indicate load of workspace into window
 		this._onWindowReady.fire(win);

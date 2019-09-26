@@ -13,6 +13,7 @@ import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const DEFAULT_IGNORED_SETTINGS = [
 	'configurationSync.enable',
@@ -159,6 +160,12 @@ export interface ISettingsMergeService {
 	merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[]): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
 
 	computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: string[]): Promise<string>;
+
+}
+
+export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');
+
+export interface IUserDataSyncLogService extends ILogService {
 
 }
 
