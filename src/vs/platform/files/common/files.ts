@@ -399,9 +399,9 @@ export interface IFileChange {
 
 export class FileChangesEvent {
 
-	private _changes: IFileChange[];
+	private readonly _changes: readonly IFileChange[];
 
-	constructor(changes: IFileChange[]) {
+	constructor(changes: readonly IFileChange[]) {
 		this._changes = changes;
 	}
 
