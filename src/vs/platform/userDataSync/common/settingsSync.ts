@@ -5,12 +5,11 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService, DEFAULT_IGNORED_SETTINGS } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService, DEFAULT_IGNORED_SETTINGS, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
@@ -49,7 +48,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@ISettingsMergeService private readonly settingsMergeService: ISettingsMergeService,
-		@ILogService private readonly logService: ILogService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
@@ -93,11 +92,13 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			return false;
 		}
 
+		this.logService.trace('Synchronising Settings...');
 		this.setStatus(SyncStatus.Syncing);
 
 		try {
 			const result = await this.getPreview();
 			if (result.hasConflicts) {
+				this.logService.info('Detected conflicts while synchronising Settings. Suspended until conflicts are resolved.');
 				this.setStatus(SyncStatus.HasConflicts);
 				return false;
 			}
@@ -126,6 +127,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			this.syncPreviewResultPromise = null;
 		}
 		this.fileService.del(this.environmentService.settingsSyncPreviewResource);
+		this.logService.trace('Stopped Synchronising Settings.');
 		this.setStatus(SyncStatus.Idle);
 	}
 
@@ -166,6 +168,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			await this.fileService.del(this.environmentService.settingsSyncPreviewResource);
 		}
 
+		this.logService.trace('Finised Synchronising Settings.');
 		this.syncPreviewResultPromise = null;
 		this.setStatus(SyncStatus.Idle);
 	}
