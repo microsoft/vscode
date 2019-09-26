@@ -43,7 +43,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	constructor(
 		private readonly id: string,
-		_options: WebviewOptions,
+		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IThemeService themeService: IThemeService,
 		@ITunnelService tunnelService: ITunnelService,
@@ -69,6 +69,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		};
 
 		this.element = document.createElement('iframe');
+		this.element.className = `webview ${options.customClasses}`;
 		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
 		this.element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		this.element.style.border = 'none';

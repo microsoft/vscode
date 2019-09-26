@@ -41,6 +41,7 @@ export interface IWebviewService {
 }
 
 export interface WebviewOptions {
+	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;

@@ -26,6 +26,8 @@ import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { CustomFileEditorInput } from './customEditorInput';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 
 const defaultEditorId = 'default';
 
@@ -151,10 +153,11 @@ export class CustomEditorService implements ICustomEditorService {
 	public createInput(
 		resource: URI,
 		viewType: string,
-		group: IEditorGroup | undefined
+		group: IEditorGroup | undefined,
+		options?: { readonly customClasses: string },
 	): CustomFileEditorInput {
 		const id = generateUuid();
-		const webview = this.webviewService.createWebviewEditorOverlay(id, {}, {});
+		const webview = this.webviewService.createWebviewEditorOverlay(id, { customClasses: options ? options.customClasses : undefined }, {});
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, new UnownedDisposable(webview));
 		if (group) {
 			input.updateGroup(group!.id);
@@ -204,7 +207,7 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		}
 
 		if (editor instanceof DiffEditorInput) {
-			const getCustomEditorOverrideForSubInput = (subInput: IEditorInput): EditorInput | undefined => {
+			const getCustomEditorOverrideForSubInput = (subInput: IEditorInput, customClasses: string): EditorInput | undefined => {
 				if (subInput instanceof CustomFileEditorInput) {
 					return undefined;
 				}
@@ -218,14 +221,15 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 					...this.customEditorService.getContributedCustomEditors(resource),
 				], editor => editor.id);
 
+				if (!editors.length) {
+					return undefined;
+				}
 				// Always prefer the first editor in the diff editor case
-				return editors.length
-					? this.customEditorService.createInput(resource, editors[0].id, group)
-					: undefined;
+				return this.customEditorService.createInput(resource, editors[0].id, group, { customClasses });
 			};
 
-			const modifiedOverride = getCustomEditorOverrideForSubInput(editor.modifiedInput);
-			const originalOverride = getCustomEditorOverrideForSubInput(editor.originalInput);
+			const modifiedOverride = getCustomEditorOverrideForSubInput(editor.modifiedInput, 'modified');
+			const originalOverride = getCustomEditorOverrideForSubInput(editor.originalInput, 'original');
 
 			if (modifiedOverride || originalOverride) {
 				return {
@@ -314,3 +318,10 @@ function matches(selector: CustomEditorSelector, resource: URI): boolean {
 
 	return false;
 }
+
+registerThemingParticipant((theme, collector) => {
+	const shadow = theme.getColor(colorRegistry.scrollbarShadow);
+	if (shadow) {
+		collector.addRule(`.webview.modified { box-shadow: -6px 0 5px -5px ${shadow}; }`);
+	}
+});
