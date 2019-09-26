@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -27,18 +25,8 @@ export interface INativeOpenDialogOptions {
 }
 
 export interface IWindowsService {
-
 	_serviceBrand: undefined;
-
-	readonly onRecentlyOpenedChange: Event<void>;
-
-	addRecentlyOpened(recents: IRecent[]): Promise<void>;
-	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
-	clearRecentlyOpened(): Promise<void>;
-	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
 }
-
-export const IWindowService = createDecorator<IWindowService>('windowService');
 
 export interface IOpenedWindow {
 	id: number;
@@ -91,15 +79,6 @@ export function isFolderToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFolder
 
 export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOpen {
 	return !!(uriToOpen as IFileToOpen).fileUri;
-}
-
-export interface IWindowService {
-
-	_serviceBrand: undefined;
-
-	getRecentlyOpened(): Promise<IRecentlyOpened>;
-	addRecentlyOpened(recents: IRecent[]): Promise<void>;
-	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';

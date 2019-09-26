@@ -13,6 +13,9 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
+import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
+import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
+import { URI } from 'vs/base/common/uri';
 
 export class ElectronMainService implements AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number /* window ID */> {
 
@@ -21,7 +24,8 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IHistoryMainService private readonly historyMainService: IHistoryMainService
 	) {
 	}
 
@@ -323,6 +327,33 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 
 	async startCrashReporter(windowId: number, options: CrashReporterStartOptions): Promise<void> {
 		crashReporter.start(options);
+	}
+
+	//#endregion
+
+	//#region Workspaces History
+
+	readonly onRecentlyOpenedChange = this.historyMainService.onRecentlyOpenedChange;
+
+	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return this.historyMainService.getRecentlyOpened(window.config.workspace, window.config.folderUri, window.config.filesToOpenOrCreate);
+		}
+
+		return this.historyMainService.getRecentlyOpened();
+	}
+
+	async addRecentlyOpened(windowId: number, recents: IRecent[]): Promise<void> {
+		return this.historyMainService.addRecentlyOpened(recents);
+	}
+
+	async removeFromRecentlyOpened(windowId: number, paths: URI[]): Promise<void> {
+		return this.historyMainService.removeFromRecentlyOpened(paths);
+	}
+
+	async clearRecentlyOpened(windowId: number): Promise<void> {
+		return this.historyMainService.clearRecentlyOpened();
 	}
 
 	//#endregion

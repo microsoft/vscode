@@ -8,6 +8,8 @@ import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDial
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions, IOpenedWindow, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
+import { URI } from 'vs/base/common/uri';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
 
@@ -83,4 +85,11 @@ export interface IElectronService {
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+
+	// Workspaces History
+	readonly onRecentlyOpenedChange: Event<void>;
+	getRecentlyOpened(): Promise<IRecentlyOpened>;
+	addRecentlyOpened(recents: IRecent[]): Promise<void>;
+	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
+	clearRecentlyOpened(): Promise<void>;
 }

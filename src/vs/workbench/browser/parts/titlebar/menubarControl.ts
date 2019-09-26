@@ -6,7 +6,8 @@
 import * as nls from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -85,8 +86,7 @@ export abstract class MenubarControl extends Disposable {
 
 	constructor(
 		protected readonly menuService: IMenuService,
-		protected readonly windowService: IWindowService,
-		protected readonly windowsService: IWindowsService,
+		protected readonly workspacesHistoryService: IWorkspacesHistoryService,
 		protected readonly contextKeyService: IContextKeyService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly configurationService: IConfigurationService,
@@ -128,7 +128,7 @@ export abstract class MenubarControl extends Disposable {
 		this.updateService.onStateChange(() => this.updateMenubar());
 
 		// Listen for changes in recently opened menu
-		this._register(this.windowsService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
+		this._register(this.workspacesHistoryService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
 
 		// Listen to keybindings change
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateMenubar()));
@@ -190,7 +190,7 @@ export abstract class MenubarControl extends Disposable {
 	}
 
 	private onRecentlyOpenedChange(): void {
-		this.windowService.getRecentlyOpened().then(recentlyOpened => {
+		this.workspacesHistoryService.getRecentlyOpened().then(recentlyOpened => {
 			this.recentlyOpened = recentlyOpened;
 			this.updateMenubar();
 		});
@@ -270,8 +270,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 	constructor(
 		@IMenuService menuService: IMenuService,
-		@IWindowService windowService: IWindowService,
-		@IWindowsService windowsService: IWindowsService,
+		@IWorkspacesHistoryService workspacesHistoryService: IWorkspacesHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -291,8 +290,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 		super(
 			menuService,
-			windowService,
-			windowsService,
+			workspacesHistoryService,
 			contextKeyService,
 			keybindingService,
 			configurationService,
@@ -309,7 +307,7 @@ export class CustomMenubarControl extends MenubarControl {
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
-		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
+		this.workspacesHistoryService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
 		});
 
