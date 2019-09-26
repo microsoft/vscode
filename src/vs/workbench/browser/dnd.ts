@@ -7,7 +7,7 @@ import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData } from 'vs/plat
 import { normalize } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -32,6 +32,7 @@ import { IRecentFile } from 'vs/platform/history/common/history';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -166,7 +167,8 @@ export class ResourcesDropHandler {
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IHostService private readonly hostService: IHostService
 	) {
 	}
 
@@ -177,7 +179,7 @@ export class ResourcesDropHandler {
 		}
 
 		// Make the window active to handle the drop properly within
-		await this.windowService.focusWindow();
+		await this.hostService.focus();
 
 		// Check for special things being dropped
 		const isWorkspaceOpening = await this.doHandleDrop(untitledOrFileResources);
@@ -262,14 +264,14 @@ export class ResourcesDropHandler {
 	}
 
 	private async handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
-		const urisToOpen: IURIToOpen[] = [];
+		const toOpen: IWindowOpenable[] = [];
 		const folderURIs: IWorkspaceFolderCreationData[] = [];
 
 		await Promise.all(fileOnDiskResources.map(async fileOnDiskResource => {
 
 			// Check for Workspace
 			if (hasWorkspaceFileExtension(fileOnDiskResource)) {
-				urisToOpen.push({ workspaceUri: fileOnDiskResource });
+				toOpen.push({ workspaceUri: fileOnDiskResource });
 
 				return;
 			}
@@ -278,7 +280,7 @@ export class ResourcesDropHandler {
 			try {
 				const stat = await this.fileService.resolve(fileOnDiskResource);
 				if (stat.isDirectory) {
-					urisToOpen.push({ folderUri: stat.resource });
+					toOpen.push({ folderUri: stat.resource });
 					folderURIs.push({ uri: stat.resource });
 				}
 			} catch (error) {
@@ -287,16 +289,16 @@ export class ResourcesDropHandler {
 		}));
 
 		// Return early if no external resource is a folder or workspace
-		if (urisToOpen.length === 0) {
+		if (toOpen.length === 0) {
 			return false;
 		}
 
 		// Pass focus to window
-		this.windowService.focusWindow();
+		this.hostService.focus();
 
 		// Open in separate windows if we drop workspaces or just one folder
-		if (urisToOpen.length > folderURIs.length || folderURIs.length === 1) {
-			await this.windowService.openWindow(urisToOpen, { forceReuseWindow: true });
+		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {
+			await this.hostService.openInWindow(toOpen, { forceReuseWindow: true });
 		}
 
 		// folders.length > 1: Multiple folders: Create new workspace with folders and open

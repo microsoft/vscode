@@ -98,7 +98,7 @@ enum UpdateResult {
 	InvalidPath
 }
 
-export class RemoteFileDialog {
+export class SimpleFileDialog {
 	private options!: IOpenDialogOptions;
 	private currentFolder!: URI;
 	private filePickBox!: IQuickPick<FileQuickPickItem>;
@@ -117,7 +117,7 @@ export class RemoteFileDialog {
 	private badPath: string | undefined;
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null | undefined;
 	private separator: string = '/';
-	private onBusyChangeEmitter = new Emitter<boolean>();
+	private readonly onBusyChangeEmitter = new Emitter<boolean>();
 	private updatingPromise: CancelablePromise<void> | undefined;
 
 	protected disposables: IDisposable[] = [
@@ -210,7 +210,7 @@ export class RemoteFileDialog {
 		return resources.toLocalResource(URI.from({ scheme: this.scheme, path }), this.scheme === Schemas.file ? undefined : this.remoteAuthority);
 	}
 
-	private getScheme(available: string[] | undefined, defaultUri: URI | undefined): string {
+	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
 		if (available) {
 			if (defaultUri && (available.indexOf(defaultUri.scheme) >= 0)) {
 				return defaultUri.scheme;
@@ -303,7 +303,7 @@ export class RemoteFileDialog {
 			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			this.filePickBox.items = [];
 
-			function doResolve(dialog: RemoteFileDialog, uri: URI | undefined) {
+			function doResolve(dialog: SimpleFileDialog, uri: URI | undefined) {
 				if (uri) {
 					uri = resources.removeTrailingPathSeparator(uri);
 				}
@@ -321,7 +321,7 @@ export class RemoteFileDialog {
 				isAcceptHandled = true;
 				isResolving++;
 				if (this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
-					this.options.availableFileSystems.shift();
+					this.options.availableFileSystems = this.options.availableFileSystems.slice(1);
 				}
 				this.filePickBox.hide();
 				if (isSave) {
@@ -335,7 +335,7 @@ export class RemoteFileDialog {
 				}
 			});
 
-			function handleAccept(dialog: RemoteFileDialog) {
+			function handleAccept(dialog: SimpleFileDialog) {
 				if (dialog.busy) {
 					// Save the accept until the file picker is not busy.
 					dialog.onBusyChangeEmitter.event((busy: boolean) => {

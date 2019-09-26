@@ -23,7 +23,7 @@ export class WorkbenchEnvironmentService extends EnvironmentService implements I
 		return baseEndpoint.replace('{{commit}}', product.commit || '211fa02efe8c041fd7baa8ec3dce199d5185aa44');
 	}
 
-	readonly webviewResourceRoot = 'vscode-resource:{{resource}}';
+	readonly webviewResourceRoot = 'vscode-resource://{{resource}}';
 	readonly webviewCspSource = 'vscode-resource:';
 
 	constructor(

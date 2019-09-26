@@ -1239,7 +1239,8 @@ namespace ConfigurationProperties {
 
 		{ property: 'name' }, { property: 'identifier' }, { property: 'group' }, { property: 'isBackground' },
 		{ property: 'promptOnClose' }, { property: 'dependsOn' },
-		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' }
+		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' },
+		{ property: 'options' }
 	];
 
 	export function from(this: void, external: ConfigurationProperties & { [key: string]: any; }, context: ParseContext, includeCommandOptions: boolean, properties?: IJSONSchemaMap): Tasks.ConfigurationProperties | undefined {

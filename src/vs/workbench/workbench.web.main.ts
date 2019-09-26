@@ -42,6 +42,7 @@ import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/contrib/stats/browser/workspaceStatsService';
 import 'vs/workbench/services/workspace/browser/workspacesService';
 import 'vs/workbench/services/dialogs/browser/dialogService';
+import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/request/browser/requestService';
 import 'vs/workbench/browser/web.simpleservices';
@@ -64,6 +65,8 @@ import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';
 import { IUserDataSyncStoreService, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { WorkspaceEditingService } from 'vs/workbench/services/workspace/browser/workspaceEditingService';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
@@ -74,6 +77,7 @@ registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ITunnelService, NoOpTunnelService, true);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
+registerSingleton(IWorkspaceEditingService, WorkspaceEditingService, true);
 
 //#endregion
 

@@ -7,7 +7,7 @@ import 'vs/css!./media/actions';
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -51,6 +51,7 @@ abstract class BaseOpenRecentAction extends Action {
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
 		private modeService: IModeService,
+		private hostService: IHostService
 	) {
 		super(id, label);
 	}
@@ -66,7 +67,7 @@ abstract class BaseOpenRecentAction extends Action {
 	private async openRecent(recentWorkspaces: Array<IRecentWorkspace | IRecentFolder>, recentFiles: IRecentFile[]): Promise<void> {
 
 		const toPick = (recent: IRecent, labelService: ILabelService, buttons: IQuickInputButton[] | undefined) => {
-			let uriToOpen: IURIToOpen | undefined;
+			let openable: IWindowOpenable | undefined;
 			let iconClasses: string[];
 			let fullLabel: string | undefined;
 			let resource: URI | undefined;
@@ -75,7 +76,7 @@ abstract class BaseOpenRecentAction extends Action {
 			if (isRecentFolder(recent)) {
 				resource = recent.folderUri;
 				iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.FOLDER);
-				uriToOpen = { folderUri: resource };
+				openable = { folderUri: resource };
 				fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: true });
 			}
 
@@ -83,7 +84,7 @@ abstract class BaseOpenRecentAction extends Action {
 			else if (isRecentWorkspace(recent)) {
 				resource = recent.workspace.configPath;
 				iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.ROOT_FOLDER);
-				uriToOpen = { workspaceUri: resource };
+				openable = { workspaceUri: resource };
 				fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 			}
 
@@ -91,7 +92,7 @@ abstract class BaseOpenRecentAction extends Action {
 			else {
 				resource = recent.fileUri;
 				iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.FILE);
-				uriToOpen = { fileUri: resource };
+				openable = { fileUri: resource };
 				fullLabel = recent.label || labelService.getUriLabel(resource);
 			}
 
@@ -102,7 +103,7 @@ abstract class BaseOpenRecentAction extends Action {
 				label: name,
 				description: parentPath,
 				buttons,
-				uriToOpen,
+				openable,
 				resource
 			};
 		};
@@ -134,7 +135,7 @@ abstract class BaseOpenRecentAction extends Action {
 		});
 
 		if (pick) {
-			return this.windowService.openWindow([pick.uriToOpen], { forceNewWindow: keyMods && keyMods.ctrlCmd });
+			return this.hostService.openInWindow([pick.openable], { forceNewWindow: keyMods && keyMods.ctrlCmd });
 		}
 	}
 }
@@ -153,9 +154,10 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IHostService hostService: IHostService
 	) {
-		super(id, label, windowService, quickInputService, contextService, labelService, keybindingService, modelService, modeService);
+		super(id, label, windowService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -177,9 +179,10 @@ class QuickOpenRecentAction extends BaseOpenRecentAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IHostService hostService: IHostService
 	) {
-		super(id, label, windowService, quickInputService, contextService, labelService, keybindingService, modelService, modeService);
+		super(id, label, windowService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService);
 	}
 
 	protected isQuickNavigate(): boolean {

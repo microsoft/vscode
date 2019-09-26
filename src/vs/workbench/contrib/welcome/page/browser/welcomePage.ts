@@ -14,7 +14,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -342,13 +342,13 @@ class WelcomePage extends Disposable {
 	private createListEntries(recents: (IRecentWorkspace | IRecentFolder)[]) {
 		return recents.map(recent => {
 			let fullPath: string;
-			let uriToOpen: IURIToOpen;
+			let windowOpenable: IWindowOpenable;
 			if (isRecentFolder(recent)) {
-				uriToOpen = { folderUri: recent.folderUri };
+				windowOpenable = { folderUri: recent.folderUri };
 				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
 			} else {
 				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
-				uriToOpen = { workspaceUri: recent.workspace.configPath };
+				windowOpenable = { workspaceUri: recent.workspace.configPath };
 			}
 
 			const { name, parentPath } = splitName(fullPath);
@@ -365,7 +365,7 @@ class WelcomePage extends Disposable {
 					id: 'openRecentFolder',
 					from: telemetryFrom
 				});
-				this.windowService.openWindow([uriToOpen], { forceNewWindow: e.ctrlKey || e.metaKey });
+				this.hostService.openInWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey });
 				e.preventDefault();
 				e.stopPropagation();
 			});

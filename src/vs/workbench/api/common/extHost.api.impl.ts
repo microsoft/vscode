@@ -532,7 +532,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerWebviewEditorProvider: (viewType: string, provider: vscode.WebviewEditorProvider) => {
 				checkProposedApiEnabled(extension);
-				return extHostWebviews.registerWebviewEditorProvider(viewType, provider);
+				return extHostWebviews.registerWebviewEditorProvider(extension, viewType, provider);
 			},
 			registerDecorationProvider(provider: vscode.DecorationProvider) {
 				checkProposedApiEnabled(extension);

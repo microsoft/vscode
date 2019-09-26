@@ -207,3 +207,18 @@ export function withNullAsUndefined<T>(x: T | null): T | undefined {
 export function withUndefinedAsNull<T>(x: T | undefined): T | null {
 	return typeof x === 'undefined' ? null : x;
 }
+
+/**
+ * Allows to add a first parameter to functions of a type.
+ */
+export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, FirstParameter> = {
+
+	//  For every property
+	[K in keyof Target]:
+
+	// Function: add param to function
+	Target[K] extends (...args: any) => TargetFunctionsReturnType ? (firstArg: FirstParameter, ...args: Parameters<Target[K]>) => ReturnType<Target[K]> :
+
+	// Else: just leave as is
+	Target[K]
+};

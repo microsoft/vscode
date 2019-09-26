@@ -91,11 +91,18 @@ export interface IUntitledWorkspaceInfo {
 	remoteAuthority?: string;
 }
 
+export interface IEnterWorkspaceResult {
+	workspace: IWorkspaceIdentifier;
+	backupPath?: string;
+}
+
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
 export interface IWorkspacesService {
 
 	_serviceBrand: undefined;
+
+	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
 
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 

@@ -5,13 +5,13 @@
 
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { createSimpleChannelProxy } from 'vs/platform/ipc/node/simpleIpcProxy';
+import { createChannelSender } from 'vs/platform/ipc/node/ipcChannelCreator';
 
 export class MenubarService {
 
 	_serviceBrand: undefined;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		return createSimpleChannelProxy<IMenubarService>(mainProcessService.getChannel('menubar'));
+		return createChannelSender<IMenubarService>(mainProcessService.getChannel('menubar'));
 	}
 }

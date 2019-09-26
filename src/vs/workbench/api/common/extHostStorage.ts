@@ -20,7 +20,7 @@ export class ExtHostStorage implements ExtHostStorageShape {
 
 	private _proxy: MainThreadStorageShape;
 
-	private _onDidChangeStorage = new Emitter<IStorageChangeEvent>();
+	private readonly _onDidChangeStorage = new Emitter<IStorageChangeEvent>();
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
 	constructor(mainContext: IExtHostRpcService) {

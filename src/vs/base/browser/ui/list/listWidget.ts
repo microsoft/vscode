@@ -110,7 +110,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	private indexes: number[] = [];
 	private sortedIndexes: number[] = [];
 
-	private _onChange = new Emitter<ITraitChangeEvent>();
+	private readonly _onChange = new Emitter<ITraitChangeEvent>();
 	readonly onChange: Event<ITraitChangeEvent> = this._onChange.event;
 
 	get trait(): string { return this._trait; }
@@ -176,7 +176,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	}
 
 	dispose() {
-		this._onChange = dispose(this._onChange);
+		dispose(this._onChange);
 	}
 }
 
@@ -1111,10 +1111,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
-	private _onDidOpen = new Emitter<IListEvent<T>>();
+	private readonly _onDidOpen = new Emitter<IListEvent<T>>();
 	readonly onDidOpen: Event<IListEvent<T>> = this._onDidOpen.event;
 
-	private _onDidPin = new Emitter<IListEvent<T>>();
+	private readonly _onDidPin = new Emitter<IListEvent<T>>();
 	readonly onDidPin: Event<IListEvent<T>> = this._onDidPin.event;
 
 	get domId(): string { return this.view.domId; }
@@ -1168,7 +1168,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
 
-	private _onDidDispose = new Emitter<void>();
+	private readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(

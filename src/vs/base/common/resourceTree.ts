@@ -8,6 +8,7 @@ import * as paths from 'vs/base/common/path';
 import { Iterator } from 'vs/base/common/iterator';
 import { relativePath, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { mapValues } from 'vs/base/common/collections';
 
 export interface ILeafNode<T, C = void> {
 	readonly uri: URI;
@@ -49,7 +50,7 @@ class BranchNode<T, C> extends Node<C> implements IBranchNode<T, C> {
 	}
 
 	get children(): Iterator<BranchNode<T, C> | LeafNode<T, C>> {
-		return Iterator.fromIterableIterator(this._children.values());
+		return Iterator.fromArray(mapValues(this._children));
 	}
 
 	constructor(uri: URI, relativePath: string, context: C, readonly parent: IBranchNode<T, C> | undefined = undefined) {

@@ -303,18 +303,11 @@ function matches(selector: CustomEditorSelector, resource: URI): boolean {
 		return glob.match(selector.mime, mime.toLowerCase());
 	}
 
-	if (!selector.filenamePattern && !selector.scheme) {
-		return false;
-	}
 	if (selector.filenamePattern) {
-		if (!glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
-			return false;
+		if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
+			return true;
 		}
 	}
-	if (selector.scheme) {
-		if (resource.scheme !== selector.scheme) {
-			return false;
-		}
-	}
-	return true;
+
+	return false;
 }

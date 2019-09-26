@@ -1401,9 +1401,6 @@ class OverviewRulerDecorations {
 
 	readonly result: IOverviewRulerDecorations = Object.create(null);
 
-	constructor() {
-	}
-
 	public accept(color: string, startLineNumber: number, endLineNumber: number, lane: number): void {
 		let prev = this.result[color];
 

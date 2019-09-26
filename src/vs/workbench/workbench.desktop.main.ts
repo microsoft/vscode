@@ -27,6 +27,7 @@ import 'vs/workbench/electron-browser/desktop.main';
 
 
 //#region --- workbench services
+import 'vs/workbench/services/dialogs/electron-browser/fileDialogService';
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/search/node/searchService';
@@ -71,6 +72,8 @@ import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ElectronService } from 'vs/platform/electron/electron-browser/electronService';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { NativeWorkspaceEditingService } from 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 
 registerSingleton(IClipboardService, ClipboardService, true);
 registerSingleton(ILifecycleService, LifecycleService);
@@ -81,6 +84,7 @@ registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
 registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IElectronService, ElectronService, true);
+registerSingleton(IWorkspaceEditingService, NativeWorkspaceEditingService, true);
 
 //#endregion
 

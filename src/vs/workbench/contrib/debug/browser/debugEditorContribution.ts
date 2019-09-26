@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugEditorContribution, IDebugService, State, EDITOR_CONTRIBUTION_ID, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugEditorContribution, IDebugService, State, EDITOR_CONTRIBUTION_ID, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { Position } from 'vs/editor/common/core/position';
@@ -284,18 +284,18 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		} else if (sameUri) {
 			focusedSf.thread.exceptionInfo.then(exceptionInfo => {
 				if (exceptionInfo && exceptionSf.range.startLineNumber && exceptionSf.range.startColumn) {
-					this.showExceptionWidget(exceptionInfo, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+					this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
 				}
 			});
 		}
 	}
 
-	private showExceptionWidget(exceptionInfo: IExceptionInfo, lineNumber: number, column: number): void {
+	private showExceptionWidget(exceptionInfo: IExceptionInfo, debugSession: IDebugSession | undefined, lineNumber: number, column: number): void {
 		if (this.exceptionWidget) {
 			this.exceptionWidget.dispose();
 		}
 
-		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo);
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
 		this.editor.revealLine(lineNumber);
 	}

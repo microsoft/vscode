@@ -7,28 +7,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-
-export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: string, port: number } | undefined {
-	if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-		return undefined;
-	}
-	const localhostMatch = /^(localhost|127\.0\.0\.1):(\d+)$/.exec(uri.authority);
-	if (!localhostMatch) {
-		return undefined;
-	}
-	return {
-		address: localhostMatch[1],
-		port: +localhostMatch[2],
-	};
-}
+import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
 
 export class WebviewPortMappingManager extends Disposable {
 
 	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
 
 	constructor(
-		private readonly extensionLocation: URI | undefined,
+		private readonly getExtensionLocation: () => URI | undefined,
 		private readonly mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
 		private readonly tunnelService: ITunnelService
 	) {
@@ -44,7 +30,8 @@ export class WebviewPortMappingManager extends Disposable {
 
 		for (const mapping of this.mappings()) {
 			if (mapping.webviewPort === requestLocalHostInfo.port) {
-				if (this.extensionLocation && this.extensionLocation.scheme === REMOTE_HOST_SCHEME) {
+				const extensionLocation = this.getExtensionLocation();
+				if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
 					const tunnel = await this.getOrCreateTunnel(mapping.extensionHostPort);
 					if (tunnel) {
 						return encodeURI(uri.with({
