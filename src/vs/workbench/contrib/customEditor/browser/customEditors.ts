@@ -295,9 +295,12 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 
 function matches(selector: CustomEditorSelector, resource: URI): boolean {
 	if (resource.scheme === Schemas.data) {
+		if (!selector.mime) {
+			return false;
+		}
 		const metadata = DataUri.parseMetaData(resource);
 		const mime = metadata.get(DataUri.META_DATA_MIME);
-		if (!selector.mime || !mime) {
+		if (!mime) {
 			return false;
 		}
 		return glob.match(selector.mime, mime.toLowerCase());
