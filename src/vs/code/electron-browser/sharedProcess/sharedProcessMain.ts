@@ -26,7 +26,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { ActiveWindowManager } from 'vs/platform/windows/node/windows';
+import { ActiveWindowManager } from 'vs/code/node/activeWindowTracker';
 import { ipcRenderer } from 'electron';
 import { ILogService, LogLevel, ILoggerService } from 'vs/platform/log/common/log';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';

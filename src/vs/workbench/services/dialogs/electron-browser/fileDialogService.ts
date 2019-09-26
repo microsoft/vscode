@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SaveDialogOptions, OpenDialogOptions } from 'electron';
-import { INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';

@@ -7,7 +7,7 @@ import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, p
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { ActiveWindowManager } from 'vs/platform/windows/node/windows';
+import { ActiveWindowManager } from 'vs/code/node/activeWindowTracker';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';

@@ -6,7 +6,8 @@
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions, IOpenedWindow, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenInWindowOptions, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IRecentlyOpened, IRecent } from 'vs/platform/workspaces/common/workspacesHistory';
 import { URI } from 'vs/base/common/uri';
