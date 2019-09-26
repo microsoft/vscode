@@ -81,27 +81,27 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 	async sync(_continue?: boolean): Promise<boolean> {
 		if (!this.configurationService.getValue<boolean>('configurationSync.enableSettings')) {
-			this.logService.trace('Skipping synchronising settings as it is disabled.');
+			this.logService.trace('Settings: Skipping synchronising settings as it is disabled.');
 			return false;
 		}
 
 		if (_continue) {
-			this.logService.info('Resumed synchronising settings');
+			this.logService.info('Settings: Resumed synchronising settings');
 			return this.continueSync();
 		}
 
 		if (this.status !== SyncStatus.Idle) {
-			this.logService.trace('Skipping synchronising settings as it is running already.');
+			this.logService.trace('Settings: Skipping synchronising settings as it is running already.');
 			return false;
 		}
 
-		this.logService.trace('Started synchronising settings...');
+		this.logService.trace('Settings: Started synchronising settings...');
 		this.setStatus(SyncStatus.Syncing);
 
 		try {
 			const result = await this.getPreview();
 			if (result.hasConflicts) {
-				this.logService.info('Detected conflicts while synchronising settings.');
+				this.logService.info('Settings: Detected conflicts while synchronising settings.');
 				this.setStatus(SyncStatus.HasConflicts);
 				return false;
 			}
@@ -112,12 +112,12 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Rejected) {
 				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('Failed to synchronise settings as there is a new remote version available. Synchronising again...');
+				this.logService.info('Settings: Failed to synchronise settings as there is a new remote version available. Synchronising again...');
 				return this.sync();
 			}
 			if (e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) {
 				// Rejected as there is a new local version. Syncing again.
-				this.logService.info('Failed to synchronise settings as there is a new local version available. Synchronising again...');
+				this.logService.info('Settings: Failed to synchronise settings as there is a new local version available. Synchronising again...');
 				return this.sync();
 			}
 			throw e;
@@ -128,7 +128,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		if (this.syncPreviewResultPromise) {
 			this.syncPreviewResultPromise.cancel();
 			this.syncPreviewResultPromise = null;
-			this.logService.info('Stopped synchronising settings.');
+			this.logService.info('Settings: Stopped synchronising settings.');
 		}
 		this.fileService.del(this.environmentService.settingsSyncPreviewResource);
 		this.setStatus(SyncStatus.Idle);
@@ -158,20 +158,20 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 			let { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged } = await this.syncPreviewResultPromise;
 			if (!hasLocalChanged && !hasRemoteChanged) {
-				this.logService.trace('No changes found during synchronising settings.');
+				this.logService.trace('Settings: No changes found during synchronising settings.');
 			}
 			if (hasLocalChanged) {
-				this.logService.info('Updating local settings');
+				this.logService.info('Settings: Updating local settings');
 				await this.writeToLocal(content, fileContent);
 			}
 			if (hasRemoteChanged) {
 				const remoteContent = remoteUserData.content ? await this.settingsMergeService.computeRemoteContent(content, remoteUserData.content, this.getIgnoredSettings(content)) : content;
-				this.logService.info('Updating remote settings');
+				this.logService.info('Settings: Updating remote settings');
 				const ref = await this.writeToRemote(remoteContent, remoteUserData.ref);
 				remoteUserData = { ref, content };
 			}
 			if (remoteUserData.content) {
-				this.logService.info('Updating last synchronised sttings');
+				this.logService.info('Settings: Updating last synchronised sttings');
 				await this.updateLastSyncValue(remoteUserData);
 			}
 
@@ -179,7 +179,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			await this.fileService.del(this.environmentService.settingsSyncPreviewResource);
 		}
 
-		this.logService.trace('Finised synchronising settings.');
+		this.logService.trace('Settings: Finised synchronising settings.');
 		this.syncPreviewResultPromise = null;
 		this.setStatus(SyncStatus.Idle);
 	}
@@ -211,7 +211,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		if (remoteContent) {
 			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
 			if (this.hasErrors(localContent)) {
-				this.logService.error('Unable to sync settings as there are errors/warning in settings file.');
+				this.logService.error('Settings: Unable to sync settings as there are errors/warning in settings file.');
 				return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 			}
 
@@ -219,7 +219,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 				|| lastSyncData.content !== localContent // Local has moved forwarded
 				|| lastSyncData.content !== remoteContent // Remote has moved forwarded
 			) {
-				this.logService.trace('Merging remote settings with local settings...');
+				this.logService.trace('Settings: Merging remote settings with local settings...');
 				const result = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, this.getIgnoredSettings());
 				// Sync only if there are changes
 				if (result.hasChanges) {
@@ -233,7 +233,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 		// First time syncing to remote
 		else if (fileContent) {
-			this.logService.info('Remote settings does not exist. Synchronising settings for the first time.');
+			this.logService.info('Settings: Remote settings does not exist. Synchronising settings for the first time.');
 			hasRemoteChanged = true;
 			previewContent = fileContent.value.toString();
 		}
