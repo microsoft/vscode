@@ -7,7 +7,7 @@ import { coalesce, distinct } from 'vs/base/common/arrays';
 import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { basename, DataUri } from 'vs/base/common/resources';
+import { basename, DataUri, isEqual } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -169,7 +169,7 @@ export class CustomEditorService implements ICustomEditorService {
 		group?: IEditorGroup
 	): Promise<IEditor | undefined> {
 		if (group) {
-			const existingEditors = group.editors.filter(editor => editor.getResource() && editor.getResource()!.toString() === resource.toString());
+			const existingEditors = group.editors.filter(editor => editor.getResource() && isEqual(editor.getResource()!, resource));
 			if (existingEditors.length) {
 				await this.editorService.replaceEditors([{
 					editor: existingEditors[0],
@@ -261,7 +261,7 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		}
 
 		for (const input of group.editors) {
-			if (input instanceof CustomFileEditorInput && input.getResource().toString() === resource.toString()) {
+			if (input instanceof CustomFileEditorInput && isEqual(input.getResource(), resource)) {
 				return {
 					override: group.openEditor(input, options).then(withNullAsUndefined)
 				};
