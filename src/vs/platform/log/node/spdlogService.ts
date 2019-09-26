@@ -30,15 +30,18 @@ interface ILog {
 	message: string;
 }
 
-function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string): void {
+function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string, sync: boolean): void {
 	switch (level) {
-		case LogLevel.Trace: return logger.trace(message);
-		case LogLevel.Debug: return logger.debug(message);
-		case LogLevel.Info: return logger.info(message);
-		case LogLevel.Warning: return logger.warn(message);
-		case LogLevel.Error: return logger.error(message);
-		case LogLevel.Critical: return logger.critical(message);
+		case LogLevel.Trace: logger.trace(message); break;
+		case LogLevel.Debug: logger.debug(message); break;
+		case LogLevel.Info: logger.info(message); break;
+		case LogLevel.Warning: logger.warn(message); break;
+		case LogLevel.Error: logger.error(message); break;
+		case LogLevel.Critical: logger.critical(message); break;
 		default: throw new Error('Invalid log level');
+	}
+	if (sync) {
+		logger.flush();
 	}
 }
 
@@ -50,7 +53,7 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 	private _loggerCreationPromise: Promise<void> | undefined = undefined;
 	private _logger: spdlog.RotatingLogger | undefined;
 
-	constructor(private readonly name: string, private readonly logsFolder: string, level: LogLevel) {
+	constructor(private readonly name: string, private readonly logsFolder: string, level: LogLevel, private readonly sync: boolean = false) {
 		super();
 		this.setLevel(level);
 		this._createSpdLogLogger();
@@ -69,7 +72,7 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 						this._logger = logger;
 						this._logger.setLevel(this.getLevel());
 						for (const { level, message } of this.buffer) {
-							log(this._logger, level, message);
+							log(this._logger, level, message, this.sync);
 						}
 						this.buffer = [];
 					}
@@ -80,7 +83,7 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 
 	private _log(level: LogLevel, message: string): void {
 		if (this._logger) {
-			log(this._logger, level, message);
+			log(this._logger, level, message, this.sync);
 		} else if (this.getLevel() <= level) {
 			this.buffer.push({ level, message });
 		}
