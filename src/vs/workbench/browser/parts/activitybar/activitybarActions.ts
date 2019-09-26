@@ -266,9 +266,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const activeForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activeForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active .action-label,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label {
 				background-color: ${activeForegroundColor} !important;
 			}
 		`);
@@ -278,7 +278,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outline = theme.getColor(activeContrastBorder);
 	if (outline) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:before {
 				content: "";
 				position: absolute;
 				top: 9px;
@@ -287,26 +287,26 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				width: 32px;
 			}
 
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:hover:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:hover:before {
 				outline: 1px solid;
 			}
 
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover:before {
 				outline: 1px dashed;
 			}
 
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 				border-left-color: ${outline};
 			}
 
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:hover:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:hover:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover:before {
 				outline-color: ${outline};
 			}
 		`);
@@ -317,7 +317,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const focusBorderColor = theme.getColor(focusBorder);
 		if (focusBorderColor) {
 			collector.addRule(`
-					.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus:before {
+					.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 						border-left-color: ${focusBorderColor};
 					}
 				`);

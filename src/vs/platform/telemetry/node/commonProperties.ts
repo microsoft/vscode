@@ -7,8 +7,17 @@ import * as Platform from 'vs/base/common/platform';
 import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
 import { readFile } from 'vs/base/node/pfs';
+import { mixin } from 'vs/base/common/objects';
 
-export async function resolveCommonProperties(commit: string | undefined, version: string | undefined, machineId: string | undefined, msftInternalDomains: string[] | undefined, installSourcePath: string, product?: string): Promise<{ [name: string]: string | boolean | undefined; }> {
+export async function resolveCommonProperties(
+	commit: string | undefined,
+	version: string | undefined,
+	machineId: string | undefined,
+	msftInternalDomains: string[] | undefined,
+	installSourcePath: string,
+	product?: string,
+	resolveAdditionalProperties?: () => { [key: string]: any }
+): Promise<{ [name: string]: string | boolean | undefined; }> {
 	const result: { [name: string]: string | boolean | undefined; } = Object.create(null);
 
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
@@ -69,6 +78,10 @@ export async function resolveCommonProperties(commit: string | undefined, versio
 		result['common.source'] = contents.slice(0, 30);
 	} catch (error) {
 		// ignore error
+	}
+
+	if (resolveAdditionalProperties) {
+		mixin(result, resolveAdditionalProperties());
 	}
 
 	return result;

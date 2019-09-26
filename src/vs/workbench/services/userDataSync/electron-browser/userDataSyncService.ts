@@ -42,6 +42,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('sync', [_continue]);
 	}
 
+	stop(): void {
+		this.channel.call('stop');
+	}
+
 	getRemoteExtensions(): Promise<ISyncExtension[]> {
 		return this.channel.call('getRemoteExtensions');
 	}

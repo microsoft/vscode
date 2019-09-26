@@ -29,6 +29,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { isWeb } from 'vs/base/common/platform';
 import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IEditorInput } from 'vs/workbench/common/editor';
 
 class UserDataSyncConfigurationContribution implements IWorkbenchContribution {
 
@@ -111,16 +112,20 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 				handle.onDidClose(() => this.conflictsWarningDisposable.clear());
 			}
 		} else {
+			const previewEditorInput = this.getPreviewEditorInput();
+			if (previewEditorInput) {
+				previewEditorInput.dispose();
+			}
 			this.conflictsWarningDisposable.clear();
 		}
 	}
 
 	private async continueSync(): Promise<void> {
 		// Get the preview editor
-		const editorInput = this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource))[0];
+		const previewEditorInput = this.getPreviewEditorInput();
 		// Save the preview
-		if (editorInput && editorInput.isDirty()) {
-			await this.textFileService.save(editorInput.getResource()!);
+		if (previewEditorInput && previewEditorInput.isDirty()) {
+			await this.textFileService.save(previewEditorInput.getResource()!);
 		}
 		try {
 			// Continue Sync
@@ -130,9 +135,13 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			return;
 		}
 		// Close the preview editor
-		if (editorInput) {
-			editorInput.dispose();
+		if (previewEditorInput) {
+			previewEditorInput.dispose();
 		}
+	}
+
+	private getPreviewEditorInput(): IEditorInput | undefined {
+		return this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource))[0];
 	}
 
 	private async handleConflicts(): Promise<void> {
@@ -166,11 +175,11 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.syncStart',
-				title: localize('start sync', "Sync: Start")
+				title: localize('start sync', "Configuration Sync: Turn On")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.enableSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.configurationSync.enable')),
 		};
-		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.configurationService.updateValue('userConfiguration.enableSync', true));
+		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.configurationService.updateValue('configurationSync.enable', true));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, startSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, startSyncMenuItem);
 
@@ -178,11 +187,11 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.stopSync',
-				title: localize('stop sync', "Sync: Stop")
+				title: localize('stop sync', "Configuration Sync: Turn Off")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.enableSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.configurationSync.enable')),
 		};
-		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.configurationService.updateValue('userConfiguration.enableSync', false));
+		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.configurationService.updateValue('configurationSync.enable', false));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, stopSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, stopSyncMenuItem);
 
@@ -190,7 +199,7 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			group: '5_sync',
 			command: {
 				id: 'sync.resolveConflicts',
-				title: localize('resolveConflicts', "Sync: Resolve Conflicts"),
+				title: localize('resolveConflicts', "Configuration Sync: Resolve Conflicts"),
 			},
 			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts),
 		};
@@ -203,14 +212,14 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue")
+				title: localize('continue sync', "Configuration Sync: Continue")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts)),
 		});
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			command: {
 				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue"),
+				title: localize('continue sync', "Configuration Sync: Continue"),
 				iconLocation: {
 					light: SYNC_PUSH_LIGHT_ICON_URI,
 					dark: SYNC_PUSH_DARK_ICON_URI

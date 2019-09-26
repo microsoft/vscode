@@ -14,18 +14,14 @@ export class ActiveWindowManager extends Disposable {
 	private firstActiveWindowIdPromise: CancelablePromise<number | undefined> | undefined;
 
 	private activeWindowId: number | undefined;
-	private _activeWindowId: number | undefined;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
 		super();
 
-		// remember last active window id
-		Event.latch(Event.any(windowsService.onWindowOpen, windowsService.onWindowFocus))(id => this._activeWindowId = id, null, this.disposables);
-
 		const onActiveWindowChange = Event.latch(Event.any(windowsService.onWindowOpen, windowsService.onWindowFocus));
 		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
 
-		this.firstActiveWindowIdPromise = createCancelablePromise(_ => this.getActiveWindowId());
+		this.firstActiveWindowIdPromise = createCancelablePromise(_ => windowsService.getActiveWindowId());
 		this.firstActiveWindowIdPromise
 			.then(id => this.activeWindowId = typeof this.activeWindowId === 'number' ? this.activeWindowId : id)
 			.finally(this.firstActiveWindowIdPromise = undefined);
@@ -46,7 +42,4 @@ export class ActiveWindowManager extends Disposable {
 		return `window:${id}`;
 	}
 
-	private async getActiveWindowId(): Promise<number | undefined> {
-		return this._activeWindowId;
-	}
 }

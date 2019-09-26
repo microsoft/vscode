@@ -1606,29 +1606,6 @@ export class ShowRecommendedExtensionsAction extends Action {
 	}
 }
 
-export class ShowSyncedExtensionsAction extends Action {
-
-	static readonly ID = 'workbench.extensions.action.listSyncedExtensions';
-	static LABEL = localize('showSyncedExtensions', "Show My Account Extensions");
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService private readonly viewletService: IViewletService
-	) {
-		super(id, label, undefined, true);
-	}
-
-	run(): Promise<void> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
-			.then(viewlet => {
-				viewlet.search('@myaccount ');
-				viewlet.focus();
-			});
-	}
-}
-
 export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.installWorkspaceRecommendedExtensions';
