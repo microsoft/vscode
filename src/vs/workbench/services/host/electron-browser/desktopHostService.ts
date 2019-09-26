@@ -3,24 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowOpenable, IOpenInWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class DesktopHostService implements IHostService {
+export class DesktopHostService extends Disposable implements IHostService {
 
 	_serviceBrand: undefined;
+
+	//#region Events
+
+	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
+	private _onDidChangeFocus: Event<boolean> = Event.any(
+		Event.map(Event.filter(this.electronService.onWindowFocus, id => id === this.environmentService.configuration.windowId), _ => true),
+		Event.map(Event.filter(this.electronService.onWindowBlur, id => id === this.environmentService.configuration.windowId), _ => false)
+	);
+
+	//#endregion
 
 	constructor(
 		@IElectronService private readonly electronService: IElectronService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
-	) { }
+	) {
+		super();
+
+		// Resolve initial window focus state
+		this._hasFocus = document.hasFocus();
+		electronService.isWindowFocused().then(focused => this._hasFocus = focused);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.onDidChangeFocus(focus => this._hasFocus = focus));
+	}
 
 	//#region Window
+
+	private _hasFocus: boolean;
+	get hasFocus(): boolean { return this._hasFocus; }
 
 	get windowCount(): Promise<number> { return this.electronService.getWindowCount(); }
 

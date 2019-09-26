@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowOpenable, IOpenInWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 
@@ -11,6 +12,15 @@ export const IHostService = createDecorator<IHostService>('hostService');
 export interface IHostService {
 
 	_serviceBrand: undefined;
+
+	//#region Events
+
+	/**
+	 * Emitted when the window focus changes.
+	 */
+	readonly onDidChangeFocus: Event<boolean>;
+
+	//#endregion
 
 	//#region Window
 
@@ -34,6 +44,11 @@ export interface IHostService {
 	 * Switch between fullscreen and normal window.
 	 */
 	toggleFullScreen(): Promise<void>;
+
+	/**
+	 * Find out if the window has focus or not.
+	 */
+	readonly hasFocus: boolean;
 
 	/**
 	 * Attempt to bring the window to the foreground and focus it.

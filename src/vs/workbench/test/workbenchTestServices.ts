@@ -1181,16 +1181,7 @@ export class TestWindowService implements IWindowService {
 
 	public _serviceBrand: undefined;
 
-	onDidChangeFocus: Event<boolean> = new Emitter<boolean>().event;
-	onDidChangeMaximize: Event<boolean>;
-
-	hasFocus = true;
-
 	readonly windowId = 0;
-
-	isFocused(): Promise<boolean> {
-		return Promise.resolve(false);
-	}
 
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return Promise.resolve({
@@ -1251,16 +1242,7 @@ export class TestWindowsService implements IWindowsService {
 
 	_serviceBrand: undefined;
 
-	readonly onWindowOpen: Event<number> = Event.None;
-	readonly onWindowFocus: Event<number> = Event.None;
-	readonly onWindowBlur: Event<number> = Event.None;
-	readonly onWindowMaximize: Event<number> = Event.None;
-	readonly onWindowUnmaximize: Event<number> = Event.None;
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
-
-	isFocused(_windowId: number): Promise<boolean> {
-		return Promise.resolve(false);
-	}
 
 	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
 		return Promise.resolve();
@@ -1374,6 +1356,9 @@ export const productService: IProductService = { _serviceBrand: undefined, ...pr
 export class TestHostService implements IHostService {
 
 	_serviceBrand: undefined;
+
+	readonly hasFocus: boolean = true;
+	readonly onDidChangeFocus: Event<boolean> = Event.None;
 
 	windowCount = Promise.resolve(1);
 

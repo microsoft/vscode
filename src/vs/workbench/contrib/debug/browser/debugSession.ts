@@ -86,6 +86,7 @@ export class DebugSession implements IDebugSession {
 		} else {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
+		this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
 	}
 
 	getId(): string {
@@ -967,25 +968,19 @@ export class DebugSession implements IDebugSession {
 
 	removeReplExpressions(): void {
 		this.repl.removeReplExpressions();
-		this._onDidChangeREPLElements.fire();
 	}
 
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		const expressionEvaluated = this.repl.addReplExpression(this, stackFrame, name);
-		this._onDidChangeREPLElements.fire();
-		await expressionEvaluated;
-		this._onDidChangeREPLElements.fire();
+		await this.repl.addReplExpression(this, stackFrame, name);
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 		variableSetEmitter.fire();
 	}
 
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
 		this.repl.appendToRepl(this, data, severity, source);
-		this._onDidChangeREPLElements.fire();
 	}
 
 	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
 		this.repl.logToRepl(this, sev, args, frame);
-		this._onDidChangeREPLElements.fire();
 	}
 }

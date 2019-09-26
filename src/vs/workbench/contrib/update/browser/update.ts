@@ -27,7 +27,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
@@ -122,44 +122,42 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWindowService windowService: IWindowService,
+		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService
 	) {
-		windowService.isFocused().then(async isFocused => {
-			if (!isFocused) {
-				return;
-			}
+		if (!hostService.hasFocus) {
+			return;
+		}
 
-			const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
-			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
+		const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 
-			// was there an update? if so, open release notes
-			const releaseNotesUrl = productService.releaseNotesUrl;
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && productService.version !== lastVersion) {
-				showReleaseNotes(instantiationService, productService.version)
-					.then(undefined, () => {
-						notificationService.prompt(
-							severity.Info,
-							nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.version),
-							[{
-								label: nls.localize('releaseNotes', "Release Notes"),
-								run: () => {
-									const uri = URI.parse(releaseNotesUrl);
-									openerService.open(uri);
-								}
-							}],
-							{ sticky: true }
-						);
-					});
-			}
+		// was there an update? if so, open release notes
+		const releaseNotesUrl = productService.releaseNotesUrl;
+		if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && productService.version !== lastVersion) {
+			showReleaseNotes(instantiationService, productService.version)
+				.then(undefined, () => {
+					notificationService.prompt(
+						severity.Info,
+						nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.version),
+						[{
+							label: nls.localize('releaseNotes', "Release Notes"),
+							run: () => {
+								const uri = URI.parse(releaseNotesUrl);
+								openerService.open(uri);
+							}
+						}],
+						{ sticky: true }
+					);
+				});
+		}
 
-			// should we show the new license?
-			if (productService.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(productService.version, '>=1.0.0')) {
-				notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
-			}
+		// should we show the new license?
+		if (productService.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(productService.version, '>=1.0.0')) {
+			notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
+		}
 
-			storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL);
-		});
+		storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL);
 	}
 }
 

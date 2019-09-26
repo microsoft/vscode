@@ -38,6 +38,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 // TODO@sbatten https://github.com/microsoft/vscode/issues/81360
 // tslint:disable-next-line: import-patterns layering
@@ -100,6 +101,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHostService private readonly hostService: IHostService,
 		@optional(IElectronService) private electronService: IElectronService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
@@ -110,7 +112,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private registerListeners(): void {
-		this._register(this.windowService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
+		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.titleUpdater.schedule()));
@@ -430,7 +432,11 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			const isMaximized = this.environmentService.configuration.maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
-			this._register(this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this));
+
+			this._register(Event.any(
+				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.windowService.windowId), _ => true),
+				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.windowService.windowId), _ => false)
+			)(e => this.onDidChangeMaximized(e)));
 		}
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the

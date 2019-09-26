@@ -25,6 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import * as browser from 'vs/base/browser/browser';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -47,7 +48,7 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedDBLogProvider';
 import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 
-class CodeRendererMain extends Disposable {
+class BrowserMain extends Disposable {
 
 	constructor(
 		private readonly domElement: HTMLElement,
@@ -72,6 +73,20 @@ class CodeRendererMain extends Disposable {
 			services.logService
 		);
 
+		// Listeners
+		this.registerListeners(workbench, services.storageService);
+
+		// Driver
+		if (this.configuration.driver) {
+			(async () => this._register(await registerWindowDriver()))();
+		}
+
+		// Startup
+		workbench.startup();
+	}
+
+	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
+
 		// Layout
 		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
 
@@ -82,24 +97,27 @@ class CodeRendererMain extends Disposable {
 
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
-			if (services.storageService.hasPendingUpdate) {
+			if (storageService.hasPendingUpdate) {
 				console.warn('Unload prevented: pending storage update');
 				event.veto(true); // prevent data loss from pending storage update
 			}
 		}));
 		this._register(workbench.onWillShutdown(() => {
-			services.storageService.close();
+			storageService.close();
 			this.saveBaseTheme();
 		}));
 		this._register(workbench.onShutdown(() => this.dispose()));
 
-		// Driver
-		if (this.configuration.driver) {
-			(async () => this._register(await registerWindowDriver()))();
-		}
-
-		// Startup
-		workbench.startup();
+		// Fullscreen
+		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
+			this._register(addDisposableListener(document, event, () => {
+				if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+					browser.setFullscreen(true);
+				} else {
+					browser.setFullscreen(false);
+				}
+			}));
+		});
 	}
 
 	private restoreBaseTheme(): void {
@@ -291,7 +309,7 @@ class CodeRendererMain extends Disposable {
 }
 
 export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
-	const renderer = new CodeRendererMain(domElement, options);
+	const renderer = new BrowserMain(domElement, options);
 
 	return renderer.open();
 }

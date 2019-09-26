@@ -36,6 +36,11 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { isFullscreen } from 'vs/base/browser/browser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
+// TODO@sbatten https://github.com/microsoft/vscode/issues/81360
+// tslint:disable-next-line: import-patterns layering TODO@sbatten
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
+
 export abstract class MenubarControl extends Disposable {
 
 	protected keys = [
@@ -90,7 +95,7 @@ export abstract class MenubarControl extends Disposable {
 		protected readonly preferencesService: IPreferencesService,
 		protected readonly environmentService: IEnvironmentService,
 		protected readonly accessibilityService: IAccessibilityService,
-		private readonly hostService: IHostService
+		protected readonly hostService: IHostService
 	) {
 
 		super();
@@ -277,7 +282,8 @@ export class CustomMenubarControl extends MenubarControl {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IHostService hostService: IHostService
+		@IHostService protected readonly hostService: IHostService,
+		@optional(IElectronService) private readonly electronService: IElectronService
 	) {
 
 		super(
@@ -632,9 +638,15 @@ export class CustomMenubarControl extends MenubarControl {
 		super.registerListeners();
 
 		// Listen for window focus changes
-		this._register(this.windowService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
+		this._register(this.hostService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
 
-		this._register(this.windowService.onDidChangeMaximize(e => this.updateMenubar()));
+		// Listen for maximize/unmaximize
+		if (!isWeb) {
+			this._register(Event.any(
+				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.windowService.windowId), _ => true),
+				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.windowService.windowId), _ => false)
+			)(e => this.updateMenubar()));
+		}
 
 		this._register(DOM.addDisposableListener(window, DOM.EventType.RESIZE, () => {
 			this.menubar.blur();

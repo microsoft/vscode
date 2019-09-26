@@ -8,7 +8,6 @@ import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { app, BrowserWindow } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -22,15 +21,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 export class LegacyWindowsMainService extends Disposable implements IWindowsService, IURLHandler {
 
 	_serviceBrand: undefined;
-
-	readonly onWindowOpen: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (_, w: BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
-	readonly onWindowBlur: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (_, w: BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
-	readonly onWindowMaximize: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (_, w: BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
-	readonly onWindowUnmaximize: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, w: BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
-	readonly onWindowFocus: Event<number> = Event.any(
-		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), w => !!w), w => w!.id),
-		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (_, w: BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id))
-	);
 
 	readonly onRecentlyOpenedChange: Event<void> = this.historyMainService.onRecentlyOpenedChange;
 
@@ -67,12 +57,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#getRecentlyOpened', windowId);
 
 		return this.withWindow(windowId, codeWindow => this.historyMainService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpenOrCreate), () => this.historyMainService.getRecentlyOpened())!;
-	}
-
-	async isFocused(windowId: number): Promise<boolean> {
-		this.logService.trace('windowsService#isFocused', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.win.isFocused(), () => false)!;
 	}
 
 	async openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {

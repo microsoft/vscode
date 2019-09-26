@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as browser from 'vs/base/browser/browser';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -13,7 +12,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 
 //#region Window
@@ -21,11 +19,6 @@ import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/h
 export class SimpleWindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: undefined;
-
-	readonly onDidChangeFocus: Event<boolean> = Event.None;
-	readonly onDidChangeMaximize: Event<boolean> = Event.None;
-
-	readonly hasFocus = true;
 
 	readonly windowId = 0;
 
@@ -39,7 +32,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		super();
 
 		this.addWorkspaceToRecentlyOpened();
-		this.registerListeners();
 	}
 
 	private addWorkspaceToRecentlyOpened(): void {
@@ -52,28 +44,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! } }]);
 				break;
 		}
-	}
-
-	private registerListeners(): void {
-		this._register(addDisposableListener(document, EventType.FULLSCREEN_CHANGE, () => {
-			if (document.fullscreenElement || (<any>document).webkitFullscreenElement) {
-				browser.setFullscreen(true);
-			} else {
-				browser.setFullscreen(false);
-			}
-		}));
-
-		this._register(addDisposableListener(document, EventType.WK_FULLSCREEN_CHANGE, () => {
-			if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
-				browser.setFullscreen(true);
-			} else {
-				browser.setFullscreen(false);
-			}
-		}));
-	}
-
-	isFocused(): Promise<boolean> {
-		return Promise.resolve(this.hasFocus);
 	}
 
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
@@ -136,16 +106,7 @@ registerSingleton(IWindowService, SimpleWindowService);
 export class SimpleWindowsService implements IWindowsService {
 	_serviceBrand: undefined;
 
-	readonly onWindowOpen: Event<number> = Event.None;
-	readonly onWindowFocus: Event<number> = Event.None;
-	readonly onWindowBlur: Event<number> = Event.None;
-	readonly onWindowMaximize: Event<number> = Event.None;
-	readonly onWindowUnmaximize: Event<number> = Event.None;
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
-
-	isFocused(_windowId: number): Promise<boolean> {
-		return Promise.resolve(true);
-	}
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void> {
 		return Promise.resolve();

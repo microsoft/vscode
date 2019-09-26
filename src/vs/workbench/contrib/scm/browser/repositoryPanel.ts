@@ -372,7 +372,7 @@ function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode): ICompres
 		? Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true }))
 		: Iterator.map(item.tree.root.children, node => asTreeElement(node, true));
 
-	return { element: item.group, children, incompressible: true };
+	return { element: item.group, children, incompressible: true, collapsible: true };
 }
 
 function asTreeElement(node: INode<ISCMResource, ISCMResourceGroup>, incompressible: boolean): ICompressedTreeElement<TreeElement> {

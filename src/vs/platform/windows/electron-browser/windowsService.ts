@@ -19,11 +19,6 @@ export class WindowsService implements IWindowsService {
 
 	private channel: IChannel;
 
-	get onWindowOpen(): Event<number> { return this.channel.listen('onWindowOpen'); }
-	get onWindowFocus(): Event<number> { return this.channel.listen('onWindowFocus'); }
-	get onWindowBlur(): Event<number> { return this.channel.listen('onWindowBlur'); }
-	get onWindowMaximize(): Event<number> { return this.channel.listen('onWindowMaximize'); }
-	get onWindowUnmaximize(): Event<number> { return this.channel.listen('onWindowUnmaximize'); }
 	get onRecentlyOpenedChange(): Event<void> { return this.channel.listen('onRecentlyOpenedChange'); }
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
@@ -48,10 +43,6 @@ export class WindowsService implements IWindowsService {
 		recentlyOpened.files.forEach(recent => recent.fileUri = URI.revive(recent.fileUri));
 
 		return recentlyOpened;
-	}
-
-	isFocused(windowId: number): Promise<boolean> {
-		return this.channel.call('isFocused', windowId);
 	}
 
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
