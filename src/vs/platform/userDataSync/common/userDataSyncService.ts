@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISyncExtension, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
@@ -117,15 +117,18 @@ export class UserDataAutoSync extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncLogService private readonly userDataSyncLogService: IUserDataSyncLogService,
 	) {
 		super();
 		if (userDataSyncStoreService.enabled) {
 			this.sync(true);
 			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => {
 				if (this.isSyncEnabled()) {
+					userDataSyncLogService.info('Syncing configuration started...');
 					this.sync(true);
 				} else {
 					this.userDataSyncService.stop();
+					userDataSyncLogService.info('Syncing configuration stopped.');
 				}
 			}));
 
@@ -139,7 +142,7 @@ export class UserDataAutoSync extends Disposable {
 			try {
 				await this.userDataSyncService.sync();
 			} catch (e) {
-				// Ignore errors
+				this.userDataSyncLogService.error(e);
 			}
 			if (loop) {
 				await timeout(1000 * 5); // Loop sync for every 5s.
