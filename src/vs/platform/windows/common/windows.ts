@@ -30,18 +30,12 @@ export interface IWindowsService {
 
 	_serviceBrand: undefined;
 
-	readonly onWindowOpen: Event<number>;
-	readonly onWindowFocus: Event<number>;
-	readonly onWindowBlur: Event<number>;
-	readonly onWindowMaximize: Event<number>;
-	readonly onWindowUnmaximize: Event<number>;
 	readonly onRecentlyOpenedChange: Event<void>;
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
-	isFocused(windowId: number): Promise<boolean>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -103,17 +97,11 @@ export interface IWindowService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidChangeFocus: Event<boolean>;
-	readonly onDidChangeMaximize: Event<boolean>;
-
-	readonly hasFocus: boolean;
-
 	readonly windowId: number;
 
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
-	isFocused(): Promise<boolean>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';

@@ -45,7 +45,8 @@ export class SharedProcess implements ISharedProcess {
 			appRoot: this.environmentService.appRoot,
 			machineId: this.machineId,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
-			userEnv: this.userEnv
+			userEnv: this.userEnv,
+			windowId: this.window.id
 		});
 
 		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;

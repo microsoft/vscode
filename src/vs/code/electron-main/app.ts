@@ -547,6 +547,7 @@ export class CodeApplication extends Disposable {
 		const electronService = accessor.get(IElectronService);
 		const electronChannel = createChannelReceiver(electronService);
 		electronIpcServer.registerChannel('electron', electronChannel);
+		sharedProcessClient.then(client => client.registerChannel('electron', electronChannel));
 
 		const sharedProcessMainService = accessor.get(ISharedProcessMainService);
 		const sharedProcessChannel = createChannelReceiver(sharedProcessMainService);
@@ -559,7 +560,6 @@ export class CodeApplication extends Disposable {
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
 		electronIpcServer.registerChannel('windows', windowsChannel);
-		sharedProcessClient.then(client => client.registerChannel('windows', windowsChannel));
 
 		const menubarService = accessor.get(IMenubarService);
 		const menubarChannel = createChannelReceiver(menubarService);
@@ -587,7 +587,7 @@ export class CodeApplication extends Disposable {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 
 		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = new ActiveWindowManager(windowsService);
+		const activeWindowManager = new ActiveWindowManager(electronService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);

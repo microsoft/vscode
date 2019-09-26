@@ -27,6 +27,7 @@ export interface IElectronService {
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
 	getWindowCount(): Promise<number>;
+	getActiveWindowId(): Promise<number | undefined>;
 
 	openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void>;
@@ -40,6 +41,7 @@ export interface IElectronService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 
+	isWindowFocused(): Promise<boolean>;
 	focusWindow(options?: { windowId?: number }): Promise<void>;
 
 	// Dialogs

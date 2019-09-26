@@ -22,11 +22,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidChangeFocus: Event<boolean> = Event.None;
-	readonly onDidChangeMaximize: Event<boolean> = Event.None;
-
-	readonly hasFocus = true;
-
 	readonly windowId = 0;
 
 	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
@@ -70,10 +65,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 				browser.setFullscreen(false);
 			}
 		}));
-	}
-
-	isFocused(): Promise<boolean> {
-		return Promise.resolve(this.hasFocus);
 	}
 
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
@@ -136,16 +127,7 @@ registerSingleton(IWindowService, SimpleWindowService);
 export class SimpleWindowsService implements IWindowsService {
 	_serviceBrand: undefined;
 
-	readonly onWindowOpen: Event<number> = Event.None;
-	readonly onWindowFocus: Event<number> = Event.None;
-	readonly onWindowBlur: Event<number> = Event.None;
-	readonly onWindowMaximize: Event<number> = Event.None;
-	readonly onWindowUnmaximize: Event<number> = Event.None;
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
-
-	isFocused(_windowId: number): Promise<boolean> {
-		return Promise.resolve(true);
-	}
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void> {
 		return Promise.resolve();

@@ -58,6 +58,15 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 		return this.windowsMainService.getWindowCount();
 	}
 
+	async getActiveWindowId(windowId: number): Promise<number | undefined> {
+		const activeWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		if (activeWindow) {
+			return activeWindow.id;
+		}
+
+		return undefined;
+	}
+
 	async openEmptyWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void> {
 		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
@@ -122,6 +131,15 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 		if (window) {
 			window.win.minimize();
 		}
+	}
+
+	async isWindowFocused(windowId: number): Promise<boolean> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return window.win.isFocused();
+		}
+
+		return false;
 	}
 
 	async focusWindow(windowId: number, options?: { windowId?: number; }): Promise<void> {

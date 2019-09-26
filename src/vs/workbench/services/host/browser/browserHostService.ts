@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -12,10 +13,19 @@ import { IWindowSettings, IWindowOpenable, IOpenInWindowOptions, isFolderToOpen,
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { trackFocus } from 'vs/base/browser/dom';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class BrowserHostService implements IHostService {
+export class BrowserHostService extends Disposable implements IHostService {
 
 	_serviceBrand: undefined;
+
+	//#region Events
+
+	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
+	private _onDidChangeFocus: Event<boolean>;
+
+	//#endregion
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -23,7 +33,15 @@ export class BrowserHostService implements IHostService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService
-	) { }
+	) {
+		super();
+
+		const focusTracker = this._register(trackFocus(window));
+		this._onDidChangeFocus = Event.any(
+			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
+			Event.map(focusTracker.onDidBlur, () => this.hasFocus)
+		);
+	}
 
 	//#region Window
 
@@ -130,6 +148,10 @@ export class BrowserHostService implements IHostService {
 				console.warn('Enter/Exit Full Screen failed');
 			}
 		}
+	}
+
+	get hasFocus(): boolean {
+		return document.hasFocus();
 	}
 
 	async focus(): Promise<void> {

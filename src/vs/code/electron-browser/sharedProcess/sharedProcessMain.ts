@@ -27,8 +27,6 @@ import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIp
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windows';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { ipcRenderer } from 'electron';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
@@ -57,9 +55,12 @@ import { UserDataSyncService, UserDataAutoSync } from 'vs/platform/userDataSync/
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { SettingsMergeChannelClient } from 'vs/platform/userDataSync/common/settingsSyncIpc';
+import { createChannelSender } from 'vs/platform/ipc/node/ipcChannelCreator';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
+	readonly windowId: number;
 }
 
 export function startup(configuration: ISharedProcessConfiguration) {
@@ -120,9 +121,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	const mainProcessService = new MainProcessService(server, mainRouter);
 	services.set(IMainProcessService, mainProcessService);
 
-	const windowsService = new WindowsService(mainProcessService);
-	services.set(IWindowsService, windowsService);
-
 	// Files
 	const fileService = new FileService(logService);
 	services.set(IFileService, fileService);
@@ -170,8 +168,11 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
+		const electronService = createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: configuration.windowId });
+		services.set(IElectronService, electronService);
+
 		// User Data Sync Contributions
-		const activeWindowManager = new ActiveWindowManager(windowsService);
+		const activeWindowManager = new ActiveWindowManager(electronService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const settingsMergeChannel = server.getChannel('settingsMerge', activeWindowRouter);
 		services.set(ISettingsMergeService, new SettingsMergeChannelClient(settingsMergeChannel));

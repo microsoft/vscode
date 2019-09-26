@@ -12,29 +12,14 @@ import { IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/commo
 
 export class WindowsChannel implements IServerChannel {
 
-	private readonly onWindowOpen: Event<number>;
-	private readonly onWindowFocus: Event<number>;
-	private readonly onWindowBlur: Event<number>;
-	private readonly onWindowMaximize: Event<number>;
-	private readonly onWindowUnmaximize: Event<number>;
 	private readonly onRecentlyOpenedChange: Event<void>;
 
 	constructor(private readonly service: IWindowsService) {
-		this.onWindowOpen = Event.buffer(service.onWindowOpen, true);
-		this.onWindowFocus = Event.buffer(service.onWindowFocus, true);
-		this.onWindowBlur = Event.buffer(service.onWindowBlur, true);
-		this.onWindowMaximize = Event.buffer(service.onWindowMaximize, true);
-		this.onWindowUnmaximize = Event.buffer(service.onWindowUnmaximize, true);
 		this.onRecentlyOpenedChange = Event.buffer(service.onRecentlyOpenedChange, true);
 	}
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
-			case 'onWindowOpen': return this.onWindowOpen;
-			case 'onWindowFocus': return this.onWindowFocus;
-			case 'onWindowBlur': return this.onWindowBlur;
-			case 'onWindowMaximize': return this.onWindowMaximize;
-			case 'onWindowUnmaximize': return this.onWindowUnmaximize;
 			case 'onRecentlyOpenedChange': return this.onRecentlyOpenedChange;
 		}
 
@@ -56,7 +41,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(arg.map(URI.revive));
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
 			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
-			case 'isFocused': return this.service.isFocused(arg);
 			case 'openExtensionDevelopmentHostWindow': return (this.service as any).openExtensionDevelopmentHostWindow(arg[0], arg[1]); // TODO@Isidor move
 		}
 
