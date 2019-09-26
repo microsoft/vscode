@@ -14,7 +14,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class LifecycleService extends AbstractLifecycleService {
+export class NativeLifecycleService extends AbstractLifecycleService {
 
 	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
 
@@ -36,8 +36,8 @@ export class LifecycleService extends AbstractLifecycleService {
 	}
 
 	private resolveStartupKind(): StartupKind {
-		const lastShutdownReason = this.storageService.getNumber(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
-		this.storageService.remove(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+		const lastShutdownReason = this.storageService.getNumber(NativeLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+		this.storageService.remove(NativeLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 
 		let startupKind: StartupKind;
 		if (lastShutdownReason === ShutdownReason.RELOAD) {
@@ -92,7 +92,7 @@ export class LifecycleService extends AbstractLifecycleService {
 		// Save shutdown reason to retrieve on next startup
 		this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE);
+				this.storageService.store(NativeLifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE);
 			}
 		});
 	}
@@ -134,4 +134,4 @@ export class LifecycleService extends AbstractLifecycleService {
 	}
 }
 
-registerSingleton(ILifecycleService, LifecycleService);
+registerSingleton(ILifecycleService, NativeLifecycleService);

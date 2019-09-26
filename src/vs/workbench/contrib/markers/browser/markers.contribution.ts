@@ -26,7 +26,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ActivePanelContext } from 'vs/workbench/common/panel';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 

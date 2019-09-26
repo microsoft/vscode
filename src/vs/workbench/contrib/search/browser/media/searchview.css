@@ -245,6 +245,7 @@
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
+	color: inherit;
 }
 
 /* Adjusts spacing in high contrast mode so that actions are vertically centered */

@@ -243,6 +243,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/lifecycle",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/mode",
 			"project": "vscode-workbench"
 		},

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -11,15 +10,6 @@ import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-export interface INativeOpenDialogOptions {
-	forceNewWindow?: boolean;
-
-	defaultPath?: string;
-
-	telemetryEventName?: string;
-	telemetryExtraData?: ITelemetryData;
-}
 
 export interface IOpenedWindow {
 	id: number;

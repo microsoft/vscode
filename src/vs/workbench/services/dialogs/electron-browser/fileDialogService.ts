@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SaveDialogOptions, OpenDialogOptions } from 'electron';
-import { INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -173,6 +173,12 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const result = await this.electronService.showOpenDialog(newOptions);
 		return result && Array.isArray(result.filePaths) && result.filePaths.length > 0 ? result.filePaths.map(URI.file) : undefined;
+	}
+
+	protected addFileSchemaIfNeeded(schema: string): string[] {
+		// Include File schema unless the schema is web
+		// Don't allow untitled schema through.
+		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 }
 

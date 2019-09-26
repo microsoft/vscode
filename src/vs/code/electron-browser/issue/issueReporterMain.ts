@@ -40,7 +40,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { createChannelSender } from 'vs/platform/ipc/node/ipcChannelCreator';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipcChannelCreator';
 
 const MAX_URL_LENGTH = 2045;
 

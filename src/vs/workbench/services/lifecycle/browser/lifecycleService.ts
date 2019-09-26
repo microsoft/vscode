@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
@@ -61,3 +62,5 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		return null;
 	}
 }
+
+registerSingleton(ILifecycleService, BrowserLifecycleService);

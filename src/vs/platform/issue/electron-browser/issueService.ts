@@ -5,7 +5,7 @@
 
 import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { createChannelSender } from 'vs/platform/ipc/node/ipcChannelCreator';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipcChannelCreator';
 
 export class IssueService {
 

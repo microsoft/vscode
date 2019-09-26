@@ -7,6 +7,7 @@ import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialo
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -63,6 +64,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		const schema = this.getFileSystemSchema(options);
 		return this.showOpenDialogSimplified(schema, options);
+	}
+
+	protected addFileSchemaIfNeeded(schema: string): string[] {
+		return schema === Schemas.untitled ? [Schemas.file] : [schema];
 	}
 }
 

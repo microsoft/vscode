@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, addDisposableListener, EventType, addClass } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, addClass, EventHelper } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -94,6 +94,9 @@ class BrowserMain extends Disposable {
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
 			e.preventDefault();
 		}, { passive: false }));
+
+		// Prevent native context menus in web
+		this._register(addDisposableListener(this.domElement, EventType.CONTEXT_MENU, (e) => EventHelper.stop(e, true)));
 
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {

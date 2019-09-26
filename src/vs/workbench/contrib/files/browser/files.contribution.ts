@@ -37,6 +37,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
+import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -169,6 +170,8 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Register uri display for file uris
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
 
+// Workspace Watcher
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceWatcher, LifecyclePhase.Restored);
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

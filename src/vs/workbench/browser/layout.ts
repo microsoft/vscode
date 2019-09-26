@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, position, size, EventHelper, Dimension } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, position, size, Dimension } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -31,7 +31,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -249,11 +249,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Prevent workbench from scrolling #55456
 		this._register(addDisposableListener(this.container, EventType.SCROLL, () => this.container.scrollTop = 0));
-
-		// Prevent native context menus in web #73781
-		if (isWeb) {
-			this._register(addDisposableListener(this.container, EventType.CONTEXT_MENU, (e) => EventHelper.stop(e, true)));
-		}
 
 		// Menubar visibility changes
 		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {

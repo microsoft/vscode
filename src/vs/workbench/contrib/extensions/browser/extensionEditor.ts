@@ -55,7 +55,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { renderMarkdownDocument } from 'vs/workbench/common/markdownDocumentRenderer';
+import { renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
