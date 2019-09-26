@@ -32,6 +32,8 @@ const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'list-extensions': OPTIONS['list-extensions'],
 	'force': OPTIONS['force'],
 
+	'disable-user-env-probe': OPTIONS['disable-user-env-probe'],
+
 	'folder': { type: 'string' },
 	'workspace': { type: 'string' },
 	'web-user-data-dir': { type: 'string' },
@@ -52,6 +54,8 @@ export interface ServerParsedArgs {
 	'uninstall-extension'?: string[];
 	'list-extensions'?: boolean;
 	'locate-extension'?: string[];
+
+	'disable-user-env-probe'?: boolean;
 
 	force?: boolean; // used by install-extension
 

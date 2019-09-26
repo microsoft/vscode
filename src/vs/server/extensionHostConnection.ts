@@ -13,10 +13,10 @@ import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IExtHostReadyMessage, IExtHostSocketMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { ServerEnvironmentService } from 'vs/server/remoteExtensionHostAgent';
 
 export class ExtensionHostConnection {
 
@@ -31,7 +31,7 @@ export class ExtensionHostConnection {
 	private _skipWebSocketFrames: boolean;
 
 	constructor(
-		private readonly _environmentService: EnvironmentService,
+		private readonly _environmentService: ServerEnvironmentService,
 		private readonly _logService: ILogService,
 		private readonly _reconnectionToken: string,
 		remoteAddress: string,
