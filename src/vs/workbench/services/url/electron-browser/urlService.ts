@@ -11,7 +11,7 @@ import { URLService } from 'vs/platform/url/node/urlService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 export class RelayURLService extends URLService implements IURLHandler {
 

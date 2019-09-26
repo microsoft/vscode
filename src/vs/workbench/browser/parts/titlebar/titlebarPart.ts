@@ -44,7 +44,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 // tslint:disable-next-line: import-patterns layering
 import { IElectronService } from 'vs/platform/electron/node/electron';
 // tslint:disable-next-line: import-patterns layering
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 export class TitlebarPart extends Part implements ITitleService {
 

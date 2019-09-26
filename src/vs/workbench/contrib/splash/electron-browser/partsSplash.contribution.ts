@@ -24,7 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as perf from 'vs/base/common/performance';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 class PartsSplash {
 

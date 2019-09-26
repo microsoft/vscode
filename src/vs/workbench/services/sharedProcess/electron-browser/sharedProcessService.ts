@@ -5,7 +5,7 @@
 
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
