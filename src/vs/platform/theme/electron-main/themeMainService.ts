@@ -5,7 +5,7 @@
 
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { systemPreferences, ipcMain as ipc } from 'electron';
-import { IStateService } from 'vs/platform/state/common/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 const DEFAULT_BG_LIGHT = '#FFFFFF';

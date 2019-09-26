@@ -55,7 +55,7 @@ import { UserDataSyncService, UserDataAutoSync } from 'vs/platform/userDataSync/
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { SettingsMergeChannelClient } from 'vs/platform/userDataSync/common/settingsSyncIpc';
-import { createChannelSender } from 'vs/platform/ipc/node/ipcChannelCreator';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipcChannelCreator';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';

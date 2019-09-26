@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { IStateService } from 'vs/platform/state/common/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { app, JumpListCategory } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
