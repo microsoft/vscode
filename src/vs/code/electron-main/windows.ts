@@ -18,7 +18,7 @@ import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IURIToOpen, isFileToOpen, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
@@ -27,7 +27,7 @@ import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICo
 import { IRecent } from 'vs/platform/history/common/history';
 import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension, IEnterWorkspaceResult } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
@@ -197,9 +197,8 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
-		const windowsStateStoreData = this.stateService.getItem<WindowsStateStorageData>(WindowsManager.windowsStateStorageKey);
 
-		this.windowsState = restoreWindowsState(windowsStateStoreData);
+		this.windowsState = restoreWindowsState(this.stateService.getItem<WindowsStateStorageData>(WindowsManager.windowsStateStorageKey));
 		if (!Array.isArray(this.windowsState.openedWindows)) {
 			this.windowsState.openedWindows = [];
 		}
@@ -1019,13 +1018,14 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return undefined;
 	}
 
-	private parseUri(uriToOpen: IURIToOpen, options: IPathParseOptions = {}): IPathToOpen | undefined {
-		if (!uriToOpen) {
+	private parseUri(toOpen: IWindowOpenable, options: IPathParseOptions = {}): IPathToOpen | undefined {
+		if (!toOpen) {
 			return undefined;
 		}
-		let uri = resourceFromURIToOpen(uriToOpen);
+
+		let uri = resourceFromURIToOpen(toOpen);
 		if (uri.scheme === Schemas.file) {
-			return this.parsePath(uri.fsPath, options, isFileToOpen(uriToOpen));
+			return this.parsePath(uri.fsPath, options, isFileToOpen(toOpen));
 		}
 
 		// open remote if either specified in the cli or if it's a remotehost URI
@@ -1039,7 +1039,8 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			uri = removeTrailingPathSeparator(uri);
 		}
 
-		if (isFileToOpen(uriToOpen)) {
+		// File
+		if (isFileToOpen(toOpen)) {
 			if (options.gotoLineMode) {
 				const parsedPath = parseLineAndColumnAware(uri.path);
 				return {
@@ -1053,12 +1054,17 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 				fileUri: uri,
 				remoteAuthority
 			};
-		} else if (isWorkspaceToOpen(uriToOpen)) {
+		}
+
+		// Workspace
+		else if (isWorkspaceToOpen(toOpen)) {
 			return {
 				workspace: getWorkspaceIdentifier(uri),
 				remoteAuthority
 			};
 		}
+
+		// Folder
 		return {
 			folderUri: uri,
 			remoteAuthority
@@ -1611,9 +1617,9 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return getLastActiveWindow(WindowsManager.WINDOWS.filter(window => window.remoteAuthority === remoteAuthority));
 	}
 
-	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean }): ICodeWindow[] {
+	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
 		let cli = this.environmentService.args;
-		const remote = undefined;
+		const remote = options && options.remoteAuthority;
 		if (cli && (cli.remote !== remote)) {
 			cli = { ...cli, remote };
 		}
@@ -1763,7 +1769,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		this._onWindowClose.fire(win.id);
 	}
 
-	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+	async pickFileFolderAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
 		const title = localize('open', "Open");
 		const paths = await this.dialogs.pick({ ...options, pickFolders: true, pickFiles: true, title });
 		if (paths) {
@@ -1775,7 +1781,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			}));
 			this.open({
 				context: OpenContext.DIALOG,
-				contextWindowId: options.windowId,
+				contextWindowId: win ? win.id : undefined,
 				cli: this.environmentService.args,
 				urisToOpen,
 				forceNewWindow: options.forceNewWindow
@@ -1783,14 +1789,14 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 	}
 
-	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+	async pickFolderAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
 		const title = localize('openFolder', "Open Folder");
 		const paths = await this.dialogs.pick({ ...options, pickFolders: true, title });
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFolder', options.telemetryExtraData);
 			this.open({
 				context: OpenContext.DIALOG,
-				contextWindowId: options.windowId,
+				contextWindowId: win ? win.id : undefined,
 				cli: this.environmentService.args,
 				urisToOpen: paths.map(path => ({ folderUri: URI.file(path) })),
 				forceNewWindow: options.forceNewWindow
@@ -1798,14 +1804,14 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 	}
 
-	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+	async pickFileAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
 		const title = localize('openFile', "Open File");
 		const paths = await this.dialogs.pick({ ...options, pickFiles: true, title });
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFile', options.telemetryExtraData);
 			this.open({
 				context: OpenContext.DIALOG,
-				contextWindowId: options.windowId,
+				contextWindowId: win ? win.id : undefined,
 				cli: this.environmentService.args,
 				urisToOpen: paths.map(path => ({ fileUri: URI.file(path) })),
 				forceNewWindow: options.forceNewWindow
@@ -1813,7 +1819,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 	}
 
-	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
 		const title = localize('openWorkspaceTitle', "Open Workspace");
 		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
 		const filters = WORKSPACE_FILTER;
@@ -1822,7 +1828,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openWorkspace', options.telemetryExtraData);
 			this.open({
 				context: OpenContext.DIALOG,
-				contextWindowId: options.windowId,
+				contextWindowId: win ? win.id : undefined,
 				cli: this.environmentService.args,
 				urisToOpen: paths.map(path => ({ workspaceUri: URI.file(path) })),
 				forceNewWindow: options.forceNewWindow
@@ -1899,7 +1905,7 @@ class Dialogs {
 		this.noWindowDialogQueue = new Queue<void>();
 	}
 
-	async pick(options: IInternalNativeOpenDialogOptions): Promise<string[] | undefined> {
+	async pick(options: IInternalNativeOpenDialogOptions, win?: ICodeWindow): Promise<string[] | undefined> {
 
 		// Ensure dialog options
 		const dialogOptions: OpenDialogOptions = {
@@ -1930,9 +1936,9 @@ class Dialogs {
 		}
 
 		// Show Dialog
-		const focusedWindow = (typeof options.windowId === 'number' ? this.windowsMainService.getWindowById(options.windowId) : undefined) || this.windowsMainService.getFocusedWindow();
+		const windowToUse = win || this.windowsMainService.getFocusedWindow();
 
-		const result = await this.showOpenDialog(dialogOptions, focusedWindow);
+		const result = await this.showOpenDialog(dialogOptions, windowToUse);
 		if (result && result.filePaths && result.filePaths.length > 0) {
 
 			// Remember path in storage for next time
@@ -2099,14 +2105,14 @@ class WorkspacesManager {
 	}
 }
 
-function resourceFromURIToOpen(u: IURIToOpen): URI {
-	if (isWorkspaceToOpen(u)) {
-		return u.workspaceUri;
+function resourceFromURIToOpen(openable: IWindowOpenable): URI {
+	if (isWorkspaceToOpen(openable)) {
+		return openable.workspaceUri;
 	}
 
-	if (isFolderToOpen(u)) {
-		return u.folderUri;
+	if (isFolderToOpen(openable)) {
+		return openable.folderUri;
 	}
 
-	return u.fileUri;
+	return openable.fileUri;
 }

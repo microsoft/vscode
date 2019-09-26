@@ -29,7 +29,6 @@ export const enum CustomEditorDiscretion {
 }
 
 export interface CustomEditorSelector {
-	readonly scheme?: string;
 	readonly filenamePattern?: string;
 	readonly mime?: string;
 }

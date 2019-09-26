@@ -23,6 +23,7 @@ import { posix } from 'vs/base/common/path';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextEditor } from 'vs/workbench/common/editor';
+import { mixin } from 'vs/base/common/objects';
 
 export class ExpressionContainer implements IExpressionContainer {
 
@@ -98,6 +99,10 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	getId(): string {
 		return this.id;
+	}
+
+	getSession(): IDebugSession | undefined {
+		return this.session;
 	}
 
 	get value(): string {
@@ -498,10 +503,28 @@ export class Enablement implements IEnablement {
 	}
 }
 
-export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
+interface IBreakpointSessionData extends DebugProtocol.Breakpoint {
+	supportsConditionalBreakpoints: boolean;
+	supportsHitConditionalBreakpoints: boolean;
+	supportsLogPoints: boolean;
+	supportsFunctionBreakpoints: boolean;
+	supportsDataBreakpoints: boolean;
+}
 
-	private sessionData = new Map<string, DebugProtocol.Breakpoint>();
-	protected data: DebugProtocol.Breakpoint | undefined;
+function toBreakpointSessionData(data: DebugProtocol.Breakpoint, capabilities: DebugProtocol.Capabilities): IBreakpointSessionData {
+	return mixin({
+		supportsConditionalBreakpoints: !!capabilities.supportsConditionalBreakpoints,
+		supportsHitConditionalBreakpoints: !!capabilities.supportsHitConditionalBreakpoints,
+		supportsLogPoints: !!capabilities.supportsLogPoints,
+		supportsFunctionBreakpoints: !!capabilities.supportsFunctionBreakpoints,
+		supportsDataBreakpoints: !!capabilities.supportsDataBreakpoints
+	}, data);
+}
+
+export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
+
+	private sessionData = new Map<string, IBreakpointSessionData>();
+	protected data: IBreakpointSessionData | undefined;
 
 	constructor(
 		enabled: boolean,
@@ -516,7 +539,7 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		}
 	}
 
-	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint | undefined): void {
+	setSessionData(sessionId: string, data: IBreakpointSessionData | undefined): void {
 		if (!data) {
 			this.sessionData.delete(sessionId);
 		} else {
@@ -545,6 +568,8 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 	get verified(): boolean {
 		return this.data ? this.data.verified : true;
 	}
+
+	abstract get supported(): boolean;
 
 	getIdFromAdapter(sessionId: string): number | undefined {
 		const data = this.sessionData.get(sessionId);
@@ -623,7 +648,25 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		};
 	}
 
-	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint | undefined): void {
+	get supported(): boolean {
+		if (!this.data) {
+			return true;
+		}
+		if (this.logMessage && !this.data.supportsLogPoints) {
+			return false;
+		}
+		if (this.condition && !this.data.supportsConditionalBreakpoints) {
+			return false;
+		}
+		if (this.hitCondition && !this.data.supportsHitConditionalBreakpoints) {
+			return false;
+		}
+
+		return true;
+	}
+
+
+	setSessionData(sessionId: string, data: IBreakpointSessionData | undefined): void {
 		super.setSessionData(sessionId, data);
 		if (!this._adapterData) {
 			this._adapterData = this.adapterData;
@@ -683,6 +726,14 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 		return result;
 	}
 
+	get supported(): boolean {
+		if (!this.data) {
+			return true;
+		}
+
+		return this.data.supportsFunctionBreakpoints;
+	}
+
 	toString(): string {
 		return this.name;
 	}
@@ -709,6 +760,14 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 		result.dataid = this.dataId;
 
 		return result;
+	}
+
+	get supported(): boolean {
+		if (!this.data) {
+			return true;
+		}
+
+		return this.data.supportsDataBreakpoints;
 	}
 
 	toString(): string {
@@ -971,14 +1030,14 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ changed: updated });
 	}
 
-	setBreakpointSessionData(sessionId: string, data: Map<string, DebugProtocol.Breakpoint> | undefined): void {
+	setBreakpointSessionData(sessionId: string, capabilites: DebugProtocol.Capabilities, data: Map<string, DebugProtocol.Breakpoint> | undefined): void {
 		this.breakpoints.forEach(bp => {
 			if (!data) {
 				bp.setSessionData(sessionId, undefined);
 			} else {
 				const bpData = data.get(bp.getId());
 				if (bpData) {
-					bp.setSessionData(sessionId, bpData);
+					bp.setSessionData(sessionId, toBreakpointSessionData(bpData, capabilites));
 				}
 			}
 		});
@@ -988,7 +1047,7 @@ export class DebugModel implements IDebugModel {
 			} else {
 				const fbpData = data.get(fbp.getId());
 				if (fbpData) {
-					fbp.setSessionData(sessionId, fbpData);
+					fbp.setSessionData(sessionId, toBreakpointSessionData(fbpData, capabilites));
 				}
 			}
 		});
@@ -998,7 +1057,7 @@ export class DebugModel implements IDebugModel {
 			} else {
 				const dbpData = data.get(dbp.getId());
 				if (dbpData) {
-					dbp.setSessionData(sessionId, dbpData);
+					dbp.setSessionData(sessionId, toBreakpointSessionData(dbpData, capabilites));
 				}
 			}
 		});

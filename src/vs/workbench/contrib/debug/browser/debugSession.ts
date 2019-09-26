@@ -22,7 +22,7 @@ import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspac
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
@@ -70,7 +70,7 @@ export class DebugSession implements IDebugSession {
 		options: IDebugSessionOptions | undefined,
 		@IDebugService private readonly debugService: IDebugService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -86,6 +86,7 @@ export class DebugSession implements IDebugSession {
 		} else {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
+		this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
 	}
 
 	getId(): string {
@@ -313,7 +314,7 @@ export class DebugSession implements IDebugSession {
 					data.set(breakpointsToSend[i].getId(), response.body.breakpoints[i]);
 				}
 
-				this.model.setBreakpointSessionData(this.getId(), data);
+				this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 			}
 		});
 	}
@@ -327,7 +328,7 @@ export class DebugSession implements IDebugSession {
 						for (let i = 0; i < fbpts.length; i++) {
 							data.set(fbpts[i].getId(), response.body.breakpoints[i]);
 						}
-						this.model.setBreakpointSessionData(this.getId(), data);
+						this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 					}
 				});
 			}
@@ -367,7 +368,7 @@ export class DebugSession implements IDebugSession {
 						for (let i = 0; i < dataBreakpoints.length; i++) {
 							data.set(dataBreakpoints[i].getId(), response.body.breakpoints[i]);
 						}
-						this.model.setBreakpointSessionData(this.getId(), data);
+						this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 					}
 				});
 			}
@@ -731,7 +732,7 @@ export class DebugSession implements IDebugSession {
 								}
 
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak) {
-									this.windowService.focusWindow();
+									this.hostService.focus();
 								}
 							}
 						}
@@ -844,7 +845,7 @@ export class DebugSession implements IDebugSession {
 				}], false);
 				if (bps.length === 1) {
 					const data = new Map<string, DebugProtocol.Breakpoint>([[bps[0].getId(), event.body.breakpoint]]);
-					this.model.setBreakpointSessionData(this.getId(), data);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 				}
 			}
 
@@ -863,11 +864,11 @@ export class DebugSession implements IDebugSession {
 						event.body.breakpoint.column = undefined;
 					}
 					const data = new Map<string, DebugProtocol.Breakpoint>([[breakpoint.getId(), event.body.breakpoint]]);
-					this.model.setBreakpointSessionData(this.getId(), data);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 				}
 				if (functionBreakpoint) {
 					const data = new Map<string, DebugProtocol.Breakpoint>([[functionBreakpoint.getId(), event.body.breakpoint]]);
-					this.model.setBreakpointSessionData(this.getId(), data);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 				}
 			}
 		}));
@@ -885,7 +886,7 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
 			this.initialized = true;
-			this.model.setBreakpointSessionData(this.getId(), undefined);
+			this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
 			this._onDidEndAdapter.fire(event);
 		}));
 	}
@@ -967,25 +968,19 @@ export class DebugSession implements IDebugSession {
 
 	removeReplExpressions(): void {
 		this.repl.removeReplExpressions();
-		this._onDidChangeREPLElements.fire();
 	}
 
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		const expressionEvaluated = this.repl.addReplExpression(this, stackFrame, name);
-		this._onDidChangeREPLElements.fire();
-		await expressionEvaluated;
-		this._onDidChangeREPLElements.fire();
+		await this.repl.addReplExpression(this, stackFrame, name);
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 		variableSetEmitter.fire();
 	}
 
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
-		this.repl.appendToRepl(data, severity, source);
-		this._onDidChangeREPLElements.fire();
+		this.repl.appendToRepl(this, data, severity, source);
 	}
 
 	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
 		this.repl.logToRepl(this, sev, args, frame);
-		this._onDidChangeREPLElements.fire();
 	}
 }

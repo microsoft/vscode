@@ -8,10 +8,14 @@ import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 export class WorkspacesChannel implements IServerChannel {
 
-	constructor(private service: IWorkspacesMainService) { }
+	constructor(
+		private workspacesMainService: IWorkspacesMainService,
+		private windowsMainService: IWindowsMainService
+	) { }
 
 	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
@@ -32,14 +36,20 @@ export class WorkspacesChannel implements IServerChannel {
 					});
 				}
 
-				return this.service.createUntitledWorkspace(folders, remoteAuthority);
+				return this.workspacesMainService.createUntitledWorkspace(folders, remoteAuthority);
 			}
 			case 'deleteUntitledWorkspace': {
-				const w: IWorkspaceIdentifier = arg;
-				return this.service.deleteUntitledWorkspace({ id: w.id, configPath: URI.revive(w.configPath) });
+				const identifier: IWorkspaceIdentifier = arg;
+				return this.workspacesMainService.deleteUntitledWorkspace({ id: identifier.id, configPath: URI.revive(identifier.configPath) });
 			}
 			case 'getWorkspaceIdentifier': {
-				return this.service.getWorkspaceIdentifier(URI.revive(arg));
+				return this.workspacesMainService.getWorkspaceIdentifier(URI.revive(arg));
+			}
+			case 'enterWorkspace': {
+				const window = this.windowsMainService.getWindowById(arg[0]);
+				if (window) {
+					return this.windowsMainService.enterWorkspace(window, URI.revive(arg[1]));
+				}
 			}
 		}
 

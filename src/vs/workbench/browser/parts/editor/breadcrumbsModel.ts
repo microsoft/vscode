@@ -45,7 +45,7 @@ export class EditorBreadcrumbsModel {
 	private _outlineElements: Array<OutlineModel | OutlineGroup | OutlineElement> = [];
 	private _outlineDisposables = new DisposableStore();
 
-	private _onDidUpdate = new Emitter<this>();
+	private readonly _onDidUpdate = new Emitter<this>();
 	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
 
 	constructor(

@@ -16,7 +16,7 @@ import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { editorLightbulbIconForeground, editorLightbulbAutoFixIconForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 
 namespace LightBulbState {
 
@@ -205,22 +205,22 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	// Lightbulb Icon
-	const editorLightbulbIconForegroundColor = theme.getColor(editorLightbulbIconForeground);
-	if (editorLightbulbIconForegroundColor) {
+	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
+	if (editorLightBulbForegroundColor) {
 		collector.addRule(`
 		.monaco-workbench .contentWidgets .codicon-lightbulb,
 		.monaco-workbench .markers-panel-container .codicon-lightbulb {
-			color: ${editorLightbulbIconForegroundColor};
+			color: ${editorLightBulbForegroundColor};
 		}`);
 	}
 
 	// Lightbulb Auto Fix Icon
-	const editorLightbulbAutoFixIconForegroundColor = theme.getColor(editorLightbulbAutoFixIconForeground);
-	if (editorLightbulbAutoFixIconForegroundColor) {
+	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
+	if (editorLightBulbAutoFixForegroundColor) {
 		collector.addRule(`
 		.monaco-workbench .contentWidgets .codicon-lightbulb-autofix,
 		.monaco-workbench .markers-panel-container .codicon-lightbulb-autofix {
-			color: ${editorLightbulbAutoFixIconForegroundColor};
+			color: ${editorLightBulbAutoFixForegroundColor};
 		}`);
 	}
 

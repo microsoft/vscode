@@ -59,7 +59,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 	_serviceBrand: undefined;
 
-	private _onRecentlyOpenedChange = new Emitter<void>();
+	private readonly _onRecentlyOpenedChange = new Emitter<void>();
 	readonly onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;
 
 	private macOSRecentDocumentsUpdater: ThrottledDelayer<void>;

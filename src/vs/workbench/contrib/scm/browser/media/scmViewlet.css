@@ -7,30 +7,6 @@
 	-webkit-mask: url('scm-activity-bar.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench .scm-action.toggle-view-mode.list {
-	background: url('list-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .scm-action.toggle-view-mode.list {
-	background: url('list-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .scm-action.toggle-view-mode.list {
-	background: url('list-hc.svg') center center no-repeat;
-}
-
-.monaco-workbench .scm-action.toggle-view-mode.tree {
-	background: url('tree-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .scm-action.toggle-view-mode.tree {
-	background: url('tree-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .scm-action.toggle-view-mode.tree {
-	background: url('tree-hc.svg') center center no-repeat;
-}
-
 .monaco-workbench .viewlet.scm-viewlet .collapsible.header .actions {
 	width: initial;
 	flex: 1;
@@ -118,10 +94,6 @@
 
 .scm-viewlet .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-description-container > .label-name {
 	text-decoration: line-through;
-}
-
-.scm-viewlet .monaco-list-row .resource > .name > .monaco-icon-label::after {
-	padding: 0 8px;
 }
 
 .scm-viewlet .monaco-list-row .resource-group > .count {

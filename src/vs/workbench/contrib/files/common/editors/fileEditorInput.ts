@@ -23,12 +23,14 @@ const enum ForceOpenAs {
 	Text,
 	Binary
 }
-const memoizer = createMemoizer();
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
 export class FileEditorInput extends EditorInput implements IFileEditorInput {
+
+	private static readonly MEMOIZER = createMemoizer();
+
 	private preferredEncoding: string;
 	private preferredMode: string;
 
@@ -69,7 +71,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		this._register(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
-		this._register(this.labelService.onDidChangeFormatters(() => memoizer.clear()));
+		this._register(this.labelService.onDidChangeFormatters(() => FileEditorInput.MEMOIZER.clear()));
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
@@ -145,22 +147,22 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return FILE_EDITOR_INPUT_ID;
 	}
 
-	@memoizer
+	@FileEditorInput.MEMOIZER
 	getName(): string {
 		return this.decorateLabel(this.labelService.getUriBasenameLabel(this.resource));
 	}
 
-	@memoizer
+	@FileEditorInput.MEMOIZER
 	private get shortDescription(): string {
 		return this.labelService.getUriBasenameLabel(dirname(this.resource));
 	}
 
-	@memoizer
+	@FileEditorInput.MEMOIZER
 	private get mediumDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
 	}
 
-	@memoizer
+	@FileEditorInput.MEMOIZER
 	private get longDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource));
 	}
@@ -177,17 +179,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 	}
 
-	@memoizer
+	@FileEditorInput.MEMOIZER
 	private get shortTitle(): string {
 		return this.getName();
 	}
 
-	@memoizer
+	@FileEditorInput.MEMOIZER
 	private get mediumTitle(): string {
 		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
-	@memoizer
+	@FileEditorInput.MEMOIZER
 	private get longTitle(): string {
 		return this.labelService.getUriLabel(this.resource);
 	}

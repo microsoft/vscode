@@ -550,6 +550,8 @@ export interface MainThreadWebviewsShape extends IDisposable {
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void;
+	$setExtension(handle: WebviewPanelHandle, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
+
 	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
 
 	$registerSerializer(viewType: string): void;
@@ -745,7 +747,6 @@ export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): Promise<boolean>;
 	$openUri(uri: UriComponents, options: IOpenUriOptions): Promise<boolean>;
 	$resolveExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
-	$releaseResolvedExternalUri(uri: UriComponents): Promise<boolean>;
 }
 
 // -- extension host

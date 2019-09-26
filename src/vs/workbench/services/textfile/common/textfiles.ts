@@ -412,10 +412,10 @@ export interface ITextFileEditorModelManager {
 	readonly onModelReverted: Event<TextFileModelChangeEvent>;
 	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
 
-	readonly onModelsDirty: Event<TextFileModelChangeEvent[]>;
-	readonly onModelsSaveError: Event<TextFileModelChangeEvent[]>;
-	readonly onModelsSaved: Event<TextFileModelChangeEvent[]>;
-	readonly onModelsReverted: Event<TextFileModelChangeEvent[]>;
+	readonly onModelsDirty: Event<readonly TextFileModelChangeEvent[]>;
+	readonly onModelsSaveError: Event<readonly TextFileModelChangeEvent[]>;
+	readonly onModelsSaved: Event<readonly TextFileModelChangeEvent[]>;
+	readonly onModelsReverted: Event<readonly TextFileModelChangeEvent[]>;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
 
@@ -433,7 +433,7 @@ export interface ISaveOptions {
 	overwriteEncoding?: boolean;
 	skipSaveParticipants?: boolean;
 	writeElevated?: boolean;
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
 export interface ILoadOptions {

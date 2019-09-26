@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService, DEFAULT_IGNORED_SETTINGS } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -15,6 +15,9 @@ import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { startsWith } from 'vs/base/common/strings';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -47,6 +50,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@ISettingsMergeService private readonly settingsMergeService: ISettingsMergeService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.lastSyncSettingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncSettings.json');
@@ -77,6 +81,9 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	async sync(_continue?: boolean): Promise<boolean> {
+		if (!this.configurationService.getValue<boolean>('configurationSync.enableSettings')) {
+			return false;
+		}
 
 		if (_continue) {
 			return this.continueSync();
@@ -113,6 +120,15 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		}
 	}
 
+	stop(): void {
+		if (this.syncPreviewResultPromise) {
+			this.syncPreviewResultPromise.cancel();
+			this.syncPreviewResultPromise = null;
+		}
+		this.fileService.del(this.environmentService.settingsSyncPreviewResource);
+		this.setStatus(SyncStatus.Idle);
+	}
+
 	private async continueSync(): Promise<boolean> {
 		if (this.status !== SyncStatus.HasConflicts) {
 			return false;
@@ -134,12 +150,13 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			}
 
 			let { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged } = await this.syncPreviewResultPromise;
-			if (hasRemoteChanged) {
-				const ref = await this.writeToRemote(content, remoteUserData.ref);
-				remoteUserData = { ref, content };
-			}
 			if (hasLocalChanged) {
 				await this.writeToLocal(content, fileContent);
+			}
+			if (hasRemoteChanged) {
+				const remoteContent = remoteUserData.content ? await this.settingsMergeService.computeRemoteContent(content, remoteUserData.content, this.getIgnoredSettings(content)) : content;
+				const ref = await this.writeToRemote(remoteContent, remoteUserData.ref);
+				remoteUserData = { ref, content };
 			}
 			if (remoteUserData.content) {
 				await this.updateLastSyncValue(remoteUserData);
@@ -161,12 +178,12 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 	private getPreview(): Promise<ISyncPreviewResult> {
 		if (!this.syncPreviewResultPromise) {
-			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview());
+			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(token));
 		}
 		return this.syncPreviewResultPromise;
 	}
 
-	private async generatePreview(): Promise<ISyncPreviewResult> {
+	private async generatePreview(token: CancellationToken): Promise<ISyncPreviewResult> {
 		const lastSyncData = await this.getLastSyncUserData();
 		const remoteUserData = await this.userDataSyncStoreService.read(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY, lastSyncData);
 		const remoteContent: string | null = remoteUserData.content;
@@ -175,44 +192,51 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		let hasLocalChanged: boolean = false;
 		let hasRemoteChanged: boolean = false;
 		let hasConflicts: boolean = false;
+		let previewContent = null;
 
-		// First time sync to remote
-		if (fileContent && !remoteContent) {
-			this.logService.trace('Settings Sync: Remote contents does not exist. So sync with settings file.');
-			hasRemoteChanged = true;
-			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(fileContent.value.toString()));
-			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
-		}
-
-		// Settings file does not exist, so sync with remote contents.
-		if (remoteContent && !fileContent) {
-			this.logService.trace('Settings Sync: Settings file does not exist. So sync with remote contents');
-			hasLocalChanged = true;
-			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
-			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
-		}
-
-		if (fileContent && remoteContent) {
-			const localContent: string = fileContent.value.toString();
+		if (remoteContent) {
+			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
 			if (!lastSyncData // First time sync
 				|| lastSyncData.content !== localContent // Local has moved forwarded
 				|| lastSyncData.content !== remoteContent // Remote has moved forwarded
 			) {
-				this.logService.trace('Settings Sync: Merging remote contents with settings file.');
-				const result = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null);
+				this.logService.info('Settings Sync: Merging remote contents with settings file.');
+				const result = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, this.getIgnoredSettings());
 				// Sync only if there are changes
 				if (result.hasChanges) {
 					hasLocalChanged = result.mergeContent !== localContent;
 					hasRemoteChanged = result.mergeContent !== remoteContent;
 					hasConflicts = result.hasConflicts;
-					await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(result.mergeContent));
-					return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
+					previewContent = result.mergeContent;
 				}
 			}
 		}
 
-		this.logService.trace('Settings Sync: No changes.');
+		// First time sync to remote
+		else if (fileContent) {
+			this.logService.trace('Settings Sync: Remote contents does not exist. So sync with settings file.');
+			hasRemoteChanged = true;
+			previewContent = fileContent.value.toString();
+		}
+
+		if (previewContent && !token.isCancellationRequested) {
+			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(previewContent));
+		}
+
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
+	}
+
+	private getIgnoredSettings(settingsContent?: string): string[] {
+		const value: string[] = (settingsContent ? parse(settingsContent)['configurationSync.settingsToIgnore'] : this.configurationService.getValue<string[]>('configurationSync.settingsToIgnore')) || [];
+		const added: string[] = [], removed: string[] = [];
+		for (const key of value) {
+			if (startsWith(key, '-')) {
+				removed.push(key.substring(1));
+			} else {
+				added.push(key);
+			}
+		}
+		return [...DEFAULT_IGNORED_SETTINGS, ...added].filter(setting => removed.indexOf(setting) === -1);
 	}
 
 	private async getLastSyncUserData(): Promise<IUserData | null> {

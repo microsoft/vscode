@@ -291,17 +291,21 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _isEnabled(extension: IExtensionDescription): boolean {
+		return !this._isDisabled(extension);
+	}
+
+	protected _isDisabled(extension: IExtensionDescription): boolean {
 		if (this._isExtensionUnderDevelopment(extension)) {
 			// Never disable extensions under development
-			return true;
+			return false;
 		}
 
 		if (ExtensionIdentifier.equals(extension.identifier, BetterMergeId)) {
 			// Check if this is the better merge extension which was migrated to a built-in extension
-			return false;
+			return true;
 		}
 
-		return this._extensionEnablementService.isEnabled(toExtension(extension));
+		return !this._extensionEnablementService.isEnabled(toExtension(extension));
 	}
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {

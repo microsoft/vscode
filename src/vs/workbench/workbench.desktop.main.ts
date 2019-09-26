@@ -27,10 +27,11 @@ import 'vs/workbench/electron-browser/desktop.main';
 
 
 //#region --- workbench services
+import 'vs/workbench/services/dialogs/electron-browser/fileDialogService';
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/search/node/searchService';
-import 'vs/workbench/services/output/node/outputChannelModelService';
+import 'vs/workbench/services/output/electron-browser/outputChannelModelService';
 import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
@@ -52,15 +53,15 @@ import 'vs/workbench/services/workspace/electron-browser/workspacesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
 import 'vs/workbench/services/host/electron-browser/desktopHostService';
 import 'vs/workbench/services/request/electron-browser/requestService';
+import 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
+import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
+import 'vs/workbench/services/electron/electron-browser/electronService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
-import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
-import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -69,18 +70,16 @@ import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IssueService } from 'vs/platform/issue/electron-browser/issueService';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
-import { IElectronService } from 'vs/platform/electron/node/electron';
-import { ElectronService } from 'vs/platform/electron/electron-browser/electronService';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { NativeWorkspaceEditingService } from 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 
 registerSingleton(IClipboardService, ClipboardService, true);
-registerSingleton(ILifecycleService, LifecycleService);
 registerSingleton(ILocalizationsService, LocalizationsService);
-registerSingleton(ISharedProcessService, SharedProcessService, true);
 registerSingleton(IWindowsService, WindowsService);
 registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
 registerSingleton(IMenubarService, MenubarService);
-registerSingleton(IElectronService, ElectronService, true);
+registerSingleton(IWorkspaceEditingService, NativeWorkspaceEditingService, true);
 
 //#endregion
 
@@ -149,5 +148,8 @@ import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribu
 
 // Welcome
 import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/openWebsite.contribution';
+
+// Configuration Exporter
+import 'vs/workbench/contrib/configExporter/node/configurationExportHelper.contribution';
 
 //#endregion
