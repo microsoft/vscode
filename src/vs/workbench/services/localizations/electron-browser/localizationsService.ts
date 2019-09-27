@@ -19,4 +19,4 @@ export class LocalizationsService {
 	}
 }
 
-registerSingleton(ILocalizationsService, LocalizationsService);
+registerSingleton(ILocalizationsService, LocalizationsService, true);

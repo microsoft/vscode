@@ -7,8 +7,9 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { clipboard } from 'electron';
 import { URI } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class ClipboardService implements IClipboardService {
+export class NativeClipboardService implements IClipboardService {
 
 	private static FILE_FORMAT = 'code/file-list'; // Clipboard format for files
 
@@ -42,16 +43,16 @@ export class ClipboardService implements IClipboardService {
 
 	writeResources(resources: URI[]): void {
 		if (resources.length) {
-			clipboard.writeBuffer(ClipboardService.FILE_FORMAT, this.resourcesToBuffer(resources));
+			clipboard.writeBuffer(NativeClipboardService.FILE_FORMAT, this.resourcesToBuffer(resources));
 		}
 	}
 
 	readResources(): URI[] {
-		return this.bufferToResources(clipboard.readBuffer(ClipboardService.FILE_FORMAT));
+		return this.bufferToResources(clipboard.readBuffer(NativeClipboardService.FILE_FORMAT));
 	}
 
 	hasResources(): boolean {
-		return clipboard.has(ClipboardService.FILE_FORMAT);
+		return clipboard.has(NativeClipboardService.FILE_FORMAT);
 	}
 
 	private resourcesToBuffer(resources: URI[]): Buffer {
@@ -75,3 +76,5 @@ export class ClipboardService implements IClipboardService {
 		}
 	}
 }
+
+registerSingleton(IClipboardService, NativeClipboardService, true);

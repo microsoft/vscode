@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMenubarService } from 'vs/platform/menubar/node/menubar';
+import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class MenubarService {
+export class IssueService {
 
 	_serviceBrand: undefined;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		return createChannelSender<IMenubarService>(mainProcessService.getChannel('menubar'));
+		return createChannelSender<IIssueService>(mainProcessService.getChannel('issue'));
 	}
 }
+
+registerSingleton(IIssueService, IssueService, true);
