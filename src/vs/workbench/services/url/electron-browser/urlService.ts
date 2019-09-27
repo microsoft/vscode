@@ -6,12 +6,13 @@
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { URLServiceChannelClient, URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/node/urlService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipcChannelCreator';
 
 export class RelayURLService extends URLService implements IURLHandler {
 
@@ -24,7 +25,7 @@ export class RelayURLService extends URLService implements IURLHandler {
 	) {
 		super();
 
-		this.urlService = new URLServiceChannelClient(mainProcessService.getChannel('url'));
+		this.urlService = createChannelSender(mainProcessService.getChannel('url'));
 
 		mainProcessService.registerChannel('urlHandler', new URLHandlerChannel(this));
 		openerService.registerOpener(this);
