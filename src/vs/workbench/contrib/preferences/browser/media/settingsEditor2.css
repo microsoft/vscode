@@ -171,18 +171,6 @@
 	background-size: 16px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon-more::before {
-	content: ' ';
-}
-
-.vs .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .codicon-more {
-	background-image: url('configure-light.svg');
-}
-
-.vs-dark .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .codicon-more {
-	background-image: url('configure-dark.svg');
-}
-
 .settings-editor > .settings-body .settings-toc-container {
 	width: 100%;
 	pointer-events: none;
@@ -436,16 +424,10 @@
 	margin-right: 9px;
 	margin-left: 0px;
 	padding: 0px;
-	background-size: 16px !important;
 }
 
-.vs .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
-	background: url('check-light.svg') center center no-repeat;
-}
-
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked,
-.hc-black .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
-	background: url('check-dark.svg') center center no-repeat;
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.codicon:not(.checked)::before  {
+	opacity: 0;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-value {

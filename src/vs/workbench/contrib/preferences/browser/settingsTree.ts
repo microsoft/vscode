@@ -393,6 +393,13 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			toggleMenuTitle
 		});
 		toolbar.setActions([], this.settingActions)();
+
+		// change icon from ellipsis to gear
+		let icon = container.querySelector('.codicon-more');
+		if (icon) {
+			(<HTMLElement>icon).classList.add('codicon-gear');
+		}
+
 		const button = container.querySelector('.toolbar-toggle-more');
 		if (button) {
 			(<HTMLElement>button).tabIndex = -1;
@@ -1071,7 +1078,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
-		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
+		const checkbox = new Checkbox({ actionClassName: 'codicon-check setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {
