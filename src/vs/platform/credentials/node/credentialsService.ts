@@ -5,7 +5,6 @@
 
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IdleValue } from 'vs/base/common/async';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 type KeytarModule = typeof import('keytar');
 export class KeytarCredentialsService implements ICredentialsService {
@@ -39,5 +38,3 @@ export class KeytarCredentialsService implements ICredentialsService {
 		return keytar.findCredentials(service);
 	}
 }
-
-registerSingleton(ICredentialsService, KeytarCredentialsService, true);

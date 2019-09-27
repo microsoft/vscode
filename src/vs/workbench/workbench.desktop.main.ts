@@ -46,7 +46,6 @@ import 'vs/workbench/services/extensionManagement/node/extensionManagementServic
 import 'vs/workbench/services/accessibility/node/accessibilityService';
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
-import 'vs/platform/credentials/node/credentialsService';
 import 'vs/workbench/services/url/electron-browser/urlService';
 import 'vs/workbench/services/workspaces/electron-browser/workspacesService';
 import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
@@ -62,6 +61,11 @@ import 'vs/workbench/services/clipboard/electron-browser/clipboardService';
 import 'vs/workbench/services/update/electron-browser/updateService';
 import 'vs/workbench/services/issue/electron-browser/issueService';
 import 'vs/workbench/services/menubar/electron-browser/menubarService';
+
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
+
+registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 
 //#endregion
 
@@ -133,5 +137,6 @@ import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/openWebsite
 
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/node/configurationExportHelper.contribution';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 //#endregion
