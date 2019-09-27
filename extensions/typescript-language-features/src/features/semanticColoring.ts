@@ -109,6 +109,7 @@ class SemanticColoringProvider implements vscode.SemanticColoringProvider {
 }
 
 export function register(
+	_selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient
 ) {
 	const provider = new SemanticColoringProvider(client);

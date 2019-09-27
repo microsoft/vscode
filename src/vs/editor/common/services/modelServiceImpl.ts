@@ -426,3 +426,28 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 export interface ILineSequence {
 	getLineContent(lineNumber: number): string;
 }
+
+class SemanticColoring extends Disposable {
+	private _watchers: Record<string, ModelSemanticColoring>;
+
+	constructor(modelService: IModelService) {
+		super();
+		this._watchers = Object.create(null);
+		this._register(modelService.onModelAdded((model) => {
+			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model);
+		}));
+		this._register(modelService.onModelRemoved((model) => {
+			this._watchers[model.uri.toString()].dispose();
+			delete this._watchers[model.uri.toString()];
+		}));
+	}
+}
+
+class ModelSemanticColoring extends Disposable {
+
+	constructor(model: ITextModel) {
+		super();
+		this._register
+	}
+
+}

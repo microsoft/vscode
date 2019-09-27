@@ -276,6 +276,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private _languageIdentifier: LanguageIdentifier;
 	private readonly _languageRegistryListener: IDisposable;
 	private readonly _tokens: TokensStore;
+	private readonly _tokens2: TokensStore;
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
@@ -339,6 +340,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._trimAutoWhitespaceLines = null;
 
 		this._tokens = new TokensStore();
+		this._tokens2 = new TokensStore();
 		this._tokenization = new TextModelTokenization(this);
 	}
 
@@ -414,6 +416,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		// Flush all tokens
 		this._tokens.flush();
+		this._tokens2.flush();
 
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
@@ -1263,6 +1266,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				const change = contentChanges[i];
 				const [eolCount, firstLineLength] = countEOL(change.text);
 				this._tokens.acceptEdit(change.range, eolCount, firstLineLength);
+				this._tokens2.acceptEdit(change.range, eolCount, firstLineLength);
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 
@@ -1716,6 +1720,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		});
 	}
 
+	public setSemanticTokens(tokens: MultilineTokens[]): void {
+		
+	}
+
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
 		startLineNumber = Math.max(1, startLineNumber);
 		endLineNumber = Math.min(this._buffer.getLineCount(), endLineNumber);
@@ -1731,6 +1739,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 				toLineNumber: this._buffer.getLineCount()
 			}]
 		});
+	}
+
+	public clearSemanticTokens(): void {
+		this._tokens2.flush();
+		console.log(`todo - shoud emit event?`);
 	}
 
 	private _emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
