@@ -9,7 +9,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ansiColorIdentifiers, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ITheme, ThemeType } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { TokenClassification } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 registerColors();
 
@@ -21,7 +20,9 @@ function getMockTheme(type: ThemeType): ITheme {
 		type: type,
 		getColor: (colorId: ColorIdentifier): Color | undefined => themingRegistry.resolveDefaultColor(colorId, theme),
 		defines: () => true,
-		getTokenStyle: (tokenStyleId: TokenClassification) => undefined
+		getTokenStyle: () => undefined,
+		resolveScopes: () => undefined
+
 	};
 	return theme;
 }

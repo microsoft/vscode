@@ -57,7 +57,7 @@ suite('TokenizationSupport2Adapter', () => {
 				},
 
 				getTokenStyle: () => undefined,
-
+				resolveScopes: () => undefined
 
 			};
 		}
