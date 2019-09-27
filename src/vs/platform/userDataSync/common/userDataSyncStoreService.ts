@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
+import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IHeaders } from 'vs/base/parts/request/common/request';
+import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -27,6 +27,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
 	}
@@ -48,11 +49,15 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			headers['If-None-Match'] = oldValue.ref;
 		}
 
-		const context = await this.requestService.request({ type: 'GET', url, headers }, CancellationToken.None);
+		const context = await this.request({ type: 'GET', url, headers }, CancellationToken.None);
 
 		if (context.res.statusCode === 304) {
 			// There is no new value. Hence return the old value.
 			return oldValue!;
+		}
+
+		if (!isSuccess(context)) {
+			throw new Error('Server returned ' + context.res.statusCode);
 		}
 
 		const ref = context.res.headers['etag'];
@@ -74,11 +79,15 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			headers['If-Match'] = ref;
 		}
 
-		const context = await this.requestService.request({ type: 'POST', url, data, headers }, CancellationToken.None);
+		const context = await this.request({ type: 'POST', url, data, headers }, CancellationToken.None);
 
 		if (context.res.statusCode === 412) {
 			// There is a new value. Throw Rejected Error
 			throw new UserDataSyncStoreError('New data exists', UserDataSyncStoreErrorCode.Rejected);
+		}
+
+		if (!isSuccess(context)) {
+			throw new Error('Server returned ' + context.res.statusCode);
 		}
 
 		const newRef = context.res.headers['etag'];
@@ -86,6 +95,19 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new Error('Server did not return the ref');
 		}
 		return newRef;
+	}
+
+	private async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		const context = await this.requestService.request(options, token);
+
+		if (context.res.statusCode === 401) {
+			// Not Authorized
+			this.logService.info('Authroization Failed.');
+			Promise.reject('Authroization Failed.');
+		}
+
+		return context;
+
 	}
 
 }

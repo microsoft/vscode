@@ -79,6 +79,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			return false;
 		}
 
+		this.logService.trace('Extensions: Started synchronising extensions...');
 		this.setStatus(SyncStatus.Syncing);
 
 		try {
@@ -142,7 +143,9 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			remoteData = await this.writeToRemote(remote, remoteData.ref);
 		}
 
-		if (remoteData.content) {
+		if (remoteData.content
+			&& (!lastSyncData || lastSyncData.ref !== remoteData.ref)
+		) {
 			// update last sync
 			this.logService.info('Extensions: Updating last synchronised extensions...');
 			await this.updateLastSyncValue(remoteData);
