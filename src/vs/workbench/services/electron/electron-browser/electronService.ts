@@ -7,7 +7,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
 
 export class ElectronService {
 
