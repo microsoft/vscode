@@ -70,6 +70,9 @@
 	height: 20px;
 	padding: 2px;
 	margin-right: 2px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-edit {
