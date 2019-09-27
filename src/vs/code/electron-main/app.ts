@@ -16,7 +16,7 @@ import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
-import { LaunchMainService, LaunchChannel, ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
+import { LaunchMainService, ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -530,7 +530,7 @@ export class CodeApplication extends Disposable {
 
 		// Register more Main IPC services
 		const launchMainService = accessor.get(ILaunchMainService);
-		const launchChannel = new LaunchChannel(launchMainService);
+		const launchChannel = createChannelReceiver(launchMainService, { disableMarshalling: true });
 		this.mainIpcServer.registerChannel('launch', launchChannel);
 
 		// Register more Electron IPC services
