@@ -56,12 +56,11 @@ import 'vs/workbench/services/request/electron-browser/requestService';
 import 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/electron/electron-browser/electronService';
+import 'vs/workbench/services/localizations/electron-browser/localizationsService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateService } from 'vs/platform/update/electron-browser/updateService';
 import { IIssueService } from 'vs/platform/issue/node/issue';
@@ -70,7 +69,6 @@ import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
 
 registerSingleton(IClipboardService, ClipboardService, true);
-registerSingleton(ILocalizationsService, LocalizationsService);
 registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
 registerSingleton(IMenubarService, MenubarService);

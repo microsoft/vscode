@@ -32,11 +32,10 @@ import { ILogService, LogLevel, ILoggerService } from 'vs/platform/log/common/lo
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
 import { combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { IChannel, IServerChannel, StaticRouter, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, IServerChannel, StaticRouter, createChannelSender, createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
 import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
@@ -192,7 +191,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			server.registerChannel('extensions', channel);
 
 			const localizationsService = accessor.get(ILocalizationsService);
-			const localizationsChannel = new LocalizationsChannel(localizationsService);
+			const localizationsChannel = createChannelReceiver(localizationsService);
 			server.registerChannel('localizations', localizationsChannel);
 
 			const diagnosticsService = accessor.get(IDiagnosticsService);
