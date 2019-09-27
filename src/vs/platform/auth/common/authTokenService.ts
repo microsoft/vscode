@@ -36,19 +36,31 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	}
 
 	getToken(): Promise<string | null> {
+		if (this.status === AuthTokenStatus.Disabled) {
+			throw new Error('Not enabled');
+		}
 		return this.credentialsService.getPassword(SERVICE_NAME, ACCOUNT);
 	}
 
 	async updateToken(token: string): Promise<void> {
+		if (this.status === AuthTokenStatus.Disabled) {
+			throw new Error('Not enabled');
+		}
 		await this.credentialsService.setPassword(SERVICE_NAME, ACCOUNT, token);
 		this.setStatus(AuthTokenStatus.Active);
 	}
 
 	async refreshToken(): Promise<void> {
+		if (this.status === AuthTokenStatus.Disabled) {
+			throw new Error('Not enabled');
+		}
 		await this.deleteToken();
 	}
 
 	async deleteToken(): Promise<void> {
+		if (this.status === AuthTokenStatus.Disabled) {
+			throw new Error('Not enabled');
+		}
 		await this.credentialsService.deletePassword(SERVICE_NAME, ACCOUNT);
 		this.setStatus(AuthTokenStatus.Inactive);
 	}
