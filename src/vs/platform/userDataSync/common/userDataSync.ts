@@ -104,11 +104,6 @@ export interface IUserDataSyncStoreService {
 
 	readonly enabled: boolean;
 
-	readonly loggedIn: boolean;
-	readonly onDidChangeLoggedIn: Event<boolean>;
-	login(): Promise<void>;
-	logout(): Promise<void>;
-
 	read(key: string, oldValue: IUserData | null): Promise<IUserData>;
 	write(key: string, content: string, ref: string | null): Promise<string>;
 }

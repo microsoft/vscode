@@ -6,7 +6,6 @@
 import { Disposable, } from 'vs/base/common/lifecycle';
 import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { Emitter, Event } from 'vs/base/common/event';
 import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
@@ -20,11 +19,6 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 	get enabled(): boolean { return !!this.productService.settingsSyncStoreUrl; }
 
-	private _loggedIn: boolean = false;
-	get loggedIn(): boolean { return this._loggedIn; }
-	private readonly _onDidChangeLoggedIn: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onDidChangeLoggedIn: Event<boolean> = this._onDidChangeLoggedIn.event;
-
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
@@ -32,12 +26,6 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
 	) {
 		super();
-	}
-
-	async login(): Promise<void> {
-	}
-
-	async logout(): Promise<void> {
 	}
 
 	async read(key: string, oldValue: IUserData | null): Promise<IUserData> {
