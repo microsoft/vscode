@@ -12,7 +12,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
-import { createChannelSender } from 'vs/base/parts/ipc/node/ipcChannelCreator';
+import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 
 export class RelayURLService extends URLService implements IURLHandler {
 

@@ -36,7 +36,7 @@ import { LocalizationsChannel } from 'vs/platform/localizations/node/localizatio
 import { combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, IServerChannel, StaticRouter, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
@@ -55,7 +55,6 @@ import { UserDataSyncService, UserDataAutoSync } from 'vs/platform/userDataSync/
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { SettingsMergeChannelClient } from 'vs/platform/userDataSync/common/settingsSyncIpc';
-import { createChannelSender } from 'vs/base/parts/ipc/node/ipcChannelCreator';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
