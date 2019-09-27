@@ -14,9 +14,6 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IRecentlyOpened, IRecent } from 'vs/platform/workspaces/common/workspacesHistory';
-import { URI } from 'vs/base/common/uri';
 
 export class ElectronMainService implements AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number /* window ID */> {
 
@@ -25,8 +22,7 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 	}
 
@@ -328,33 +324,6 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 
 	async startCrashReporter(windowId: number, options: CrashReporterStartOptions): Promise<void> {
 		crashReporter.start(options);
-	}
-
-	//#endregion
-
-	//#region Workspaces History
-
-	readonly onRecentlyOpenedChange = this.workspacesHistoryMainService.onRecentlyOpenedChange;
-
-	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
-		const window = this.windowsMainService.getWindowById(windowId);
-		if (window) {
-			return this.workspacesHistoryMainService.getRecentlyOpened(window.config.workspace, window.config.folderUri, window.config.filesToOpenOrCreate);
-		}
-
-		return this.workspacesHistoryMainService.getRecentlyOpened();
-	}
-
-	async addRecentlyOpened(windowId: number, recents: IRecent[]): Promise<void> {
-		return this.workspacesHistoryMainService.addRecentlyOpened(recents);
-	}
-
-	async removeFromRecentlyOpened(windowId: number, paths: URI[]): Promise<void> {
-		return this.workspacesHistoryMainService.removeFromRecentlyOpened(paths);
-	}
-
-	async clearRecentlyOpened(windowId: number): Promise<void> {
-		return this.workspacesHistoryMainService.clearRecentlyOpened();
 	}
 
 	//#endregion

@@ -55,7 +55,6 @@ import 'vs/workbench/services/request/electron-browser/requestService';
 import 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/electron/electron-browser/electronService';
-import 'vs/workbench/services/workspace/electron-browser/workspacesHistoryService';
 import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

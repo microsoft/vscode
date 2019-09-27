@@ -3,46 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, reviveWorkspaceIdentifier, IEnterWorkspaceResult } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipcChannelCreator';
 
-export class WorkspacesService implements IWorkspacesService {
+export class NativeWorkspacesService {
 
 	_serviceBrand: undefined;
 
-	private channel: IChannel;
-
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService
+		@IElectronEnvironmentService electronEnvironmentService: IElectronEnvironmentService
 	) {
-		this.channel = mainProcessService.getChannel('workspaces');
-	}
-
-	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		const result: IEnterWorkspaceResult = await this.channel.call('enterWorkspace', [this.electronEnvironmentService.windowId, path]);
-		if (result) {
-			result.workspace = reviveWorkspaceIdentifier(result.workspace);
-		}
-
-		return result;
-	}
-
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
-		return this.channel.call('createUntitledWorkspace', [folders, remoteAuthority]).then(reviveWorkspaceIdentifier);
-	}
-
-	deleteUntitledWorkspace(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
-		return this.channel.call('deleteUntitledWorkspace', workspaceIdentifier);
-	}
-
-	getWorkspaceIdentifier(configPath: URI): Promise<IWorkspaceIdentifier> {
-		return this.channel.call('getWorkspaceIdentifier', configPath).then(reviveWorkspaceIdentifier);
+		return createChannelSender<IWorkspacesService>(mainProcessService.getChannel('workspaces'), { context: electronEnvironmentService.windowId });
 	}
 }
 
-registerSingleton(IWorkspacesService, WorkspacesService, true);
+registerSingleton(IWorkspacesService, NativeWorkspacesService, true);

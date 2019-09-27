@@ -38,8 +38,8 @@ import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
-import { WorkspacesChannel } from 'vs/platform/workspaces/electron-main/workspacesIpc';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { WorkspacesService } from 'vs/platform/workspaces/electron-main/workspacesService';
 import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
@@ -457,6 +457,7 @@ export class CodeApplication extends Disposable {
 
 		services.set(IIssueService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IElectronService, new SyncDescriptor(ElectronMainService));
+		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarService, new SyncDescriptor(MenubarMainService));
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
@@ -551,8 +552,8 @@ export class CodeApplication extends Disposable {
 		const sharedProcessChannel = createChannelReceiver(sharedProcessMainService);
 		electronIpcServer.registerChannel('sharedProcess', sharedProcessChannel);
 
-		const workspacesMainService = accessor.get(IWorkspacesMainService);
-		const workspacesChannel = new WorkspacesChannel(workspacesMainService, accessor.get(IWindowsMainService));
+		const workspacesService = accessor.get(IWorkspacesService);
+		const workspacesChannel = createChannelReceiver(workspacesService);
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
 		const menubarService = accessor.get(IMenubarService);

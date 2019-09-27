@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
-
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IRecentlyOpened, isRecentFolder, IRecentFolder, IRecentWorkspace, toStoreData, restoreRecentlyOpened } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
-import { IRecentlyOpened, isRecentFolder, IRecentFolder, IRecentWorkspace } from 'vs/platform/workspaces/common/workspacesHistory';
-import { toStoreData, restoreRecentlyOpened } from 'vs/platform/workspaces/common/workspacesHistoryStorage';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 function toWorkspace(uri: URI): IWorkspaceIdentifier {

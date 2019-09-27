@@ -7,7 +7,6 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -47,7 +46,6 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@ICommandService commandService: ICommandService,
 		@IFileService fileService: IFileService,
 		@ITextFileService textFileService: ITextFileService,
-		@IWorkspacesHistoryService private readonly workspacesHistoryService: IWorkspacesHistoryService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
@@ -135,7 +133,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
 
 					const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
-					this.workspacesHistoryService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
+					this.workspacesService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
 
 					this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
 				} catch (error) {
