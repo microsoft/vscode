@@ -6,8 +6,9 @@
 import { Event } from 'vs/base/common/event';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app } from 'electron';
+import { INativeOpenInWindowOptions } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IOpenedWindow, OpenContext, IWindowOpenable, IOpenInWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
@@ -72,7 +73,7 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
 
-	async openInWindow(windowId: number, toOpen: IWindowOpenable[], options: IOpenInWindowOptions = Object.create(null)): Promise<void> {
+	async openInWindow(windowId: number, toOpen: IWindowOpenable[], options: INativeOpenInWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
 			this.windowsMainService.open({
 				context: OpenContext.API,

@@ -22,11 +22,8 @@ export interface IOpenedWindow {
 export interface IOpenInWindowOptions {
 	forceNewWindow?: boolean;
 	forceReuseWindow?: boolean;
-	diffMode?: boolean;
-	addMode?: boolean;
-	gotoLineMode?: boolean;
+
 	noRecentEntry?: boolean;
-	waitMarkerFileURI?: URI;
 }
 
 export interface IOpenEmptyWindowOptions {

@@ -6,11 +6,12 @@
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowOpenable, IOpenInWindowOptions, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ParsedArgs } from 'vscode-minimist';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { INativeOpenInWindowOptions } from 'vs/platform/windows/node/window';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
 
@@ -33,7 +34,7 @@ export interface IElectronService {
 	getActiveWindowId(): Promise<number | undefined>;
 
 	openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
-	openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void>;
+	openInWindow(toOpen: IWindowOpenable[], options?: INativeOpenInWindowOptions): Promise<void>;
 
 	toggleFullScreen(): Promise<void>;
 
