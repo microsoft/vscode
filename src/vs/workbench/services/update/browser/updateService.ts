@@ -24,7 +24,7 @@ export interface IUpdateProvider {
 	checkForUpdate(): Promise<IUpdate | null>;
 }
 
-export class UpdateService extends Disposable implements IUpdateService {
+export class BrowserUpdateService extends Disposable implements IUpdateService {
 
 	_serviceBrand: undefined;
 
@@ -92,4 +92,4 @@ export class UpdateService extends Disposable implements IUpdateService {
 	}
 }
 
-registerSingleton(IUpdateService, UpdateService);
+registerSingleton(IUpdateService, BrowserUpdateService);

@@ -6,13 +6,12 @@
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowOpenable, IOpenInWindowOptions, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IRecentlyOpened, IRecent } from 'vs/platform/workspaces/common/workspacesHistory';
-import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vscode-minimist';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { INativeOpenInWindowOptions } from 'vs/platform/windows/node/window';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
 
@@ -35,7 +34,7 @@ export interface IElectronService {
 	getActiveWindowId(): Promise<number | undefined>;
 
 	openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
-	openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void>;
+	openInWindow(toOpen: IWindowOpenable[], options?: INativeOpenInWindowOptions): Promise<void>;
 
 	toggleFullScreen(): Promise<void>;
 
@@ -88,13 +87,6 @@ export interface IElectronService {
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
-
-	// Workspaces History
-	readonly onRecentlyOpenedChange: Event<void>;
-	getRecentlyOpened(): Promise<IRecentlyOpened>;
-	addRecentlyOpened(recents: IRecent[]): Promise<void>;
-	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
-	clearRecentlyOpened(): Promise<void>;
 
 	// Debug (TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void>;

@@ -177,6 +177,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 			// Delete the preview
 			await this.fileService.del(this.environmentService.settingsSyncPreviewResource);
+		} else {
+			this.logService.trace('Settings: No changes found during synchronising settings.');
 		}
 
 		this.logService.trace('Settings: Finised synchronising settings.');

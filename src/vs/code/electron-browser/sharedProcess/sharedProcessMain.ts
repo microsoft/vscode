@@ -32,11 +32,11 @@ import { ILogService, LogLevel, ILoggerService } from 'vs/platform/log/common/lo
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
 import { combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { createChannelSender, createChannelReceiver } from 'vs/base/parts/ipc/node/ipc';
 import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
@@ -55,10 +55,14 @@ import { UserDataSyncService, UserDataAutoSync } from 'vs/platform/userDataSync/
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { SettingsMergeChannelClient } from 'vs/platform/userDataSync/common/settingsSyncIpc';
-import { createChannelSender } from 'vs/base/parts/ipc/node/ipcChannelCreator';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
+import { IAuthTokenService } from 'vs/platform/auth/common/auth';
+import { AuthTokenService } from 'vs/platform/auth/common/authTokenService';
+import { AuthTokenChannel } from 'vs/platform/auth/common/authTokenIpc';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -177,6 +181,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
+		services.set(ICredentialsService, new SyncDescriptor(KeytarCredentialsService));
+		services.set(IAuthTokenService, new SyncDescriptor(AuthTokenService));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
 		const settingsMergeChannel = server.getChannel('settingsMerge', activeWindowRouter);
 		services.set(ISettingsMergeService, new SettingsMergeChannelClient(settingsMergeChannel));
@@ -193,12 +199,16 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			server.registerChannel('extensions', channel);
 
 			const localizationsService = accessor.get(ILocalizationsService);
-			const localizationsChannel = new LocalizationsChannel(localizationsService);
+			const localizationsChannel = createChannelReceiver(localizationsService);
 			server.registerChannel('localizations', localizationsChannel);
 
 			const diagnosticsService = accessor.get(IDiagnosticsService);
 			const diagnosticsChannel = new DiagnosticsChannel(diagnosticsService);
 			server.registerChannel('diagnostics', diagnosticsChannel);
+
+			const authTokenService = accessor.get(IAuthTokenService);
+			const authTokenChannel = new AuthTokenChannel(authTokenService);
+			server.registerChannel('authToken', authTokenChannel);
 
 			const userDataSyncService = accessor.get(IUserDataSyncService);
 			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService);

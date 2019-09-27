@@ -8,7 +8,6 @@ import 'vs/css!./media/actions';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -22,7 +21,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IRecentWorkspace, IRecentFolder, IRecentFile, IRecent, isRecentFolder, isRecentWorkspace } from 'vs/platform/workspaces/common/workspacesHistory';
+import { IRecentWorkspace, IRecentFolder, IRecentFile, IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -45,7 +44,7 @@ abstract class BaseOpenRecentAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private workspacesHistoryService: IWorkspacesHistoryService,
+		private workspacesService: IWorkspacesService,
 		private quickInputService: IQuickInputService,
 		private contextService: IWorkspaceContextService,
 		private labelService: ILabelService,
@@ -60,7 +59,7 @@ abstract class BaseOpenRecentAction extends Action {
 	protected abstract isQuickNavigate(): boolean;
 
 	async run(): Promise<void> {
-		const { workspaces, files } = await this.workspacesHistoryService.getRecentlyOpened();
+		const { workspaces, files } = await this.workspacesService.getRecentlyOpened();
 
 		this.openRecent(workspaces, files);
 	}
@@ -130,7 +129,7 @@ abstract class BaseOpenRecentAction extends Action {
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: async context => {
-				await this.workspacesHistoryService.removeFromRecentlyOpened([context.item.resource]);
+				await this.workspacesService.removeFromRecentlyOpened([context.item.resource]);
 				context.removeItem();
 			}
 		});
@@ -149,7 +148,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspacesHistoryService workspacesHistoryService: IWorkspacesHistoryService,
+		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -158,7 +157,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		@ILabelService labelService: ILabelService,
 		@IHostService hostService: IHostService
 	) {
-		super(id, label, workspacesHistoryService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService);
+		super(id, label, workspacesService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -174,7 +173,7 @@ class QuickOpenRecentAction extends BaseOpenRecentAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspacesHistoryService workspacesHistoryService: IWorkspacesHistoryService,
+		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -183,7 +182,7 @@ class QuickOpenRecentAction extends BaseOpenRecentAction {
 		@ILabelService labelService: ILabelService,
 		@IHostService hostService: IHostService
 	) {
-		super(id, label, workspacesHistoryService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService);
+		super(id, label, workspacesService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService);
 	}
 
 	protected isQuickNavigate(): boolean {

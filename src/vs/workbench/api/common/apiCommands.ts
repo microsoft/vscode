@@ -12,9 +12,7 @@ import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenInWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
-import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { IRecent } from 'vs/platform/workspaces/common/workspacesHistory';
+import { IWorkspacesService, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 
 // -----------------------------------------------------------------
@@ -133,8 +131,8 @@ export class OpenAPICommand {
 CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
 
 CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
-	const workspacesHistoryService = accessor.get(IWorkspacesHistoryService);
-	return workspacesHistoryService.removeFromRecentlyOpened([uri]);
+	const workspacesService = accessor.get(IWorkspacesService);
+	return workspacesService.removeFromRecentlyOpened([uri]);
 });
 
 export class RemoveFromRecentlyOpenedAPICommand {
@@ -164,7 +162,6 @@ interface RecentEntry {
 }
 
 CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async function (accessor: ServicesAccessor, recentEntry: RecentEntry) {
-	const workspacesHistoryService = accessor.get(IWorkspacesHistoryService);
 	const workspacesService = accessor.get(IWorkspacesService);
 	let recent: IRecent | undefined = undefined;
 	const uri = recentEntry.uri;
@@ -177,12 +174,12 @@ CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async functio
 	} else {
 		recent = { fileUri: uri, label };
 	}
-	return workspacesHistoryService.addRecentlyOpened([recent]);
+	return workspacesService.addRecentlyOpened([recent]);
 });
 
 CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function (accessor: ServicesAccessor) {
-	const workspacesHistoryService = accessor.get(IWorkspacesHistoryService);
-	return workspacesHistoryService.getRecentlyOpened();
+	const workspacesService = accessor.get(IWorkspacesService);
+	return workspacesService.getRecentlyOpened();
 });
 
 export class SetEditorLayoutAPICommand {
