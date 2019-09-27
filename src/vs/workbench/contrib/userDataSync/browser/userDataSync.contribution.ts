@@ -32,6 +32,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { timeout } from 'vs/base/common/async';
 
 export const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.Unavailable);
 
@@ -66,6 +67,7 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 	private readonly authTokenContext: IContextKey<string>;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly conflictsWarningDisposable = this._register(new MutableDisposable());
+	private readonly signInNotificationDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -86,18 +88,29 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 		this.onDidChangeStatus();
 		this._register(Event.debounce(Event.any<any>(userDataSyncService.onDidChangeStatus, authTokenService.onDidChangeStatus), () => undefined, 500)(() => this.onDidChangeStatus()));
 		this.registerActions();
+
+		timeout(3000).then(() => {
+			if (this.authTokenService.status === AuthTokenStatus.Unavailable) {
+				this.showSignInNotification();
+			}
+		});
 	}
 
 	private onDidChangeStatus() {
 		this.authTokenContext.set(this.authTokenService.status);
 		this.syncEnablementContext.set(this.userDataSyncService.status);
 
+		if (this.authTokenService.status === AuthTokenStatus.Unavailable) {
+			this.signInNotificationDisposable.clear();
+		}
+
 		let badge: IBadge | undefined = undefined;
 		let clazz: string | undefined;
 
-		if (status === SyncStatus.HasConflicts) {
-			badge = new NumberBadge(1, () => localize('resolve conflicts', "Resolve Conflicts"));
-		} else if (status === SyncStatus.Syncing) {
+		if (this.authTokenService.status === AuthTokenStatus.Unavailable || this.userDataSyncService.status === SyncStatus.HasConflicts) {
+			const badgeNumber = this.authTokenService.status === AuthTokenStatus.Unavailable && this.userDataSyncService.status === SyncStatus.HasConflicts ? 2 : 1;
+			badge = new NumberBadge(badgeNumber, () => localize('resolve conflicts', "Resolve Conflicts"));
+		} else if (this.userDataSyncService.status === SyncStatus.Syncing) {
 			badge = new ProgressBadge(() => localize('syncing', "Synchronising User Configuration..."));
 			clazz = 'progress-badge';
 		}
@@ -108,7 +121,7 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
 		}
 
-		if (status === SyncStatus.HasConflicts) {
+		if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
 			if (!this.conflictsWarningDisposable.value) {
 				const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts. Please resolve them to continue."),
 					[
@@ -127,6 +140,18 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			}
 			this.conflictsWarningDisposable.clear();
 		}
+	}
+
+	private showSignInNotification(): void {
+		const handle = this.notificationService.prompt(Severity.Info, localize('show sign in', "Please sign in to Settings Sync service to start syncing configuration."),
+			[
+				{
+					label: localize('sign in', "Sign in..."),
+					run: () => this.signIn()
+				}
+			]);
+		this.signInNotificationDisposable.value = toDisposable(() => handle.close());
+		handle.onDidClose(() => this.signInNotificationDisposable.clear());
 	}
 
 	private async signIn(): Promise<void> {
