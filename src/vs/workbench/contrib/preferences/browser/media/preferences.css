@@ -216,22 +216,16 @@
 	transform: rotate(-90deg);
 }
 
-.monaco-editor .edit-preferences-widget {
-	background: url('edit-light.svg') center center no-repeat;
+.monaco-editor .codicon-edit {
 	transform: rotate(-90deg);
 	width:16px;
 	height: 16px;
 	cursor: pointer;
 }
 
-.monaco-editor .edit-preferences-widget.hidden {
+.monaco-editor .codicon-edit.hidden {
 	display: none;
 	visibility: hidden;
-}
-
-.monaco-editor.hc-black .edit-preferences-widget,
-.monaco-editor.vs-dark .edit-preferences-widget {
-	background: url('edit-dark.svg') center center no-repeat;
 }
 
 .monaco-editor .dim-configuration {
