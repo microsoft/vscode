@@ -79,6 +79,7 @@ import 'vs/workbench/services/extensionManagement/common/extensionEnablementServ
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
 import 'vs/workbench/services/userDataSync/common/settingsMergeService';
+import 'vs/workbench/services/save/common/saveService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';

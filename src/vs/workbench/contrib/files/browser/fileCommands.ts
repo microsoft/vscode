@@ -43,6 +43,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { ISaveService } from 'vs/workbench/services/save/common/save';
 
 // Commands
 
@@ -112,7 +113,8 @@ async function save(
 	untitledEditorService: IUntitledEditorService,
 	textFileService: ITextFileService,
 	editorGroupService: IEditorGroupsService,
-	environmentService: IWorkbenchEnvironmentService
+	environmentService: IWorkbenchEnvironmentService,
+	saveService: ISaveService,
 ): Promise<any> {
 	if (!resource || (!fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
 		return; // save is not supported
@@ -124,7 +126,7 @@ async function save(
 	}
 
 	// Save
-	return doSave(resource, options, editorService, textFileService);
+	return saveService.save(resource, options);
 }
 
 async function doSaveAs(
@@ -185,26 +187,6 @@ async function doSaveAs(
 		}], group)));
 
 	return true;
-}
-
-async function doSave(
-	resource: URI,
-	options: ISaveOptions | undefined,
-	editorService: IEditorService,
-	textFileService: ITextFileService
-): Promise<boolean> {
-
-	// Pin the active editor if we are saving it
-	const activeControl = editorService.activeControl;
-	const activeEditorResource = activeControl && activeControl.input && activeControl.input.getResource();
-	if (activeControl && activeEditorResource && isEqual(activeEditorResource, resource)) {
-		activeControl.group.pinEditor(activeControl.input);
-	}
-
-	// Just save (force a change to the file to trigger external watchers if any)
-	options = ensureForcedSave(options);
-
-	return textFileService.save(resource, options);
 }
 
 function ensureForcedSave(options?: ISaveOptions): ISaveOptions {
@@ -499,7 +481,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			resource = withUndefinedAsNull(getResourceForCommand(resourceOrObject, accessor.get(IListService), editorService));
 		}
 
-		return save(resource, true, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService), accessor.get(IWorkbenchEnvironmentService));
+		return save(resource, true, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService), accessor.get(IWorkbenchEnvironmentService), accessor.get(ISaveService));
 	}
 });
 
@@ -514,7 +496,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		if (resources.length === 1) {
 			// If only one resource is selected explictly call save since the behavior is a bit different than save all #41841
-			return save(resources[0], false, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService), accessor.get(IWorkbenchEnvironmentService));
+			return save(resources[0], false, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService), accessor.get(IWorkbenchEnvironmentService), accessor.get(ISaveService));
 		}
 		return saveAll(resources, editorService, accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 	}
@@ -531,7 +513,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		const resource = toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource) {
-			return save(resource, false, { skipSaveParticipants: true }, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService), accessor.get(IWorkbenchEnvironmentService));
+			return save(resource, false, { skipSaveParticipants: true }, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService), accessor.get(IWorkbenchEnvironmentService), accessor.get(ISaveService));
 		}
 
 		return undefined;
