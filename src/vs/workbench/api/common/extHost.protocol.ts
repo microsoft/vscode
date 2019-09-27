@@ -545,7 +545,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
-	$setState(handle: WebviewPanelHandle, state: modes.WebviewEditorState): void;
+	$setState(handle: WebviewPanelHandle, state: modes.WebviewContentState): void;
 	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;

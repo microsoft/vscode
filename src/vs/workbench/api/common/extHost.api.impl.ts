@@ -909,7 +909,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CallHierarchyItem: extHostTypes.CallHierarchyItem,
 			DebugConsoleMode: extHostTypes.DebugConsoleMode,
 			Decoration: extHostTypes.Decoration,
-			WebviewEditorState: extHostTypes.WebviewEditorState,
+			WebviewContentState: extHostTypes.WebviewContentState,
 			UIKind: UIKind
 		};
 	};
