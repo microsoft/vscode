@@ -9,8 +9,8 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-const SERVICE_NAME = 'settingsSync';
-const ACCOUNT = 'Test';
+const SERVICE_NAME = 'VS Code';
+const ACCOUNT = 'MyAccount';
 
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 	_serviceBrand: undefined;

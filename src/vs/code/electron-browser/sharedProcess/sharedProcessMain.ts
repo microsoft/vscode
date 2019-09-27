@@ -62,7 +62,7 @@ import { IAuthTokenService } from 'vs/platform/auth/common/auth';
 import { AuthTokenService } from 'vs/platform/auth/common/authTokenService';
 import { AuthTokenChannel } from 'vs/platform/auth/common/authTokenIpc';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { KeytarCredentialsService } from 'vs/workbench/services/credentials/node/credentialsService';
+import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
