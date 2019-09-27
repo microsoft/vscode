@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
 import * as json from 'vs/base/common/json';
 import * as strings from 'vs/base/common/strings';
 import { setProperty } from 'vs/base/common/jsonEdit';
@@ -19,7 +20,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
-import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -430,8 +431,8 @@ export class ConfigurationEditingService {
 		}
 
 		if (operation.workspaceStandAloneConfigurationKey) {
-			// Global tasks and launches are not supported
-			if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
+			// Global launches are not supported
+			if ((operation.workspaceStandAloneConfigurationKey !== TASKS_CONFIGURATION_KEY) && (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE)) {
 				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET, target, operation);
 			}
 		}
@@ -497,9 +498,10 @@ export class ConfigurationEditingService {
 
 		// Check for standalone workspace configurations
 		if (config.key) {
-			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
+			const standaloneConfigurationMap = target === EditableConfigurationTarget.USER_LOCAL ? USER_STANDALONE_CONFIGURATIONS : WORKSPACE_STANDALONE_CONFIGURATIONS;
+			const standaloneConfigurationKeys = Object.keys(standaloneConfigurationMap);
 			for (const key of standaloneConfigurationKeys) {
-				const resource = this.getConfigurationFileResource(target, config, WORKSPACE_STANDALONE_CONFIGURATIONS[key], overrides.resource);
+				const resource = this.getConfigurationFileResource(target, config, standaloneConfigurationMap[key], overrides.resource);
 
 				// Check for prefix
 				if (config.key === key) {
@@ -536,7 +538,11 @@ export class ConfigurationEditingService {
 
 	private getConfigurationFileResource(target: EditableConfigurationTarget, config: IConfigurationValue, relativePath: string, resource: URI | null | undefined): URI | null {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
-			return this.environmentService.settingsResource;
+			if (relativePath) {
+				return resources.joinPath(resources.dirname(this.environmentService.settingsResource), relativePath);
+			} else {
+				return this.environmentService.settingsResource;
+			}
 		}
 		if (target === EditableConfigurationTarget.USER_REMOTE) {
 			return this.remoteSettingsResource;
