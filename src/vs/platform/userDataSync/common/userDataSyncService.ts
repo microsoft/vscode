@@ -12,6 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { timeout } from 'vs/base/common/async';
 import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -35,6 +36,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
 	) {
 		super();
 		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
@@ -48,6 +50,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async sync(_continue?: boolean): Promise<boolean> {
 		if (!this.userDataSyncStoreService.enabled) {
 			throw new Error('Not enabled');
+		}
+		if (this.authTokenService.status === AuthTokenStatus.Unavailable) {
+			return Promise.reject('Not Authenticated. Please sign in to start sync.');
 		}
 		for (const synchroniser of this.synchronisers) {
 			if (!await synchroniser.sync(_continue)) {
@@ -114,6 +119,7 @@ export class UserDataAutoSync extends Disposable {
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService private readonly userDataSyncLogService: IUserDataSyncLogService,
+		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
 	) {
 		super();
 		if (userDataSyncStoreService.enabled) {
@@ -135,10 +141,12 @@ export class UserDataAutoSync extends Disposable {
 
 	private async sync(loop: boolean): Promise<void> {
 		if (this.isSyncEnabled()) {
-			try {
-				await this.userDataSyncService.sync();
-			} catch (e) {
-				this.userDataSyncLogService.error(e);
+			if (this.authTokenService.status === AuthTokenStatus.Available) {
+				try {
+					await this.userDataSyncService.sync();
+				} catch (e) {
+					this.userDataSyncLogService.error(e);
+				}
 			}
 			if (loop) {
 				await timeout(1000 * 5); // Loop sync for every 5s.

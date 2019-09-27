@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -30,6 +30,10 @@ import { isWeb } from 'vs/base/common/platform';
 import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEditorInput } from 'vs/workbench/common/editor';
+import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+
+export const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.Unavailable);
 
 class UserDataSyncConfigurationContribution implements IWorkbenchContribution {
 
@@ -59,11 +63,13 @@ const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbenc
 class SyncActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly syncEnablementContext: IContextKey<string>;
+	private readonly authTokenContext: IContextKey<string>;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly conflictsWarningDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -72,16 +78,19 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
-		this.onDidChangeStatus(userDataSyncService.status);
-		this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(status => this.onDidChangeStatus(userDataSyncService.status)));
+		this.authTokenContext = CONTEXT_AUTH_TOKEN_STATE.bindTo(contextKeyService);
+		this.onDidChangeStatus();
+		this._register(Event.debounce(Event.any<any>(userDataSyncService.onDidChangeStatus, authTokenService.onDidChangeStatus), () => undefined, 500)(() => this.onDidChangeStatus()));
 		this.registerActions();
 	}
 
-	private onDidChangeStatus(status: SyncStatus) {
-		this.syncEnablementContext.set(status);
+	private onDidChangeStatus() {
+		this.authTokenContext.set(this.authTokenService.status);
+		this.syncEnablementContext.set(this.userDataSyncService.status);
 
 		let badge: IBadge | undefined = undefined;
 		let clazz: string | undefined;
@@ -118,6 +127,17 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			}
 			this.conflictsWarningDisposable.clear();
 		}
+	}
+
+	private async signIn(): Promise<void> {
+		const token = await this.quickInputService.input({ placeHolder: localize('enter token', "Please provide the auth bearer token"), ignoreFocusLost: true, });
+		if (token) {
+			await this.authTokenService.updateToken(token);
+		}
+	}
+
+	private async signOut(): Promise<void> {
+		await this.authTokenService.deleteToken();
 	}
 
 	private async continueSync(): Promise<void> {
@@ -170,6 +190,28 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 	}
 
 	private registerActions(): void {
+
+		const signInMenuItem: IMenuItem = {
+			group: '5_sync',
+			command: {
+				id: 'workbench.userData.actions.login',
+				title: localize('sign in', "Sign in...")
+			},
+			when: ContextKeyExpr.and(CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Unavailable), ContextKeyExpr.has('config.configurationSync.enable')),
+		};
+		CommandsRegistry.registerCommand(signInMenuItem.command.id, () => this.signIn());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, signInMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signInMenuItem);
+
+		const signOutMenuItem: IMenuItem = {
+			command: {
+				id: 'workbench.userData.actions.logout',
+				title: localize('sign out', "Sign Out")
+			},
+			when: ContextKeyExpr.and(CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Available)),
+		};
+		CommandsRegistry.registerCommand(signOutMenuItem.command.id, () => this.signOut());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signOutMenuItem);
 
 		const startSyncMenuItem: IMenuItem = {
 			group: '5_sync',

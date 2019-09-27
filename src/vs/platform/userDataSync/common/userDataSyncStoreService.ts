@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
+import { IAuthTokenService } from 'vs/platform/auth/common/auth';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -28,6 +29,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
 	) {
 		super();
 	}
@@ -98,11 +100,19 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	private async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		const authToken = await this.authTokenService.getToken();
+		if (!authToken) {
+			return Promise.reject(new Error('No Auth Token Available.'));
+		}
+		options.headers = options.headers || {};
+		options.headers['authorization'] = `Bearer ${authToken}`;
+
 		const context = await this.requestService.request(options, token);
 
 		if (context.res.statusCode === 401) {
 			// Not Authorized
 			this.logService.info('Authroization Failed.');
+			this.authTokenService.refreshToken();
 			Promise.reject('Authroization Failed.');
 		}
 
