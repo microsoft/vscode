@@ -698,7 +698,7 @@ export class MenuBar extends Disposable {
 
 	private focusPrevious(): void {
 
-		if (!this.focusedMenu) {
+		if (!this.focusedMenu || this.numMenusShown === 0) {
 			return;
 		}
 
@@ -728,7 +728,7 @@ export class MenuBar extends Disposable {
 	}
 
 	private focusNext(): void {
-		if (!this.focusedMenu) {
+		if (!this.focusedMenu || this.numMenusShown === 0) {
 			return;
 		}
 
