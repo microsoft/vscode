@@ -20,12 +20,12 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { startsWith } from 'vs/base/common/strings';
-import { Extensions as TokenStyleRegistryExtensions, TokenStyle, TokenStyleIdentifier, ITokenStyleRegistry, TokenStyleBits, ProbeScope } from 'vs/platform/theme/common/tokenStyleRegistry';
+import { Extensions as TokenStyleRegistryExtensions, TokenStyle, TokenClassification, ITokenClassificationRegistry, ProbeScope, TokenStylingRule } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 
 let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
-let tokenStyleRegistry = Registry.as<ITokenStyleRegistry>(TokenStyleRegistryExtensions.TokenStyleContribution);
+let tokenClassificationRegistry = Registry.as<ITokenClassificationRegistry>(TokenStyleRegistryExtensions.TokenClassificationContribution);
 
 const tokenGroupToScopesMap = {
 	comments: ['comment'],
@@ -37,9 +37,6 @@ const tokenGroupToScopesMap = {
 	variables: ['variable', 'entity.name.variable']
 };
 
-interface ITokenStyleMap {
-	[id: string]: TokenStyle;
-}
 
 export class ColorThemeData implements IColorTheme {
 
@@ -57,7 +54,7 @@ export class ColorThemeData implements IColorTheme {
 	private colorMap: IColorMap = {};
 	private customColorMap: IColorMap = {};
 
-	private tokenStyleMap: ITokenStyleMap = {};
+	private tokenStylingRules: TokenStylingRule[] = [];
 
 	private themeTokenScopeMatchers: Matcher<ProbeScope>[] | undefined;
 	private customTokenScopeMatchers: Matcher<ProbeScope>[] | undefined;
@@ -116,72 +113,56 @@ export class ColorThemeData implements IColorTheme {
 		return color;
 	}
 
-	public getTokenStyle(tokenStyleId: TokenStyleIdentifier, useDefault?: boolean): TokenStyle | undefined {
-		let style: TokenStyle | undefined = this.tokenStyleMap[tokenStyleId];
-		if (style) {
-			return style;
-		}
-		if (useDefault !== false && types.isUndefined(style)) {
-			style = this.getDefaultTokenStyle(tokenStyleId);
-		}
-		return style;
+	public getTokenStyle(tokenClassification: TokenClassification, useDefault?: boolean): TokenStyle | undefined {
+		// todo: cache results
+		return tokenClassificationRegistry.resolveTokenStyle(tokenClassification, this.tokenStylingRules, !!useDefault, this);
 	}
 
 	public getDefault(colorId: ColorIdentifier): Color | undefined {
 		return colorRegistry.resolveDefaultColor(colorId, this);
 	}
 
-	public getDefaultTokenStyle(tokenStyleId: TokenStyleIdentifier): TokenStyle | undefined {
-		return tokenStyleRegistry.resolveDefaultTokenStyle(tokenStyleId, this, this.findTokenStyleForScope.bind(this));
+	public getDefaultTokenStyle(tokenClassification: TokenClassification): TokenStyle | undefined {
+		return tokenClassificationRegistry.resolveTokenStyle(tokenClassification, [], true, this);
 	}
 
-	/** Public for testing reasons */
-	public findTokenStyleForScope(scope: ProbeScope): TokenStyle | undefined {
-
-		let foregroundColor = this.getColor(editorForeground);
-
-		let foreground = foregroundColor ? foregroundColor.toString() : null;
-		let fontStyle: string | null = null;
-		let foregroundScore = -1;
-		let fontStyleScore = -1;
-
-		function findTokenStyleForScopeInScopes(scopeMatchers: Matcher<ProbeScope>[], tokenColors: ITokenColorizationRule[]) {
-			for (let i = 0; i < scopeMatchers.length; i++) {
-				const settings = tokenColors[i].settings;
-				if (!settings) {
-					continue;
-				}
-				let matcher = scopeMatchers[i];
-				if (!matcher) {
-					scopeMatchers[i] = matcher = getScopeMatcher(tokenColors[i]);
-				}
-				const score = matcher(scope);
-				if (score >= 0) {
-					if (score >= foregroundScore && settings.foreground) {
-						foreground = settings.foreground;
-					}
-					if (score >= fontStyleScore && types.isString(settings.fontStyle)) {
-						fontStyle = settings.fontStyle;
-					}
-				}
-
-			}
-		}
+	public resolveScopes(scopes: ProbeScope[]): TokenStyle | undefined {
 
 		if (!this.themeTokenScopeMatchers) {
-			this.themeTokenScopeMatchers = new Array(this.themeTokenColors.length);
+			this.themeTokenScopeMatchers = this.themeTokenColors.map(getScopeMatcher);
 		}
-		findTokenStyleForScopeInScopes(this.themeTokenScopeMatchers, this.themeTokenColors);
-
 		if (!this.customTokenScopeMatchers) {
-			this.customTokenScopeMatchers = new Array(this.customTokenColors.length);
+			this.customTokenScopeMatchers = this.customTokenColors.map(getScopeMatcher);
 		}
-		findTokenStyleForScopeInScopes(this.customTokenScopeMatchers, this.customTokenColors);
 
-		return getTokenStyle(foreground, fontStyle);
+		for (let scope of scopes) {
+			let foreground: string | null = null;
+			let fontStyle: string | null = null;
+			let foregroundScore = -1;
+			let fontStyleScore = -1;
+
+			function findTokenStyleForScopeInScopes(scopeMatchers: Matcher<ProbeScope>[], tokenColors: ITokenColorizationRule[]) {
+				for (let i = 0; i < scopeMatchers.length; i++) {
+					const score = scopeMatchers[i](scope);
+					if (score >= 0) {
+						const settings = tokenColors[i].settings;
+						if (score >= foregroundScore && settings.foreground) {
+							foreground = settings.foreground;
+						}
+						if (score >= fontStyleScore && types.isString(settings.fontStyle)) {
+							fontStyle = settings.fontStyle;
+						}
+					}
+				}
+			}
+			findTokenStyleForScopeInScopes(this.themeTokenScopeMatchers, this.themeTokenColors);
+			findTokenStyleForScopeInScopes(this.customTokenScopeMatchers, this.customTokenColors);
+			if (foreground !== null || fontStyle !== null) {
+				return getTokenStyle(foreground, fontStyle);
+			}
+		}
+		return undefined;
 	}
-
-
 
 	public defines(colorId: ColorIdentifier): boolean {
 		return this.customColorMap.hasOwnProperty(colorId) || this.colorMap.hasOwnProperty(colorId);
@@ -508,12 +489,8 @@ function getScopeMatcher(rule: ITokenColorizationRule): Matcher<ProbeScope> {
 		return noMatch;
 	}
 	const matchers: MatcherWithPriority<ProbeScope>[] = [];
-	if (Array.isArray(ruleScope)) {
-		for (let rs of ruleScope) {
-			matchers.push(...createMatchers(rs, nameMatcher));
-		}
-	} else {
-		matchers.push(...createMatchers(ruleScope, nameMatcher));
+	for (let rs of ruleScope) {
+		matchers.push(...createMatchers(rs, nameMatcher));
 	}
 	if (matchers.length === 0) {
 		return noMatch;
@@ -528,24 +505,16 @@ function getScopeMatcher(rule: ITokenColorizationRule): Matcher<ProbeScope> {
 }
 
 function getTokenStyle(foreground: string | null, fontStyle: string | null): TokenStyle | undefined {
-	let styles: number | undefined;
 	let foregroundColor = undefined;
 	if (foreground !== null) {
 		foregroundColor = Color.fromHex(foreground);
 	}
-
+	let bold, underline, italic;
 	if (fontStyle !== null) {
-		styles = 0;
-		if (fontStyle.indexOf('underline') !== -1) {
-			styles |= TokenStyleBits.UNDERLINE;
-		}
-		if (fontStyle.indexOf('italic') !== -1) {
-			styles |= TokenStyleBits.ITALIC;
-		}
-		if (fontStyle.indexOf('bold') !== -1) {
-			styles |= TokenStyleBits.BOLD;
-		}
+		bold = fontStyle.indexOf('bold') !== -1;
+		underline = fontStyle.indexOf('underline') !== -1;
+		italic = fontStyle.indexOf('italic') !== -1;
 	}
-	return new TokenStyle(foregroundColor, undefined, styles);
+	return new TokenStyle(foregroundColor, bold, underline, italic);
 
 }

@@ -10,7 +10,7 @@ import * as platform from 'vs/platform/registry/common/platform';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TokenStyleIdentifier, TokenStyle } from 'vs/platform/theme/common/tokenStyleRegistry';
+import { TokenStyle, TokenClassification, ProbeScope } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -61,7 +61,9 @@ export interface ITheme {
 	 */
 	defines(color: ColorIdentifier): boolean;
 
-	getTokenStyle(color: TokenStyleIdentifier, useDefault?: boolean): TokenStyle | undefined;
+	getTokenStyle(classification: TokenClassification, useDefault?: boolean): TokenStyle | undefined;
+
+	resolveScopes(scopes: ProbeScope[]): TokenStyle | undefined;
 }
 
 export interface IIconTheme {

@@ -13,7 +13,6 @@ import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { IIconTheme, ITheme, LIGHT } from 'vs/platform/theme/common/themeService';
-import { TokenStyleIdentifier } from 'vs/platform/theme/common/tokenStyleRegistry';
 
 suite('TokenizationSupport2Adapter', () => {
 
@@ -57,7 +56,9 @@ suite('TokenizationSupport2Adapter', () => {
 					throw new Error('Not implemented');
 				},
 
-				getTokenStyle: (tokenStyleId: TokenStyleIdentifier) => undefined
+				getTokenStyle: () => undefined,
+
+
 			};
 		}
 		public getIconTheme(): IIconTheme {

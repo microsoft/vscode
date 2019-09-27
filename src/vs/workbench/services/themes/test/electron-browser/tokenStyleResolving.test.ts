@@ -6,7 +6,7 @@
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import * as assert from 'assert';
 import { ITokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { TokenStyle, TokenStyleBits, comments, variables, types, functions, keywords, numbers, strings } from 'vs/platform/theme/common/tokenStyleRegistry';
+import { Extensions as TokenStyleRegistryExtensions, ITokenClassificationRegistry, TokenStyle, comments, variables, types, functions, keywords, numbers, strings } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { Color } from 'vs/base/common/color';
 import { isString } from 'vs/base/common/types';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -15,29 +15,58 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+
+let tokenClassificationRegistry = Registry.as<ITokenClassificationRegistry>(TokenStyleRegistryExtensions.TokenClassificationContribution);
+
+const enum TokenStyleBits {
+	BOLD = 0x01,
+	UNDERLINE = 0x02,
+	ITALIC = 0x04
+}
+
 
 function ts(foreground: string | undefined, styleFlags: number | undefined): TokenStyle {
 	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
-	return new TokenStyle(foregroundColor, undefined, styleFlags);
+	let bold, underline, italic;
+	if (styleFlags !== undefined) {
+		bold = (styleFlags & TokenStyleBits.BOLD) !== 0;
+		underline = (styleFlags & TokenStyleBits.UNDERLINE) !== 0;
+		italic = (styleFlags & TokenStyleBits.ITALIC) !== 0;
+	}
+	return new TokenStyle(foregroundColor, bold, underline, italic);
 }
 
 function tokenStyleAsString(ts: TokenStyle | undefined | null) {
-	return ts ? `${ts.foreground ? ts.foreground.toString() : 'no-foreground'}-${ts.styles ? ts.styles : 'no-styles'}` : 'tokenstyle-undefined';
+	if (!ts) {
+		return 'tokenstyle-undefined';
+	}
+	let str = ts.foreground ? ts.foreground.toString() : 'no-foreground';
+	if (ts.bold !== undefined) {
+		str = ts.bold ? '+B' : '-B';
+	}
+	if (ts.underline !== undefined) {
+		str = ts.underline ? '+U' : '-U';
+	}
+	if (ts.italic !== undefined) {
+		str = ts.italic ? '+I' : '-I';
+	}
+	return str;
 }
 
 function assertTokenStyle(actual: TokenStyle | undefined | null, expected: TokenStyle | undefined | null, message?: string) {
 	assert.equal(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
 }
 
-function assertTokenStyles(themeData: ColorThemeData, expected: { [tokenStyleId: string]: TokenStyle }) {
-	for (let tokenStyleId in expected) {
-		const tokenStyle = themeData.getTokenStyle(tokenStyleId);
-		assertTokenStyle(tokenStyle, expected[tokenStyleId], tokenStyleId);
+function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle }) {
+	for (let qualifiedClassifier in expected) {
+		const classification = tokenClassificationRegistry.getTokenClassificationFromString(qualifiedClassifier);
+		assert.ok(classification, 'Classification not found');
+
+		const tokenStyle = themeData.getTokenStyle(classification!);
+		assertTokenStyle(tokenStyle, expected[qualifiedClassifier], qualifiedClassifier);
 	}
 }
-
-
 
 suite('Themes - TokenStyleResolving', () => {
 	const fileService = new FileService(new NullLogService());
@@ -165,7 +194,7 @@ suite('Themes - TokenStyleResolving', () => {
 
 	});
 
-	test('resolve resource', async () => {
+	test('resolveScopes', async () => {
 		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
 
 		const customTokenColors: ITokenColorCustomizations = {
@@ -210,34 +239,37 @@ suite('Themes - TokenStyleResolving', () => {
 		themeData.setCustomTokenColors(customTokenColors);
 
 		let tokenStyle;
-		let defaultTokenStyle = new TokenStyle(themeData.getColor(editorForeground));
+		let defaultTokenStyle = undefined;
 
-		tokenStyle = themeData.findTokenStyleForScope(['variable']);
+		tokenStyle = themeData.resolveScopes([['variable']]);
 		assertTokenStyle(tokenStyle, ts('#F8F8F2', 0), 'variable');
 
-		tokenStyle = themeData.findTokenStyleForScope(['keyword.operator']);
+		tokenStyle = themeData.resolveScopes([['keyword.operator']]);
 		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC | TokenStyleBits.BOLD | TokenStyleBits.UNDERLINE), 'keyword');
 
-		tokenStyle = themeData.findTokenStyleForScope(['keyword']);
+		tokenStyle = themeData.resolveScopes([['keyword']]);
 		assertTokenStyle(tokenStyle, defaultTokenStyle, 'keyword');
 
-		tokenStyle = themeData.findTokenStyleForScope(['keyword.operator']);
+		tokenStyle = themeData.resolveScopes([['keyword.operator']]);
 		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC | TokenStyleBits.BOLD | TokenStyleBits.UNDERLINE), 'keyword.operator');
 
-		tokenStyle = themeData.findTokenStyleForScope(['keyword.operators']);
+		tokenStyle = themeData.resolveScopes([['keyword.operators']]);
 		assertTokenStyle(tokenStyle, defaultTokenStyle, 'keyword.operators');
 
-		tokenStyle = themeData.findTokenStyleForScope(['storage']);
+		tokenStyle = themeData.resolveScopes([['storage']]);
 		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC), 'storage');
 
-		tokenStyle = themeData.findTokenStyleForScope(['storage.type']);
+		tokenStyle = themeData.resolveScopes([['storage.type']]);
 		assertTokenStyle(tokenStyle, ts('#66D9EF', TokenStyleBits.ITALIC), 'storage.type');
 
-		tokenStyle = themeData.findTokenStyleForScope(['entity.name.class']);
+		tokenStyle = themeData.resolveScopes([['entity.name.class']]);
 		assertTokenStyle(tokenStyle, ts('#A6E22E', TokenStyleBits.UNDERLINE), 'entity.name.class');
 
-		tokenStyle = themeData.findTokenStyleForScope(['meta.structure.dictionary.json', 'string.quoted.double.json']);
+		tokenStyle = themeData.resolveScopes([['meta.structure.dictionary.json', 'string.quoted.double.json']]);
 		assertTokenStyle(tokenStyle, ts('#66D9EF', undefined), 'json property');
+
+		tokenStyle = themeData.resolveScopes([['keyword'], ['storage.type'], ['entity.name.class']]);
+		assertTokenStyle(tokenStyle, ts('#66D9EF', TokenStyleBits.ITALIC), 'storage.type');
 
 	});
 });
