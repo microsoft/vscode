@@ -37,7 +37,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -1537,20 +1537,20 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		this.getHTMLElement().classList.add(treeClass);
 
 		this.disposables.push(attachStyler(themeService, {
-			listActiveSelectionBackground: editorBackground,
+			listActiveSelectionBackground: 'transparent',
 			listActiveSelectionForeground: foreground,
-			listFocusAndSelectionBackground: editorBackground,
+			listFocusAndSelectionBackground: 'transparent',
 			listFocusAndSelectionForeground: foreground,
-			listFocusBackground: editorBackground,
+			listFocusBackground: 'transparent',
 			listFocusForeground: foreground,
 			listHoverForeground: foreground,
-			listHoverBackground: editorBackground,
-			listHoverOutline: editorBackground,
-			listFocusOutline: editorBackground,
-			listInactiveSelectionBackground: editorBackground,
+			listHoverBackground: 'transparent',
+			listHoverOutline: 'transparent',
+			listFocusOutline: 'transparent',
+			listInactiveSelectionBackground: 'transparent',
 			listInactiveSelectionForeground: foreground,
-			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
+			listInactiveFocusBackground: 'transparent',
+			listInactiveFocusOutline: 'transparent'
 		}, colors => {
 			this.style(colors);
 		}));
