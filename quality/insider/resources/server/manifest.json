@@ -1,6 +1,6 @@
 {
-	"name": "VSCode Web Insiders",
-	"short_name": "VSCode Web Insiders",
+	"name": "Code Web - Insiders",
+	"short_name": "Visual Studio Code Web - Insiders",
 	"start_url": "/",
 	"lang": "en-US",
 	"display": "standalone",

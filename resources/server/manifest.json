@@ -1,6 +1,6 @@
 {
-	"name": "VSCode Web OSS",
-	"short_name": "VSCode Web OSS",
+	"name": "Code Web - OSS",
+	"short_name": "Code Web - OSS",
 	"start_url": "/",
 	"lang": "en-US",
 	"display": "standalone",

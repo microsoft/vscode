@@ -1,6 +1,6 @@
 {
-	"name": "VSCode Web",
-	"short_name": "VSCode Web",
+	"name": "Code Web",
+	"short_name": "Visual Studio Code Web",
 	"start_url": "/",
 	"lang": "en-US",
 	"display": "standalone",

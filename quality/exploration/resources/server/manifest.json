@@ -1,6 +1,6 @@
 {
-	"name": "VSCode Web Exploration",
-	"short_name": "VSCode Web Exploration",
+	"name": "Code Web - Exploration",
+	"short_name": "Visual Studio Code Web - Exploration",
 	"start_url": "/",
 	"lang": "en-US",
 	"display": "standalone",
