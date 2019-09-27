@@ -92,7 +92,6 @@
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: none;
 	font-size: 13px;
-
 	padding-bottom: 7px;
 	padding-top: 7px;
 	padding-left: 8px;
@@ -170,9 +169,9 @@
 	transition: opacity .3s;
 	width: 22px;
 	height: 22px;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .settings-editor > .settings-body .settings-toc-container {
