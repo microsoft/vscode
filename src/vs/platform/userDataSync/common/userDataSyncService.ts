@@ -131,6 +131,7 @@ export class UserDataAutoSync extends Disposable {
 		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
 	) {
 		super();
+		this.updateEnablement();
 		this.sync(true);
 		this._register(Event.any<any>(authTokenService.onDidChangeStatus, userDataSyncService.onDidChangeStatus)(() => this.updateEnablement()));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => this.updateEnablement()));
@@ -155,12 +156,10 @@ export class UserDataAutoSync extends Disposable {
 
 	private async sync(loop: boolean): Promise<void> {
 		if (this.enabled) {
-			if (this.authTokenService.status === AuthTokenStatus.Active) {
-				try {
-					await this.userDataSyncService.sync();
-				} catch (e) {
-					this.userDataSyncLogService.error(e);
-				}
+			try {
+				await this.userDataSyncService.sync();
+			} catch (e) {
+				this.userDataSyncLogService.error(e);
 			}
 			if (loop) {
 				await timeout(1000 * 5); // Loop sync for every 5s.
