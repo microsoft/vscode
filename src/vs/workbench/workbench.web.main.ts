@@ -40,12 +40,12 @@ import 'vs/workbench/services/credentials/browser/credentialsService';
 import 'vs/workbench/services/url/browser/urlService';
 import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/contrib/stats/browser/workspaceStatsService';
-import 'vs/workbench/services/workspace/browser/workspacesService';
+import 'vs/workbench/services/workspaces/browser/workspacesService';
+import 'vs/workbench/services/workspaces/browser/workspaceEditingService';
 import 'vs/workbench/services/dialogs/browser/dialogService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/request/browser/requestService';
-import 'vs/workbench/services/workspace/browser/workspaceEditingService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

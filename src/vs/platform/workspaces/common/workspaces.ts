@@ -30,8 +30,6 @@ export interface IWorkspacesService {
 
 	_serviceBrand: undefined;
 
-	readonly onRecentlyOpenedChange: CommonEvent<void>;
-
 	// Management
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
@@ -39,6 +37,7 @@ export interface IWorkspacesService {
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 
 	// History
+	readonly onRecentlyOpenedChange: CommonEvent<void>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(workspaces: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;

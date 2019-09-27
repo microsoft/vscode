@@ -30,7 +30,7 @@ export interface IWorkspacesHistoryMainService {
 
 	_serviceBrand: undefined;
 
-	onRecentlyOpenedChange: CommonEvent<void>;
+	readonly onRecentlyOpenedChange: CommonEvent<void>;
 
 	addRecentlyOpened(recents: IRecent[]): void;
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier, currentFolder?: ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened;
