@@ -163,7 +163,6 @@ suite('ConfigurationEditingService', () => {
 		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key, value: 'value' })
 			.then(() => assert.fail('Should fail with ERROR_INVALID_CONFIGURATION'),
 				(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION));
-
 	}
 
 	test('errors cases - invalid configuration', () => {
@@ -334,35 +333,31 @@ suite('ConfigurationEditingService', () => {
 		return writeStandaloneSettingEmptyFileFullJson(EditableConfigurationTarget.USER_LOCAL, USER_STANDALONE_CONFIGURATIONS);
 	});
 
-	test('write user standalone setting - empty file - full JSON', () => {
-		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
+	function writeStandaloneSettingExistingFileFullJson(configTarget: EditableConfigurationTarget, pathMap: any) {
+		const target = path.join(workspaceDir, pathMap['tasks']);
+		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
+		return testObject.writeConfiguration(configTarget, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
 			.then(() => {
-				const target = path.join(workspaceDir, USER_STANDALONE_CONFIGURATIONS['tasks']);
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);
 
 				assert.equal(parsed['version'], '1.0.0');
 				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
 			});
-	});
+	}
 
 	test('write workspace standalone setting - existing file - full JSON', () => {
-		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
-		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
-			.then(() => {
-				const contents = fs.readFileSync(target).toString('utf8');
-				const parsed = json.parse(contents);
-
-				assert.equal(parsed['version'], '1.0.0');
-				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
-			});
+		return writeStandaloneSettingExistingFileFullJson(EditableConfigurationTarget.WORKSPACE, WORKSPACE_STANDALONE_CONFIGURATIONS);
 	});
 
 	test('write user standalone setting - existing file - full JSON', () => {
-		const target = path.join(workspaceDir, USER_STANDALONE_CONFIGURATIONS['tasks']);
-		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
-		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
+		return writeStandaloneSettingExistingFileFullJson(EditableConfigurationTarget.USER_LOCAL, USER_STANDALONE_CONFIGURATIONS);
+	});
+
+	function writeStandaloneSettingExistingFileWithJsonErrorFullJson(configTarget: EditableConfigurationTarget, pathMap: any) {
+		const target = path.join(workspaceDir, pathMap['tasks']);
+		fs.writeFileSync(target, '{ "my.super.setting": '); // invalid JSON
+		return testObject.writeConfiguration(configTarget, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
 			.then(() => {
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);
@@ -370,23 +365,18 @@ suite('ConfigurationEditingService', () => {
 				assert.equal(parsed['version'], '1.0.0');
 				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
 			});
-	});
+	}
 
 	test('write workspace standalone setting - existing file with JSON errors - full JSON', () => {
-		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-		fs.writeFileSync(target, '{ "my.super.setting": '); // invalid JSON
-		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
-			.then(() => {
-				const contents = fs.readFileSync(target).toString('utf8');
-				const parsed = json.parse(contents);
-
-				assert.equal(parsed['version'], '1.0.0');
-				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
-			});
+		return writeStandaloneSettingExistingFileWithJsonErrorFullJson(EditableConfigurationTarget.WORKSPACE, WORKSPACE_STANDALONE_CONFIGURATIONS);
 	});
 
-	test('write workspace standalone setting should replace complete file', () => {
-		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
+	test('write user standalone setting - existing file with JSON errors - full JSON', () => {
+		return writeStandaloneSettingExistingFileWithJsonErrorFullJson(EditableConfigurationTarget.USER_LOCAL, USER_STANDALONE_CONFIGURATIONS);
+	});
+
+	function writeStandaloneSettingShouldReplace(configTarget: EditableConfigurationTarget, pathMap: any) {
+		const target = path.join(workspaceDir, pathMap['tasks']);
 		fs.writeFileSync(target, `{
 			"version": "1.0.0",
 			"tasks": [
@@ -398,11 +388,19 @@ suite('ConfigurationEditingService', () => {
 				}
 			]
 		}`);
-		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] } })
+		return testObject.writeConfiguration(configTarget, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] } })
 			.then(() => {
 				const actual = fs.readFileSync(target).toString('utf8');
 				const expected = JSON.stringify({ 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] }, null, '\t');
 				assert.equal(actual, expected);
 			});
+	}
+
+	test('write workspace standalone setting should replace complete file', () => {
+		return writeStandaloneSettingShouldReplace(EditableConfigurationTarget.WORKSPACE, WORKSPACE_STANDALONE_CONFIGURATIONS);
+	});
+
+	test('write user standalone setting should replace complete file', () => {
+		return writeStandaloneSettingShouldReplace(EditableConfigurationTarget.USER_LOCAL, USER_STANDALONE_CONFIGURATIONS);
 	});
 });
