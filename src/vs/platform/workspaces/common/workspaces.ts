@@ -132,11 +132,6 @@ export interface IStoredWorkspace {
 	remoteAuthority?: string;
 }
 
-export interface IWorkspaceSavedEvent {
-	workspace: IWorkspaceIdentifier;
-	oldConfigPath: string;
-}
-
 export interface IWorkspaceFolderCreationData {
 	uri: URI;
 	name?: string;
