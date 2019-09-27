@@ -62,11 +62,11 @@ body img {
 	margin: auto;
 }
 
-.container.zoom-in {
+.container.ready.zoom-in {
 	cursor: zoom-in;
 }
 
-.container.zoom-out {
+.container.ready.zoom-out {
 	cursor: zoom-out;
 }
 
@@ -75,4 +75,24 @@ body img {
 	cursor: pointer;
 	text-decoration: underline;
 	margin-left: 5px;
+}
+
+.loading {
+	position: fixed;
+	width: 30px;
+	height: 30px;
+	left: 50%;
+	top: 50%;
+	margin-top: -15px;
+	margin-left: -15px;
+	background-image: url('./loading.svg');
+	background-size: cover;
+}
+
+.vscode-dark .loading {
+	background-image: url('./loading-dark.svg');
+}
+
+.vscode-high-contrast .loading {
+	background-image: url('./loading-hc.svg');
 }
