@@ -130,8 +130,6 @@ export interface IViewDescriptor {
 
 	readonly when?: ContextKeyExpr;
 
-	readonly group?: string;
-
 	readonly order?: number;
 
 	readonly weight?: number;
@@ -146,6 +144,11 @@ export interface IViewDescriptor {
 	readonly workspace?: boolean;
 
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
+
+	// For contributed remote explorer views
+	readonly group?: string;
+
+	readonly remoteAuthority?: string | string[];
 }
 
 export interface IViewDescriptorCollection extends IDisposable {

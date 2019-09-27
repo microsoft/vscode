@@ -66,7 +66,7 @@
             "null"
           ],
           "default": null,
-          "description": "%typescript.tsdk.desc%",
+          "markdownDescription": "%typescript.tsdk.desc%",
           "scope": "window"
         },
         "typescript.disableAutomaticTypeAcquisition": {
@@ -264,6 +264,22 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
+        "typescript.format.semicolons": {
+          "type": "string",
+          "default": "ignore",
+          "description": "%format.semicolons%",
+          "scope": "resource",
+          "enum": [
+            "ignore",
+            "insert",
+            "remove"
+          ],
+          "enumDescriptions": [
+            "%format.semicolons.ignore%",
+            "%format.semicolons.insert%",
+            "%format.semicolons.remove%"
+          ]
+        },
         "javascript.validate.enable": {
           "type": "boolean",
           "default": true,
@@ -359,6 +375,22 @@
           "default": false,
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
+        },
+        "javascript.format.semicolons": {
+          "type": "string",
+          "default": "ignore",
+          "description": "%format.semicolons%",
+          "scope": "resource",
+          "enum": [
+            "ignore",
+            "insert",
+            "remove"
+          ],
+          "enumDescriptions": [
+            "%format.semicolons.ignore%",
+            "%format.semicolons.insert%",
+            "%format.semicolons.remove%"
+          ]
         },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",

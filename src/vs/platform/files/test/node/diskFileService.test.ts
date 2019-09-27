@@ -1918,7 +1918,7 @@ suite('Disk File Service', function () {
 		});
 	}
 
-	function hasChange(changes: IFileChange[], type: FileChangeType, resource: URI): boolean {
+	function hasChange(changes: readonly IFileChange[], type: FileChangeType, resource: URI): boolean {
 		return changes.some(change => change.type === type && isEqual(change.resource, resource));
 	}
 

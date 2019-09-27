@@ -13,7 +13,7 @@ import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IWebviewService, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { RevivedWebviewEditorInput, WebviewEditorInput } from './webviewEditorInput';
+import { RevivedWebviewEditorInput, WebviewInput } from './webviewEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
@@ -38,7 +38,7 @@ export interface IWebviewEditorService {
 			location: URI,
 			id: ExtensionIdentifier
 		},
-	): WebviewEditorInput;
+	): WebviewInput;
 
 	reviveWebview(
 		id: string,
@@ -52,10 +52,10 @@ export interface IWebviewEditorService {
 			readonly id?: ExtensionIdentifier
 		},
 		group: number | undefined
-	): WebviewEditorInput;
+	): WebviewInput;
 
 	revealWebview(
-		webview: WebviewEditorInput,
+		webview: WebviewInput,
 		group: IEditorGroup,
 		preserveFocus: boolean
 	): void;
@@ -65,21 +65,21 @@ export interface IWebviewEditorService {
 	): IDisposable;
 
 	shouldPersist(
-		input: WebviewEditorInput
+		input: WebviewInput
 	): boolean;
 
 	resolveWebview(
-		webview: WebviewEditorInput,
+		webview: WebviewInput,
 	): Promise<void>;
 }
 
 export interface WebviewResolve {
 	canResolve(
-		webview: WebviewEditorInput,
+		webview: WebviewInput,
 	): boolean;
 
 	resolveWebview(
-		webview: WebviewEditorInput,
+		webview: WebviewInput,
 	): Promise<void>;
 }
 
@@ -99,7 +99,7 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 		&& (a.portMapping === b.portMapping || (Array.isArray(a.portMapping) && Array.isArray(b.portMapping) && equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)));
 }
 
-function canRevive(reviver: WebviewResolve, webview: WebviewEditorInput): boolean {
+function canRevive(reviver: WebviewResolve, webview: WebviewInput): boolean {
 	if (webview.isDisposed()) {
 		return false;
 	}
@@ -107,9 +107,9 @@ function canRevive(reviver: WebviewResolve, webview: WebviewEditorInput): boolea
 }
 
 class RevivalPool {
-	private _awaitingRevival: Array<{ input: WebviewEditorInput, resolve: () => void }> = [];
+	private _awaitingRevival: Array<{ input: WebviewInput, resolve: () => void }> = [];
 
-	public add(input: WebviewEditorInput, resolve: () => void) {
+	public add(input: WebviewInput, resolve: () => void) {
 		this._awaitingRevival.push({ input, resolve });
 	}
 
@@ -147,10 +147,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 			location: URI,
 			id: ExtensionIdentifier
 		},
-	): WebviewEditorInput {
+	): WebviewInput {
 		const webview = this.createWebiew(id, extension, options);
 
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, extension, new UnownedDisposable(webview), undefined);
+		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, new UnownedDisposable(webview), undefined);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
@@ -162,7 +162,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 
 	public revealWebview(
-		webview: WebviewEditorInput,
+		webview: WebviewInput,
 		group: IEditorGroup,
 		preserveFocus: boolean
 	): void {
@@ -193,11 +193,11 @@ export class WebviewEditorService implements IWebviewEditorService {
 			readonly id: ExtensionIdentifier
 		},
 		group: number | undefined,
-	): WebviewEditorInput {
+	): WebviewInput {
 		const webview = this.createWebiew(id, extension, options);
 		webview.state = state;
 
-		const webviewInput = new RevivedWebviewEditorInput(id, viewType, title, extension, async (webview: WebviewEditorInput): Promise<void> => {
+		const webviewInput = new RevivedWebviewEditorInput(id, viewType, title, async (webview: WebviewInput): Promise<void> => {
 			const didRevive = await this.tryRevive(webview);
 			if (didRevive) {
 				return Promise.resolve(undefined);
@@ -230,13 +230,8 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 
 	public shouldPersist(
-		webview: WebviewEditorInput
+		webview: WebviewInput
 	): boolean {
-		// Has no state, don't persist
-		if (!webview.webview.state) {
-			return false;
-		}
-
 		if (values(this._revivers).some(reviver => canRevive(reviver, webview))) {
 			return true;
 		}
@@ -247,7 +242,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 
 	private async tryRevive(
-		webview: WebviewEditorInput
+		webview: WebviewInput
 	): Promise<boolean> {
 		for (const reviver of values(this._revivers)) {
 			if (canRevive(reviver, webview)) {
@@ -259,7 +254,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 
 	public async resolveWebview(
-		webview: WebviewEditorInput,
+		webview: WebviewInput,
 	): Promise<void> {
 		const didRevive = await this.tryRevive(webview);
 		if (!didRevive) {
@@ -268,14 +263,15 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 
 	private createWebiew(id: string, extension: { location: URI; id: ExtensionIdentifier; } | undefined, options: WebviewInputOptions) {
-		return this._webviewService.createWebviewEditorOverlay(id, {
-			extension: extension,
+		const webview = this._webviewService.createWebviewEditorOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
 		}, {
 			...options,
 			localResourceRoots: options.localResourceRoots || this.getDefaultLocalResourceRoots(extension),
 		});
+		webview.extension = extension;
+		return webview;
 	}
 
 	private getDefaultLocalResourceRoots(extension: undefined | {

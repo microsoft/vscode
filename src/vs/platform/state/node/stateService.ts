@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { IStateService } from 'vs/platform/state/common/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { ILogService } from 'vs/platform/log/common/log';
 
 type StorageDatebase = { [key: string]: any; };

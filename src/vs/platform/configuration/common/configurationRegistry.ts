@@ -170,7 +170,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			properties: {}
 		};
 		this.configurationContributors = [this.defaultOverridesConfigurationNode];
-		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting', allowsTrailingCommas: true, allowComments: true };
+		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting', allowTrailingCommas: true, allowComments: true };
 		this.configurationProperties = {};
 		this.excludedConfigurationProperties = {};
 		this.computeOverridePropertyPattern();

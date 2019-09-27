@@ -8,8 +8,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
-import { FileFilter } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+
+export interface FileFilter {
+	extensions: string[];
+	name: string;
+}
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 
@@ -90,7 +94,7 @@ export interface ISaveDialogOptions {
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
 	 * the schema of the current window.
 	 */
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
 export interface IOpenDialogOptions {
@@ -134,7 +138,7 @@ export interface IOpenDialogOptions {
 	 * Specifies a list of schemas for the file systems the user can load from. If not specified, uses the schema of the defaultURI or, if also not available,
 	 * the schema of the current window.
 	 */
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
 
@@ -172,6 +176,11 @@ export interface IDialogService {
 	 * option then promise with index `0` is returned.
 	 */
 	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+
+	/**
+	 * Present the about dialog to the user.
+	 */
+	about(): Promise<void>;
 }
 
 export const IFileDialogService = createDecorator<IFileDialogService>('fileDialogService');
@@ -235,11 +244,10 @@ export interface IFileDialogService {
 	 * Shows a open file dialog and returns the chosen file URI.
 	 */
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
-
 }
 
 const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, resourcesToConfirm: URI[]): string {
+export function getConfirmMessage(start: string, resourcesToConfirm: readonly URI[]): string {
 	const message = [start];
 	message.push('');
 	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r)));

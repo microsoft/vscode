@@ -105,7 +105,7 @@ export class KillTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private readonly terminalService: ITerminalService
 	) {
-		super(id, label, 'terminal-action kill');
+		super(id, label, 'terminal-action codicon-trash');
 	}
 
 	public run(event?: any): Promise<any> {
@@ -298,6 +298,32 @@ export class SendSequenceTerminalCommand extends Command {
 	}
 }
 
+export class CreateNewWithCwdTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.NEW_WITH_CWD;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
+	public static readonly CWD_ARG_LABEL = nls.localize('workbench.action.terminal.newWithCwd.cwd', "The directory to start the terminal at");
+
+	public runCommand(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const configurationResolverService = accessor.get(IConfigurationResolverService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const historyService = accessor.get(IHistoryService);
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+
+		let cwd: string | undefined;
+		if (args && args.cwd) {
+			cwd = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.cwd);
+		}
+		const instance = terminalService.createTerminal({ cwd });
+		if (!instance) {
+			return Promise.resolve(undefined);
+		}
+		terminalService.setActiveInstance(instance);
+		return terminalService.showPanel(true);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW;
@@ -310,7 +336,7 @@ export class CreateNewTerminalAction extends Action {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action new');
+		super(id, label, 'terminal-action codicon-add');
 	}
 
 	public run(event?: any): Promise<any> {
@@ -386,7 +412,7 @@ export class SplitTerminalAction extends Action {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action split');
+		super(id, label, 'terminal-action codicon-split-horizontal');
 	}
 
 	public run(event?: any): Promise<any> {

@@ -80,7 +80,8 @@ export class Preview extends Disposable {
 
 	private getWebiewContents(webviewEditor: vscode.WebviewEditor, resource: vscode.Uri): string {
 		const settings = {
-			isMac: process.platform === 'darwin'
+			isMac: process.platform === 'darwin',
+			src: this.getResourcePath(webviewEditor, resource)
 		};
 
 		return /* html */`<!DOCTYPE html>
@@ -95,10 +96,17 @@ export class Preview extends Disposable {
 	<meta id="image-preview-settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
 <body class="container image scale-to-fit">
-	<img src="${escapeAttribute(webviewEditor.webview.asWebviewUri(resource))}">
 	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}"></script>
 </body>
 </html>`;
+	}
+
+	private getResourcePath(webviewEditor: vscode.WebviewEditor, resource: vscode.Uri) {
+		if (resource.scheme === 'data') {
+			return encodeURI(resource.toString(true));
+		}
+
+		return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true));
 	}
 
 	private extensionResource(path: string) {

@@ -8,7 +8,6 @@ html, body {
 	max-height: 100%;
 }
 
-
 body img {
 	max-width: none;
 	max-height: none;
@@ -34,6 +33,7 @@ body img {
 	padding: 0;
 	background-position: 0 0, 8px 8px;
 	background-size: 16px 16px;
+	border: 1px solid var(--vscode-imagePreview-border);
 }
 
 .container.image img {

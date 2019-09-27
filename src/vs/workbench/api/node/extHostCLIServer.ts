@@ -7,9 +7,10 @@ import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { INativeOpenInWindowOptions } from 'vs/platform/windows/node/window';
 
 export interface OpenCommandPipeArgs {
 	type: 'open';
@@ -95,7 +96,7 @@ export class CLIServer {
 
 	private open(data: OpenCommandPipeArgs, res: http.ServerResponse) {
 		let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath } = data;
-		const urisToOpen: IURIToOpen[] = [];
+		const urisToOpen: IWindowOpenable[] = [];
 		if (Array.isArray(folderURIs)) {
 			for (const s of folderURIs) {
 				try {
@@ -126,7 +127,7 @@ export class CLIServer {
 		}
 		if (urisToOpen.length) {
 			const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
-			const windowOpenArgs: IOpenSettings = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, waitMarkerFileURI };
+			const windowOpenArgs: INativeOpenInWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, waitMarkerFileURI };
 			this._commands.executeCommand('_files.windowOpen', urisToOpen, windowOpenArgs);
 		}
 		res.writeHead(200);

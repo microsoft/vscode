@@ -8,7 +8,7 @@ import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { getGalleryExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export function isWebExtension(manifest: IExtensionManifest, configurationService: IConfigurationService): boolean {
 	const extensionKind = getExtensionKind(manifest, configurationService);

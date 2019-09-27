@@ -125,7 +125,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 	const firstLine = lines[0].trim();
 
 	if (lines.some(l => startsWith(l, 'regex parse error'))) {
-		return new SearchError('Regex parse error', SearchErrorCode.regexParseError);
+		return new SearchError(buildRegexParseError(lines), SearchErrorCode.regexParseError);
 	}
 
 	const match = firstLine.match(/grep config error: unknown encoding: (.*)/);
@@ -149,6 +149,21 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 
 	return undefined;
 }
+
+export function buildRegexParseError(lines: string[]): string {
+	let errorMessage: string[] = ['Regex parse error'];
+	let pcre2ErrorLine = lines.filter(l => (startsWith(l, 'PCRE2:')));
+	if (pcre2ErrorLine.length >= 1) {
+		let pcre2ErrorMessage = pcre2ErrorLine[0].replace('PCRE2:', '');
+		if (pcre2ErrorMessage.indexOf(':') !== -1 && pcre2ErrorMessage.split(':').length >= 2) {
+			let pcre2ActualErrorMessage = pcre2ErrorMessage.split(':')[1];
+			errorMessage.push(':' + pcre2ActualErrorMessage);
+		}
+	}
+
+	return errorMessage.join('');
+}
+
 
 export class RipgrepParser extends EventEmitter {
 	private remainder = '';

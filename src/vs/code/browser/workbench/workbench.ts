@@ -3,16 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create } from 'vs/workbench/workbench.web.api';
-import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { IWorkbenchConstructionOptions, create, URI, Event, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace } from 'vs/workbench/workbench.web.api';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { request } from 'vs/base/parts/request/browser/request';
-import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 
 interface ICredential {
 	service: string;
@@ -24,7 +21,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
 
-	private _credentials: ICredential[];
+	private _credentials!: ICredential[];
 	private get credentials(): ICredential[] {
 		if (!this._credentials) {
 			try {
@@ -201,8 +198,47 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 	}
 }
 
-const options: IWorkbenchConstructionOptions = JSON.parse(document.getElementById('vscode-workbench-web-configuration')!.getAttribute('data-settings')!);
+class WorkspaceProvider implements IWorkspaceProvider {
+
+	constructor(public readonly workspace: IWorkspace) { }
+
+	async open(workspace: IWorkspace, options?: { reuse?: boolean }): Promise<void> {
+		let targetHref: string | undefined = undefined;
+
+		// Empty
+		if (!workspace) {
+			targetHref = `${document.location.origin}${document.location.pathname}?ew=true`;
+		}
+
+		// Folder
+		else if (isFolderToOpen(workspace)) {
+			targetHref = `${document.location.origin}${document.location.pathname}?folder=${workspace.folderUri.path}`;
+		}
+
+		// Workspace
+		else if (isWorkspaceToOpen(workspace)) {
+			targetHref = `${document.location.origin}${document.location.pathname}?workspace=${workspace.workspaceUri.path}`;
+		}
+
+		if (targetHref) {
+			if (options && options.reuse) {
+				window.location.href = targetHref;
+			} else {
+				window.open(targetHref);
+			}
+		}
+	}
+}
+
+const options: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(document.getElementById('vscode-workbench-web-configuration')!.getAttribute('data-settings')!);
+options.workspaceProvider = new WorkspaceProvider(options.folderUri ? { folderUri: URI.revive(options.folderUri) } : options.workspaceUri ? { workspaceUri: URI.revive(options.workspaceUri) } : undefined);
 options.urlCallbackProvider = new PollingURLCallbackProvider();
 options.credentialsProvider = new LocalStorageCredentialsProvider();
+
+if (Array.isArray(options.staticExtensions)) {
+	options.staticExtensions.forEach(extension => {
+		extension.extensionLocation = URI.revive(extension.extensionLocation);
+	});
+}
 
 create(document.body, options);

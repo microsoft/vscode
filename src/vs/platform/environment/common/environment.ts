@@ -118,6 +118,10 @@ export interface IEnvironmentService {
 	keyboardLayoutResource: URI;
 	localeResource: URI;
 
+	// sync resources
+	userDataSyncLogResource: URI;
+	settingsSyncPreviewResource: URI;
+
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
 

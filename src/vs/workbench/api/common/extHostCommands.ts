@@ -52,7 +52,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			{
 				processArgument(a) {
 					// URI, Regex
-					return revive(a, 0);
+					return revive(a);
 				}
 			},
 			{
@@ -141,7 +141,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 			try {
 				const result = await this._proxy.$executeCommand<T>(id, toArgs, retry);
-				return revive(result, 0);
+				return revive(result);
 			} catch (e) {
 				// Rerun the command when it wasn't known, had arguments, and when retry
 				// is enabled. We do this because the command might be registered inside

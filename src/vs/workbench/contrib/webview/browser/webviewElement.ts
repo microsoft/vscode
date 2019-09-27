@@ -6,11 +6,11 @@
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
-import product from 'vs/platform/product/browser/product';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -19,7 +19,6 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isWeb } from 'vs/base/common/platform';
 
 interface WebviewContent {
 	readonly html: string;
@@ -37,9 +36,14 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
+	public extension: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	} | undefined;
+
 	constructor(
 		private readonly id: string,
-		private _options: WebviewOptions,
+		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IThemeService themeService: IThemeService,
 		@ITunnelService tunnelService: ITunnelService,
@@ -48,12 +52,12 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string')) {
-			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
+		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.webviewExternalEndpoint !== 'string')) {
+			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewExternalEndpoint`');
 		}
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
-			this._options.extension ? this._options.extension.location : undefined,
+			() => this.extension ? this.extension.location : undefined,
 			() => this.content.options.portMapping || [],
 			tunnelService
 		));
@@ -65,8 +69,9 @@ export class IFrameWebview extends Disposable implements Webview {
 		};
 
 		this.element = document.createElement('iframe');
+		this.element.className = `webview ${options.customClasses}`;
 		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
-		this.element.setAttribute('src', `${this.endpoint}/index.html?id=${this.id}`);
+		this.element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
@@ -114,9 +119,10 @@ export class IFrameWebview extends Disposable implements Webview {
 
 				case 'load-resource':
 					{
-						const requestPath = e.data.data.path;
-						const uri = URI.file(decodeURIComponent(requestPath));
-						this.loadResource(requestPath, uri);
+						const rawPath = e.data.data.path;
+						const normalizedPath = decodeURIComponent(rawPath);
+						const uri = URI.parse(normalizedPath.replace(/^\/(\w+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
+						this.loadResource(rawPath, uri);
 						return;
 					}
 
@@ -144,22 +150,12 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._register(themeService.onThemeChange(this.style, this));
 	}
 
-	private get endpoint(): string {
-		const baseEndpoint = this.externalEndpoint || this.environmentService.options!.webviewEndpoint!;
-		const endpoint = baseEndpoint.replace('{{uuid}}', this.id);
+	private get externalEndpoint(): string {
+		const endpoint = this.environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}
 		return endpoint;
-	}
-
-	private get externalEndpoint(): string | undefined {
-		const useExternalEndpoint = this.useExternalEndpoint;
-		if (!useExternalEndpoint) {
-			return undefined;
-		}
-		const commit = product.quality && product.commit ? product.commit : '211fa02efe8c041fd7baa8ec3dce199d5185aa44';
-		return `https://{{uuid}}.vscode-webview-test.com/${commit}`;
 	}
 
 	private get useExternalEndpoint(): boolean {
@@ -196,7 +192,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private preprocessHtml(value: string): string {
 		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
-			`${startQuote}${this.endpoint}/vscode-resource${path}${endQuote}`);
+			`${startQuote}${this.externalEndpoint}/vscode-resource/file${path}${endQuote}`);
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
@@ -216,7 +212,7 @@ export class IFrameWebview extends Disposable implements Webview {
 			contents: this.content.html,
 			options: this.content.options,
 			state: this.content.state,
-			endpoint: this.endpoint,
+			endpoint: this.externalEndpoint,
 		});
 	}
 
@@ -318,7 +314,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private async loadResource(requestPath: string, uri: URI) {
 		try {
-			const result = await loadLocalResource(uri, this.fileService, this._options.extension ? this._options.extension.location : undefined,
+			const result = await loadLocalResource(uri, this.fileService, this.extension ? this.extension.location : undefined,
 				() => (this.content.options.localResourceRoots || []));
 
 			if (result.type === 'success') {

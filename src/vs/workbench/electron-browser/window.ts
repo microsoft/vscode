@@ -14,27 +14,26 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { ipcRenderer as ipc, webFrame, crashReporter, Event } from 'electron';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
+import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { isRootUser, isWindows, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
+import { isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
+import product from 'vs/platform/product/common/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -51,11 +50,17 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from '../services/preferences/common/preferences';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/node/menubar';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { posix, dirname } from 'vs/base/common/path';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -74,6 +79,8 @@ export class ElectronWindow extends Disposable {
 	private readonly touchBarDisposables = this._register(new DisposableStore());
 	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
 
+	private customTitleContextMenuDisposable = this._register(new DisposableStore());
+
 	private previousConfiguredZoomLevel: number | undefined;
 
 	private addFoldersScheduler: RunOnceScheduler;
@@ -83,8 +90,6 @@ export class ElectronWindow extends Disposable {
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IWindowsService private readonly windowsService: IWindowsService,
-		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITitleService private readonly titleService: ITitleService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
@@ -103,7 +108,11 @@ export class ElectronWindow extends Disposable {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IElectronService private readonly electronService: IElectronService,
+		@ITunnelService private readonly tunnelService: ITunnelService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 		super();
 
@@ -244,6 +253,30 @@ export class ElectronWindow extends Disposable {
 
 			this._register(this.trackClosedWaitFiles(waitMarkerFile, resourcesToWaitFor));
 		}
+
+		// macOS OS integration
+		if (isMacintosh) {
+			this._register(this.editorService.onDidActiveEditorChange(() => {
+				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
+
+				// Represented Filename
+				this.updateRepresentedFilename(file ? file.fsPath : undefined);
+
+				// Custom title menu
+				this.provideCustomTitleContextMenu(file ? file.fsPath : undefined);
+			}));
+		}
+
+		// Maximize/Restore on doubleclick (for macOS custom title)
+		if (isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+			const titlePart = this.layoutService.getContainer(Parts.TITLEBAR_PART);
+
+			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
+				DOM.EventHelper.stop(e);
+
+				this.electronService.handleTitleDoubleClick();
+			}));
+		}
 	}
 
 	private onDidVisibleEditorsChange(): void {
@@ -263,7 +296,7 @@ export class ElectronWindow extends Disposable {
 	private onAllEditorsClosed(): void {
 		const visibleEditors = this.editorService.visibleControls.length;
 		if (visibleEditors === 0) {
-			this.windowService.closeWindow();
+			this.electronService.closeWindow();
 		}
 	}
 
@@ -307,6 +340,45 @@ export class ElectronWindow extends Disposable {
 		}
 	}
 
+	private updateRepresentedFilename(filePath: string | undefined): void {
+		this.electronService.setRepresentedFilename(filePath ? filePath : '');
+	}
+
+	private provideCustomTitleContextMenu(filePath: string | undefined): void {
+
+		// Clear old menu
+		this.customTitleContextMenuDisposable.clear();
+
+		// Provide new menu if a file is opened and we are on a custom title
+		if (!filePath || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+			return;
+		}
+
+		// Split up filepath into segments
+		const segments = filePath.split(posix.sep);
+		for (let i = segments.length; i > 0; i--) {
+			const isFile = (i === segments.length);
+
+			let pathOffset = i;
+			if (!isFile) {
+				pathOffset++; // for segments which are not the file name we want to open the folder
+			}
+
+			const path = segments.slice(0, pathOffset).join(posix.sep);
+
+			let label: string;
+			if (!isFile) {
+				label = getBaseLabel(dirname(path));
+			} else {
+				label = getBaseLabel(path);
+			}
+
+			const commandId = `workbench.action.revealPathInFinder${i}`;
+			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.electronService.showItemInFolder(path)));
+			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
+		}
+	}
+
 	private create(): void {
 
 		// Native menu controller
@@ -318,7 +390,7 @@ export class ElectronWindow extends Disposable {
 		this.setupOpenHandlers();
 
 		// Emit event when vscode is ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.windowService.windowId));
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.electronEnvironmentService.windowId));
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
@@ -353,26 +425,24 @@ export class ElectronWindow extends Disposable {
 	private setupOpenHandlers(): void {
 
 		// Block window.open() calls
-		const $this = this;
 		window.open = function (): Window | null {
 			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
 		};
 
 		// Handle internal open() calls
 		this.openerService.registerOpener({
-			async open(resource: URI, options?: { openToSide?: boolean; openExternal?: boolean; } | undefined): Promise<boolean> {
+			open: async (resource: URI, options?: OpenOptions): Promise<boolean> => {
 
 				// If either the caller wants to open externally or the
 				// scheme is one where we prefer to open externally
 				// we handle this resource by delegating the opening to
 				// the main process to prevent window focus issues.
-				const scheme = resource.scheme.toLowerCase();
-				const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
-				if ((options && options.openExternal) || preferOpenExternal) {
-					const success = await $this.windowsService.openExternal(encodeURI(resource.toString(true)));
-					if (!success && resource.scheme === Schemas.file) {
+				if (this.shouldOpenExternal(resource, options)) {
+					const { resolved } = await this.openerService.resolveExternalUri(resource, options);
+					const success = await this.electronService.openExternal(encodeURI(resolved.toString(true)));
+					if (!success && resolved.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
-						await $this.windowsService.showItemInFolder(resource);
+						await this.electronService.showItemInFolder(resolved.fsPath);
 					}
 
 					return true;
@@ -381,6 +451,30 @@ export class ElectronWindow extends Disposable {
 				return false; // not handled by us
 			}
 		});
+
+		this.openerService.registerExternalUriResolver({
+			resolveExternalUri: async (uri: URI, options?: OpenOptions) => {
+				if (options && options.allowTunneling) {
+					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
+					if (portMappingRequest) {
+						const tunnel = await this.tunnelService.openTunnel(portMappingRequest.port);
+						if (tunnel) {
+							return {
+								resolved: uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` }),
+								dispose: () => tunnel.dispose(),
+							};
+						}
+					}
+				}
+				return undefined;
+			}
+		});
+	}
+
+	private shouldOpenExternal(resource: URI, options?: OpenOptions) {
+		const scheme = resource.scheme.toLowerCase();
+		const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
+		return (options && options.openExternal) || preferOpenExternal;
 	}
 
 	private updateTouchbarMenu(): void {
@@ -445,7 +539,7 @@ export class ElectronWindow extends Disposable {
 		// Only update if the actions have changed
 		if (!equals(this.lastInstalledTouchedBar, items)) {
 			this.lastInstalledTouchedBar = items;
-			this.windowService.updateTouchBar(items);
+			this.electronService.updateTouchBar(items);
 		}
 	}
 
@@ -460,7 +554,7 @@ export class ElectronWindow extends Disposable {
 			productName,
 			submitURL: isWindows ? hockeyAppConfig[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? hockeyAppConfig[`linux-x64`] : hockeyAppConfig.darwin,
 			extra: {
-				vscode_version: pkg.version,
+				vscode_version: product.version,
 				vscode_commit: product.commit
 			}
 		};
@@ -473,7 +567,7 @@ export class ElectronWindow extends Disposable {
 		crashReporter.start(deepClone(options));
 
 		// start crash reporter in the main process
-		return this.windowsService.startCrashReporter(options);
+		return this.electronService.startCrashReporter(options);
 	}
 
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
@@ -586,8 +680,7 @@ export class ElectronWindow extends Disposable {
 class NativeMenubarControl extends MenubarControl {
 	constructor(
 		@IMenuService menuService: IMenuService,
-		@IWindowService windowService: IWindowService,
-		@IWindowsService windowsService: IWindowsService,
+		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -596,14 +689,15 @@ class NativeMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IMenubarService private readonly menubarService: IMenubarService
+		@IMenubarService private readonly menubarService: IMenubarService,
+		@IHostService hostService: IHostService,
+		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 		super(
 			menuService,
-			windowService,
-			windowsService,
+			workspacesService,
 			contextKeyService,
 			keybindingService,
 			configurationService,
@@ -613,9 +707,11 @@ class NativeMenubarControl extends MenubarControl {
 			notificationService,
 			preferencesService,
 			environmentService,
-			accessibilityService);
+			accessibilityService,
+			hostService
+		);
 
-		if (isMacintosh && !isWeb) {
+		if (isMacintosh) {
 			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
 			this.topLevelTitles['Preferences'] = nls.localize('mPreferences', "Preferences");
 		}
@@ -627,11 +723,11 @@ class NativeMenubarControl extends MenubarControl {
 			}
 		}
 
-		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
-			this.recentlyOpened = recentlyOpened;
+		(async () => {
+			this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
 
 			this.doUpdateMenubar(true);
-		});
+		})();
 
 		this.registerListeners();
 	}
@@ -641,7 +737,7 @@ class NativeMenubarControl extends MenubarControl {
 		// Send menus to main process to be rendered by Electron
 		const menubarData = { menus: {}, keybindings: {} };
 		if (this.getMenubarMenus(menubarData)) {
-			this.menubarService.updateMenubar(this.windowService.windowId, menubarData);
+			this.menubarService.updateMenubar(this.electronEnvironmentService.windowId, menubarData);
 		}
 	}
 

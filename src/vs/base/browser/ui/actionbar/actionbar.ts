@@ -311,14 +311,14 @@ export class ActionViewItem extends BaseActionViewItem {
 
 		if (this.options.icon) {
 			this.cssClass = this.getAction().class;
-			DOM.addClass(this.label, 'icon');
+			DOM.addClass(this.label, 'codicon');
 			if (this.cssClass) {
 				DOM.addClasses(this.label, this.cssClass);
 			}
 
 			this.updateEnabled();
 		} else {
-			DOM.removeClass(this.label, 'icon');
+			DOM.removeClass(this.label, 'codicon');
 		}
 	}
 

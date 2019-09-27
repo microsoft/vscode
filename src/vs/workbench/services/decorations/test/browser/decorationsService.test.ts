@@ -29,7 +29,7 @@ suite('DecorationsService', function () {
 
 		service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
-			readonly onDidChange: Event<URI[]> = Event.None;
+			readonly onDidChange: Event<readonly URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
 				return new Promise<IDecorationData>(resolve => {
@@ -62,7 +62,7 @@ suite('DecorationsService', function () {
 
 		service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
-			readonly onDidChange: Event<URI[]> = Event.None;
+			readonly onDidChange: Event<readonly URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
 				return { color: 'someBlue', tooltip: 'Z' };
@@ -80,7 +80,7 @@ suite('DecorationsService', function () {
 
 		let reg = service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
-			readonly onDidChange: Event<URI[]> = Event.None;
+			readonly onDidChange: Event<readonly URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
 				return { color: 'someBlue', tooltip: 'J' };
@@ -155,7 +155,7 @@ suite('DecorationsService', function () {
 		let provider = new class implements IDecorationsProvider {
 
 			_onDidChange = new Emitter<URI[]>();
-			onDidChange: Event<URI[]> = this._onDidChange.event;
+			onDidChange: Event<readonly URI[]> = this._onDidChange.event;
 
 			label: string = 'foo';
 

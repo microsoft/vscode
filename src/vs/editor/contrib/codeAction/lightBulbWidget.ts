@@ -15,6 +15,8 @@ import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 
 namespace LightBulbState {
 
@@ -57,7 +59,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	) {
 		super();
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'lightbulb-glyph';
+		this._domNode.className = 'codicon codicon-lightbulb';
 
 		this._editor.addContentWidget(this);
 
@@ -175,7 +177,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			position: { lineNumber: effectiveLineNumber, column: 1 },
 			preference: LightBulbWidget._posPref
 		});
-		dom.toggleClass(this._domNode, 'autofixable', actions.hasAutoFix);
+		dom.toggleClass(this._domNode, 'codicon-lightbulb-autofix', actions.hasAutoFix);
 		this._editor.layoutContentWidget(this);
 	}
 
@@ -199,3 +201,27 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this.title = title;
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Lightbulb Icon
+	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
+	if (editorLightBulbForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .contentWidgets .codicon-lightbulb,
+		.monaco-workbench .markers-panel-container .codicon-lightbulb {
+			color: ${editorLightBulbForegroundColor};
+		}`);
+	}
+
+	// Lightbulb Auto Fix Icon
+	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
+	if (editorLightBulbAutoFixForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .contentWidgets .codicon-lightbulb-autofix,
+		.monaco-workbench .markers-panel-container .codicon-lightbulb-autofix {
+			color: ${editorLightBulbAutoFixForegroundColor};
+		}`);
+	}
+
+});

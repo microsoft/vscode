@@ -1123,7 +1123,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const selectors = ['.action-label.icon'];
+						const selectors = ['.action-label.codicon'];
 						if (container.classList.contains('show-checkboxes')) {
 							selectors.push('input');
 						} else {
