@@ -45,13 +45,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.updateStatus();
 		this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
+		this._register(authTokenService.onDidChangeStatus(() => this.onDidChangeAuthTokenStatus()));
 	}
 
 	async sync(_continue?: boolean): Promise<boolean> {
 		if (!this.userDataSyncStoreService.enabled) {
 			throw new Error('Not enabled');
 		}
-		if (this.authTokenService.status === AuthTokenStatus.Unavailable) {
+		if (this.authTokenService.status === AuthTokenStatus.Inactive) {
 			return Promise.reject('Not Authenticated. Please sign in to start sync.');
 		}
 		for (const synchroniser of this.synchronisers) {
@@ -110,9 +111,17 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return null;
 	}
 
+	private onDidChangeAuthTokenStatus(): void {
+		if (this.authTokenService.status === AuthTokenStatus.Inactive) {
+			this.stop();
+		}
+	}
+
 }
 
 export class UserDataAutoSync extends Disposable {
+
+	private enabled: boolean = false;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -124,24 +133,31 @@ export class UserDataAutoSync extends Disposable {
 		super();
 		if (userDataSyncStoreService.enabled) {
 			this.sync(true);
-			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => {
-				if (this.isSyncEnabled()) {
-					userDataSyncLogService.info('Syncing configuration started...');
-					this.sync(true);
-				} else {
-					this.userDataSyncService.stop();
-					userDataSyncLogService.info('Syncing configuration stopped.');
-				}
-			}));
+			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => this.updateEnablement()));
+			this._register(authTokenService.onDidChangeStatus(() => this.updateEnablement()));
 
 			// Sync immediately if there is a local change.
 			this._register(Event.debounce(this.userDataSyncService.onDidChangeLocal, () => undefined, 500)(() => this.sync(false)));
 		}
 	}
 
+	private updateEnablement(): void {
+		const enabled = this.isSyncEnabled();
+		if (this.enabled !== enabled) {
+			this.enabled = enabled;
+			if (this.enabled) {
+				this.userDataSyncLogService.info('Syncing configuration started...');
+				this.sync(true);
+			} else {
+				this.userDataSyncService.stop();
+				this.userDataSyncLogService.info('Syncing configuration stopped.');
+			}
+		}
+	}
+
 	private async sync(loop: boolean): Promise<void> {
-		if (this.isSyncEnabled()) {
-			if (this.authTokenService.status === AuthTokenStatus.Available) {
+		if (this.enabled) {
+			if (this.authTokenService.status === AuthTokenStatus.Active) {
 				try {
 					await this.userDataSyncService.sync();
 				} catch (e) {
@@ -156,7 +172,7 @@ export class UserDataAutoSync extends Disposable {
 	}
 
 	private isSyncEnabled(): boolean {
-		return this.configurationService.getValue<boolean>('configurationSync.enable');
+		return this.configurationService.getValue<boolean>('configurationSync.enable') && this.authTokenService.status !== AuthTokenStatus.Inactive;
 	}
 
 }

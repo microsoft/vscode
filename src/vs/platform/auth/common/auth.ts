@@ -7,8 +7,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 
 export const enum AuthTokenStatus {
-	Unavailable = 'Unavailable',
-	Available = 'Available'
+	Disabled = 'Disabled',
+	Inactive = 'Inactive',
+	Active = 'Active'
 }
 
 export const IAuthTokenService = createDecorator<IAuthTokenService>('IAuthTokenService');

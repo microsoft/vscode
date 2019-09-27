@@ -7,6 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const SERVICE_NAME = 'settingsSync';
 const ACCOUNT = 'Test';
@@ -14,15 +15,24 @@ const ACCOUNT = 'Test';
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 	_serviceBrand: undefined;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Unavailable;
+	private _status: AuthTokenStatus = AuthTokenStatus.Disabled;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
 
 	constructor(
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@IProductService productService: IProductService,
 	) {
 		super();
+		if (productService.settingsSyncStoreUrl) {
+			this._status = AuthTokenStatus.Inactive;
+			this.getToken().then(token => {
+				if (token) {
+					this.setStatus(AuthTokenStatus.Active);
+				}
+			});
+		}
 	}
 
 	getToken(): Promise<string | null> {
@@ -31,7 +41,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	async updateToken(token: string): Promise<void> {
 		await this.credentialsService.setPassword(SERVICE_NAME, ACCOUNT, token);
-		this.setStatus(AuthTokenStatus.Available);
+		this.setStatus(AuthTokenStatus.Active);
 	}
 
 	async refreshToken(): Promise<void> {
@@ -40,7 +50,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	async deleteToken(): Promise<void> {
 		await this.credentialsService.deletePassword(SERVICE_NAME, ACCOUNT);
-		this.setStatus(AuthTokenStatus.Unavailable);
+		this.setStatus(AuthTokenStatus.Inactive);
 	}
 
 	private setStatus(status: AuthTokenStatus): void {

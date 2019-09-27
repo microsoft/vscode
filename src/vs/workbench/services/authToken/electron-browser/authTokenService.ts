@@ -16,7 +16,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	private readonly channel: IChannel;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Unavailable;
+	private _status: AuthTokenStatus = AuthTokenStatus.Disabled;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
