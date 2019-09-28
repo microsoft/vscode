@@ -664,7 +664,7 @@ export class SnippetParser {
 	}
 
 	private _until(type: TokenType): false | string {
-		let start = this._token;
+		const start = this._token;
 		while (this._token.type !== type) {
 			if (this._token.type === TokenType.EOF) {
 				return false;
@@ -678,7 +678,7 @@ export class SnippetParser {
 			}
 			this._token = this._scanner.next();
 		}
-		let value = this._scanner.value.substring(start.pos, this._token.pos).replace(/\\(\$|}|\\)/g, '$1');
+		const value = this._scanner.value.substring(start.pos, this._token.pos).replace(/\\(\$|}|\\)/g, '$1');
 		this._token = this._scanner.next();
 		return value;
 	}
