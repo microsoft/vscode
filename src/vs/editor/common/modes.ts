@@ -1405,7 +1405,7 @@ export interface IWebviewPanelOptions {
 /**
  * @internal
  */
-export const enum WebviewEditorState {
+export const enum WebviewContentState {
 	Readonly = 1,
 	Unchanged = 2,
 	Dirty = 3,

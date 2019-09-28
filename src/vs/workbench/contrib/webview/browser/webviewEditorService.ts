@@ -150,7 +150,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	): WebviewInput {
 		const webview = this.createWebiew(id, extension, options);
 
-		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, extension, new UnownedDisposable(webview), undefined);
+		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, new UnownedDisposable(webview), undefined);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
@@ -197,7 +197,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		const webview = this.createWebiew(id, extension, options);
 		webview.state = state;
 
-		const webviewInput = new RevivedWebviewEditorInput(id, viewType, title, extension, async (webview: WebviewInput): Promise<void> => {
+		const webviewInput = new RevivedWebviewEditorInput(id, viewType, title, async (webview: WebviewInput): Promise<void> => {
 			const didRevive = await this.tryRevive(webview);
 			if (didRevive) {
 				return Promise.resolve(undefined);
@@ -232,11 +232,6 @@ export class WebviewEditorService implements IWebviewEditorService {
 	public shouldPersist(
 		webview: WebviewInput
 	): boolean {
-		// Has no state, don't persist
-		if (!webview.webview.state) {
-			return false;
-		}
-
 		if (values(this._revivers).some(reviver => canRevive(reviver, webview))) {
 			return true;
 		}
@@ -268,14 +263,15 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 
 	private createWebiew(id: string, extension: { location: URI; id: ExtensionIdentifier; } | undefined, options: WebviewInputOptions) {
-		return this._webviewService.createWebviewEditorOverlay(id, {
-			extension: extension,
+		const webview = this._webviewService.createWebviewEditorOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
 		}, {
 			...options,
 			localResourceRoots: options.localResourceRoots || this.getDefaultLocalResourceRoots(extension),
 		});
+		webview.extension = extension;
+		return webview;
 	}
 
 	private getDefaultLocalResourceRoots(extension: undefined | {

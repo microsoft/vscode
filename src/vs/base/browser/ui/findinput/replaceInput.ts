@@ -32,6 +32,7 @@ export interface IReplaceInputOptions extends IReplaceInputStyles {
 
 export interface IReplaceInputStyles extends IInputBoxStyles {
 	inputActiveOptionBorder?: Color;
+	inputActiveOptionBackground?: Color;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -44,7 +45,8 @@ export class PreserveCaseCheckbox extends Checkbox {
 			actionClassName: 'codicon-preserve-case',
 			title: NLS_PRESERVE_CASE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			inputActiveOptionBorder: opts.inputActiveOptionBorder
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
 	}
 }
@@ -60,6 +62,7 @@ export class ReplaceInput extends Widget {
 	private fixFocusOnOptionClickEnabled = true;
 
 	private inputActiveOptionBorder?: Color;
+	private inputActiveOptionBackground?: Color;
 	private inputBackground?: Color;
 	private inputForeground?: Color;
 	private inputBorder?: Color;
@@ -105,6 +108,7 @@ export class ReplaceInput extends Widget {
 		this.label = options.label || NLS_DEFAULT_LABEL;
 
 		this.inputActiveOptionBorder = options.inputActiveOptionBorder;
+		this.inputActiveOptionBackground = options.inputActiveOptionBackground;
 		this.inputBackground = options.inputBackground;
 		this.inputForeground = options.inputForeground;
 		this.inputBorder = options.inputBorder;
@@ -181,6 +185,7 @@ export class ReplaceInput extends Widget {
 
 	public style(styles: IReplaceInputStyles): void {
 		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
+		this.inputActiveOptionBackground = styles.inputActiveOptionBackground;
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
 		this.inputBorder = styles.inputBorder;
@@ -202,6 +207,7 @@ export class ReplaceInput extends Widget {
 		if (this.domNode) {
 			const checkBoxStyles: ICheckboxStyles = {
 				inputActiveOptionBorder: this.inputActiveOptionBorder,
+				inputActiveOptionBackground: this.inputActiveOptionBackground,
 			};
 			this.preserveCase.style(checkBoxStyles);
 
@@ -281,7 +287,8 @@ export class ReplaceInput extends Widget {
 		this.preserveCase = this._register(new PreserveCaseCheckbox({
 			appendTitle: '',
 			isChecked: false,
-			inputActiveOptionBorder: this.inputActiveOptionBorder
+			inputActiveOptionBorder: this.inputActiveOptionBorder,
+			inputActiveOptionBackground: this.inputActiveOptionBackground,
 		}));
 		this._register(this.preserveCase.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);

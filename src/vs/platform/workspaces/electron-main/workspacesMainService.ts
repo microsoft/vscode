@@ -20,18 +20,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { originalFSPath, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export interface IStoredWorkspace {
-	folders: IStoredWorkspaceFolder[];
-	remoteAuthority?: string;
-}
-
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 
 export interface IWorkspacesMainService {
 
 	_serviceBrand: undefined;
 
-	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
+	readonly onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
 	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
@@ -48,6 +43,11 @@ export interface IWorkspacesMainService {
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
 
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
+}
+
+export interface IStoredWorkspace {
+	folders: IStoredWorkspaceFolder[];
+	remoteAuthority?: string;
 }
 
 export class WorkspacesMainService extends Disposable implements IWorkspacesMainService {

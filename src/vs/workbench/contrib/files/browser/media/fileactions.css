@@ -3,84 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Close all */
-.monaco-workbench .explorer-viewlet .action-close-all-files {
-	background: url("close-all-light.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .explorer-viewlet .action-close-all-files {
-	background: url("close-all-dark.svg") center center no-repeat;
-}
-
-.hc-black .monaco-workbench .explorer-viewlet .action-close-all-files {
-	background: url("close-all-light.svg") center center no-repeat;
-}
-
-/* Save all */
-.monaco-workbench .explorer-action.save-all {
-	background: url("save-all-light.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .explorer-action.save-all {
-	background: url("save-all-dark.svg") center center no-repeat;
-}
-
-.hc-black .monaco-workbench .explorer-action.save-all {
-	background: url("save-all-hc.svg") center center no-repeat;
-}
-
-/* Add file */
-.monaco-workbench .explorer-action.new-file {
-	background: url("add-file-light.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .explorer-action.new-file {
-	background: url("add-file-dark.svg") center center no-repeat;
-}
-
-.hc-black .monaco-workbench .explorer-action.new-file {
-	background: url("add-file-hc.svg") center center no-repeat;
-}
-
-/* Add Folder */
-.monaco-workbench .explorer-action.new-folder {
-	background: url("add-folder-light.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .explorer-action.new-folder {
-	background: url("add-folder-dark.svg") center center no-repeat;
-}
-
-.hc-black .monaco-workbench .explorer-action.new-folder {
-	background: url("add-folder-hc.svg") center center no-repeat;
-}
-
-/* Refresh */
-.monaco-workbench .explorer-action.refresh-explorer {
-	background: url("refresh-light.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .explorer-action.refresh-explorer {
-	background: url("refresh-dark.svg") center center no-repeat;
-}
-
-.hc-black .monaco-workbench .explorer-action.refresh-explorer {
-	background: url("refresh-hc.svg") center center no-repeat;
-}
-
-/* Collapse all */
-.monaco-workbench .explorer-action.collapse-explorer {
-	background: url("collapse-all-light.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .explorer-action.collapse-explorer {
-	background: url("collapse-all-dark.svg") center center no-repeat;
-}
-
-.hc-black .monaco-workbench .explorer-action.collapse-explorer {
-	background: url("collapse-all-hc.svg") center center no-repeat;
-}
-
 /* Split editor vertical */
 .monaco-workbench .quick-open-sidebyside-vertical {
 	background-image: url("split-editor-vertical-light.svg");
@@ -116,28 +38,6 @@
 	background: url("preview-dark.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-open-editors .close-editor-action {
-	background: url("action-close-light.svg") center center no-repeat;
-}
-
-.explorer-viewlet .explorer-open-editors .focused .monaco-list-row.selected:not(.highlighted) .close-editor-action {
-	background: url("action-close-focus.svg") center center no-repeat;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action {
-	background: url("action-close-dirty.svg") center center no-repeat;
-}
-
-.vs-dark .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action,
-.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action {
-	background: url("action-close-dirty-dark.svg") center center no-repeat;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list.focused .monaco-list-row.selected.dirty:not(:hover) > .monaco-action-bar .close-editor-action {
-	background: url("action-close-dirty-focus.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action,
-.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
-	background: url("action-close-dark.svg") center center no-repeat;
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
+	content: "\ea71";
 }

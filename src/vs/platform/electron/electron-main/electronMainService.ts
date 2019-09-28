@@ -3,36 +3,159 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app } from 'electron';
+import { INativeOpenInWindowOptions } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
-import { isMacintosh } from 'vs/base/common/platform';
+import { IOpenedWindow, OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
+import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
+import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 
-export class ElectronMainService {
+export class ElectronMainService implements AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number /* window ID */> {
 
 	_serviceBrand: undefined;
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 	}
 
+	//#region Events
+
+	readonly onWindowOpen: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+
+	readonly onWindowMaximize: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onWindowUnmaximize: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+
+	readonly onWindowBlur: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onWindowFocus: Event<number> = Event.any(
+		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
+		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
+	);
+
+	//#endregion
+
 	//#region Window
 
-	async windowCount(windowId: number): Promise<number> {
+	async getWindows(): Promise<IOpenedWindow[]> {
+		const windows = this.windowsMainService.getWindows();
+
+		return windows.map(window => ({
+			id: window.id,
+			workspace: window.openedWorkspace,
+			folderUri: window.openedFolderUri,
+			title: window.win.getTitle(),
+			filename: window.getRepresentedFilename()
+		}));
+	}
+
+	async getWindowCount(windowId: number): Promise<number> {
 		return this.windowsMainService.getWindowCount();
 	}
 
-	async openEmptyWindow(windowId: number, options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> {
+	async getActiveWindowId(windowId: number): Promise<number | undefined> {
+		const activeWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		if (activeWindow) {
+			return activeWindow.id;
+		}
+
+		return undefined;
+	}
+
+	async openEmptyWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void> {
 		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
+	}
+
+	async openInWindow(windowId: number, toOpen: IWindowOpenable[], options: INativeOpenInWindowOptions = Object.create(null)): Promise<void> {
+		if (toOpen.length > 0) {
+			this.windowsMainService.open({
+				context: OpenContext.API,
+				contextWindowId: windowId,
+				urisToOpen: toOpen,
+				cli: this.environmentService.args,
+				forceNewWindow: options.forceNewWindow,
+				forceReuseWindow: options.forceReuseWindow,
+				diffMode: options.diffMode,
+				addMode: options.addMode,
+				gotoLineMode: options.gotoLineMode,
+				noRecentEntry: options.noRecentEntry,
+				waitMarkerFileURI: options.waitMarkerFileURI
+			});
+		}
 	}
 
 	async toggleFullScreen(windowId: number): Promise<void> {
 		const window = this.windowsMainService.getWindowById(windowId);
 		if (window) {
 			window.toggleFullScreen();
+		}
+	}
+
+	async handleTitleDoubleClick(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.handleTitleDoubleClick();
+		}
+	}
+
+	async isMaximized(windowId: number): Promise<boolean> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return window.win.isMaximized();
+		}
+
+		return false;
+	}
+
+	async maximizeWindow(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.win.maximize();
+		}
+	}
+
+	async unmaximizeWindow(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.win.unmaximize();
+		}
+	}
+
+	async minimizeWindow(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.win.minimize();
+		}
+	}
+
+	async isWindowFocused(windowId: number): Promise<boolean> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return window.win.isFocused();
+		}
+
+		return false;
+	}
+
+	async focusWindow(windowId: number, options?: { windowId?: number; }): Promise<void> {
+		if (options && typeof options.windowId === 'number') {
+			windowId = options.windowId;
+		}
+
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			if (isMacintosh) {
+				window.win.show();
+			} else {
+				window.win.focus();
+			}
 		}
 	}
 
@@ -53,27 +176,19 @@ export class ElectronMainService {
 	}
 
 	async pickFileFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickFileFolderAndOpen(options);
+		return this.windowsMainService.pickFileFolderAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	async pickFileAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickFileAndOpen(options);
+		return this.windowsMainService.pickFileAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	async pickFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickFolderAndOpen(options);
+		return this.windowsMainService.pickFolderAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	async pickWorkspaceAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickWorkspaceAndOpen(options);
+		return this.windowsMainService.pickWorkspaceAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	//#endregion
@@ -98,6 +213,45 @@ export class ElectronMainService {
 		}
 	}
 
+	async openExternal(windowId: number, url: string): Promise<boolean> {
+		return this.windowsMainService.openExternal(url);
+	}
+
+	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.updateTouchBar(items);
+		}
+	}
+
+	//#endregion
+
+	//#region macOS Touchbar
+
+	async newWindowTab(): Promise<void> {
+		this.windowsMainService.openNewTabbedWindow(OpenContext.API);
+	}
+
+	async showPreviousWindowTab(): Promise<void> {
+		Menu.sendActionToFirstResponder('selectPreviousTab:');
+	}
+
+	async showNextWindowTab(): Promise<void> {
+		Menu.sendActionToFirstResponder('selectNextTab:');
+	}
+
+	async moveWindowTabToNewWindow(): Promise<void> {
+		Menu.sendActionToFirstResponder('moveTabToNewWindow:');
+	}
+
+	async mergeAllWindowTabs(): Promise<void> {
+		Menu.sendActionToFirstResponder('mergeAllWindows:');
+	}
+
+	async toggleWindowTabsBar(): Promise<void> {
+		Menu.sendActionToFirstResponder('toggleTabBar:');
+	}
+
 	//#endregion
 
 	//#region Lifecycle
@@ -111,6 +265,39 @@ export class ElectronMainService {
 		if (window) {
 			return this.windowsMainService.reload(window);
 		}
+	}
+
+	async closeWorkpsace(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return this.windowsMainService.closeWorkspace(window);
+		}
+	}
+
+	async closeWindow(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return window.win.close();
+		}
+	}
+
+	async quit(windowId: number): Promise<void> {
+		return this.windowsMainService.quit();
+	}
+
+	//#endregion
+
+	//#region Connectivity
+
+	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {
+		return new Promise(resolve => {
+			const window = this.windowsMainService.getWindowById(windowId);
+			if (window && window.win && window.win.webContents && window.win.webContents.session) {
+				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
+			} else {
+				resolve();
+			}
+		});
 	}
 
 	//#endregion
@@ -136,19 +323,25 @@ export class ElectronMainService {
 		}
 	}
 
+	async startCrashReporter(windowId: number, options: CrashReporterStartOptions): Promise<void> {
+		crashReporter.start(options);
+	}
+
 	//#endregion
 
-	//#region Connectivity
+	//#region Debug
 
-	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return new Promise(resolve => {
-			const window = this.windowsMainService.getWindowById(windowId);
-			if (window && window.win && window.win.webContents && window.win.webContents.session) {
-				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
-			} else {
-				resolve();
-			}
-		});
+	// TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
+
+	async openExtensionDevelopmentHostWindow(windowId: number, args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+		const extDevPaths = args.extensionDevelopmentPath;
+		if (extDevPaths) {
+			this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
+				context: OpenContext.API,
+				cli: args,
+				userEnv: Object.keys(env).length > 0 ? env : undefined
+			});
+		}
 	}
 
 	//#endregion

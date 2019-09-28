@@ -6,9 +6,8 @@
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService, OpenContext, ActiveWindowManager, IURIToOpen } from 'vs/platform/windows/common/windows';
-import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
-import { LegacyWindowsMainService } from 'vs/platform/windows/electron-main/legacyWindowsMainService';
+import { OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { ActiveWindowManager } from 'vs/code/node/activeWindowTracker';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -17,30 +16,30 @@ import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
-import { LaunchMainService, LaunchChannel, ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
+import { LaunchMainService, ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/common/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
-import { URLHandlerChannelClient, URLServiceChannel, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { SimpleServiceProxyChannel } from 'vs/platform/ipc/node/simpleIpcProxy';
+import { createChannelReceiver } from 'vs/base/parts/ipc/node/ipc';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
-import { WorkspacesChannel } from 'vs/platform/workspaces/electron-main/workspacesIpc';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { WorkspacesService } from 'vs/platform/workspaces/electron-main/workspacesService';
 import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
@@ -65,7 +64,7 @@ import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIp
 import { startsWith } from 'vs/base/common/strings';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { HistoryMainService, IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
+import { WorkspacesHistoryMainService, IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { URLService } from 'vs/platform/url/node/urlService';
 import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { statSync } from 'fs';
@@ -77,6 +76,8 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
+import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
+import { assign } from 'vs/base/common/objects';
 
 export class CodeApplication extends Disposable {
 
@@ -212,14 +213,14 @@ export class CodeApplication extends Disposable {
 			});
 		});
 
-		let macOpenFileURIs: IURIToOpen[] = [];
+		let macOpenFileURIs: IWindowOpenable[] = [];
 		let runningTimeout: NodeJS.Timeout | null = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
-			macOpenFileURIs.push(this.getURIToOpenFromPathSync(path));
+			macOpenFileURIs.push(this.getWindowOpenableFromPathSync(path));
 
 			// Clear previous handler if any
 			if (runningTimeout !== null) {
@@ -448,7 +449,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
-		services.set(IWindowsService, new SyncDescriptor(LegacyWindowsMainService, [sharedProcess]));
+		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
 		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
@@ -456,6 +457,7 @@ export class CodeApplication extends Disposable {
 
 		services.set(IIssueService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IElectronService, new SyncDescriptor(ElectronMainService));
+		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarService, new SyncDescriptor(MenubarMainService));
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
@@ -465,7 +467,7 @@ export class CodeApplication extends Disposable {
 		const backupMainService = new BackupMainService(this.environmentService, this.configurationService, this.logService);
 		services.set(IBackupMainService, backupMainService);
 
-		services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
+		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
 		services.set(IURLService, new SyncDescriptor(URLService));
 		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 
@@ -529,7 +531,7 @@ export class CodeApplication extends Disposable {
 
 		// Register more Main IPC services
 		const launchMainService = accessor.get(ILaunchMainService);
-		const launchChannel = new LaunchChannel(launchMainService);
+		const launchChannel = createChannelReceiver(launchMainService, { disableMarshalling: true });
 		this.mainIpcServer.registerChannel('launch', launchChannel);
 
 		// Register more Electron IPC services
@@ -538,28 +540,28 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('update', updateChannel);
 
 		const issueService = accessor.get(IIssueService);
-		const issueChannel = new SimpleServiceProxyChannel(issueService);
+		const issueChannel = createChannelReceiver(issueService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
 		const electronService = accessor.get(IElectronService);
-		const electronChannel = new SimpleServiceProxyChannel(electronService);
+		const electronChannel = createChannelReceiver(electronService);
 		electronIpcServer.registerChannel('electron', electronChannel);
+		sharedProcessClient.then(client => client.registerChannel('electron', electronChannel));
 
-		const workspacesMainService = accessor.get(IWorkspacesMainService);
-		const workspacesChannel = new WorkspacesChannel(workspacesMainService);
+		const sharedProcessMainService = accessor.get(ISharedProcessMainService);
+		const sharedProcessChannel = createChannelReceiver(sharedProcessMainService);
+		electronIpcServer.registerChannel('sharedProcess', sharedProcessChannel);
+
+		const workspacesService = accessor.get(IWorkspacesService);
+		const workspacesChannel = createChannelReceiver(workspacesService);
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
-		const windowsService = accessor.get(IWindowsService);
-		const windowsChannel = new WindowsChannel(windowsService);
-		electronIpcServer.registerChannel('windows', windowsChannel);
-		sharedProcessClient.then(client => client.registerChannel('windows', windowsChannel));
-
 		const menubarService = accessor.get(IMenubarService);
-		const menubarChannel = new SimpleServiceProxyChannel(menubarService);
+		const menubarChannel = createChannelReceiver(menubarService);
 		electronIpcServer.registerChannel('menubar', menubarChannel);
 
 		const urlService = accessor.get(IURLService);
-		const urlChannel = new URLServiceChannel(urlService);
+		const urlChannel = createChannelReceiver(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
 
 		const storageMainService = accessor.get(IStorageMainService);
@@ -579,8 +581,27 @@ export class CodeApplication extends Disposable {
 		// Propagate to clients
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 
+		// Create a URL handler to open file URIs in the active window
+		const environmentService = accessor.get(IEnvironmentService);
+		urlService.registerHandler({
+			async handleURL(uri: URI): Promise<boolean> {
+
+				// Catch file URLs
+				if (uri.authority === Schemas.file && !!uri.path) {
+					const cli = assign(Object.create(null), environmentService.args);
+					const urisToOpen = [{ fileUri: uri }];
+
+					windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
+
+					return true;
+				}
+
+				return false;
+			}
+		});
+
 		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = new ActiveWindowManager(windowsService);
+		const activeWindowManager = new ActiveWindowManager(electronService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);
@@ -589,8 +610,6 @@ export class CodeApplication extends Disposable {
 		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
 		// if there is none
 		if (isMacintosh) {
-			const environmentService = accessor.get(IEnvironmentService);
-
 			urlService.registerHandler({
 				async handleURL(uri: URI): Promise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
@@ -643,7 +662,7 @@ export class CodeApplication extends Disposable {
 			return windowsMainService.open({
 				context: OpenContext.DOCK,
 				cli: args,
-				urisToOpen: macOpenFiles.map(file => this.getURIToOpenFromPathSync(file)),
+				urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
 				noRecentEntry,
 				waitMarkerFileURI,
 				gotoLineMode: false,
@@ -664,7 +683,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private getURIToOpenFromPathSync(path: string): IURIToOpen {
+	private getWindowOpenableFromPathSync(path: string): IWindowOpenable {
 		try {
 			const fileStat = statSync(path);
 			if (fileStat.isDirectory()) {

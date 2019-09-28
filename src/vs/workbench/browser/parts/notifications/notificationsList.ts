@@ -103,7 +103,7 @@ export class NotificationsList extends Themable {
 
 		// Clear focus when DOM focus moves out
 		// Use document.hasFocus() to not clear the focus when the entire window lost focus
-		// This ensures that when the focus comes back, the notifciation is still focused
+		// This ensures that when the focus comes back, the notification is still focused
 		const listFocusTracker = this._register(trackFocus(this.list.getHTMLElement()));
 		this._register(listFocusTracker.onDidBlur(() => {
 			if (document.hasFocus()) {

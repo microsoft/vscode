@@ -8,7 +8,6 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { startsWith } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -96,7 +95,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		// This should trigger the real reviver to be registered from the extension host side.
 		this._register(_webviewEditorService.registerResolver({
 			canResolve: (webview: WebviewInput) => {
-				if (!webview.webview.state && webview.getTypeId() === WebviewInput.typeId) { // TODO: The typeid check is a workaround for the CustomFileEditorInput case
+				if (webview.getTypeId() === CustomFileEditorInput.typeId) {
 					return false;
 				}
 
@@ -151,7 +150,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		webview.setName(value);
 	}
 
-	public $setState(handle: WebviewPanelHandle, state: modes.WebviewEditorState): void {
+	public $setState(handle: WebviewPanelHandle, state: modes.WebviewContentState): void {
 		const webview = this.getWebviewEditorInput(handle);
 		if (webview instanceof CustomFileEditorInput) {
 			webview.setState(state);
@@ -171,6 +170,11 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	public $setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void {
 		const webview = this.getWebviewEditorInput(handle);
 		webview.webview.contentOptions = reviveWebviewOptions(options as any /*todo@mat */);
+	}
+
+	public $setExtension(handle: WebviewPanelHandle, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void {
+		const webview = this.getWebviewEditorInput(handle);
+		webview.webview.extension = { id: extensionId, location: URI.revive(extensionLocation) };
 	}
 
 	public $reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void {
@@ -198,7 +202,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		this._revivers.set(viewType, this._webviewEditorService.registerResolver({
 			canResolve: (webviewEditorInput) => {
-				return !!webviewEditorInput.webview.state && webviewEditorInput.viewType === this.getInternalWebviewViewType(viewType);
+				return webviewEditorInput.viewType === this.getInternalWebviewViewType(viewType);
 			},
 			resolveWebview: async (webviewEditorInput): Promise<void> => {
 				const viewType = this.fromInternalWebviewViewType(webviewEditorInput.viewType);
@@ -250,7 +254,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				return webviewEditorInput.getTypeId() !== WebviewInput.typeId && webviewEditorInput.viewType === viewType;
 			},
 			resolveWebview: async (webview) => {
-				const handle = generateUuid();
+				const handle = webview.id;
 				this._webviewEditorInputs.add(handle, webview);
 				this.hookupWebviewEventDelegate(handle, webview);
 

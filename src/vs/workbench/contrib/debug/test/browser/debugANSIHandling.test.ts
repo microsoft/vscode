@@ -14,9 +14,14 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService, TestTheme } from 'vs/platform/theme/test/common/testThemeService';
 import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
+import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
+import { NullOpenerService } from 'vs/platform/opener/common/opener';
 
 suite('Debug - ANSI Handling', () => {
 
+	let model: DebugModel;
+	let session: DebugSession;
 	let linkDetector: LinkDetector;
 	let themeService: IThemeService;
 
@@ -24,6 +29,9 @@ suite('Debug - ANSI Handling', () => {
 	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
+		model = new DebugModel([], [], [], [], [], <any>{ isDirty: (e: any) => false });
+		session = new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
+
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
 		linkDetector = instantiationService.createInstance(LinkDetector);
 
@@ -41,8 +49,8 @@ suite('Debug - ANSI Handling', () => {
 
 		assert.equal(0, root.children.length);
 
-		appendStylizedStringToContainer(root, 'content1', ['class1', 'class2'], linkDetector);
-		appendStylizedStringToContainer(root, 'content2', ['class2', 'class3'], linkDetector);
+		appendStylizedStringToContainer(root, 'content1', ['class1', 'class2'], linkDetector, session);
+		appendStylizedStringToContainer(root, 'content2', ['class2', 'class3'], linkDetector, session);
 
 		assert.equal(2, root.children.length);
 
@@ -72,7 +80,7 @@ suite('Debug - ANSI Handling', () => {
 	 * @returns An {@link HTMLSpanElement} that contains the stylized text.
 	 */
 	function getSequenceOutput(sequence: string): HTMLSpanElement {
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session);
 		assert.equal(1, root.children.length);
 		const child: Node = root.lastChild!;
 		if (child instanceof HTMLSpanElement) {
@@ -313,7 +321,7 @@ suite('Debug - ANSI Handling', () => {
 		if (elementsExpected === undefined) {
 			elementsExpected = assertions.length;
 		}
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session);
 		assert.equal(elementsExpected, root.children.length);
 		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];

@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, SubmenuAction, IMenuStyles } from 'vs/base/browser/ui/menu/menu';
+import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, SubmenuAction, IMenuStyles, Direction } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -29,6 +29,7 @@ export interface IMenuBarOptions {
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
+	compactMode?: Direction;
 }
 
 export interface MenuBarMenu {
@@ -92,6 +93,9 @@ export class MenuBar extends Disposable {
 		super();
 
 		this.container.setAttribute('role', 'menubar');
+		if (this.options.compactMode !== undefined) {
+			DOM.addClass(this.container, 'compact');
+		}
 
 		this.menuCache = [];
 		this.mnemonics = new Map<string, number>();
@@ -292,7 +296,7 @@ export class MenuBar extends Disposable {
 	}
 
 	createOverflowMenu(): void {
-		const label = nls.localize('mMore', "...");
+		const label = this.options.compactMode !== undefined ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', "...");
 		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': label, 'aria-haspopup': true });
 		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more', { 'role': 'none', 'aria-hidden': true });
 
@@ -421,7 +425,7 @@ export class MenuBar extends Disposable {
 
 		const sizeAvailable = this.container.offsetWidth;
 		let currentSize = 0;
-		let full = false;
+		let full = this.options.compactMode !== undefined;
 		const prevNumMenusShown = this.numMenusShown;
 		this.numMenusShown = 0;
 		for (let menuBarMenu of this.menuCache) {
@@ -694,7 +698,7 @@ export class MenuBar extends Disposable {
 
 	private focusPrevious(): void {
 
-		if (!this.focusedMenu) {
+		if (!this.focusedMenu || this.numMenusShown === 0) {
 			return;
 		}
 
@@ -724,7 +728,7 @@ export class MenuBar extends Disposable {
 	}
 
 	private focusNext(): void {
-		if (!this.focusedMenu) {
+		if (!this.focusedMenu || this.numMenusShown === 0) {
 			return;
 		}
 
@@ -884,8 +888,19 @@ export class MenuBar extends Disposable {
 		const menuHolder = $('div.menubar-menu-items-holder');
 
 		DOM.addClass(customMenu.buttonElement, 'open');
-		menuHolder.style.top = `${this.container.clientHeight}px`;
-		menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
+
+		if (this.options.compactMode === Direction.Right) {
+			menuHolder.style.top = `0px`;
+			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left + this.container.clientWidth}px`;
+		} else if (this.options.compactMode === Direction.Left) {
+			menuHolder.style.top = `0px`;
+			menuHolder.style.right = `${this.container.clientWidth}px`;
+			menuHolder.style.left = 'auto';
+			console.log(customMenu.buttonElement.getBoundingClientRect().right - this.container.clientWidth);
+		} else {
+			menuHolder.style.top = `${this.container.clientHeight}px`;
+			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
+		}
 
 		customMenu.buttonElement.appendChild(menuHolder);
 
@@ -893,7 +908,8 @@ export class MenuBar extends Disposable {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label'))
+			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
+			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));

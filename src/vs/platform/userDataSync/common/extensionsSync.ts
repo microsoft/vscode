@@ -4,18 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ThrottledDelayer } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { keys, values } from 'vs/base/common/map';
+import { startsWith } from 'vs/base/common/strings';
+import { IFileService } from 'vs/platform/files/common/files';
+import { Queue } from 'vs/base/common/async';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+export interface ISyncPreviewResult {
+	readonly added: ISyncExtension[];
+	readonly removed: ISyncExtension[];
+	readonly updated: ISyncExtension[];
+	readonly remote: ISyncExtension[] | null;
+}
 
 export class ExtensionsSynchroniser extends Disposable implements ISynchroniser {
 
@@ -26,26 +35,30 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
-	private readonly throttledDelayer: ThrottledDelayer<void>;
 	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
 	private readonly lastSyncExtensionsResource: URI;
+	private readonly replaceQueue: Queue<void>;
 
 	constructor(
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@ILogService private readonly logService: ILogService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
-		this.lastSyncExtensionsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncExtensions');
-		this.throttledDelayer = this._register(new ThrottledDelayer<void>(500));
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.settingsResource))(() => this.throttledDelayer.trigger(() => this.onDidChangeSettings())));
-	}
-
-	private async onDidChangeSettings(): Promise<void> {
+		this.replaceQueue = this._register(new Queue());
+		this.lastSyncExtensionsResource = joinPath(environmentService.userRoamingDataHome, '.lastSyncExtensions');
+		this._register(
+			Event.debounce(
+				Event.any(
+					Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
+					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))),
+				() => undefined, 500)(() => this._onDidChangeLocal.fire()));
 	}
 
 	private setStatus(status: SyncStatus): void {
@@ -56,11 +69,17 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	}
 
 	async sync(): Promise<boolean> {
-
-		if (this.status !== SyncStatus.Idle) {
+		if (!this.configurationService.getValue<boolean>('configurationSync.enableExtensions')) {
+			this.logService.trace('Extensions: Skipping synchronising extensions as it is disabled.');
 			return false;
 		}
 
+		if (this.status !== SyncStatus.Idle) {
+			this.logService.trace('Extensions: Skipping synchronising extensions as it is running already.');
+			return false;
+		}
+
+		this.logService.trace('Extensions: Started synchronising extensions...');
 		this.setStatus(SyncStatus.Syncing);
 
 		try {
@@ -69,131 +88,242 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Rejected) {
 				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('Failed to Synchronise settings as there is a new remote version available. Synchronising again...');
-				return this.sync();
-			}
-			if (e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) {
-				// Rejected as there is a new local version. Syncing again.
-				this.logService.info('Failed to Synchronise settings as there is a new local version available. Synchronising again...');
+				this.logService.info('Extensions: Failed to synchronise extensions as there is a new remote version available. Synchronising again...');
 				return this.sync();
 			}
 			throw e;
 		}
+
+		this.logService.trace('Extensions: Finised synchronising extensions.');
+		this.setStatus(SyncStatus.Idle);
 		return true;
+	}
+
+	stop(): void { }
+
+	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
+		return this.replaceQueue.queue(async () => {
+			const remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, null);
+			const remoteExtensions: ISyncExtension[] = remoteData.content ? JSON.parse(remoteData.content) : [];
+			const ignoredExtensions = this.configurationService.getValue<string[]>('configurationSync.extensionsToIgnore') || [];
+			const removedExtensions = remoteExtensions.filter(e => !ignoredExtensions.some(id => areSameExtensions({ id }, e.identifier)) && areSameExtensions(e.identifier, identifier));
+			if (removedExtensions.length) {
+				for (const removedExtension of removedExtensions) {
+					remoteExtensions.splice(remoteExtensions.indexOf(removedExtension), 1);
+				}
+				this.logService.info(`Extensions: Removing extension '${identifier.id}' from remote.`);
+				await this.writeToRemote(remoteExtensions, remoteData.ref);
+			}
+		});
 	}
 
 	private async doSync(): Promise<void> {
 		const lastSyncData = await this.getLastSyncUserData();
-		const remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, lastSyncData);
+		let remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, lastSyncData);
 
 		const lastSyncExtensions: ISyncExtension[] = lastSyncData ? JSON.parse(lastSyncData.content!) : null;
 		const remoteExtensions: ISyncExtension[] = remoteData.content ? JSON.parse(remoteData.content) : null;
 		const localExtensions = await this.getLocalExtensions();
 
-		// First time sync to remote
-		if (localExtensions && !remoteExtensions) {
-			this.logService.trace('Settings Sync: Remote contents does not exist. So sync with settings file.');
-			// Return local extensions
-			return;
+		this.logService.trace('Extensions: Merging remote extensions with local extensions...');
+		const { added, removed, updated, remote } = this.merge(localExtensions, remoteExtensions, lastSyncExtensions);
+
+		if (!added.length && !removed.length && !updated.length && !remote) {
+			this.logService.trace('Extensions: No changes found during synchronising extensions.');
 		}
 
-		if (localExtensions && remoteExtensions) {
-			const localToRemote = this.compare(localExtensions, remoteExtensions);
-			if (localToRemote.added.length === 0 && localToRemote.removed.length === 0 && localToRemote.updated.length === 0) {
-				// No changes found between local and remote.
-				return;
-			}
-
-			const baseToLocal = lastSyncExtensions ? this.compare(lastSyncExtensions, localExtensions) : { added: localExtensions.map(({ identifier }) => identifier), removed: [], updated: [] };
-			const baseToRemote = lastSyncExtensions ? this.compare(lastSyncExtensions, remoteExtensions) : { added: remoteExtensions.map(({ identifier }) => identifier), removed: [], updated: [] };
-
-			// Locally added extensions
-			for (const localAdded of baseToLocal.added) {
-				// Got added in remote
-				if (baseToRemote.added.some(added => areSameExtensions(added, localAdded))) {
-					// Is different from local to remote
-					if (localToRemote.updated.some(updated => areSameExtensions(updated, localAdded))) {
-						// update it in local
-					}
-				} else {
-					// add to remote
-				}
-			}
-
-			// Remotely added extension
-			for (const remoteAdded of baseToRemote.added) {
-				// Got added in local
-				if (baseToLocal.added.some(added => areSameExtensions(added, remoteAdded))) {
-					// Is different from local to remote
-					if (localToRemote.updated.some(updated => areSameExtensions(updated, remoteAdded))) {
-						// update it in local
-					}
-				} else {
-					// add to local
-				}
-			}
-
-			// Locally updated extensions
-			for (const localUpdated of baseToLocal.updated) {
-				// If updated in remote
-				if (baseToRemote.updated.some(updated => areSameExtensions(updated, localUpdated))) {
-					// Is different from local to remote
-					if (localToRemote.updated.some(updated => areSameExtensions(updated, localUpdated))) {
-						// update it in local
-					}
-				}
-			}
-
-			// Remotely updated extensions
-			for (const remoteUpdated of baseToRemote.updated) {
-				// If updated in local
-				if (baseToLocal.updated.some(updated => areSameExtensions(updated, remoteUpdated))) {
-					// Is different from local to remote
-					if (localToRemote.updated.some(updated => areSameExtensions(updated, remoteUpdated))) {
-						// update it in local
-					}
-				}
-			}
-
-			// Locally removed extensions
-			for (const localRemoved of baseToLocal.removed) {
-				// If not updated in remote
-				if (!baseToRemote.updated.some(updated => areSameExtensions(updated, localRemoved))) {
-					// remove it from remote
-				}
-			}
-
-			// Remote removed extensions
-			for (const remoteRemoved of baseToRemote.removed) {
-				// If not updated in local
-				if (!baseToLocal.updated.some(updated => areSameExtensions(updated, remoteRemoved))) {
-					// remove it from local
-				}
-			}
-
+		if (added.length || removed.length || updated.length) {
+			this.logService.info('Extensions: Updating local extensions...');
+			await this.updateLocalExtensions(added, removed, updated);
 		}
 
+		if (remote) {
+			// update remote
+			this.logService.info('Extensions: Updating remote extensions...');
+			remoteData = await this.writeToRemote(remote, remoteData.ref);
+		}
+
+		if (remoteData.content
+			&& (!lastSyncData || lastSyncData.ref !== remoteData.ref)
+		) {
+			// update last sync
+			this.logService.info('Extensions: Updating last synchronised extensions...');
+			await this.updateLastSyncValue(remoteData);
+		}
 	}
 
-	private compare(from: ISyncExtension[], to: ISyncExtension[]): { added: IExtensionIdentifier[], removed: IExtensionIdentifier[], updated: IExtensionIdentifier[] } {
-		const added = to.filter(toExtension => from.every(fromExtension => !areSameExtensions(fromExtension.identifier, toExtension.identifier))).map(({ identifier }) => identifier);
-		const removed = from.filter(fromExtension => to.every(toExtension => !areSameExtensions(toExtension.identifier, fromExtension.identifier))).map(({ identifier }) => identifier);
-		const updated: IExtensionIdentifier[] = [];
+	/**
+	 * Merge Strategy:
+	 * - If remote does not exist, merge with local (First time sync)
+	 * - Overwrite local with remote changes. Removed, Added, Updated.
+	 * - Update remote with those local extension which are newly added or updated or removed and untouched in remote.
+	 */
+	private merge(localExtensions: ISyncExtension[], remoteExtensions: ISyncExtension[] | null, lastSyncExtensions: ISyncExtension[] | null): { added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], remote: ISyncExtension[] | null } {
+		const ignoredExtensions = this.configurationService.getValue<string[]>('configurationSync.extensionsToIgnore') || [];
+		// First time sync
+		if (!remoteExtensions) {
+			this.logService.info('Extensions: Remote extensions does not exist. Synchronising extensions for the first time.');
+			return { added: [], removed: [], updated: [], remote: localExtensions.filter(({ identifier }) => ignoredExtensions.some(id => id.toLowerCase() === identifier.id.toLowerCase())) };
+		}
 
-		for (const fromExtension of from) {
-			if (removed.some(identifier => areSameExtensions(identifier, fromExtension.identifier))) {
+		const uuids: Map<string, string> = new Map<string, string>();
+		const addUUID = (identifier: IExtensionIdentifier) => { if (identifier.uuid) { uuids.set(identifier.id.toLowerCase(), identifier.uuid); } };
+		localExtensions.forEach(({ identifier }) => addUUID(identifier));
+		remoteExtensions.forEach(({ identifier }) => addUUID(identifier));
+		if (lastSyncExtensions) {
+			lastSyncExtensions.forEach(({ identifier }) => addUUID(identifier));
+		}
+
+		const addExtensionToMap = (map: Map<string, ISyncExtension>, extension: ISyncExtension) => {
+			const uuid = extension.identifier.uuid || uuids.get(extension.identifier.id.toLowerCase());
+			const key = uuid ? `uuid:${uuid}` : `id:${extension.identifier.id.toLowerCase()}`;
+			map.set(key, extension);
+			return map;
+		};
+		const localExtensionsMap = localExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>());
+		const remoteExtensionsMap = remoteExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>());
+		const newRemoteExtensionsMap = remoteExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>());
+		const lastSyncExtensionsMap = lastSyncExtensions ? lastSyncExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>()) : null;
+		const ignoredExtensionsSet = ignoredExtensions.reduce((set, id) => {
+			const uuid = uuids.get(id.toLowerCase());
+			return set.add(uuid ? `uuid:${uuid}` : `id:${id.toLowerCase()}`);
+		}, new Set<string>());
+
+		const localToRemote = this.compare(localExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet);
+		if (localToRemote.added.size === 0 && localToRemote.removed.size === 0 && localToRemote.updated.size === 0) {
+			// No changes found between local and remote.
+			return { added: [], removed: [], updated: [], remote: null };
+		}
+
+		const added: ISyncExtension[] = [];
+		const removed: IExtensionIdentifier[] = [];
+		const updated: ISyncExtension[] = [];
+
+		const baseToLocal = lastSyncExtensionsMap ? this.compare(lastSyncExtensionsMap, localExtensionsMap, ignoredExtensionsSet) : { added: keys(localExtensionsMap).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+		const baseToRemote = lastSyncExtensionsMap ? this.compare(lastSyncExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet) : { added: keys(remoteExtensionsMap).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+
+		const massageSyncExtension = (extension: ISyncExtension, key: string): ISyncExtension => {
+			return {
+				identifier: {
+					id: extension.identifier.id,
+					uuid: startsWith(key, 'uuid:') ? key.substring('uuid:'.length) : undefined
+				},
+				enabled: extension.enabled,
+				version: extension.version
+			};
+		};
+
+		// Remotely removed extension.
+		for (const key of values(baseToRemote.removed)) {
+			const e = localExtensionsMap.get(key);
+			if (e) {
+				removed.push(e.identifier);
+			}
+		}
+
+		// Remotely added extension
+		for (const key of values(baseToRemote.added)) {
+			// Got added in local
+			if (baseToLocal.added.has(key)) {
+				// Is different from local to remote
+				if (localToRemote.updated.has(key)) {
+					updated.push(massageSyncExtension(remoteExtensionsMap.get(key)!, key));
+				}
+			} else {
+				// Add to local
+				added.push(massageSyncExtension(remoteExtensionsMap.get(key)!, key));
+			}
+		}
+
+		// Remotely updated extensions
+		for (const key of values(baseToRemote.updated)) {
+			// If updated in local
+			if (baseToLocal.updated.has(key)) {
+				// Is different from local to remote
+				if (localToRemote.updated.has(key)) {
+					// update it in local
+					updated.push(massageSyncExtension(remoteExtensionsMap.get(key)!, key));
+				}
+			}
+		}
+
+		// Locally added extensions
+		for (const key of values(baseToLocal.added)) {
+			// Not there in remote
+			if (!baseToRemote.added.has(key)) {
+				newRemoteExtensionsMap.set(key, massageSyncExtension(localExtensionsMap.get(key)!, key));
+			}
+		}
+
+		// Locally updated extensions
+		for (const key of values(baseToLocal.updated)) {
+			// If removed in remote
+			if (baseToRemote.removed.has(key)) {
 				continue;
 			}
-			const toExtension = to.filter(e => areSameExtensions(e.identifier, fromExtension.identifier))[0];
-			if (
-				fromExtension.enabled !== toExtension.enabled
+
+			// If not updated in remote
+			if (!baseToRemote.updated.has(key)) {
+				newRemoteExtensionsMap.set(key, massageSyncExtension(localExtensionsMap.get(key)!, key));
+			}
+		}
+
+		// Locally removed extensions
+		for (const key of values(baseToLocal.removed)) {
+			// If not updated in remote
+			if (!baseToRemote.updated.has(key)) {
+				newRemoteExtensionsMap.delete(key);
+			}
+		}
+
+		const remoteChanges = this.compare(remoteExtensionsMap, newRemoteExtensionsMap, new Set<string>());
+		const remote = remoteChanges.added.size > 0 || remoteChanges.updated.size > 0 || remoteChanges.removed.size > 0 ? values(newRemoteExtensionsMap) : null;
+		return { added, removed, updated, remote };
+	}
+
+	private compare(from: Map<string, ISyncExtension>, to: Map<string, ISyncExtension>, ignoredExtensions: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
+		const fromKeys = keys(from).filter(key => !ignoredExtensions.has(key));
+		const toKeys = keys(to).filter(key => !ignoredExtensions.has(key));
+		const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+		const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+		const updated: Set<string> = new Set<string>();
+
+		for (const key of fromKeys) {
+			if (removed.has(key)) {
+				continue;
+			}
+			const fromExtension = from.get(key)!;
+			const toExtension = to.get(key);
+			if (!toExtension
+				|| fromExtension.enabled !== toExtension.enabled
 				|| fromExtension.version !== toExtension.version
 			) {
-				updated.push(fromExtension.identifier);
+				updated.add(key);
 			}
 		}
 
 		return { added, removed, updated };
+	}
+
+	private async updateLocalExtensions(added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[]): Promise<void> {
+		if (removed.length) {
+			const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+			const extensionsToRemove = installedExtensions.filter(({ identifier }) => removed.some(r => areSameExtensions(identifier, r)));
+			await Promise.all(extensionsToRemove.map(e => {
+				this.logService.info('Extensions: Removing local extension.', e.identifier.id);
+				return this.extensionManagementService.uninstall(e);
+			}));
+		}
+
+		if (added.length || updated.length) {
+			await Promise.all([...added, ...updated].map(async e => {
+				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier, e.version);
+				if (extension) {
+					this.logService.info('Extensions: Installing local extension.', e.identifier.id, extension.version);
+					await this.extensionManagementService.installFromGallery(extension);
+				}
+			}));
+		}
 	}
 
 	private async getLocalExtensions(): Promise<ISyncExtension[]> {
@@ -210,11 +340,13 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		}
 	}
 
-	protected async writeToRemote(content: string, ref: string | null): Promise<string> {
-		return this.userDataSyncStoreService.write(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, content, ref);
+	private async writeToRemote(extensions: ISyncExtension[], ref: string | null): Promise<IUserData> {
+		const content = JSON.stringify(extensions);
+		ref = await this.userDataSyncStoreService.write(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, content, ref);
+		return { content, ref };
 	}
 
-	protected async updateLastSyncValue(remoteUserData: IUserData): Promise<void> {
+	private async updateLastSyncValue(remoteUserData: IUserData): Promise<void> {
 		await this.fileService.writeFile(this.lastSyncExtensionsResource, VSBuffer.fromString(JSON.stringify(remoteUserData)));
 	}
 

@@ -23,6 +23,11 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
+export enum Direction {
+	Right,
+	Left
+}
+
 export interface IMenuOptions {
 	context?: any;
 	actionViewItemProvider?: IActionViewItemProvider;
@@ -31,6 +36,7 @@ export interface IMenuOptions {
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
+	expandDirection?: Direction;
 }
 
 export interface IMenuStyles {
@@ -591,6 +597,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 	private mouseOver: boolean;
 	private showScheduler: RunOnceScheduler;
 	private hideScheduler: RunOnceScheduler;
+	private expandDirection: Direction;
 
 	constructor(
 		action: IAction,
@@ -599,6 +606,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		private submenuOptions?: IMenuOptions
 	) {
 		super(action, action, submenuOptions);
+
+		this.expandDirection = submenuOptions && submenuOptions.expandDirection !== undefined ? submenuOptions.expandDirection : Direction.Right;
 
 		this.showScheduler = new RunOnceScheduler(() => {
 			if (this.mouseOver) {
@@ -715,11 +724,17 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 
-			if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
-				this.submenuContainer.style.left = '10px';
-				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
-			} else {
-				this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
+			if (this.expandDirection === Direction.Right) {
+				if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
+					this.submenuContainer.style.left = '10px';
+					this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
+				} else {
+					this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
+					this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
+				}
+			} else if (this.expandDirection === Direction.Left) {
+				this.submenuContainer.style.right = `${this.element.offsetWidth}px`;
+				this.submenuContainer.style.left = 'auto';
 				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			}
 

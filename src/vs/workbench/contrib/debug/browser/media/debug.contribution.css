@@ -167,11 +167,11 @@
 
 /* Links */
 
-.monaco-workbench .monaco-list-row .expression .value a {
+.monaco-workbench .monaco-list-row .expression .value a.link {
 	text-decoration: underline;
 }
 
-.monaco-workbench .monaco-list-row .expression .value a.pointer {
+.monaco-workbench .monaco-list-row .expression .value a.link.pointer {
 	cursor: pointer;
 }
 

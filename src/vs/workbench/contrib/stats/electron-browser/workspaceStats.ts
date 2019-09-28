@@ -152,7 +152,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		}
 	}
 
-	private report(): void {
+	private async report(): Promise<void> {
 
 		// Workspace Stats
 		this.workspaceStatsService.getTags()
@@ -164,19 +164,22 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportProxyStats();
 
 		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
-		diagnosticsChannel.call('reportWorkspaceStats', this.getWorkspaceInformation());
+		this.getWorkspaceInformation().then(stats => diagnosticsChannel.call('reportWorkspaceStats', stats));
 	}
 
-	private getWorkspaceInformation(): IWorkspaceInformation {
+	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {
 		const workspace = this.contextService.getWorkspace();
 		const state = this.contextService.getWorkbenchState();
-		const id = this.workspaceStatsService.getTelemetryWorkspaceId(workspace, state);
-		return {
-			id: workspace.id,
-			telemetryId: id,
-			folders: workspace.folders,
-			configuration: workspace.configuration
-		};
+		const telemetryId = this.workspaceStatsService.getTelemetryWorkspaceId(workspace, state);
+		return this.telemetryService.getTelemetryInfo().then(info => {
+			return {
+				id: workspace.id,
+				telemetryId,
+				rendererSessionId: info.sessionId,
+				folders: workspace.folders,
+				configuration: workspace.configuration
+			};
+		});
 	}
 
 	private reportWorkspaceTags(tags: Tags): void {

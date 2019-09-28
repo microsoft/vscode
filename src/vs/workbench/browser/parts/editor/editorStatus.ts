@@ -49,7 +49,7 @@ import { INotificationHandle, INotificationService, Severity } from 'vs/platform
 import { Event } from 'vs/base/common/event';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -202,8 +202,6 @@ class State {
 
 	private _metadata: string | undefined;
 	get metadata(): string | undefined { return this._metadata; }
-
-	constructor() { }
 
 	update(update: StateDelta): StateChange {
 		const change = new StateChange();
@@ -414,7 +412,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('gotoLine', "Go to Line"),
 			command: 'workbench.action.gotoLine'
@@ -429,7 +427,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectIndentation', "Select Indentation"),
 			command: 'changeEditorIndentation'
@@ -444,7 +442,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectEncoding', "Select Encoding"),
 			command: 'workbench.action.editor.changeEncoding'
@@ -459,7 +457,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectEOL', "Select End of Line Sequence"),
 			command: 'workbench.action.editor.changeEOL'
@@ -474,7 +472,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectLanguageMode', "Select Language Mode"),
 			command: 'workbench.action.editor.changeLanguageMode'
@@ -489,7 +487,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('fileInfo', "File Information")
 		};

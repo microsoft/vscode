@@ -914,17 +914,15 @@ declare module 'vscode' {
 	 */
 	export class CustomExecution2 {
 		/**
+		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
+		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
 		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
 		 * @param callback The callback that will be called when the task is started by a user.
 		 */
 		constructor(callback: () => Thenable<Pseudoterminal>);
-
-		/**
-		 * The callback used to execute the task. Cancellation should be handled using
-		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
-		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
-		 */
-		callback: () => Thenable<Pseudoterminal>;
 	}
 
 	/**
@@ -1087,36 +1085,45 @@ declare module 'vscode' {
 
 	//#region Custom editors, mjbvz
 
-	export enum WebviewEditorState {
+	export enum WebviewContentState {
 		/**
-		 * The webview editor's content cannot be modified.
+		 * The webview content cannot be modified.
 		 *
-		 * This disables save
+		 * This disables save.
 		 */
 		Readonly = 1,
 
 		/**
-		 * The webview editor's content has not been changed but they can be modified and saved.
+		 * The webview content has not been changed but they can be modified and saved.
 		 */
 		Unchanged = 2,
 
 		/**
-		 * The webview editor's content has been changed and can be saved.
+		 * The webview content has been changed and can be saved.
 		 */
 		Dirty = 3,
 	}
 
-	export interface WebviewEditor extends WebviewPanel {
-		state: WebviewEditorState;
+	export interface WebviewEditorState {
+		readonly contentState: WebviewContentState;
+	}
+
+	export interface WebviewPanel {
+		editorState: WebviewEditorState;
 
 		/**
-		 * Fired when the webview editor is saved.
+		 * Fired when the webview is being saved.
 		 *
 		 * Both `Unchanged` and `Dirty` editors can be saved.
 		 *
 		 * Extensions should call `waitUntil` to signal when the save operation complete
 		 */
 		readonly onWillSave: Event<{ waitUntil: (thenable: Thenable<boolean>) => void }>;
+	}
+
+	export interface WebviewEditor extends WebviewPanel {
+		// TODO: We likely do not want `editorState` and `onWillSave` enabled for
+		// resource backed webviews
 	}
 
 	export interface WebviewEditorProvider {
@@ -1147,18 +1154,21 @@ declare module 'vscode' {
 		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
 		 * uri to the same resource on the client machine.
 		 *
-		 * This is a no-oop if the extension is running locally. Currently only supports `https:` and `http:`.
+		 * This is a no-op if the extension is running locally. Currently only supports `https:` and `http:`.
 		 *
 		 * If the extension is running remotely, this function automatically establishes port forwarding from
 		 * the local machine to `target` on the remote and returns a local uri that can be used to for this connection.
 		 *
-		 * Note that uris passed through `openExternal` are automatically resolved.
+		 * Extensions should not store the result of `resolveExternalUri` as the resolved uri may become invalid due to
+		 * a system or user action — for example, in remote cases, a user may close a port that was forwarded by
+		 * `resolveExternalUri`.
 		 *
-		 * @return A uri that can be used on the client machine. Extensions should dispose of the returned value when
-		 * both the extension and the user are no longer using the value. For port forwarded uris, `dispose` will
-		 * close the connection.
+		 * Note: uris passed through `openExternal` are automatically resolved and you should not call `resolveExternalUri`
+		 * on them.
+		 *
+		 * @return A uri that can be used on the client machine.
 		 */
-		export function resolveExternalUri(target: Uri): Thenable<{ resolved: Uri, dispose(): void }>;
+		export function resolveExternalUri(target: Uri): Thenable<Uri>;
 	}
 
 	//#endregion

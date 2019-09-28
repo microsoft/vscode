@@ -132,7 +132,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		if (!view) {
 			this.toggleViewVisibility(id);
 		}
-		view = this.getView(id);
+		view = this.getView(id)!;
 		view.setExpanded(true);
 		if (focus) {
 			view.focus();
@@ -185,7 +185,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return (this.instantiationService as any).createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.arguments || []), options) as ViewletPanel;
 	}
 
-	protected getView(id: string): ViewletPanel {
+	protected getView(id: string): ViewletPanel | undefined {
 		return this.panels.filter(view => view.id === id)[0];
 	}
 

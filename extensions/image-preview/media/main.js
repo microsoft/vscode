@@ -69,13 +69,14 @@
 	let scale = initialState.scale;
 	let ctrlPressed = false;
 	let altPressed = false;
+	let hasLoadedImage = false;
 
 	// Elements
 	const container =  /** @type {HTMLElement} */(document.querySelector('body'));
 	const image = document.createElement('img');
 
 	function updateScale(newScale) {
-		if (!image || !image.parentElement) {
+		if (!image || !hasLoadedImage || !image.parentElement) {
 			return;
 		}
 
@@ -125,7 +126,7 @@
 	}
 
 	function firstZoom() {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -134,7 +135,7 @@
 	}
 
 	window.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 		ctrlPressed = e.ctrlKey;
@@ -147,7 +148,7 @@
 	});
 
 	window.addEventListener('keyup', (/** @type {KeyboardEvent} */ e) => {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -161,7 +162,7 @@
 	});
 
 	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -194,7 +195,7 @@
 	});
 
 	container.addEventListener('wheel', (/** @type {WheelEvent} */ e) => {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -215,7 +216,7 @@
 	});
 
 	window.addEventListener('scroll', () => {
-		if (!image || !image.parentElement || scale === 'fit') {
+		if (!image || !hasLoadedImage || !image.parentElement || scale === 'fit') {
 			return;
 		}
 
@@ -229,9 +230,11 @@
 	container.classList.add('zoom-in');
 
 	image.classList.add('scale-to-fit');
-	image.style.visibility = 'hidden';
 
 	image.addEventListener('load', () => {
+		document.querySelector('.loading').remove();
+		hasLoadedImage = true;
+
 		if (!image) {
 			return;
 		}
@@ -241,7 +244,9 @@
 			value: `${image.naturalWidth}x${image.naturalHeight}`,
 		});
 
-		image.style.visibility = 'visible';
+		container.classList.add('ready');
+		document.body.append(image);
+
 		updateScale(scale);
 
 		if (initialState.scale !== 'fit') {
@@ -250,7 +255,6 @@
 	});
 
 	image.src = decodeURI(settings.src);
-	document.body.append(image);
 
 	window.addEventListener('message', e => {
 		switch (e.data.type) {

@@ -50,7 +50,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private selectedName: string | undefined;
 	private selectedLaunch: ILaunch | undefined;
 	private toDispose: IDisposable[];
-	private _onDidSelectConfigurationName = new Emitter<void>();
+	private readonly _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
 	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();

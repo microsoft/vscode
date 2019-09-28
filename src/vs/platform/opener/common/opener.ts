@@ -65,5 +65,5 @@ export const NullOpenerService: IOpenerService = Object.freeze({
 	registerValidator() { return Disposable.None; },
 	registerExternalUriResolver() { return Disposable.None; },
 	open() { return Promise.resolve(false); },
-	async resolveExternalUri(uri) { return { resolved: uri, dispose() { } }; },
+	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
 });

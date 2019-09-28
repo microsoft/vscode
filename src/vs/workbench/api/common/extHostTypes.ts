@@ -2399,7 +2399,7 @@ export class Decoration {
 	bubble?: boolean;
 }
 
-export enum WebviewEditorState {
+export enum WebviewContentState {
 	Readonly = 1,
 	Unchanged = 2,
 	Dirty = 3,

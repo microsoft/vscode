@@ -118,7 +118,7 @@ export class ToggleEditorLayoutAction extends Action {
 	) {
 		super(id, label);
 
-		this.class = 'flip-editor-layout';
+		this.class = 'codicon-editor-layout';
 		this.updateEnablement();
 
 		this.registerListeners();
