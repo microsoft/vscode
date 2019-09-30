@@ -244,9 +244,6 @@ export class ViewTokensChangedEvent {
 export class ViewThemeChangedEvent {
 
 	public readonly type = ViewEventType.ViewThemeChanged;
-
-	constructor() {
-	}
 }
 
 export class ViewTokensColorsChangedEvent {
@@ -270,9 +267,6 @@ export class ViewZonesChangedEvent {
 export class ViewLanguageConfigurationEvent {
 
 	public readonly type = ViewEventType.ViewLanguageConfigurationChanged;
-
-	constructor() {
-	}
 }
 
 export type ViewEvent = (

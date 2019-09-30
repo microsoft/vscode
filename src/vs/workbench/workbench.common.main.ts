@@ -15,6 +15,7 @@ import 'vs/workbench/browser/workbench.contribution';
 
 //#region --- workbench actions
 
+import 'vs/workbench/browser/actions/textInputActions';
 import 'vs/workbench/browser/actions/developerActions';
 import 'vs/workbench/browser/actions/helpActions';
 import 'vs/workbench/browser/actions/layoutActions';
@@ -56,7 +57,7 @@ import 'vs/workbench/browser/parts/views/views';
 
 //#region --- workbench services
 
-import 'vs/workbench/services/extensions/common/extensionUrlHandler';
+import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
@@ -65,7 +66,6 @@ import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
@@ -79,8 +79,7 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
-import 'vs/workbench/services/userData/common/settingsMergeService';
-import 'vs/workbench/services/workspace/browser/workspaceEditingService';
+import 'vs/workbench/services/userDataSync/common/settingsMergeService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -106,9 +105,6 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IUserDataSyncStoreService, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
@@ -122,16 +118,11 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
-registerSingleton(IUserDataSyncService, UserDataSyncService);
 
 //#endregion
 
 
 //#region --- workbench contributions
-
-// Workspace File Watching
-import 'vs/workbench/services/files/common/workspaceWatcher';
 
 // Telemetry
 import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
@@ -200,7 +191,7 @@ import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 
 // Relauncher
-import 'vs/workbench/contrib/relauncher/common/relauncher.contribution';
+import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';
 
 // Tasks
 import 'vs/workbench/contrib/tasks/browser/task.contribution';
@@ -245,7 +236,6 @@ import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
-import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
 
 // Call Hierarchy
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
@@ -259,7 +249,7 @@ import 'vs/workbench/contrib/experiments/browser/experiments.contribution';
 // Send a Smile
 import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
-// User Data
-import 'vs/workbench/contrib/userData/browser/userData.contribution';
+// User Data Sync
+import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
 //#endregion

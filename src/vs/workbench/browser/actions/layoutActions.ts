@@ -118,7 +118,7 @@ export class ToggleEditorLayoutAction extends Action {
 	) {
 		super(id, label);
 
-		this.class = 'flip-editor-layout';
+		this.class = 'codicon-editor-layout';
 		this.updateEnablement();
 
 		this.registerListeners();
@@ -230,7 +230,7 @@ export class ToggleEditorVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory, ContextKeyExpr.equals('config.workbench.useExperimentalGridLayout', true));
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory);
 
 export class ToggleSidebarVisibilityAction extends Action {
 

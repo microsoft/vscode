@@ -18,6 +18,9 @@
 	background-position: center center;
 	background-repeat: no-repeat;
 	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .search-view .search-widget .search-container,
@@ -104,20 +107,8 @@
 	right: 0;
 	cursor: pointer;
 	width: 16px;
-	height: 13px;
+	height: 16px;
 	z-index: 2; /* Force it above the search results message, which has a negative top margin */
-}
-
-.vs-dark .monaco-workbench .search-view .query-details .more {
-	background: url('ellipsis-dark.svg') center no-repeat;
-}
-
-.hc-black .monaco-workbench .search-view .query-details .more {
-	background: url('ellipsis-hc.svg') center no-repeat;
-}
-
-.vs .monaco-workbench .search-view .query-details .more {
-	background: url('ellipsis-light.svg') center no-repeat;
 }
 
 .search-view .query-details .file-types {
@@ -254,35 +245,12 @@
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
+	color: inherit;
 }
 
 /* Adjusts spacing in high contrast mode so that actions are vertically centered */
 .hc-black .monaco-list .monaco-list-row .monaco-action-bar .action-label {
 	margin-top: 2px;
-}
-
-.search-view .action-replace {
-	background-image: url('replace-light.svg');
-}
-
-.vs-dark .search-view .action-replace {
-	background-image: url('replace-dark.svg');
-}
-
-.hc-black .search-view .action-replace {
-	background-image: url('replace-hc.svg');
-}
-
-.search-view .action-replace-all {
-	background: url('replace-all-light.svg') center center no-repeat;
-}
-
-.vs-dark .search-view .action-replace-all {
-	background: url('replace-all-dark.svg') center center no-repeat;
-}
-
-.hc-black .search-view .action-replace-all {
-	background: url('replace-all-hc.svg') center center no-repeat;
 }
 
 .search-view .monaco-count-badge {
@@ -296,67 +264,6 @@
 .search-view:not(.wide) > .results > .monaco-list .monaco-list-row.focused .foldermatch .monaco-count-badge,
 .search-view:not(.wide) > .results > .monaco-list .monaco-list-row.focused .linematch .monaco-count-badge {
 	display: none;
-}
-
-.monaco-workbench .search-action.refresh {
-	background: url('refresh-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .search-action.refresh {
-	background: url('refresh-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .search-action.refresh {
-	background: url('refresh-hc.svg') center center no-repeat;
-}
-
-.monaco-workbench .search-action.collapse {
-	background: url('collapse-all-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .search-action.collapse,
-.hc-black .monaco-workbench .search-action.collapse {
-	background: url('collapse-all-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .search-action.collapse {
-	background: url('collapse-all-hc.svg') center center no-repeat;
-}
-
-.monaco-workbench .search-action.clear-search-results {
-	background: url('clear-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .search-action.clear-search-results {
-	background: url('clear-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .search-action.clear-search-results {
-	background: url('clear-hc.svg') center center no-repeat;
-}
-
-.monaco-workbench .search-action.cancel-search {
-	background: url('stop-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .search-action.cancel-search {
-	background: url('stop-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .search-action.cancel-search {
-	background: url('stop-hc.svg') center center no-repeat;
-}
-
-.vs .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {
-	background: url('exclude-settings-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {
-	background: url('exclude-settings-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {
-	background: url('exclude-settings-hc.svg') center center no-repeat;
 }
 
 .search-view .replace.findInFileMatch {
@@ -388,18 +295,6 @@
 	background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.search-view .action-remove {
-	background: url("remove-light.svg") center center no-repeat;
-}
-
-.vs-dark .search-view .action-remove {
-	background: url("remove-dark.svg") center center no-repeat;
-}
-
-.hc-black .search-view .action-remove {
-	background: url("remove-hc.svg") center center no-repeat;
-}
-
 .vs-dark .search-view .message {
 	opacity: .5;
 }
@@ -407,30 +302,6 @@
 .vs-dark .search-view .foldermatch,
 .vs-dark .search-view .filematch {
 	padding: 0;
-}
-
-.vs .search-view .search-widget .toggle-replace-button.expand {
-	background-image: url('tree-expanded-light.svg');
-}
-
-.vs-dark .search-view .search-widget .toggle-replace-button.expand {
-	background-image: url('tree-expanded-dark.svg');
-}
-
-.hc-black .search-view .search-widget .toggle-replace-button.expand {
-	background-image: url('tree-expanded-hc.svg');
-}
-
-.vs .search-view .search-widget .toggle-replace-button.collapse {
-	background-image: url('tree-collapsed-light.svg');
-}
-
-.vs-dark .search-view .search-widget .toggle-replace-button.collapse {
-	background-image: url('tree-collapsed-dark.svg');
-}
-
-.hc-black .search-view .search-widget .toggle-replace-button.collapse {
-	background-image: url('tree-collapsed-hc.svg');
 }
 
 /* High Contrast Theming */

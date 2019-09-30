@@ -6,7 +6,6 @@ import * as dom from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
@@ -67,16 +66,11 @@ export class WebviewInput extends EditorInput {
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		public readonly extension: undefined | {
-			readonly location: URI;
-			readonly id: ExtensionIdentifier;
-		},
 		webview: Unowned<WebviewEditorOverlay>
 	) {
 		super();
 
 		this._name = name;
-		this.extension = extension;
 
 		this._webview = this._register(webview.acquire()); // The input owns this webview
 	}
@@ -111,6 +105,10 @@ export class WebviewInput extends EditorInput {
 
 	public get webview() {
 		return this._webview;
+	}
+
+	public get extension() {
+		return this._webview.extension;
 	}
 
 	public get iconPath() {
@@ -150,14 +148,10 @@ export class RevivedWebviewEditorInput extends WebviewInput {
 		id: string,
 		viewType: string,
 		name: string,
-		extension: undefined | {
-			readonly location: URI;
-			readonly id: ExtensionIdentifier
-		},
 		private readonly reviver: (input: WebviewInput) => Promise<void>,
 		webview: Unowned<WebviewEditorOverlay>
 	) {
-		super(id, viewType, name, extension, webview);
+		super(id, viewType, name, webview);
 	}
 
 	public async resolve(): Promise<IEditorModel> {

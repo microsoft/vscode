@@ -8,8 +8,17 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 
-export async function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string | undefined, version: string | undefined, machineId: string, msftInternalDomains: string[] | undefined, installSourcePath: string, remoteAuthority?: string): Promise<{ [name: string]: string | boolean | undefined }> {
-	const result = await resolveCommonProperties(commit, version, machineId, msftInternalDomains, installSourcePath);
+export async function resolveWorkbenchCommonProperties(
+	storageService: IStorageService,
+	commit: string | undefined,
+	version: string | undefined,
+	machineId: string,
+	msftInternalDomains: string[] | undefined,
+	installSourcePath: string,
+	remoteAuthority?: string,
+	resolveAdditionalProperties?: () => { [key: string]: any }
+): Promise<{ [name: string]: string | boolean | undefined }> {
+	const result = await resolveCommonProperties(commit, version, machineId, msftInternalDomains, installSourcePath, undefined, resolveAdditionalProperties);
 	const instanceId = storageService.get(instanceStorageKey, StorageScope.GLOBAL)!;
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;

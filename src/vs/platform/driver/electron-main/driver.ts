@@ -18,6 +18,7 @@ import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';
 import { IDriver, IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { NativeImage } from 'electron';
 
 function isSilentKeyCode(keyCode: KeyCode) {
 	return keyCode < KeyCode.KEY_0;
@@ -29,7 +30,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	private registeredWindowIds = new Set<number>();
 	private reloadingWindowIds = new Set<number>();
-	private onDidReloadingChange = new Emitter<void>();
+	private readonly onDidReloadingChange = new Emitter<void>();
 
 	constructor(
 		private windowServer: IPCServer,
@@ -62,7 +63,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 			throw new Error('Invalid window');
 		}
 		const webContents = window.win.webContents;
-		const image = await new Promise<Electron.NativeImage>(c => webContents.capturePage(c));
+		const image = await new Promise<NativeImage>(c => webContents.capturePage(c));
 		return image.toPNG().toString('base64');
 	}
 

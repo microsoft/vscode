@@ -7,7 +7,7 @@ import * as path from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment } from 'electron';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -44,7 +44,7 @@ export const defaultWindowState = function (mode = WindowMode.Normal): IWindowSt
 	};
 };
 
-interface ITouchBarSegment extends Electron.SegmentedControlSegment {
+interface ITouchBarSegment extends SegmentedControlSegment {
 	id: string;
 }
 
@@ -58,7 +58,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: NodeJS.Timeout;
 	private _id: number;
-	private _win: Electron.BrowserWindow;
+	private _win: BrowserWindow;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
 	private windowState: IWindowState;
@@ -72,7 +72,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private marketplaceHeadersPromise: Promise<object>;
 
-	private readonly touchBarGroups: Electron.TouchBarSegmentedControl[];
+	private readonly touchBarGroups: TouchBarSegmentedControl[];
 
 	constructor(
 		config: IWindowCreationOptions,
@@ -116,7 +116,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
-		const options: Electron.BrowserWindowConstructorOptions = {
+		const options: BrowserWindowConstructorOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
@@ -231,7 +231,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return this._id;
 	}
 
-	get win(): Electron.BrowserWindow {
+	get win(): BrowserWindow {
 		return this._win;
 	}
 
@@ -421,7 +421,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Window Failed to load
-		this._win.webContents.on('did-fail-load', (event: Electron.Event, errorCode: number, errorDescription: string, validatedURL: string, isMainFrame: boolean) => {
+		this._win.webContents.on('did-fail-load', (event: Event, errorCode: number, errorDescription: string, validatedURL: string, isMainFrame: boolean) => {
 			this.logService.warn('[electron event]: fail to load, ', errorDescription);
 		});
 
@@ -561,7 +561,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			autoDetectHighContrast = false;
 		}
 		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
-		windowConfiguration.accessibilitySupport = app.accessibilitySupportEnabled;
+		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
 		// Title style related
 		windowConfiguration.maximized = this._win.isMaximized();
@@ -653,7 +653,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// only consider non-minimized window states
 		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			let bounds: Electron.Rectangle;
+			let bounds: Rectangle;
 			if (mode === WindowMode.Normal) {
 				bounds = this.getBounds();
 			} else {
@@ -778,7 +778,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return undefined;
 	}
 
-	getBounds(): Electron.Rectangle {
+	getBounds(): Rectangle {
 		const pos = this._win.getPosition();
 		const dimension = this._win.getSize();
 
@@ -908,7 +908,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	onWindowTitleDoubleClick(): void {
+	handleTitleDoubleClick(): void {
 
 		// Respect system settings on mac with regards to title click on windows title
 		if (isMacintosh) {
@@ -988,7 +988,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
 	}
 
-	private createTouchBarGroup(items: ISerializableCommandAction[] = []): Electron.TouchBarSegmentedControl {
+	private createTouchBarGroup(items: ISerializableCommandAction[] = []): TouchBarSegmentedControl {
 
 		// Group Segments
 		const segments = this.createTouchBarGroupSegments(items);
@@ -1008,7 +1008,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
-			let icon: Electron.NativeImage | undefined;
+			let icon: NativeImage | undefined;
 			if (item.iconLocation && item.iconLocation.dark.scheme === 'file') {
 				icon = nativeImage.createFromPath(URI.revive(item.iconLocation.dark).fsPath);
 				if (icon.isEmpty()) {

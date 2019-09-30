@@ -239,7 +239,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		return this._uri;
 	}
 
-	private _onDidUpdateCommentThread = new Emitter<void>();
+	private readonly _onDidUpdateCommentThread = new Emitter<void>();
 	readonly onDidUpdateCommentThread = this._onDidUpdateCommentThread.event;
 
 	set range(range: vscode.Range) {

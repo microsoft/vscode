@@ -5,48 +5,88 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+import { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, allSettings } from 'vs/platform/configuration/common/configurationRegistry';
+import { localize } from 'vs/nls';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { ILogService } from 'vs/platform/log/common/log';
+
+export const DEFAULT_IGNORED_SETTINGS = [
+	'configurationSync.enable',
+	'configurationSync.enableSettings',
+	'configurationSync.enableExtensions',
+];
+
+export function registerConfiguration(): IDisposable {
+	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	configurationRegistry.registerConfiguration({
+		id: 'configurationSync',
+		order: 30,
+		title: localize('configurationSync', "Configuration Sync"),
+		type: 'object',
+		properties: {
+			'configurationSync.enable': {
+				type: 'boolean',
+				description: localize('configurationSync.enable', "When enabled, synchronises configuration that includes Settings and Extensions."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION
+			},
+			'configurationSync.enableSettings': {
+				type: 'boolean',
+				description: localize('configurationSync.enableSettings', "When enabled settings are synchronised while synchronising configuration."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'configurationSync.enableExtensions': {
+				type: 'boolean',
+				description: localize('configurationSync.enableExtensions', "When enabled extensions are synchronised while synchronising configuration."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'configurationSync.extensionsToIgnore': {
+				'type': 'array',
+				description: localize('configurationSync.extensionsToIgnore', "Configure extensions to be ignored while syncing."),
+				'default': [],
+				'scope': ConfigurationScope.APPLICATION,
+				uniqueItems: true
+			},
+			'configurationSync.settingsToIgnore': {
+				'type': 'array',
+				description: localize('configurationSync.settingsToIgnore', "Configure settings to be ignored while syncing. \nDefault Ignored Settings:\n\n{0}", DEFAULT_IGNORED_SETTINGS.sort().map(setting => `- ${setting}`).join('\n')),
+				'default': [],
+				'scope': ConfigurationScope.APPLICATION,
+				$ref: ignoredSettingsSchemaId,
+				additionalProperties: true,
+				uniqueItems: true
+			}
+		}
+	});
+	const registerIgnoredSettingsSchema = () => {
+		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+		const ignoredSettingsSchema: IJSONSchema = {
+			items: {
+				type: 'string',
+				enum: [...Object.keys(allSettings.properties).filter(setting => DEFAULT_IGNORED_SETTINGS.indexOf(setting) === -1), ...DEFAULT_IGNORED_SETTINGS.map(setting => `-${setting}`)]
+			}
+		};
+		jsonRegistry.registerSchema(ignoredSettingsSchemaId, ignoredSettingsSchema);
+	};
+	return configurationRegistry.onDidUpdateConfiguration(() => registerIgnoredSettingsSchema());
+}
 
 export interface IUserData {
 	ref: string;
-	content: string;
+	content: string | null;
 }
 
 export enum UserDataSyncStoreErrorCode {
 	Rejected = 'Rejected',
 	Unknown = 'Unknown'
-}
-
-export function markAsUserDataSyncStoreError(error: Error, code: UserDataSyncStoreErrorCode): Error {
-	error.name = code ? `${code} (UserDataSyncStoreError)` : `UserDataSyncStoreError`;
-
-	return error;
-}
-
-export function toUserDataSyncStoreErrorCode(error: Error | undefined | null): UserDataSyncStoreErrorCode {
-
-	// Guard against abuse
-	if (!error) {
-		return UserDataSyncStoreErrorCode.Unknown;
-	}
-
-	// FileSystemProviderError comes with the code
-	if (error instanceof UserDataSyncStoreError) {
-		return error.code;
-	}
-
-	// Any other error, check for name match by assuming that the error
-	// went through the markAsUserDataSyncStoreError() method
-	const match = /^(.+) \(UserDataSyncStoreError\)$/.exec(error.name);
-	if (!match) {
-		return UserDataSyncStoreErrorCode.Unknown;
-	}
-
-	switch (match[1]) {
-		case UserDataSyncStoreErrorCode.Rejected: return UserDataSyncStoreErrorCode.Rejected;
-	}
-
-	return UserDataSyncStoreErrorCode.Unknown;
 }
 
 export class UserDataSyncStoreError extends Error {
@@ -57,54 +97,52 @@ export class UserDataSyncStoreError extends Error {
 
 }
 
-export interface IUserDataSyncStore {
-	readonly id: string;
-	readonly name: string;
-	read(key: string): Promise<IUserData | null>;
-	write(key: string, content: string, ref: string | null): Promise<string>;
-}
-
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 
 export interface IUserDataSyncStoreService {
 	_serviceBrand: undefined;
 
-	readonly onDidChangeEnablement: Event<boolean>;
 	readonly enabled: boolean;
 
-	registerUserDataSyncStore(userDataSyncStore: IUserDataSyncStore): void;
-	deregisterUserDataSyncStore(): void;
-
-	read(key: string): Promise<IUserData | null>;
+	read(key: string, oldValue: IUserData | null): Promise<IUserData>;
 	write(key: string, content: string, ref: string | null): Promise<string>;
 }
 
+export interface ISyncExtension {
+	identifier: IExtensionIdentifier;
+	version?: string;
+	enabled: boolean;
+}
 
-export enum SyncStatus {
+export const enum SyncSource {
+	Settings = 1,
+	Extensions
+}
+
+export const enum SyncStatus {
 	Uninitialized = 'uninitialized',
 	Idle = 'idle',
 	Syncing = 'syncing',
 	HasConflicts = 'hasConflicts',
 }
 
-export const USER_DATA_PREVIEW_SCHEME = 'vscode-userdata-preview';
-export const SETTINGS_CONFLICTS_RESOURCE = URI.file('Settings-Preview').with({ scheme: USER_DATA_PREVIEW_SCHEME });
-
 export interface ISynchroniser {
 
-	readonly conflicts: URI | null;
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	readonly onDidChangeLocal: Event<void>;
 
-	sync(): Promise<boolean>;
-	continueSync(): Promise<boolean>;
+	sync(_continue?: boolean): Promise<boolean>;
+	stop(): void;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 
 export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
+	readonly conflictsSource: SyncSource | null;
+
+	removeExtension(identifier: IExtensionIdentifier): Promise<void>;
 }
 
 export const ISettingsMergeService = createDecorator<ISettingsMergeService>('ISettingsMergeService');
@@ -113,6 +151,16 @@ export interface ISettingsMergeService {
 
 	_serviceBrand: undefined;
 
-	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<string>;
+	merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[]): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
+
+	computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: string[]): Promise<string>;
 
 }
+
+export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');
+
+export interface IUserDataSyncLogService extends ILogService {
+
+}
+
+export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);

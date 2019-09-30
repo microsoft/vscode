@@ -24,7 +24,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
@@ -307,7 +307,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				const activationTimes = element.status.activationTimes!;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-				data.activationTime.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
+				data.activationTime.textContent = activationTimes.activationReason.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 
 				data.actionbar.clear();
 				if (element.unresponsiveProfile) {
@@ -318,43 +318,45 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				}
 
 				let title: string;
-				if (activationTimes.activationEvent === '*') {
-					title = nls.localize('starActivation', "Activated on start-up");
-				} else if (/^workspaceContains:/.test(activationTimes.activationEvent)) {
-					let fileNameOrGlob = activationTimes.activationEvent.substr('workspaceContains:'.length);
+				const activationId = activationTimes.activationReason.extensionId.value;
+				const activationEvent = activationTimes.activationReason.activationEvent;
+				if (activationEvent === '*') {
+					title = nls.localize('starActivation', "Activated by {0} on start-up", activationId);
+				} else if (/^workspaceContains:/.test(activationEvent)) {
+					let fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
 					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
 						title = nls.localize({
 							key: 'workspaceContainsGlobActivation',
 							comment: [
 								'{0} will be a glob pattern'
 							]
-						}, "Activated because a file matching {0} exists in your workspace", fileNameOrGlob);
+						}, "Activated by {1} because a file matching {1} exists in your workspace", fileNameOrGlob, activationId);
 					} else {
 						title = nls.localize({
 							key: 'workspaceContainsFileActivation',
 							comment: [
 								'{0} will be a file name'
 							]
-						}, "Activated because file {0} exists in your workspace", fileNameOrGlob);
+						}, "Activated by {1} because file {0} exists in your workspace", fileNameOrGlob, activationId);
 					}
-				} else if (/^workspaceContainsTimeout:/.test(activationTimes.activationEvent)) {
-					const glob = activationTimes.activationEvent.substr('workspaceContainsTimeout:'.length);
+				} else if (/^workspaceContainsTimeout:/.test(activationEvent)) {
+					const glob = activationEvent.substr('workspaceContainsTimeout:'.length);
 					title = nls.localize({
 						key: 'workspaceContainsTimeout',
 						comment: [
 							'{0} will be a glob pattern'
 						]
-					}, "Activated because searching for {0} took too long", glob);
-				} else if (/^onLanguage:/.test(activationTimes.activationEvent)) {
-					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
-					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);
+					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
+				} else if (/^onLanguage:/.test(activationEvent)) {
+					let language = activationEvent.substr('onLanguage:'.length);
+					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
 				} else {
 					title = nls.localize({
 						key: 'workspaceGenericActivation',
 						comment: [
 							'The {0} placeholder will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.'
 						]
-					}, "Activated on {0}", activationTimes.activationEvent);
+					}, "Activated by {1} on {0}", activationEvent, activationId);
 				}
 				data.activationTime.title = title;
 
@@ -536,7 +538,7 @@ export class DebugExtensionHostAction extends Action {
 
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
-		@IWindowsService private readonly _windowsService: IWindowsService,
+		@IElectronService private readonly _electronService: IElectronService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
@@ -555,7 +557,7 @@ export class DebugExtensionHostAction extends Action {
 				secondaryButton: nls.localize('cancel', "Cancel")
 			});
 			if (res.confirmed) {
-				this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+				this._electronService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
 			}
 		}
 
@@ -609,7 +611,7 @@ export class SaveExtensionHostProfileAction extends Action {
 
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
-		@IWindowService private readonly _windowService: IWindowService,
+		@IElectronService private readonly _electronService: IElectronService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 	) {
@@ -624,7 +626,7 @@ export class SaveExtensionHostProfileAction extends Action {
 	}
 
 	private async _asyncRun(): Promise<any> {
-		let picked = await this._windowService.showSaveDialog({
+		let picked = await this._electronService.showSaveDialog({
 			title: 'Save Extension Host Profile',
 			buttonLabel: 'Save',
 			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
@@ -634,12 +636,14 @@ export class SaveExtensionHostProfileAction extends Action {
 			}]
 		});
 
-		if (!picked) {
+		if (!picked || !picked.filePath) {
 			return;
 		}
 
 		const profileInfo = this._extensionHostProfileService.lastProfile;
 		let dataToWrite: object = profileInfo ? profileInfo.data : {};
+
+		let savePath = picked.filePath;
 
 		if (this._environmentService.isBuilt) {
 			const profiler = await import('v8-inspect-profiler');
@@ -651,9 +655,9 @@ export class SaveExtensionHostProfileAction extends Action {
 			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
 			dataToWrite = tmp.profile;
 
-			picked = picked + '.txt';
+			savePath = savePath + '.txt';
 		}
 
-		return writeFile(picked, JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t'));
+		return writeFile(savePath, JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t'));
 	}
 }

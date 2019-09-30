@@ -18,12 +18,12 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
 	readonly elements: ISCMResource[] = [];
 
-	private _onDidSplice = new Emitter<ISplice<ISCMResource>>();
+	private readonly _onDidSplice = new Emitter<ISplice<ISCMResource>>();
 	readonly onDidSplice = this._onDidSplice.event;
 
 	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
 
-	private _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
@@ -104,7 +104,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	// 	// 	.filter(g => g.resources.elements.length > 0 || !g.features.hideWhenEmpty);
 	// }
 
-	private _onDidChangeResources = new Emitter<void>();
+	private readonly _onDidChangeResources = new Emitter<void>();
 	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
 
 	private features: SCMProviderFeatures = {};
@@ -119,13 +119,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 	get count(): number | undefined { return this.features.count; }
 
-	private _onDidChangeCommitTemplate = new Emitter<string>();
+	private readonly _onDidChangeCommitTemplate = new Emitter<string>();
 	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
 
-	private _onDidChangeStatusBarCommands = new Emitter<Command[]>();
+	private readonly _onDidChangeStatusBarCommands = new Emitter<Command[]>();
 	get onDidChangeStatusBarCommands(): Event<Command[]> { return this._onDidChangeStatusBarCommands.event; }
 
-	private _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(

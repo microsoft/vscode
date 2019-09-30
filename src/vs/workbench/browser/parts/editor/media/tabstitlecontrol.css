@@ -198,6 +198,12 @@
 	opacity: 1;
 }
 
+/* change close icon to dirty state icon */
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before {
+	content: "\ea71"; /* use `circle-filled` icon unicode */
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-close .action-label,					/* show dimmed for inactive group */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-close .action-label,			/* show dimmed for inactive group */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label,					/* show dimmed for inactive group */
@@ -216,27 +222,6 @@
 	margin-right: 0.5em;
 }
 
-.vs .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
-	background: url('close-dirty-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action,
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
-	background: url('close-dirty-dark.svg') center center no-repeat;
-}
-
-.vs .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
-	background: url('close-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
-	background: url('close-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
-	background: url('close-hc.svg') center center no-repeat;
-}
-
 /* No Tab Close Button */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off {
@@ -252,15 +237,6 @@
 	background-position-y: center;
 	background-position-x: calc(100% - 6px); /* to the right of the tab label */
 	padding-right: 28px; /* make room for dirty indication when we are running without close button */
-}
-
-.vs .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top) {
-	background-image: url('close-dirty-light.svg');
-}
-
-.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top),
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty {
-	background-image: url('close-dirty-dark.svg');
 }
 
 /* Editor Actions */

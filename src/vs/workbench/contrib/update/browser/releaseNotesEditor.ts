@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as marked from 'vs/base/common/marked/marked';
 import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -27,6 +25,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { generateUuid } from 'vs/base/common/uuid';
+import { renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
 
 export class ReleaseNotesManager {
 
@@ -179,7 +178,7 @@ export class ReleaseNotesManager {
 	}
 
 	private async renderBody(text: string) {
-		const content = await this.renderContent(text);
+		const content = await renderMarkdownDocument(text, this._extensionService, this._modeService);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
@@ -194,34 +193,5 @@ export class ReleaseNotesManager {
 			</head>
 			<body>${content}</body>
 		</html>`;
-	}
-
-	private async renderContent(text: string): Promise<string> {
-		const renderer = await this.getRenderer(text);
-		return marked(text, { renderer });
-	}
-
-	private async getRenderer(text: string): Promise<marked.Renderer> {
-		let result: Promise<ITokenizationSupport | null>[] = [];
-		const renderer = new marked.Renderer();
-		renderer.code = (_code, lang) => {
-			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			if (modeId) {
-				result.push(this._extensionService.whenInstalledExtensionsRegistered().then<ITokenizationSupport | null>(() => {
-					this._modeService.triggerMode(modeId);
-					return TokenizationRegistry.getPromise(modeId);
-				}));
-			}
-			return '';
-		};
-
-		marked(text, { renderer });
-		await Promise.all(result);
-
-		renderer.code = (code, lang) => {
-			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, modeId ? TokenizationRegistry.get(modeId)! : undefined)}</code>`;
-		};
-		return renderer;
 	}
 }

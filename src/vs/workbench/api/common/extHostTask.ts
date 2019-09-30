@@ -373,9 +373,9 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 	protected _handleCounter: number;
 	protected _handlers: Map<number, HandlerData>;
 	protected _taskExecutions: Map<string, TaskExecutionImpl>;
-	protected _providedCustomExecutions2: Map<string, vscode.CustomExecution2>;
+	protected _providedCustomExecutions2: Map<string, types.CustomExecution2>;
 	private _notProvidedCustomExecutions: Set<string>; // Used for custom executions tasks that are created and run through executeTask.
-	protected _activeCustomExecutions2: Map<string, vscode.CustomExecution2>;
+	protected _activeCustomExecutions2: Map<string, types.CustomExecution2>;
 	private _lastStartedTask: string | undefined;
 	protected readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	protected readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
@@ -399,9 +399,9 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
-		this._providedCustomExecutions2 = new Map<string, vscode.CustomExecution2>();
+		this._providedCustomExecutions2 = new Map<string, types.CustomExecution2>();
 		this._notProvidedCustomExecutions = new Set<string>();
-		this._activeCustomExecutions2 = new Map<string, vscode.CustomExecution2>();
+		this._activeCustomExecutions2 = new Map<string, types.CustomExecution2>();
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable {
@@ -454,7 +454,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 	}
 
 	public async $onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number): Promise<void> {
-		const execution2: vscode.CustomExecution2 | undefined = this._providedCustomExecutions2.get(execution.id);
+		const execution2: types.CustomExecution2 | undefined = this._providedCustomExecutions2.get(execution.id);
 		if (execution2) {
 			if (this._activeCustomExecutions2.get(execution.id) !== undefined) {
 				throw new Error('We should not be trying to start the same custom task executions twice.');
@@ -593,7 +593,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		if (!isProvided && !this._providedCustomExecutions2.has(taskId)) {
 			this._notProvidedCustomExecutions.add(taskId);
 		}
-		this._providedCustomExecutions2.set(taskId, <vscode.CustomExecution2>(<vscode.Task2>task).execution2);
+		this._providedCustomExecutions2.set(taskId, <types.CustomExecution2>(<vscode.Task2>task).execution2);
 	}
 
 	protected async getTaskExecution(execution: tasks.TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {

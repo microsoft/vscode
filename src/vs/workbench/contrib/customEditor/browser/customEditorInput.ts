@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { WebviewEditorState } from 'vs/editor/common/modes';
+import { WebviewContentState } from 'vs/editor/common/modes';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -17,7 +17,7 @@ import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webvi
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { promptSave } from 'vs/workbench/services/textfile/common/textFileService';
+import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
 
 export class CustomFileEditorInput extends WebviewInput {
 
@@ -26,7 +26,7 @@ export class CustomFileEditorInput extends WebviewInput {
 	private name?: string;
 	private _hasResolved = false;
 	private readonly _editorResource: URI;
-	private _state = WebviewEditorState.Readonly;
+	private _state = WebviewContentState.Readonly;
 
 	constructor(
 		resource: URI,
@@ -38,7 +38,7 @@ export class CustomFileEditorInput extends WebviewInput {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
-		super(id, viewType, '', undefined, webview);
+		super(id, viewType, '', webview);
 		this._editorResource = resource;
 	}
 
@@ -99,13 +99,13 @@ export class CustomFileEditorInput extends WebviewInput {
 		return super.resolve();
 	}
 
-	public setState(newState: WebviewEditorState): void {
+	public setState(newState: WebviewContentState): void {
 		this._state = newState;
 		this._onDidChangeDirty.fire();
 	}
 
 	public isDirty() {
-		return this._state === WebviewEditorState.Dirty;
+		return this._state === WebviewContentState.Dirty;
 	}
 
 	public async confirmSave(): Promise<ConfirmResult> {

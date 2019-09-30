@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import * as lifecycle from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
@@ -16,16 +15,16 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { startDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export abstract class AbstractDebugAction extends Action {
 
-	protected toDispose: lifecycle.IDisposable[];
+	protected toDispose: IDisposable[];
 
 	constructor(
 		id: string, label: string, cssClass: string,
 		@IDebugService protected debugService: IDebugService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
-		public weight?: number
 	) {
 		super(id, label, cssClass, false);
 		this.toDispose = [];
@@ -35,11 +34,11 @@ export abstract class AbstractDebugAction extends Action {
 		this.updateEnablement();
 	}
 
-	public run(e?: any): Promise<any> {
+	run(_: any): Promise<any> {
 		throw new Error('implement me');
 	}
 
-	public get tooltip(): string {
+	get tooltip(): string {
 		const keybinding = this.keybindingService.lookupKeybinding(this.id);
 		const keybindingLabel = keybinding && keybinding.getLabel();
 
@@ -54,13 +53,13 @@ export abstract class AbstractDebugAction extends Action {
 		this.enabled = this.isEnabled(state);
 	}
 
-	protected isEnabled(state: State): boolean {
+	protected isEnabled(_: State): boolean {
 		return true;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
-		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 }
 
@@ -79,7 +78,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		this.updateClass();
 	}
 
-	public get tooltip(): string {
+	get tooltip(): string {
 		if (this.debugService.getConfigurationManager().selectedConfiguration.name) {
 			return ConfigureAction.LABEL;
 		}
@@ -93,7 +92,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		this.class = configurationCount > 0 ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
-	public run(event?: any): Promise<any> {
+	run(event?: any): Promise<any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return Promise.resolve();
@@ -127,7 +126,7 @@ export class StartAction extends AbstractDebugAction {
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
-	public run(): Promise<boolean> {
+	run(): Promise<boolean> {
 		return startDebugging(this.debugService, this.historyService, this.isNoDebug());
 	}
 
@@ -135,7 +134,7 @@ export class StartAction extends AbstractDebugAction {
 		return false;
 	}
 
-	public static isEnabled(debugService: IDebugService) {
+	static isEnabled(debugService: IDebugService) {
 		const sessions = debugService.getModel().getSessions();
 
 		if (debugService.state === State.Initializing) {
@@ -176,7 +175,7 @@ export class SelectAndStartAction extends AbstractDebugAction {
 		super(id, label, '', debugService, keybindingService);
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return this.quickOpenService.show('debug ');
 	}
 }
@@ -189,7 +188,7 @@ export class RemoveBreakpointAction extends Action {
 		super(id, label, 'debug-action remove');
 	}
 
-	public run(breakpoint: IBreakpoint): Promise<any> {
+	run(breakpoint: IBreakpoint): Promise<any> {
 		return breakpoint instanceof Breakpoint ? this.debugService.removeBreakpoints(breakpoint.getId())
 			: breakpoint instanceof FunctionBreakpoint ? this.debugService.removeFunctionBreakpoints(breakpoint.getId()) : this.debugService.removeDataBreakpoints(breakpoint.getId());
 	}
@@ -204,13 +203,13 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return Promise.all([this.debugService.removeBreakpoints(), this.debugService.removeFunctionBreakpoints(), this.debugService.removeDataBreakpoints()]);
 	}
 
-	protected isEnabled(state: State): boolean {
+	protected isEnabled(_: State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && (model.getBreakpoints().length > 0 || model.getFunctionBreakpoints().length > 0 || model.getDataBreakpoints().length > 0);
+		return (model.getBreakpoints().length > 0 || model.getFunctionBreakpoints().length > 0 || model.getDataBreakpoints().length > 0);
 	}
 }
 
@@ -223,13 +222,13 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return this.debugService.enableOrDisableBreakpoints(true);
 	}
 
-	protected isEnabled(state: State): boolean {
+	protected isEnabled(_: State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && (<ReadonlyArray<IEnablement>>model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
+		return (<ReadonlyArray<IEnablement>>model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
 	}
 }
 
@@ -242,13 +241,13 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return this.debugService.enableOrDisableBreakpoints(false);
 	}
 
-	protected isEnabled(state: State): boolean {
+	protected isEnabled(_: State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && (<ReadonlyArray<IEnablement>>model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
+		return (<ReadonlyArray<IEnablement>>model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
 	}
 }
 
@@ -267,11 +266,11 @@ export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 		}));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return this.debugService.setBreakpointsActivated(!this.debugService.getModel().areBreakpointsActivated());
 	}
 
-	protected isEnabled(state: State): boolean {
+	protected isEnabled(_: State): boolean {
 		return !!(this.debugService.getModel().getFunctionBreakpoints().length || this.debugService.getModel().getBreakpoints().length || this.debugService.getModel().getDataBreakpoints().length);
 	}
 }
@@ -285,13 +284,13 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return this.debugService.setBreakpointsActivated(true);
 	}
 
 	protected isEnabled(state: State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && (state === State.Running || state === State.Stopped) &&
+		return (state === State.Running || state === State.Stopped) &&
 			((model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getDataBreakpoints().length) > 0);
 	}
 }
@@ -305,12 +304,12 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		this.debugService.addFunctionBreakpoint();
 		return Promise.resolve();
 	}
 
-	protected isEnabled(state: State): boolean {
+	protected isEnabled(_: State): boolean {
 		return !this.debugService.getViewModel().getSelectedFunctionBreakpoint()
 			&& this.debugService.getModel().getFunctionBreakpoints().every(fbp => !!fbp.name);
 	}
@@ -326,14 +325,14 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(() => this.updateEnablement()));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		this.debugService.addWatchExpression();
 		return Promise.resolve(undefined);
 	}
 
-	protected isEnabled(state: State): boolean {
+	protected isEnabled(_: State): boolean {
 		const focusedExpression = this.debugService.getViewModel().getSelectedExpression();
-		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().every(we => !!we.name && we !== focusedExpression);
+		return this.debugService.getModel().getWatchExpressions().every(we => !!we.name && we !== focusedExpression);
 	}
 }
 
@@ -346,13 +345,13 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		this.debugService.removeWatchExpressions();
 		return Promise.resolve();
 	}
 
-	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().length > 0;
+	protected isEnabled(_: State): boolean {
+		return this.debugService.getModel().getWatchExpressions().length > 0;
 	}
 }
 
@@ -365,10 +364,10 @@ export class FocusSessionAction extends AbstractDebugAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IEditorService private readonly editorService: IEditorService
 	) {
-		super(id, label, '', debugService, keybindingService, 100);
+		super(id, label, '', debugService, keybindingService);
 	}
 
-	public run(session: IDebugSession): Promise<any> {
+	run(session: IDebugSession): Promise<any> {
 		this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {
@@ -392,16 +391,18 @@ export class CopyValueAction extends Action {
 		this._enabled = typeof this.value === 'string' || (this.value instanceof Variable && !!this.value.evaluateName);
 	}
 
-	public run(): Promise<any> {
+	async run(): Promise<any> {
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (this.value instanceof Variable && stackFrame && session && this.value.evaluateName) {
-			return session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context).then(result => {
-				return this.clipboardService.writeText(result.body.result);
-			}, err => this.clipboardService.writeText(this.value.value));
+			try {
+				const evaluation = await session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context);
+				this.clipboardService.writeText(evaluation.body.result);
+			} catch (e) {
+				this.clipboardService.writeText(this.value.value);
+			}
 		}
-
 
 		return this.clipboardService.writeText(this.value);
 	}

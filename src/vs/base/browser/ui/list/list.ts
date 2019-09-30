@@ -79,7 +79,10 @@ export interface IKeyboardNavigationLabelProvider<T> {
 	 * element always match.
 	 */
 	getKeyboardNavigationLabel(element: T): { toString(): string | undefined; } | undefined;
-	mightProducePrintableCharacter?(event: IKeyboardEvent): boolean;
+}
+
+export interface IKeyboardNavigationDelegate {
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
 }
 
 export const enum ListDragOverEffect {

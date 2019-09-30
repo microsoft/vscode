@@ -15,7 +15,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ExternalUriResolverContribution } from 'vs/workbench/contrib/url/common/externalUriResolver';
-import { configureTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/common/trustedDomains';
+import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/common/trustedDomains';
 import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/common/trustedDomainsFileSystemProvider';
 import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/common/trustedDomainsValidator';
 
@@ -50,11 +50,11 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
  * Trusted Domains Contribution
  */
 
-CommandsRegistry.registerCommand(configureTrustedDomainSettingsCommand);
+CommandsRegistry.registerCommand(manageTrustedDomainSettingsCommand);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: configureTrustedDomainSettingsCommand.id,
-		title: configureTrustedDomainSettingsCommand.description.description
+		id: manageTrustedDomainSettingsCommand.id,
+		title: manageTrustedDomainSettingsCommand.description.description
 	}
 });
 

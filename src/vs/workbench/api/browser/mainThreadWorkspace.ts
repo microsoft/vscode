@@ -12,18 +12,18 @@ import { isNative } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData, ITextSearchComplete } from '../common/extHost.protocol';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -40,7 +40,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IWindowService private readonly _windowService: IWindowService,
+		@IRequestService private readonly _requestService: IRequestService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -218,6 +218,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	$resolveProxy(url: string): Promise<string | undefined> {
-		return this._windowService.resolveProxy(url);
+		return this._requestService.resolveProxy(url);
 	}
 }

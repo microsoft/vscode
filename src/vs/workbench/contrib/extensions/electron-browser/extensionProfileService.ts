@@ -9,10 +9,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import product from 'vs/platform/product/common/product';
@@ -46,7 +46,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWindowsService private readonly _windowsService: IWindowsService,
+		@IElectronService private readonly _electronService: IElectronService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 	) {
@@ -122,7 +122,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 				secondaryButton: nls.localize('cancel', "Cancel")
 			}).then(res => {
 				if (res.confirmed) {
-					this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+					this._electronService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
 				}
 			});
 		}

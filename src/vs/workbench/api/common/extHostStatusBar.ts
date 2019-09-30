@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
 import { StatusBarItem, StatusBarAlignment } from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext } from './extHost.protocol';

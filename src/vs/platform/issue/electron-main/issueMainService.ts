@@ -7,16 +7,16 @@ import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/node/issue';
-import { BrowserWindow, ipcMain, screen, dialog } from 'electron';
-import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchService';
+import { BrowserWindow, ipcMain, screen, Event as IpcMainEvent, Display, shell } from 'electron';
+import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -34,13 +34,13 @@ export class IssueMainService implements IIssueService {
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		ipcMain.on('vscode:issueSystemInfoRequest', async (event: Electron.IpcMainEvent) => {
+		ipcMain.on('vscode:issueSystemInfoRequest', async (event: IpcMainEvent) => {
 			Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })])
 				.then(result => {
 					const [info, remoteData] = result;
@@ -50,7 +50,7 @@ export class IssueMainService implements IIssueService {
 				});
 		});
 
-		ipcMain.on('vscode:listProcesses', async (event: Electron.IpcMainEvent) => {
+		ipcMain.on('vscode:listProcesses', async (event: IpcMainEvent) => {
 			const processes = [];
 
 			try {
@@ -79,7 +79,7 @@ export class IssueMainService implements IIssueService {
 			event.sender.send('vscode:listProcessesResponse', processes);
 		});
 
-		ipcMain.on('vscode:issueReporterClipboard', (event: Electron.IpcMainEvent) => {
+		ipcMain.on('vscode:issueReporterClipboard', (event: IpcMainEvent) => {
 			const messageOptions = {
 				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub. Would you like to write the information to the clipboard so that it can be pasted?"),
 				type: 'warning',
@@ -90,14 +90,14 @@ export class IssueMainService implements IIssueService {
 			};
 
 			if (this._issueWindow) {
-				dialog.showMessageBox(this._issueWindow, messageOptions)
+				this.dialogMainService.showMessageBox(messageOptions, this._issueWindow)
 					.then(result => {
 						event.sender.send('vscode:issueReporterClipboardResponse', result.response === 0);
 					});
 			}
 		});
 
-		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Electron.IpcMainEvent) => {
+		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: IpcMainEvent) => {
 			this.getPerformanceInfo().then(msg => {
 				event.sender.send('vscode:issuePerformanceInfoResponse', msg);
 			});
@@ -114,7 +114,7 @@ export class IssueMainService implements IIssueService {
 			};
 
 			if (this._issueWindow) {
-				dialog.showMessageBox(this._issueWindow, messageOptions)
+				this.dialogMainService.showMessageBox(messageOptions, this._issueWindow)
 					.then(result => {
 						if (result.response === 0) {
 							if (this._issueWindow) {
@@ -147,16 +147,16 @@ export class IssueMainService implements IIssueService {
 		});
 
 		ipcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
-			this.windowsService.openExternal(arg);
+			shell.openExternal(arg);
 		});
 
-		ipcMain.on('vscode:closeIssueReporter', (event: Electron.IpcMainEvent) => {
+		ipcMain.on('vscode:closeIssueReporter', (event: IpcMainEvent) => {
 			if (this._issueWindow) {
 				this._issueWindow.close();
 			}
 		});
 
-		ipcMain.on('windowsInfoRequest', (event: Electron.IpcMainEvent) => {
+		ipcMain.on('windowsInfoRequest', (event: IpcMainEvent) => {
 			this.launchMainService.getMainProcessInfo().then(info => {
 				event.sender.send('vscode:windowsInfoResponse', info.windows);
 			});
@@ -277,7 +277,7 @@ export class IssueMainService implements IIssueService {
 
 	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
 		// We want the new window to open on the same display that the parent is in
-		let displayToUse: Electron.Display | undefined;
+		let displayToUse: Display | undefined;
 		const displays = screen.getAllDisplays();
 
 		// Single Display

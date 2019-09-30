@@ -11,6 +11,7 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -99,11 +100,10 @@ export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self';
 
 export class ActivationTimes {
 	constructor(
-		public readonly startup: boolean,
 		public readonly codeLoadingTime: number,
 		public readonly activateCallTime: number,
 		public readonly activateResolvedTime: number,
-		public readonly activationEvent: string
+		public readonly activationReason: ExtensionActivationReason
 	) {
 	}
 }
@@ -226,9 +226,9 @@ export interface IExtensionService {
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 
 	_logOrShowMessage(severity: Severity, msg: string): void;
-	_activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
+	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
-	_onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
+	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
 	_onExtensionHostExit(code: number): void;
 }
@@ -276,9 +276,9 @@ export class NullExtensionService implements IExtensionService {
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }
 	_logOrShowMessage(_severity: Severity, _msg: string): void { }
-	_activateById(_extensionId: ExtensionIdentifier, _activationEvent: string): Promise<void> { return Promise.resolve(); }
+	_activateById(_extensionId: ExtensionIdentifier, _reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(); }
 	_onWillActivateExtension(_extensionId: ExtensionIdentifier): void { }
-	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _startup: boolean, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationEvent: string): void { }
+	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationReason: ExtensionActivationReason): void { }
 	_onExtensionRuntimeError(_extensionId: ExtensionIdentifier, _err: Error): void { }
 	_onExtensionHostExit(code: number): void { }
 }

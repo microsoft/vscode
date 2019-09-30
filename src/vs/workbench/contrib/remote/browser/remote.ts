@@ -47,6 +47,7 @@ import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -378,7 +379,8 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
@@ -419,7 +421,32 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 
 	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		// too late, already added to the view model
-		return super.onDidAddViews(added);
+		const result = super.onDidAddViews(added);
+
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		if (remoteAuthority) {
+			const actualRemoteAuthority = remoteAuthority.split('+')[0];
+			added.forEach((descriptor) => {
+				const panel = this.getView(descriptor.viewDescriptor.id);
+				if (!panel) {
+					return;
+				}
+
+				const descriptorAuthority = descriptor.viewDescriptor.remoteAuthority;
+				if (typeof descriptorAuthority === 'undefined' || descriptor.viewDescriptor.id === HelpPanel.ID) {
+					panel.setExpanded(true);
+				} else {
+					const descriptorAuthorityArr = Array.isArray(descriptorAuthority) ? descriptorAuthority : [descriptorAuthority];
+					if (descriptorAuthorityArr.indexOf(actualRemoteAuthority) >= 0) {
+						panel.setExpanded(true);
+					} else {
+						panel.setExpanded(false);
+					}
+				}
+			});
+		}
+
+		return result;
 	}
 
 	getTitle(): string {

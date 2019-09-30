@@ -19,7 +19,7 @@ import { IExtensionEnablementService } from 'vs/workbench/services/extensionMana
 import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import product from 'vs/platform/product/common/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 
@@ -55,7 +55,7 @@ export class CachedExtensionScanner {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private readonly _windowService: IWindowService,
+		@IHostService private readonly _hostService: IHostService,
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
 			this._scannedExtensionsResolve = resolve;
@@ -78,7 +78,7 @@ export class CachedExtensionScanner {
 	public async startScanningExtensions(log: ILog): Promise<void> {
 		try {
 			const translations = await this.translationConfig;
-			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._windowService, this._notificationService, this._environmentService, this._extensionEnablementService, log, translations);
+			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._hostService, this._notificationService, this._environmentService, this._extensionEnablementService, log, translations);
 
 			let result = new Map<string, IExtensionDescription>();
 			system.forEach((systemExtension) => {
@@ -111,7 +111,7 @@ export class CachedExtensionScanner {
 		}
 	}
 
-	private static async _validateExtensionsCache(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): Promise<void> {
+	private static async _validateExtensionsCache(hostService: IHostService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): Promise<void> {
 		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
@@ -141,7 +141,7 @@ export class CachedExtensionScanner {
 			nls.localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window."),
 			[{
 				label: nls.localize('reloadWindow', "Reload Window"),
-				run: () => windowService.reloadWindow()
+				run: () => hostService.reload()
 			}]
 		);
 	}
@@ -177,7 +177,7 @@ export class CachedExtensionScanner {
 		}
 	}
 
-	private static async _scanExtensionsWithCache(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription[]> {
+	private static async _scanExtensionsWithCache(hostService: IHostService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription[]> {
 		if (input.devMode) {
 			// Do not cache when running out of sources...
 			return ExtensionScanner.scanExtensions(input, log);
@@ -195,7 +195,7 @@ export class CachedExtensionScanner {
 			// Validate the cache asynchronously after 5s
 			setTimeout(async () => {
 				try {
-					await this._validateExtensionsCache(windowService, notificationService, environmentService, cacheKey, input);
+					await this._validateExtensionsCache(hostService, notificationService, environmentService, cacheKey, input);
 				} catch (err) {
 					errors.onUnexpectedError(err);
 				}
@@ -234,7 +234,7 @@ export class CachedExtensionScanner {
 	}
 
 	private static _scanInstalledExtensions(
-		windowService: IWindowService,
+		hostService: IHostService,
 		notificationService: INotificationService,
 		environmentService: IEnvironmentService,
 		extensionEnablementService: IExtensionEnablementService,
@@ -248,7 +248,7 @@ export class CachedExtensionScanner {
 		const locale = platform.language;
 
 		const builtinExtensions = this._scanExtensionsWithCache(
-			windowService,
+			hostService,
 			notificationService,
 			environmentService,
 			BUILTIN_MANIFEST_CACHE_FILE,
@@ -279,7 +279,7 @@ export class CachedExtensionScanner {
 			extensionEnablementService.allUserExtensionsDisabled || !environmentService.extensionsPath
 				? Promise.resolve([])
 				: this._scanExtensionsWithCache(
-					windowService,
+					hostService,
 					notificationService,
 					environmentService,
 					USER_MANIFEST_CACHE_FILE,

@@ -26,8 +26,8 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	_serviceBrand: undefined;
 
-	private _onEnablementChanged = new Emitter<IExtension[]>();
-	public readonly onEnablementChanged: Event<IExtension[]> = this._onEnablementChanged.event;
+	private readonly _onEnablementChanged = new Emitter<readonly IExtension[]>();
+	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;
 
 	private readonly storageManger: StorageManager;
 
@@ -148,8 +148,11 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const server = isUIExtension(extension.manifest, this.productService, this.configurationService) ? this.extensionManagementServerService.localExtensionManagementServer : this.extensionManagementServerService.remoteExtensionManagementServer;
-			return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
+			if (!isUIExtension(extension.manifest, this.productService, this.configurationService)) {
+				// workspace extensions must run on the remote, but UI extensions can run on either side
+				const server = this.extensionManagementServerService.remoteExtensionManagementServer;
+				return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
+			}
 		}
 		return false;
 	}

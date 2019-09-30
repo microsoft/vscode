@@ -20,7 +20,6 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		// @IWindowService windowService: IWindowService, // TODO@weinand TODO@isidorn cyclic dependency?
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		const connection = remoteAgentService.getConnection();
@@ -51,7 +50,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		// we pass the "ParsedArgs" as query parameters of the URL
 
-		let newAddress = `${document.location.origin}/?`;
+		let newAddress = `${document.location.origin}${document.location.pathname}?`;
 		let gotFolder = false;
 
 		const addQueryParameter = (key: string, value: string) => {

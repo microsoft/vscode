@@ -356,7 +356,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	getActions(): IAction[] {
 		const result: IAction[] = [];
-		if (this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s)).length > 1) {
+		if (this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s)).length > 1) {
 			result.push(this.selectReplAction);
 		}
 		result.push(this.clearReplAction);
@@ -504,7 +504,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => e.element
+			getActionsContext: () => e.element,
+			onHide: () => dispose(actions)
 		});
 	}
 
@@ -700,7 +701,7 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, Fuz
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService);
+		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session);
 		templateData.value.appendChild(result);
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
@@ -968,12 +969,15 @@ registerEditorAction(FilterReplAction);
 
 class SelectReplActionViewItem extends FocusSessionActionViewItem {
 
-	protected getActionContext(_: string, index: number): any {
-		return this.debugService.getModel().getSessions(true)[index];
+	protected getSessions(): ReadonlyArray<IDebugSession> {
+		return this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s));
 	}
 
-	protected getSessions(): ReadonlyArray<IDebugSession> {
-		return this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s));
+	protected mapFocusedSessionToSelected(focusedSession: IDebugSession): IDebugSession {
+		while (focusedSession.parentSession && !focusedSession.hasSeparateRepl()) {
+			focusedSession = focusedSession.parentSession;
+		}
+		return focusedSession;
 	}
 }
 

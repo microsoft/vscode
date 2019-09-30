@@ -4,54 +4,110 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IUserDataSyncStore, IUserData, UserDataSyncStoreError, toUserDataSyncStoreErrorCode, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ILogService } from 'vs/platform/log/common/log';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
+import { URI } from 'vs/base/common/uri';
+import { joinPath } from 'vs/base/common/resources';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
+import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
 	_serviceBrand: any;
 
-	private userDataSyncStore: IUserDataSyncStore | null = null;
-
-	get enabled(): boolean { return !!this.userDataSyncStore; }
-	private readonly _onDidChangeEnablement: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
+	get enabled(): boolean { return !!this.productService.settingsSyncStoreUrl; }
 
 	constructor(
-		@ILogService private logService: ILogService
+		@IProductService private readonly productService: IProductService,
+		@IRequestService private readonly requestService: IRequestService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
 	) {
 		super();
 	}
 
-	registerUserDataSyncStore(userDataSyncStore: IUserDataSyncStore): void {
-		if (this.userDataSyncStore) {
-			this.logService.warn(`A user data sync store '${this.userDataSyncStore.name}' already registered. Hence ignoring the newly registered '${userDataSyncStore.name}' store.`);
-			return;
+	async read(key: string, oldValue: IUserData | null): Promise<IUserData> {
+		if (!this.enabled) {
+			return Promise.reject(new Error('No settings sync store url configured.'));
 		}
-		this.userDataSyncStore = userDataSyncStore;
-		this._onDidChangeEnablement.fire(true);
+
+		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), 'resource', key, 'latest').toString();
+		const headers: IHeaders = {};
+		if (oldValue) {
+			headers['If-None-Match'] = oldValue.ref;
+		}
+
+		const context = await this.request({ type: 'GET', url, headers }, CancellationToken.None);
+
+		if (context.res.statusCode === 304) {
+			// There is no new value. Hence return the old value.
+			return oldValue!;
+		}
+
+		if (!isSuccess(context)) {
+			throw new Error('Server returned ' + context.res.statusCode);
+		}
+
+		const ref = context.res.headers['etag'];
+		if (!ref) {
+			throw new Error('Server did not return the ref');
+		}
+		const content = await asText(context);
+		return { ref, content };
 	}
 
-	deregisterUserDataSyncStore(): void {
-		this.userDataSyncStore = null;
-		this._onDidChangeEnablement.fire(false);
+	async write(key: string, data: string, ref: string | null): Promise<string> {
+		if (!this.enabled) {
+			return Promise.reject(new Error('No settings sync store url configured.'));
+		}
+
+		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), 'resource', key).toString();
+		const headers: IHeaders = { 'Content-Type': 'text/plain' };
+		if (ref) {
+			headers['If-Match'] = ref;
+		}
+
+		const context = await this.request({ type: 'POST', url, data, headers }, CancellationToken.None);
+
+		if (context.res.statusCode === 412) {
+			// There is a new value. Throw Rejected Error
+			throw new UserDataSyncStoreError('New data exists', UserDataSyncStoreErrorCode.Rejected);
+		}
+
+		if (!isSuccess(context)) {
+			throw new Error('Server returned ' + context.res.statusCode);
+		}
+
+		const newRef = context.res.headers['etag'];
+		if (!newRef) {
+			throw new Error('Server did not return the ref');
+		}
+		return newRef;
 	}
 
-	read(key: string): Promise<IUserData | null> {
-		if (!this.userDataSyncStore) {
-			throw new Error('No user sync store exists.');
+	private async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		if (this.authTokenService.status !== AuthTokenStatus.Disabled) {
+			const authToken = await this.authTokenService.getToken();
+			if (!authToken) {
+				return Promise.reject(new Error('No Auth Token Available.'));
+			}
+			options.headers = options.headers || {};
+			options.headers['authorization'] = `Bearer ${authToken}`;
 		}
-		return this.userDataSyncStore.read(key)
-			.then(null, error => Promise.reject(new UserDataSyncStoreError(error.message, toUserDataSyncStoreErrorCode(error))));
-	}
 
-	write(key: string, content: string, ref: string | null): Promise<string> {
-		if (!this.userDataSyncStore) {
-			throw new Error('No user sync store exists.');
+		const context = await this.requestService.request(options, token);
+
+		if (context.res.statusCode === 401) {
+			// Not Authorized
+			this.logService.info('Authroization Failed.');
+			this.authTokenService.refreshToken();
+			Promise.reject('Authroization Failed.');
 		}
-		return this.userDataSyncStore.write(key, content, ref)
-			.then(null, error => Promise.reject(new UserDataSyncStoreError(error.message, toUserDataSyncStoreErrorCode(error))));
+
+		return context;
+
 	}
 
 }

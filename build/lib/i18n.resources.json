@@ -187,6 +187,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/userDataSync",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/actions",
 			"project": "vscode-workbench"
 		},
@@ -239,6 +243,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/lifecycle",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/mode",
 			"project": "vscode-workbench"
 		},
@@ -263,7 +271,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/workspace",
+			"name": "vs/workbench/services/workspaces",
 			"project": "vscode-workbench"
 		},
 		{

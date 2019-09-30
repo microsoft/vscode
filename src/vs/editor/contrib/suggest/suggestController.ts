@@ -6,7 +6,7 @@
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -36,8 +36,13 @@ import { CommitCharacterController } from './suggestCommitCharacters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import * as platform from 'vs/base/common/platform';
 
-const _sticky = false; // for development purposes only
+/**
+ * Stop suggest widget from disappearing when clicking into other areas
+ * For development purpose only
+ */
+const _sticky = false;
 
 class LineSuffix {
 
@@ -177,6 +182,21 @@ export class SuggestController implements IEditorContribution {
 			if (!_sticky) {
 				this._model.cancel();
 				this._model.clear();
+			}
+		}));
+
+		this._toDispose.add(this._widget.getValue().onDetailsKeyDown(e => {
+			// cmd + c on macOS, ctrl + c on Win / Linux
+			if (
+				e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
+				(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
+			) {
+				e.stopPropagation();
+				return;
+			}
+
+			if (!e.toKeybinding().isModifierKey()) {
+				this._editor.focus();
 			}
 		}));
 

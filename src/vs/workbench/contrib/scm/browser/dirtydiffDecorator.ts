@@ -149,7 +149,7 @@ function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color | unde
 	}
 }
 
-function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor | null {
+function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor | undefined {
 	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
@@ -250,8 +250,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
-		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'show-previous-change chevron-up');
-		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'show-next-change chevron-down');
+		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'codicon-arrow-up');
+		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'codicon-arrow-down');
 
 		this._disposables.add(previous);
 		this._disposables.add(next);
@@ -962,7 +962,7 @@ export class DirtyDiffModel extends Disposable {
 	private repositoryDisposables = new Set<IDisposable>();
 	private readonly originalModelDisposables = this._register(new DisposableStore());
 
-	private _onDidChange = new Emitter<ISplice<IChange>[]>();
+	private readonly _onDidChange = new Emitter<ISplice<IChange>[]>();
 	readonly onDidChange: Event<ISplice<IChange>[]> = this._onDidChange.event;
 
 	private _changes: IChange[] = [];

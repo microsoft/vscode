@@ -40,12 +40,13 @@ export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 		serializedEditorInput: string
 	): CustomFileEditorInput {
 		const data = this.fromJson(serializedEditorInput);
-		const webviewInput = this.webviewService.reviveWebview(generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation ? {
+		const id = data.id || generateUuid();
+		const webviewInput = this.webviewService.reviveWebview(id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation ? {
 			location: data.extensionLocation,
 			id: data.extensionId
 		} : undefined, data.group);
 
-		const customInput = this._instantiationService.createInstance(CustomFileEditorInput, URI.from((data as any).editorResource), data.viewType, generateUuid(), new UnownedDisposable(webviewInput.webview));
+		const customInput = this._instantiationService.createInstance(CustomFileEditorInput, URI.from((data as any).editorResource), data.viewType, id, new UnownedDisposable(webviewInput.webview));
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}
