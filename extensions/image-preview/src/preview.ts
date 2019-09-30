@@ -96,6 +96,7 @@ export class Preview extends Disposable {
 	<meta id="image-preview-settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
 <body class="container image scale-to-fit">
+	<div class='loading'></div>
 	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}"></script>
 </body>
 </html>`;

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -11,15 +10,6 @@ import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-export interface INativeOpenDialogOptions {
-	forceNewWindow?: boolean;
-
-	defaultPath?: string;
-
-	telemetryEventName?: string;
-	telemetryExtraData?: ITelemetryData;
-}
 
 export interface IOpenedWindow {
 	id: number;
@@ -29,18 +19,17 @@ export interface IOpenedWindow {
 	filename?: string;
 }
 
-export interface IOpenInWindowOptions {
-	forceNewWindow?: boolean;
+export interface IBaseOpenWindowsOptions {
 	forceReuseWindow?: boolean;
-	diffMode?: boolean;
-	addMode?: boolean;
-	gotoLineMode?: boolean;
-	noRecentEntry?: boolean;
-	waitMarkerFileURI?: URI;
 }
 
-export interface IOpenEmptyWindowOptions {
-	reuse?: boolean;
+export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
+	forceNewWindow?: boolean;
+
+	noRecentEntry?: boolean;
+}
+
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
 	remoteAuthority?: string;
 }
 

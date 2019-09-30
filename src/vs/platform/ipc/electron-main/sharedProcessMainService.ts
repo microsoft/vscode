@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 
 export const ISharedProcessMainService = createDecorator<ISharedProcessMainService>('sharedProcessMainService');
 
@@ -15,6 +14,12 @@ export interface ISharedProcessMainService {
 	whenSharedProcessReady(): Promise<void>;
 	toggleSharedProcessWindow(): Promise<void>;
 }
+
+export interface ISharedProcess {
+	whenReady(): Promise<void>;
+	toggle(): void;
+}
+
 export class SharedProcessMainService implements ISharedProcessMainService {
 
 	_serviceBrand: undefined;

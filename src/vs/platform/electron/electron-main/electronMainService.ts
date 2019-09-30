@@ -6,16 +6,16 @@
 import { Event } from 'vs/base/common/event';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app } from 'electron';
+import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { OpenContext, INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions, IOpenedWindow, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IRecentlyOpened, IRecent } from 'vs/platform/workspaces/common/workspacesHistory';
-import { URI } from 'vs/base/common/uri';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 
 export class ElectronMainService implements AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number /* window ID */> {
 
@@ -23,9 +23,9 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 	}
 
@@ -63,7 +63,7 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	}
 
 	async getActiveWindowId(windowId: number): Promise<number | undefined> {
-		const activeWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		const activeWindow = BrowserWindow.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 		if (activeWindow) {
 			return activeWindow.id;
 		}
@@ -71,11 +71,17 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 		return undefined;
 	}
 
-	async openEmptyWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
+	openWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(windowId: number, toOpen: IWindowOpenable[], options?: INativeOpenWindowOptions): Promise<void>;
+	openWindow(windowId: number, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: INativeOpenWindowOptions): Promise<void> {
+		if (Array.isArray(arg1)) {
+			return this.doOpenWindow(windowId, arg1, arg2);
+		}
+
+		return this.doOpenEmptyWindow(windowId, arg1);
 	}
 
-	async openInWindow(windowId: number, toOpen: IWindowOpenable[], options: IOpenInWindowOptions = Object.create(null)): Promise<void> {
+	private async doOpenWindow(windowId: number, toOpen: IWindowOpenable[], options: INativeOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
 			this.windowsMainService.open({
 				context: OpenContext.API,
@@ -91,6 +97,10 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 				waitMarkerFileURI: options.waitMarkerFileURI
 			});
 		}
+	}
+
+	private async doOpenEmptyWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void> {
+		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
 
 	async toggleFullScreen(windowId: number): Promise<void> {
@@ -166,15 +176,24 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	//#region Dialog
 
 	async showMessageBox(windowId: number, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		return this.windowsMainService.showMessageBox(options, this.windowsMainService.getWindowById(windowId));
+		return this.dialogMainService.showMessageBox(options, this.toBrowserWindow(windowId));
 	}
 
 	async showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
-		return this.windowsMainService.showSaveDialog(options, this.windowsMainService.getWindowById(windowId));
+		return this.dialogMainService.showSaveDialog(options, this.toBrowserWindow(windowId));
 	}
 
 	async showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
-		return this.windowsMainService.showOpenDialog(options, this.windowsMainService.getWindowById(windowId));
+		return this.dialogMainService.showOpenDialog(options, this.toBrowserWindow(windowId));
+	}
+
+	private toBrowserWindow(windowId: number): BrowserWindow | undefined {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return window.win;
+		}
+
+		return undefined;
 	}
 
 	async pickFileFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
@@ -216,7 +235,9 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	}
 
 	async openExternal(windowId: number, url: string): Promise<boolean> {
-		return this.windowsMainService.openExternal(url);
+		shell.openExternal(url);
+
+		return true;
 	}
 
 	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
@@ -231,7 +252,7 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.openNewTabbedWindow(OpenContext.API);
+		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceNewTabbedWindow: true, forceEmpty: true });
 	}
 
 	async showPreviousWindowTab(): Promise<void> {
@@ -269,7 +290,7 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 		}
 	}
 
-	async closeWorkpsace(windowId: number): Promise<void> {
+	async closeWorkspace(windowId: number): Promise<void> {
 		const window = this.windowsMainService.getWindowById(windowId);
 		if (window) {
 			return this.windowsMainService.closeWorkspace(window);
@@ -327,33 +348,6 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 
 	async startCrashReporter(windowId: number, options: CrashReporterStartOptions): Promise<void> {
 		crashReporter.start(options);
-	}
-
-	//#endregion
-
-	//#region Workspaces History
-
-	readonly onRecentlyOpenedChange = this.workspacesHistoryMainService.onRecentlyOpenedChange;
-
-	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
-		const window = this.windowsMainService.getWindowById(windowId);
-		if (window) {
-			return this.workspacesHistoryMainService.getRecentlyOpened(window.config.workspace, window.config.folderUri, window.config.filesToOpenOrCreate);
-		}
-
-		return this.workspacesHistoryMainService.getRecentlyOpened();
-	}
-
-	async addRecentlyOpened(windowId: number, recents: IRecent[]): Promise<void> {
-		return this.workspacesHistoryMainService.addRecentlyOpened(recents);
-	}
-
-	async removeFromRecentlyOpened(windowId: number, paths: URI[]): Promise<void> {
-		return this.workspacesHistoryMainService.removeFromRecentlyOpened(paths);
-	}
-
-	async clearRecentlyOpened(windowId: number): Promise<void> {
-		return this.workspacesHistoryMainService.clearRecentlyOpened();
 	}
 
 	//#endregion

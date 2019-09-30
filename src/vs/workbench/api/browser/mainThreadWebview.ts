@@ -150,7 +150,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		webview.setName(value);
 	}
 
-	public $setState(handle: WebviewPanelHandle, state: modes.WebviewEditorState): void {
+	public $setState(handle: WebviewPanelHandle, state: modes.WebviewContentState): void {
 		const webview = this.getWebviewEditorInput(handle);
 		if (webview instanceof CustomFileEditorInput) {
 			webview.setState(state);

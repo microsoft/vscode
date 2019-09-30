@@ -3,10 +3,10 @@
 		"c": "#",
 		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control.directive: #569CD6",
-			"light_plus": "keyword.control.directive: #0000FF",
-			"dark_vs": "keyword.control.directive: #569CD6",
-			"light_vs": "keyword.control.directive: #0000FF",
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
 		}
 	},
@@ -14,10 +14,10 @@
 		"c": "define",
 		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp",
 		"r": {
-			"dark_plus": "keyword.control.directive: #569CD6",
-			"light_plus": "keyword.control.directive: #0000FF",
-			"dark_vs": "keyword.control.directive: #569CD6",
-			"light_vs": "keyword.control.directive: #0000FF",
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
 		}
 	},

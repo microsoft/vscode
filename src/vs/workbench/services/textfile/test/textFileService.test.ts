@@ -7,7 +7,7 @@ import * as sinon from 'sinon';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestContextService, TestFileService, TestHostService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestContextService, TestFileService, TestElectronService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -20,7 +20,7 @@ import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/commo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { Schemas } from 'vs/base/common/network';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 class ServiceAccessor {
 	constructor(
@@ -30,7 +30,7 @@ class ServiceAccessor {
 		@IWorkspaceContextService public contextService: TestContextService,
 		@IModelService public modelService: ModelServiceImpl,
 		@IFileService public fileService: TestFileService,
-		@IHostService public hostService: TestHostService
+		@IElectronService public electronService: TestElectronService
 	) {
 	}
 }
@@ -424,7 +424,7 @@ suite('Files - TextFileService', () => {
 			}
 			// Set multiple windows if required
 			if (multipleWindows) {
-				accessor.hostService.windowCount = Promise.resolve(2);
+				accessor.electronService.windowCount = Promise.resolve(2);
 			}
 			// Set cancel to force a veto if hot exit does not trigger
 			service.setConfirmResult(ConfirmResult.CANCEL);

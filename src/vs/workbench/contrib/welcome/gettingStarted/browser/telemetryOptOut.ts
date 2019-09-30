@@ -19,7 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
-export class TelemetryOptOut implements IWorkbenchContribution {
+export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution {
 
 	private static TELEMETRY_OPT_OUT_SHOWN = 'workbench.telemetryOptOutShown';
 	private privacyUrl: string | undefined;
@@ -35,18 +35,18 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IProductService productService: IProductService
 	) {
-		if (!productService.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
+		if (!productService.telemetryOptOutUrl || storageService.get(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
 			return;
 		}
 		const experimentId = 'telemetryOptOut';
 		Promise.all([
-			hostService.windowCount,
+			this.getWindowCount(),
 			experimentService.getExperimentById(experimentId)
 		]).then(([count, experimentState]) => {
 			if (!hostService.hasFocus && count > 1) {
 				return;
 			}
-			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
+			storageService.store(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
 
 			this.privacyUrl = productService.privacyStatementUrl || productService.telemetryOptOutUrl;
 
@@ -73,6 +73,8 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		})
 			.then(undefined, onUnexpectedError);
 	}
+
+	protected abstract getWindowCount(): Promise<number>;
 
 	private runExperiment(experimentId: string) {
 		const promptMessageKey = 'telemetryOptOut.optOutOption';
@@ -146,5 +148,12 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			);
 			this.experimentService.markAsCompleted(experimentId);
 		});
+	}
+}
+
+export class BrowserTelemetryOptOut extends AbstractTelemetryOptOut {
+
+	protected async getWindowCount(): Promise<number> {
+		return 1;
 	}
 }

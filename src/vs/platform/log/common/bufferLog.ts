@@ -87,4 +87,10 @@ export class BufferLogService extends AbstractLogService implements ILogService 
 			this._logger.dispose();
 		}
 	}
+
+	flush(): void {
+		if (this._logger) {
+			this._logger.flush();
+		}
+	}
 }

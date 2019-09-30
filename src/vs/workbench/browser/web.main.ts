@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, addDisposableListener, EventType, addClass } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, addClass, EventHelper } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -33,7 +33,7 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, IWorkspace } from 'vs/workbench/workbench.web.api';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
@@ -47,6 +47,7 @@ import { FileLogService } from 'vs/platform/log/common/fileLogService';
 import { toLocalISOString } from 'vs/base/common/date';
 import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedDBLogProvider';
 import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
+import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 
 class BrowserMain extends Disposable {
 
@@ -94,6 +95,9 @@ class BrowserMain extends Disposable {
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
 			e.preventDefault();
 		}, { passive: false }));
+
+		// Prevent native context menus in web
+		this._register(addDisposableListener(this.domElement, EventType.CONTEXT_MENU, (e) => EventHelper.stop(e, true)));
 
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
@@ -281,15 +285,27 @@ class BrowserMain extends Disposable {
 	}
 
 	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+		let workspace: IWorkspace | undefined = undefined;
+		if (this.configuration.workspaceProvider) {
+			workspace = this.configuration.workspaceProvider.workspace;
+		} else {
+			// TODO@ben remove me once IWorkspaceProvider API is adopted
+			const legacyConfiguration = this.configuration as { workspaceUri?: URI, folderUri?: URI };
+			if (legacyConfiguration.workspaceUri) {
+				workspace = { workspaceUri: legacyConfiguration.workspaceUri };
+			} else if (legacyConfiguration.folderUri) {
+				workspace = { folderUri: legacyConfiguration.folderUri };
+			}
+		}
 
 		// Multi-root workspace
-		if (this.configuration.workspaceUri) {
-			return { id: hash(this.configuration.workspaceUri.toString()).toString(16), configPath: this.configuration.workspaceUri };
+		if (workspace && isWorkspaceToOpen(workspace)) {
+			return { id: hash(workspace.workspaceUri.toString()).toString(16), configPath: workspace.workspaceUri };
 		}
 
 		// Single-folder workspace
-		if (this.configuration.folderUri) {
-			return { id: hash(this.configuration.folderUri.toString()).toString(16), folder: this.configuration.folderUri };
+		if (workspace && isFolderToOpen(workspace)) {
+			return { id: hash(workspace.folderUri.toString()).toString(16), folder: workspace.folderUri };
 		}
 
 		return { id: 'empty-window' };

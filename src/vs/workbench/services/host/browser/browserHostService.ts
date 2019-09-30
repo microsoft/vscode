@@ -9,32 +9,63 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IResourceEditor, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenInWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+
+/**
+ * A workspace to open in the workbench can either be:
+ * - a workspace file with 0-N folders (via `workspaceUri`)
+ * - a single folder (via `folderUri`)
+ * - empty (via `undefined`)
+ */
+export type IWorkspace = { workspaceUri: URI } | { folderUri: URI } | undefined;
+
+export interface IWorkspaceProvider {
+
+	/**
+	 * The initial workspace to open.
+	 */
+	readonly workspace: IWorkspace;
+
+	/**
+	 * Asks to open a workspace in the current or a new window.
+	 *
+	 * @param workspace the workspace to open.
+	 * @param options wether to open inside the current window or a new window.
+	 */
+	open(workspace: IWorkspace, options?: { reuse?: boolean }): Promise<void>;
+}
 
 export class BrowserHostService extends Disposable implements IHostService {
 
 	_serviceBrand: undefined;
 
-	//#region Events
-
-	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
-	private _onDidChangeFocus: Event<boolean>;
-
-	//#endregion
+	private workspaceProvider: IWorkspaceProvider;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
+
+		if (environmentService.options && environmentService.options.workspaceProvider) {
+			this.workspaceProvider = environmentService.options.workspaceProvider;
+		} else {
+			this.workspaceProvider = new class implements IWorkspaceProvider {
+				readonly workspace = undefined;
+				async open() { }
+			};
+		}
 
 		this.registerListeners();
 	}
@@ -49,38 +80,43 @@ export class BrowserHostService extends Disposable implements IHostService {
 		);
 	}
 
-	//#region Window
+	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
+	private _onDidChangeFocus: Event<boolean>;
 
-	readonly windowCount = Promise.resolve(1);
+	get hasFocus(): boolean {
+		return document.hasFocus();
+	}
 
-	async openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void> {
-		// TODO@Ben delegate to embedder
-		const { openFolderInNewWindow } = this.shouldOpenNewWindow(options);
+	async focus(): Promise<void> {
+		window.focus();
+	}
+
+	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
+	openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
+		if (Array.isArray(arg1)) {
+			return this.doOpenWindow(arg1, arg2);
+		}
+
+		return this.doOpenEmptyWindow(arg1);
+	}
+
+	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 		for (let i = 0; i < toOpen.length; i++) {
 			const openable = toOpen[i];
 			openable.label = openable.label || this.getRecentLabel(openable);
 
 			// Folder
 			if (isFolderToOpen(openable)) {
-				const newAddress = `${document.location.origin}${document.location.pathname}?folder=${openable.folderUri.path}`;
-				if (openFolderInNewWindow) {
-					window.open(newAddress);
-				} else {
-					window.location.href = newAddress;
-				}
+				this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options) });
 			}
 
 			// Workspace
 			else if (isWorkspaceToOpen(openable)) {
-				const newAddress = `${document.location.origin}${document.location.pathname}?workspace=${openable.workspaceUri.path}`;
-				if (openFolderInNewWindow) {
-					window.open(newAddress);
-				} else {
-					window.location.href = newAddress;
-				}
+				this.workspaceProvider.open({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options) });
 			}
 
-			// File
+			// File: open via editor service in current window
 			else if (isFileToOpen(openable)) {
 				const inputs: IResourceEditor[] = await pathsToEditors([openable], this.fileService);
 				this.editorService.openEditors(inputs);
@@ -100,7 +136,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return this.labelService.getUriLabel(openable.fileUri);
 	}
 
-	private shouldOpenNewWindow(options: IOpenInWindowOptions = {}): { openFolderInNewWindow: boolean } {
+	private shouldReuse(options: IOpenWindowOptions = {}): boolean {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
 
@@ -109,17 +145,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 			openFolderInNewWindow = (openFolderInNewWindowConfig === 'on');
 		}
 
-		return { openFolderInNewWindow };
+		return !openFolderInNewWindow;
 	}
 
-	async openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		// TODO@Ben delegate to embedder
-		const targetHref = `${document.location.origin}${document.location.pathname}?ew=true`;
-		if (options && options.reuse) {
-			window.location.href = targetHref;
-		} else {
-			window.open(targetHref);
-		}
+	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
+		this.workspaceProvider.open(undefined, { reuse: options && options.forceReuseWindow });
 	}
 
 	async toggleFullScreen(): Promise<void> {
@@ -156,16 +186,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
-	get hasFocus(): boolean {
-		return document.hasFocus();
-	}
-
-	async focus(): Promise<void> {
-		window.focus();
-	}
-
-	//#endregion
-
 	async restart(): Promise<void> {
 		this.reload();
 	}
@@ -175,7 +195,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async closeWorkspace(): Promise<void> {
-		return this.openEmptyWindow({ reuse: true });
+		return this.doOpenEmptyWindow({ forceReuseWindow: true });
 	}
 }
 

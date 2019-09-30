@@ -32,12 +32,12 @@ interface ILog {
 
 function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string): void {
 	switch (level) {
-		case LogLevel.Trace: return logger.trace(message);
-		case LogLevel.Debug: return logger.debug(message);
-		case LogLevel.Info: return logger.info(message);
-		case LogLevel.Warning: return logger.warn(message);
-		case LogLevel.Error: return logger.error(message);
-		case LogLevel.Critical: return logger.critical(message);
+		case LogLevel.Trace: logger.trace(message); break;
+		case LogLevel.Debug: logger.debug(message); break;
+		case LogLevel.Info: logger.info(message); break;
+		case LogLevel.Warning: logger.warn(message); break;
+		case LogLevel.Error: logger.error(message); break;
+		case LogLevel.Critical: logger.critical(message); break;
 		default: throw new Error('Invalid log level');
 	}
 }
@@ -126,6 +126,14 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 	critical(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Critical) {
 			this._log(LogLevel.Critical, this.format([message, ...args]));
+		}
+	}
+
+	flush(): void {
+		if (this._logger) {
+			this._logger.flush();
+		} else if (this._loggerCreationPromise) {
+			this._loggerCreationPromise.then(() => this.flush());
 		}
 	}
 
