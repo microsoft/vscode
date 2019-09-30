@@ -37,7 +37,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -1544,20 +1544,20 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		this.getHTMLElement().classList.add(treeClass);
 
 		this.disposables.push(attachStyler(themeService, {
-			listActiveSelectionBackground: 'transparent',
+			listActiveSelectionBackground: transparent(Color.white, 0),
 			listActiveSelectionForeground: foreground,
-			listFocusAndSelectionBackground: 'transparent',
+			listFocusAndSelectionBackground: transparent(Color.white, 0),
 			listFocusAndSelectionForeground: foreground,
-			listFocusBackground: 'transparent',
+			listFocusBackground: transparent(Color.white, 0),
 			listFocusForeground: foreground,
 			listHoverForeground: foreground,
-			listHoverBackground: 'transparent',
-			listHoverOutline: 'transparent',
-			listFocusOutline: 'transparent',
-			listInactiveSelectionBackground: 'transparent',
+			listHoverBackground: transparent(Color.white, 0),
+			listHoverOutline: transparent(Color.white, 0),
+			listFocusOutline: transparent(Color.white, 0),
+			listInactiveSelectionBackground: transparent(Color.white, 0),
 			listInactiveSelectionForeground: foreground,
-			listInactiveFocusBackground: 'transparent',
-			listInactiveFocusOutline: 'transparent'
+			listInactiveFocusBackground: transparent(Color.white, 0),
+			listInactiveFocusOutline: transparent(Color.white, 0)
 		}, colors => {
 			this.style(colors);
 		}));

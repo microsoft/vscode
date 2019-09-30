@@ -16,6 +16,10 @@
 	color: inherit !important;
 }
 
+.settings-editor:focus {
+	outline: none !important;
+}
+
 /* header styling */
 .settings-editor > .settings-header {
 	box-sizing: border-box;
