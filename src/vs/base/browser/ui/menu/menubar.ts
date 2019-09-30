@@ -238,7 +238,7 @@ export class MenuBar extends Disposable {
 				}
 			}));
 
-			Gesture.addTarget(buttonElement);
+			this._register(Gesture.addTarget(buttonElement));
 			this._register(DOM.addDisposableListener(buttonElement, EventType.Tap, (e: GestureEvent) => {
 				// Ignore this touch if the menu is touched
 				if (this.isOpen && this.focusedMenu && this.focusedMenu.holder && DOM.isAncestor(e.initialTarget as HTMLElement, this.focusedMenu.holder)) {
@@ -322,7 +322,7 @@ export class MenuBar extends Disposable {
 			}
 		}));
 
-		Gesture.addTarget(buttonElement);
+		this._register(Gesture.addTarget(buttonElement));
 		this._register(DOM.addDisposableListener(buttonElement, EventType.Tap, (e: GestureEvent) => {
 			// Ignore this touch if the menu is touched
 			if (this.isOpen && this.focusedMenu && this.focusedMenu.holder && DOM.isAncestor(e.initialTarget as HTMLElement, this.focusedMenu.holder)) {
