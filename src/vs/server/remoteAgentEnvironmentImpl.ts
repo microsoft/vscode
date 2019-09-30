@@ -8,7 +8,6 @@ import { URI } from 'vs/base/common/uri';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import * as nls from 'vs/nls';
-import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -24,7 +23,7 @@ import { ContextKeyExpr, ContextKeyDefinedExpr, ContextKeyNotExpr, ContextKeyEqu
 import { listProcesses } from 'vs/base/node/ps';
 import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { basename } from 'vs/base/common/path';
+import { basename, join, normalize } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILog, Translations } from 'vs/workbench/services/extensions/common/extensionPoints';
@@ -32,14 +31,14 @@ import { ILog, Translations } from 'vs/workbench/services/extensions/common/exte
 let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {
 	if (!_SystemExtensionsRoot) {
-		_SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
+		_SystemExtensionsRoot = normalize(join(getPathFromAmdModule(require, ''), '..', 'extensions'));
 	}
 	return _SystemExtensionsRoot;
 }
 let _ExtraDevSystemExtensionsRoot: string | null = null;
 function getExtraDevSystemExtensionsRoot(): string {
 	if (!_ExtraDevSystemExtensionsRoot) {
-		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
+		_ExtraDevSystemExtensionsRoot = normalize(join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
 	}
 	return _ExtraDevSystemExtensionsRoot;
 }
@@ -239,7 +238,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				settingsPath: this.environmentService.machineSettingsResource,
 				logsPath: URI.file(this.environmentService.logsPath),
 				extensionsPath: URI.file(this.environmentService.extensionsPath!),
-				extensionHostLogsPath: URI.file(path.join(this.environmentService.logsPath, `exthost${RemoteAgentEnvironmentChannel._namePool++}`)),
+				extensionHostLogsPath: URI.file(join(this.environmentService.logsPath, `exthost${RemoteAgentEnvironmentChannel._namePool++}`)),
 				globalStorageHome: URI.file(this.environmentService.globalStorageHome),
 				userHome: URI.file(this.environmentService.userHome),
 				extensions,
@@ -349,12 +348,12 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				constructor(private builtInExtensions: IBuiltInExtension[]) { }
 				resolveExtensions(): Promise<IExtensionReference[]> {
 					return Promise.resolve(this.builtInExtensions.map((ext) => {
-						return { name: ext.name, path: path.join(getExtraDevSystemExtensionsRoot(), ext.name) };
+						return { name: ext.name, path: join(getExtraDevSystemExtensionsRoot(), ext.name) };
 					}));
 				}
 			}
 
-			const builtInExtensionsFilePath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
+			const builtInExtensionsFilePath = normalize(join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
 			const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
 				.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
 

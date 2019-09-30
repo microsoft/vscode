@@ -4,7 +4,6 @@
 
 import * as fs from 'fs';
 import * as http from 'http';
-import * as path from 'path';
 import * as url from 'url';
 import * as util from 'util';
 import * as cookie from 'cookie';
@@ -18,6 +17,7 @@ import { Schemas } from 'vs/base/common/network';
 import product from 'vs/platform/product/common/product';
 import { ServerEnvironmentService } from 'vs/server/remoteExtensionHostAgent';
 import { parsePathArg } from 'vs/platform/environment/node/environmentService';
+import { extname, dirname, join, normalize } from 'vs/base/common/path';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -50,7 +50,7 @@ export async function serveFile(logService: ILogService, req: http.IncomingMessa
 		}
 
 		// Headers
-		responseHeaders['Content-Type'] = textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
+		responseHeaders['Content-Type'] = textMimeType[extname(filePath)] || getMediaMime(filePath) || 'text/plain';
 		responseHeaders['Etag'] = etag;
 
 		res.writeHead(200, responseHeaders);
@@ -68,7 +68,7 @@ export async function serveFile(logService: ILogService, req: http.IncomingMessa
 	}
 }
 
-const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
+const APP_ROOT = dirname(URI.parse(require.toUrl('')).fsPath);
 
 export class WebClientServer {
 
@@ -87,7 +87,7 @@ export class WebClientServer {
 
 			if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code-192.png' || pathname === '/code-512.png') {
 				// always serve icons/manifest, even without a token
-				return serveFile(this._logService, req, res, path.join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
+				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
 			}
 			if (/^\/static\//.test(pathname)) {
 				// always serve static requests, even without a token
@@ -134,9 +134,9 @@ export class WebClientServer {
 
 		// Strip `/static/` from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
-		const relativeFilePath = path.normalize(normalizedPathname.substr('/static/'.length));
+		const relativeFilePath = normalize(normalizedPathname.substr('/static/'.length));
 
-		const filePath = path.join(APP_ROOT, relativeFilePath);
+		const filePath = join(APP_ROOT, relativeFilePath);
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
 			return serveError(req, res, 400, `Bad request.`);
 		}

@@ -3,11 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as _fs from 'fs';
-import * as _path from 'path';
 import * as _url from 'url';
 import * as _cp from 'child_process';
 import * as _http from 'http';
 import * as _os from 'os';
+import { dirname, extname, resolve } from 'vs/base/common/path';
 import { parseArgs, buildHelpMessage, buildVersionMessage, createWaitMarkerFile, OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { OpenCommandPipeArgs, RunCommandPipeArgs, StatusPipeArgs } from 'vs/workbench/api/node/extHostCLIServer';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -150,7 +150,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 			}
 		}
 
-		const ext = _path.extname(cliCommand);
+		const ext = extname(cliCommand);
 		if (ext === '.bat' || ext === '.cmd') {
 			const cwd = cliCommandCwd || process.cwd();
 			if (parsedArgs['verbose']) {
@@ -161,7 +161,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 				cwd
 			});
 		} else {
-			const cwd = _path.dirname(cliCommand);
+			const cwd = dirname(cliCommand);
 			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
 			newCommandline.unshift('resources/app/out/cli.js');
 			if (parsedArgs['verbose']) {
@@ -306,7 +306,7 @@ const cwd = process.env.PWD || process.cwd(); // prefer process.env.PWD as it do
 
 function pathToURI(input: string): _url.URL {
 	input = input.trim();
-	input = _path.resolve(cwd, input);
+	input = resolve(cwd, input);
 	return new _url.URL('file:///' + input);
 }
 

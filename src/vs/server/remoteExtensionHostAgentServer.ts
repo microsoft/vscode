@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import * as http from 'http';
 import * as net from 'net';
 import * as os from 'os';
-import * as path from 'path';
 import * as url from 'url';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -66,7 +65,7 @@ import { WebClientServer, serveError, serveFile } from 'vs/server/webClientServe
 import { URI } from 'vs/base/common/uri';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { ServerEnvironmentService } from 'vs/server/remoteExtensionHostAgent';
-
+import { basename, dirname, join } from 'vs/base/common/path';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -446,14 +445,14 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	 * Cleans up older logs, while keeping the 10 most recent ones.
 	 */
 	private async _cleanupOlderLogs(logsPath: string): Promise<void> {
-		const currentLog = path.basename(logsPath);
-		const logsRoot = path.dirname(logsPath);
+		const currentLog = basename(logsPath);
+		const logsRoot = dirname(logsPath);
 		const children = await readdir(logsRoot);
 		const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
 		const oldSessions = allSessions.sort().filter((d) => d !== currentLog);
 		const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
 
-		await Promise.all(toDelete.map(name => rimraf(path.join(logsRoot, name))));
+		await Promise.all(toDelete.map(name => rimraf(join(logsRoot, name))));
 	}
 
 	private _getRemoteAddress(socket: NodeSocket | WebSocketNodeSocket): string {

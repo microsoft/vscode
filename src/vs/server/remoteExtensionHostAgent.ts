@@ -3,7 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import * as path from 'path';
 import * as fs from 'fs';
 import { URI } from 'vs/base/common/uri';
 import { run as runCli, shouldSpawnCli } from 'vs/server/remoteExtensionManagement';
@@ -14,6 +13,7 @@ import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { parseArgs, OPTIONS, OptionDescriptions, ErrorReporter } from 'vs/platform/environment/node/argv';
+import { join, dirname } from 'vs/base/common/path';
 
 const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'port': { type: 'string' },
@@ -86,14 +86,14 @@ const errorReporter: ErrorReporter = {
 
 const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
 
-const REMOTE_DATA_FOLDER = process.env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-remote');
-const USER_DATA_PATH = path.join(REMOTE_DATA_FOLDER, 'data');
-const APP_SETTINGS_HOME = path.join(USER_DATA_PATH, 'User');
-const GLOBAL_STORAGE_HOME = path.join(APP_SETTINGS_HOME, 'globalStorage');
-const MACHINE_SETTINGS_HOME = path.join(USER_DATA_PATH, 'Machine');
+const REMOTE_DATA_FOLDER = process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), '.vscode-remote');
+const USER_DATA_PATH = join(REMOTE_DATA_FOLDER, 'data');
+const APP_SETTINGS_HOME = join(USER_DATA_PATH, 'User');
+const GLOBAL_STORAGE_HOME = join(APP_SETTINGS_HOME, 'globalStorage');
+const MACHINE_SETTINGS_HOME = join(USER_DATA_PATH, 'Machine');
 args['user-data-dir'] = USER_DATA_PATH;
-const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
-const BUILTIN_EXTENSIONS_FOLDER_PATH = path.join(APP_ROOT, 'extensions');
+const APP_ROOT = dirname(URI.parse(require.toUrl('')).fsPath);
+const BUILTIN_EXTENSIONS_FOLDER_PATH = join(APP_ROOT, 'extensions');
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
 const CONNECTION_AUTH_TOKEN = args['connectionToken'] || generateUuid();
 const HOST = args.host;
@@ -107,7 +107,7 @@ try {
 	console.log('Port is not a number, using 8000 instead.');
 }
 
-args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER, 'extensions');
+args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'extensions');
 
 [REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME].forEach(f => {
 	try {
