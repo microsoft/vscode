@@ -432,13 +432,16 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 					return;
 				}
 
-				if (typeof descriptor.viewDescriptor.remoteAuthority === 'undefined' ||
-					descriptor.viewDescriptor.remoteAuthority === actualRemoteAuthority ||
-					descriptor.viewDescriptor.id === HelpPanel.ID
-				) {
+				const descriptorAuthority = descriptor.viewDescriptor.remoteAuthority;
+				if (typeof descriptorAuthority === 'undefined' || descriptor.viewDescriptor.id === HelpPanel.ID) {
 					panel.setExpanded(true);
 				} else {
-					panel.setExpanded(false);
+					const descriptorAuthorityArr = Array.isArray(descriptorAuthority) ? descriptorAuthority : [descriptorAuthority];
+					if (descriptorAuthorityArr.indexOf(actualRemoteAuthority) >= 0) {
+						panel.setExpanded(true);
+					} else {
+						panel.setExpanded(false);
+					}
 				}
 			});
 		}

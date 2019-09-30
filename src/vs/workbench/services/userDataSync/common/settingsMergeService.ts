@@ -27,20 +27,21 @@ class SettingsMergeService implements ISettingsMergeService {
 		@IModeService private readonly modeService: IModeService,
 	) { }
 
-	async merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: IStringDictionary<boolean>): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
+	async merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[]): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
 		const local = parse(localContent);
 		const remote = parse(remoteContent);
 		const base = baseContent ? parse(baseContent) : null;
+		const ignored = ignoredSettings.reduce((set, key) => { set.add(key); return set; }, new Set<string>());
 
-		const localToRemote = this.compare(local, remote, ignoredSettings);
+		const localToRemote = this.compare(local, remote, ignored);
 		if (localToRemote.added.size === 0 && localToRemote.removed.size === 0 && localToRemote.updated.size === 0) {
 			// No changes found between local and remote.
 			return { mergeContent: localContent, hasChanges: false, hasConflicts: false };
 		}
 
 		const conflicts: Set<string> = new Set<string>();
-		const baseToLocal = base ? this.compare(base, local, ignoredSettings) : { added: Object.keys(local).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-		const baseToRemote = base ? this.compare(base, remote, ignoredSettings) : { added: Object.keys(remote).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+		const baseToLocal = base ? this.compare(base, local, ignored) : { added: Object.keys(local).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+		const baseToRemote = base ? this.compare(base, remote, ignored) : { added: Object.keys(remote).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
 		const settingsPreviewModel = this.modelService.createModel(localContent, this.modeService.create('jsonc'));
 
 		// Removed settings in Local
@@ -151,11 +152,12 @@ class SettingsMergeService implements ISettingsMergeService {
 		return { mergeContent: settingsPreviewModel.getValue(), hasChanges: true, hasConflicts: conflicts.size > 0 };
 	}
 
-	async computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: IStringDictionary<boolean>): Promise<string> {
+	async computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: string[]): Promise<string> {
 		const remote = parse(remoteContent);
 		const remoteModel = this.modelService.createModel(localContent, this.modeService.create('jsonc'));
+		const ignored = ignoredSettings.reduce((set, key) => { set.add(key); return set; }, new Set<string>());
 		for (const key of Object.keys(ignoredSettings)) {
-			if (ignoredSettings[key]) {
+			if (ignored.has(key)) {
 				this.editSetting(remoteModel, key, undefined);
 				this.editSetting(remoteModel, key, remote[key]);
 			}
@@ -180,9 +182,9 @@ class SettingsMergeService implements ISettingsMergeService {
 		}
 	}
 
-	private compare(from: IStringDictionary<any>, to: IStringDictionary<any>, ignored: IStringDictionary<boolean>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
-		const fromKeys = Object.keys(from).filter(key => !ignored[key]);
-		const toKeys = Object.keys(to).filter(key => !ignored[key]);
+	private compare(from: IStringDictionary<any>, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
+		const fromKeys = Object.keys(from).filter(key => !ignored.has(key));
+		const toKeys = Object.keys(to).filter(key => !ignored.has(key));
 		const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 		const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 		const updated: Set<string> = new Set<string>();

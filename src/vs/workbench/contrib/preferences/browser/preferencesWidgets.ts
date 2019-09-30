@@ -168,7 +168,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this._register(focusTracker.onDidFocus(() => this.toggleFocus(true)));
 		this._register(focusTracker.onDidBlur(() => this.toggleFocus(false)));
 
-		this.icon = DOM.append(this.titleContainer, DOM.$('.expand-collapse-icon'));
+		this.icon = DOM.append(this.titleContainer, DOM.$('.codicon.codicon-chevron-down'));
 		this.title = DOM.append(this.titleContainer, DOM.$('.title'));
 		this.title.textContent = this.settingsGroup.title + ` (${this.settingsGroup.sections.reduce((count, section) => count + section.settings.length, 0)})`;
 
@@ -737,7 +737,7 @@ export class SearchWidget extends Widget {
 
 export class EditPreferenceWidget<T> extends Disposable {
 
-	static readonly GLYPH_MARGIN_CLASS_NAME = 'edit-preferences-widget';
+	static readonly GLYPH_MARGIN_CLASS_NAME = 'codicon codicon-edit';
 
 	private _line: number = -1;
 	private _preferences: T[] = [];

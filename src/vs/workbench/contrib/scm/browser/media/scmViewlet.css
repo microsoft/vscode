@@ -96,10 +96,6 @@
 	text-decoration: line-through;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name > .monaco-icon-label::after {
-	padding: 0 8px;
-}
-
 .scm-viewlet .monaco-list-row .resource-group > .count {
 	padding: 0 8px;
 	display: flex;

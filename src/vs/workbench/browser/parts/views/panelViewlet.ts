@@ -71,6 +71,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	private readonly showActionsAlways: boolean = false;
 	private headerContainer: HTMLElement;
 	private titleContainer: HTMLElement;
+	protected twistiesContainer: HTMLElement;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -133,6 +134,8 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
+		this.renderTwisties(container);
+
 		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
@@ -151,6 +154,10 @@ export abstract class ViewletPanel extends Panel implements IView {
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPanel.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
+	}
+
+	protected renderTwisties(container: HTMLElement): void {
+		this.twistiesContainer = append(container, $('.twisties.codicon.codicon-chevron-right'));
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {

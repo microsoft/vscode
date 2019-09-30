@@ -47,7 +47,6 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -104,7 +103,6 @@ export class ExtensionsListView extends ViewletPanel {
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService protected readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title, showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.server = options.server;
@@ -441,8 +439,6 @@ export class ExtensionsListView extends ViewletPanel {
 			return this.getAllRecommendationsModel(query, options, token);
 		} else if (ExtensionsListView.isRecommendedExtensionsQuery(query.value)) {
 			return this.getRecommendationsModel(query, options, token);
-		} else if (ExtensionsListView.isSyncedExtensionsQuery(query.value)) {
-			return this.getSyncedExtensionsModel(query, options, token);
 		}
 
 		if (/\bcurated:([^\s]+)\b/.test(query.value)) {
@@ -623,28 +619,28 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	// Given all recommendations, trims and returns recommendations in the relevant order after filtering out installed extensions
-	private getTrimmedRecommendations(installedExtensions: IExtension[], value: string, fileBasedRecommendations: IExtensionRecommendation[], otherRecommendations: IExtensionRecommendation[], workpsaceRecommendations: IExtensionRecommendation[]): string[] {
+	private getTrimmedRecommendations(installedExtensions: IExtension[], value: string, fileBasedRecommendations: IExtensionRecommendation[], otherRecommendations: IExtensionRecommendation[], workspaceRecommendations: IExtensionRecommendation[]): string[] {
 		const totalCount = 8;
-		workpsaceRecommendations = workpsaceRecommendations
+		workspaceRecommendations = workspaceRecommendations
 			.filter(recommendation => {
 				return !this.isRecommendationInstalled(recommendation, installedExtensions)
 					&& recommendation.extensionId.toLowerCase().indexOf(value) > -1;
 			});
 		fileBasedRecommendations = fileBasedRecommendations.filter(recommendation => {
 			return !this.isRecommendationInstalled(recommendation, installedExtensions)
-				&& workpsaceRecommendations.every(workspaceRecommendation => workspaceRecommendation.extensionId !== recommendation.extensionId)
+				&& workspaceRecommendations.every(workspaceRecommendation => workspaceRecommendation.extensionId !== recommendation.extensionId)
 				&& recommendation.extensionId.toLowerCase().indexOf(value) > -1;
 		});
 		otherRecommendations = otherRecommendations.filter(recommendation => {
 			return !this.isRecommendationInstalled(recommendation, installedExtensions)
 				&& fileBasedRecommendations.every(fileBasedRecommendation => fileBasedRecommendation.extensionId !== recommendation.extensionId)
-				&& workpsaceRecommendations.every(workspaceRecommendation => workspaceRecommendation.extensionId !== recommendation.extensionId)
+				&& workspaceRecommendations.every(workspaceRecommendation => workspaceRecommendation.extensionId !== recommendation.extensionId)
 				&& recommendation.extensionId.toLowerCase().indexOf(value) > -1;
 		});
 
 		const otherCount = Math.min(2, otherRecommendations.length);
-		const fileBasedCount = Math.min(fileBasedRecommendations.length, totalCount - workpsaceRecommendations.length - otherCount);
-		const recommendations = workpsaceRecommendations;
+		const fileBasedCount = Math.min(fileBasedRecommendations.length, totalCount - workspaceRecommendations.length - otherCount);
+		const recommendations = workspaceRecommendations;
 		recommendations.push(...fileBasedRecommendations.splice(0, fileBasedCount));
 		recommendations.push(...otherRecommendations.splice(0, otherCount));
 
@@ -687,23 +683,6 @@ export class ExtensionsListView extends ViewletPanel {
 		options.source = 'recommendations-keymaps';
 		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }), token)
 			.then(result => this.getPagedModel(result));
-	}
-
-	private async getSyncedExtensionsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const syncedExtensions = await this.userDataSyncService.getRemoteExtensions();
-		if (!syncedExtensions.length) {
-			return this.showEmptyModel();
-		}
-		const ids: string[] = [], names: string[] = [];
-		for (const installed of syncedExtensions) {
-			if (installed.identifier.uuid) {
-				ids.push(installed.identifier.uuid);
-			} else {
-				names.push(installed.identifier.id);
-			}
-		}
-		const pager = await this.extensionsWorkbenchService.queryGallery({ ids, names, pageSize: ids.length }, token);
-		return this.getPagedModel(pager || []);
 	}
 
 	// Sorts the firstPage of the pager in the same order as given array of extension ids
@@ -845,10 +824,6 @@ export class ExtensionsListView extends ViewletPanel {
 		return /@recommended:keymaps/i.test(query);
 	}
 
-	static isSyncedExtensionsQuery(query: string): boolean {
-		return /@myaccount/i.test(query);
-	}
-
 	focus(): void {
 		super.focus();
 		if (!this.list) {
@@ -884,11 +859,10 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IUserDataSyncService userDataSyncService: IUserDataSyncService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		options.server = server;
-		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService, contextKeyService, userDataSyncService);
+		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService, contextKeyService);
 		this._register(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 
@@ -941,14 +915,6 @@ export class BuiltInThemesExtensionsView extends ExtensionsListView {
 export class BuiltInBasicsExtensionsView extends ExtensionsListView {
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:basics');
-	}
-}
-
-export class SyncedExtensionsView extends ExtensionsListView {
-
-	async show(query: string): Promise<IPagedModel<IExtension>> {
-		query = query || '@myaccount';
-		return ExtensionsListView.isSyncedExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
 	}
 }
 

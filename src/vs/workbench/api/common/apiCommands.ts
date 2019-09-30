@@ -11,9 +11,8 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenSettings, IURIToOpen, IWindowService } from 'vs/platform/windows/common/windows';
-import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { IRecent } from 'vs/platform/history/common/history';
+import { IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWorkspacesService, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 
 // -----------------------------------------------------------------
@@ -50,9 +49,9 @@ export class OpenFolderAPICommand {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', { forceNewWindow: arg.forceNewWindow });
 		}
-		const options: IOpenSettings = { forceNewWindow: arg.forceNewWindow, forceReuseWindow: arg.forceReuseWindow, noRecentEntry: arg.noRecentEntry };
+		const options: IOpenWindowOptions = { forceNewWindow: arg.forceNewWindow, forceReuseWindow: arg.forceReuseWindow, noRecentEntry: arg.noRecentEntry };
 		uri = URI.revive(uri);
-		const uriToOpen: IURIToOpen = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
+		const uriToOpen: IWindowOpenable = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
 		return executor.executeCommand('_files.windowOpen', [uriToOpen], options);
 	}
 }
@@ -76,10 +75,12 @@ interface INewWindowAPICommandOptions {
 export class NewWindowAPICommand {
 	public static ID = 'vscode.newWindow';
 	public static execute(executor: ICommandsExecutor, options?: INewWindowAPICommandOptions): Promise<any> {
-		return executor.executeCommand('_files.newWindow', {
-			reuse: options && options.reuseWindow,
+		const commandOptions: IOpenEmptyWindowOptions = {
+			forceReuseWindow: options && options.reuseWindow,
 			remoteAuthority: options && options.remoteAuthority
-		});
+		};
+
+		return executor.executeCommand('_files.newWindow', commandOptions);
 	}
 }
 CommandsRegistry.registerCommand({
@@ -132,8 +133,8 @@ export class OpenAPICommand {
 CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
 
 CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
-	const windowService = accessor.get(IWindowService);
-	return windowService.removeFromRecentlyOpened([uri]);
+	const workspacesService = accessor.get(IWorkspacesService);
+	return workspacesService.removeFromRecentlyOpened([uri]);
 });
 
 export class RemoveFromRecentlyOpenedAPICommand {
@@ -163,7 +164,6 @@ interface RecentEntry {
 }
 
 CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async function (accessor: ServicesAccessor, recentEntry: RecentEntry) {
-	const windowService = accessor.get(IWindowService);
 	const workspacesService = accessor.get(IWorkspacesService);
 	let recent: IRecent | undefined = undefined;
 	const uri = recentEntry.uri;
@@ -176,12 +176,12 @@ CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async functio
 	} else {
 		recent = { fileUri: uri, label };
 	}
-	return windowService.addRecentlyOpened([recent]);
+	return workspacesService.addRecentlyOpened([recent]);
 });
 
 CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function (accessor: ServicesAccessor) {
-	const windowService = accessor.get(IWindowService);
-	return windowService.getRecentlyOpened();
+	const workspacesService = accessor.get(IWorkspacesService);
+	return workspacesService.getRecentlyOpened();
 });
 
 export class SetEditorLayoutAPICommand {

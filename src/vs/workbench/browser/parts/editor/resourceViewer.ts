@@ -10,8 +10,6 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/resourceviewer';
 import * as nls from 'vs/nls';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICssStyleCollector, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IMAGE_PREVIEW_BORDER } from 'vs/workbench/common/theme';
 
@@ -75,11 +73,9 @@ export class ResourceViewer {
 
 	static show(
 		descriptor: IResourceDescriptor,
-		fileService: IFileService,
 		container: HTMLElement,
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate,
-		instantiationService: IInstantiationService,
 	): ResourceViewerContext {
 
 		// Ensure CSS class
@@ -95,9 +91,7 @@ export class ResourceViewer {
 			return FileSeemsBinaryFileView.create(container, descriptor, scrollbar, delegate);
 		}
 	}
-
 }
-
 
 class FileTooLargeFileView {
 	static create(

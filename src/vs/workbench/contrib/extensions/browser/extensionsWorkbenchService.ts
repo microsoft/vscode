@@ -20,7 +20,7 @@ import { IExtensionEnablementService, EnablementState, IExtensionManagementServe
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -446,7 +446,7 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private onEnablementChanged(platformExtensions: IPlatformExtension[]) {
+	private onEnablementChanged(platformExtensions: readonly IPlatformExtension[]) {
 		const extensions = this.local.filter(e => platformExtensions.some(p => areSameExtensions(e.identifier, p.identifier)));
 		for (const extension of extensions) {
 			if (extension.local) {
@@ -496,7 +496,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@INotificationService private readonly notificationService: INotificationService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -1070,7 +1070,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			const extension = local.filter(local => areSameExtensions(local.identifier, { id: extensionId }))[0];
 
 			if (extension) {
-				return this.windowService.focusWindow()
+				return this.hostService.focus()
 					.then(() => this.open(extension));
 			}
 			return this.queryGallery({ names: [extensionId], source: 'uri' }, CancellationToken.None).then(result => {
@@ -1080,7 +1080,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 				const extension = result.firstPage[0];
 
-				return this.windowService.focusWindow().then(() => {
+				return this.hostService.focus().then(() => {
 					return this.open(extension);
 				});
 			});

@@ -3,32 +3,103 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu } from 'electron';
+import { MessageBoxOptions, shell, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app } from 'electron';
+import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
-import { isMacintosh } from 'vs/base/common/platform';
+import { IOpenedWindow, OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { INativeOpenDialogOptions, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue } from 'vs/platform/dialogs/node/dialogs';
+import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { AddContextToFunctions } from 'vs/platform/ipc/node/simpleIpcProxy';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
+import { AddFirstParameterToFunctions } from 'vs/base/common/types';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 
-export class ElectronMainService implements AddContextToFunctions<IElectronService, number> {
+export class ElectronMainService implements AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number /* window ID */> {
 
 	_serviceBrand: undefined;
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 	}
 
+	//#region Events
+
+	readonly onWindowOpen: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+
+	readonly onWindowMaximize: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onWindowUnmaximize: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+
+	readonly onWindowBlur: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onWindowFocus: Event<number> = Event.any(
+		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
+		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
+	);
+
+	//#endregion
+
 	//#region Window
 
-	async windowCount(windowId: number): Promise<number> {
+	async getWindows(): Promise<IOpenedWindow[]> {
+		const windows = this.windowsMainService.getWindows();
+
+		return windows.map(window => ({
+			id: window.id,
+			workspace: window.openedWorkspace,
+			folderUri: window.openedFolderUri,
+			title: window.win.getTitle(),
+			filename: window.getRepresentedFilename()
+		}));
+	}
+
+	async getWindowCount(windowId: number): Promise<number> {
 		return this.windowsMainService.getWindowCount();
 	}
 
-	async openEmptyWindow(windowId: number, options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> {
+	async getActiveWindowId(windowId: number): Promise<number | undefined> {
+		const activeWindow = BrowserWindow.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		if (activeWindow) {
+			return activeWindow.id;
+		}
+
+		return undefined;
+	}
+
+	openWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(windowId: number, toOpen: IWindowOpenable[], options?: INativeOpenWindowOptions): Promise<void>;
+	openWindow(windowId: number, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: INativeOpenWindowOptions): Promise<void> {
+		if (Array.isArray(arg1)) {
+			return this.doOpenWindow(windowId, arg1, arg2);
+		}
+
+		return this.doOpenEmptyWindow(windowId, arg1);
+	}
+
+	private async doOpenWindow(windowId: number, toOpen: IWindowOpenable[], options: INativeOpenWindowOptions = Object.create(null)): Promise<void> {
+		if (toOpen.length > 0) {
+			this.windowsMainService.open({
+				context: OpenContext.API,
+				contextWindowId: windowId,
+				urisToOpen: toOpen,
+				cli: this.environmentService.args,
+				forceNewWindow: options.forceNewWindow,
+				forceReuseWindow: options.forceReuseWindow,
+				diffMode: options.diffMode,
+				addMode: options.addMode,
+				gotoLineMode: options.gotoLineMode,
+				noRecentEntry: options.noRecentEntry,
+				waitMarkerFileURI: options.waitMarkerFileURI
+			});
+		}
+	}
+
+	private async doOpenEmptyWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void> {
 		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
 
@@ -76,20 +147,53 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 		}
 	}
 
+	async isWindowFocused(windowId: number): Promise<boolean> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return window.win.isFocused();
+		}
+
+		return false;
+	}
+
+	async focusWindow(windowId: number, options?: { windowId?: number; }): Promise<void> {
+		if (options && typeof options.windowId === 'number') {
+			windowId = options.windowId;
+		}
+
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			if (isMacintosh) {
+				window.win.show();
+			} else {
+				window.win.focus();
+			}
+		}
+	}
+
 	//#endregion
 
 	//#region Dialog
 
 	async showMessageBox(windowId: number, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		return this.windowsMainService.showMessageBox(options, this.windowsMainService.getWindowById(windowId));
+		return this.dialogMainService.showMessageBox(options, this.toBrowserWindow(windowId));
 	}
 
 	async showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
-		return this.windowsMainService.showSaveDialog(options, this.windowsMainService.getWindowById(windowId));
+		return this.dialogMainService.showSaveDialog(options, this.toBrowserWindow(windowId));
 	}
 
 	async showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
-		return this.windowsMainService.showOpenDialog(options, this.windowsMainService.getWindowById(windowId));
+		return this.dialogMainService.showOpenDialog(options, this.toBrowserWindow(windowId));
+	}
+
+	private toBrowserWindow(windowId: number): BrowserWindow | undefined {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return window.win;
+		}
+
+		return undefined;
 	}
 
 	async pickFileFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
@@ -131,7 +235,9 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 	}
 
 	async openExternal(windowId: number, url: string): Promise<boolean> {
-		return this.windowsMainService.openExternal(url);
+		shell.openExternal(url);
+
+		return true;
 	}
 
 	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
@@ -146,7 +252,7 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.openNewTabbedWindow(OpenContext.API);
+		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceNewTabbedWindow: true, forceEmpty: true });
 	}
 
 	async showPreviousWindowTab(): Promise<void> {
@@ -184,7 +290,7 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 		}
 	}
 
-	async closeWorkpsace(windowId: number): Promise<void> {
+	async closeWorkspace(windowId: number): Promise<void> {
 		const window = this.windowsMainService.getWindowById(windowId);
 		if (window) {
 			return this.windowsMainService.closeWorkspace(window);
@@ -242,6 +348,23 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 
 	async startCrashReporter(windowId: number, options: CrashReporterStartOptions): Promise<void> {
 		crashReporter.start(options);
+	}
+
+	//#endregion
+
+	//#region Debug
+
+	// TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
+
+	async openExtensionDevelopmentHostWindow(windowId: number, args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+		const extDevPaths = args.extensionDevelopmentPath;
+		if (extDevPaths) {
+			this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
+				context: OpenContext.API,
+				cli: args,
+				userEnv: Object.keys(env).length > 0 ? env : undefined
+			});
+		}
 	}
 
 	//#endregion

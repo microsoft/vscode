@@ -17,7 +17,7 @@ export interface ICustomEditorService {
 	getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[];
 	getUserConfiguredCustomEditors(resource: URI): readonly CustomEditorInfo[];
 
-	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined): EditorInput;
+	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined, options?: { readonly customClasses: string }): EditorInput;
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
@@ -29,7 +29,6 @@ export const enum CustomEditorDiscretion {
 }
 
 export interface CustomEditorSelector {
-	readonly scheme?: string;
 	readonly filenamePattern?: string;
 	readonly mime?: string;
 }

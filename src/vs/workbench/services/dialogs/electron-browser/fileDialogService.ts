@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowService, OpenDialogOptions, SaveDialogOptions, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { SaveDialogOptions, OpenDialogOptions } from 'electron';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -23,7 +25,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	_serviceBrand: undefined;
 
 	constructor(
-		@IWindowService windowService: IWindowService,
+		@IHostService hostService: IHostService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IHistoryService historyService: IHistoryService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -32,7 +34,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IFileService fileService: IFileService,
 		@IOpenerService openerService: IOpenerService,
 		@IElectronService private readonly electronService: IElectronService
-	) { super(windowService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService); }
+	) { super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService); }
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
 		return {
@@ -108,7 +110,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.pickFileToSaveSimplified(schema, options);
 		} else {
 			const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-			if (result && !result.canceled && result.filePath) {
+			if (result && result.filePath) {
 				return URI.file(result.filePath);
 			}
 		}
@@ -132,7 +134,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-		if (result && !result.canceled && result.filePath) {
+		if (result && result.filePath) {
 			return URI.file(result.filePath);
 		}
 
@@ -171,6 +173,12 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const result = await this.electronService.showOpenDialog(newOptions);
 		return result && Array.isArray(result.filePaths) && result.filePaths.length > 0 ? result.filePaths.map(URI.file) : undefined;
+	}
+
+	protected addFileSchemaIfNeeded(schema: string): string[] {
+		// Include File schema unless the schema is web
+		// Don't allow untitled schema through.
+		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 }
 

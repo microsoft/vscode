@@ -425,7 +425,7 @@ export class TabsTitleControl extends TitleControl {
 		addClass(tabContainer, 'tab');
 
 		// Gesture Support
-		Gesture.addTarget(tabContainer);
+		this._register(Gesture.addTarget(tabContainer));
 
 		// Tab Border Top
 		const tabBorderTopContainer = document.createElement('div');

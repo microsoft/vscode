@@ -364,12 +364,16 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		const pendingReply = this._pendingRPCReplies[callId];
 		delete this._pendingRPCReplies[callId];
 
-		let err: Error | null = null;
-		if (value && value.$isError) {
-			err = new Error();
-			err.name = value.name;
-			err.message = value.message;
-			err.stack = value.stack;
+		let err: any = undefined;
+		if (value) {
+			if (value.$isError) {
+				err = new Error();
+				err.name = value.name;
+				err.message = value.message;
+				err.stack = value.stack;
+			} else {
+				err = value;
+			}
 		}
 		pendingReply.resolveErr(err);
 	}
@@ -725,7 +729,7 @@ class MessageIO {
 	}
 
 	public static serializeReplyErr(req: number, err: any): VSBuffer {
-		if (err instanceof Error) {
+		if (err) {
 			return this._serializeReplyErrEror(req, err);
 		}
 		return this._serializeReplyErrEmpty(req);

@@ -561,7 +561,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			autoDetectHighContrast = false;
 		}
 		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
-		windowConfiguration.accessibilitySupport = app.accessibilitySupportEnabled;
+		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
 		// Title style related
 		windowConfiguration.maximized = this._win.isMaximized();

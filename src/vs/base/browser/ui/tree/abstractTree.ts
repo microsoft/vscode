@@ -225,18 +225,14 @@ interface Collection<T> {
 
 class EventCollection<T> implements Collection<T> {
 
-	private disposables = new DisposableStore();
+	readonly onDidChange: Event<T[]>;
 
 	get elements(): T[] {
 		return this._elements;
 	}
 
-	constructor(readonly onDidChange: Event<T[]>, private _elements: T[] = []) {
-		onDidChange(e => this._elements = e, null, this.disposables);
-	}
-
-	dispose() {
-		this.disposables.dispose();
+	constructor(onDidChange: Event<T[]>, private _elements: T[] = []) {
+		this.onDidChange = Event.forEach(onDidChange, elements => this._elements = elements);
 	}
 }
 
@@ -249,7 +245,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, IRenderData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
 
-	private _renderIndentGuides: RenderIndentGuides = RenderIndentGuides.None;
+	private shouldRenderIndentGuides: boolean = false;
 	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
 	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
 	private indentGuidesDisposable: IDisposable = Disposable.None;
@@ -279,19 +275,18 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		}
 
 		if (typeof options.renderIndentGuides !== 'undefined') {
-			const renderIndentGuides = options.renderIndentGuides;
+			const shouldRenderIndentGuides = options.renderIndentGuides !== RenderIndentGuides.None;
 
-			if (renderIndentGuides !== this._renderIndentGuides) {
-				this._renderIndentGuides = renderIndentGuides;
+			if (shouldRenderIndentGuides !== this.shouldRenderIndentGuides) {
+				this.shouldRenderIndentGuides = shouldRenderIndentGuides;
+				this.indentGuidesDisposable.dispose();
 
-				if (renderIndentGuides) {
+				if (shouldRenderIndentGuides) {
 					const disposables = new DisposableStore();
 					this.activeNodes.onDidChange(this._onDidChangeActiveNodes, this, disposables);
 					this.indentGuidesDisposable = disposables;
 
 					this._onDidChangeActiveNodes(this.activeNodes.elements);
-				} else {
-					this.indentGuidesDisposable.dispose();
 				}
 			}
 		}
@@ -370,6 +365,8 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 			this.renderer.renderTwistie(node.element, templateData.twistie);
 		}
 
+		toggleClass(templateData.twistie, 'codicon', node.collapsible);
+		toggleClass(templateData.twistie, 'codicon-chevron-down', node.collapsible);
 		toggleClass(templateData.twistie, 'collapsible', node.collapsible);
 		toggleClass(templateData.twistie, 'collapsed', node.collapsible && node.collapsed);
 
@@ -384,7 +381,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		clearNode(templateData.indent);
 		templateData.indentGuidesDisposable.dispose();
 
-		if (this._renderIndentGuides === RenderIndentGuides.None) {
+		if (!this.shouldRenderIndentGuides) {
 			return;
 		}
 
@@ -424,7 +421,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	}
 
 	private _onDidChangeActiveNodes(nodes: ITreeNode<T, TFilterData>[]): void {
-		if (this._renderIndentGuides === RenderIndentGuides.None) {
+		if (!this.shouldRenderIndentGuides) {
 			return;
 		}
 
@@ -1001,7 +998,6 @@ class Trait<T> {
 		insertedNodes.forEach(node => dfs(node, insertedNodesVisitor));
 
 		const nodes: ITreeNode<T, any>[] = [];
-		let silent = true;
 
 		for (const node of this.nodes) {
 			const id = this.identityProvider.getId(node.element).toString();
@@ -1014,13 +1010,11 @@ class Trait<T> {
 
 				if (insertedNode) {
 					nodes.push(insertedNode);
-				} else {
-					silent = false;
 				}
 			}
 		}
 
-		this._set(nodes, silent);
+		this._set(nodes, true);
 	}
 
 	private createNodeSet(): Set<ITreeNode<T, any>> {
@@ -1228,9 +1222,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
-		const onDidChangeActiveNodes = new Emitter<ITreeNode<T, TFilterData>[]>();
+		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
 		const activeNodes = new EventCollection(onDidChangeActiveNodes.event);
-		this.disposables.push(activeNodes);
 
 		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, _options));
 		this.disposables.push(...this.renderers);
@@ -1250,24 +1243,35 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model = this.createModel(user, this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
-		this.model.onDidSplice(e => {
+		const onDidModelSplice = Event.forEach(this.model.onDidSplice, e => {
 			this.eventBufferer.bufferEvents(() => {
 				this.focus.onDidModelSplice(e);
 				this.selection.onDidModelSplice(e);
 			});
+		});
 
-			const set = new Set<ITreeNode<T, TFilterData>>();
+		// Make sure the `forEach` always runs
+		onDidModelSplice(() => null, null, this.disposables);
 
-			for (const node of this.focus.getNodes()) {
-				set.add(node);
-			}
+		// Active nodes can change when the model changes or when focus or selection change.
+		// We debouce it with 0 delay since these events may fire in the same stack and we only
+		// want to run this once. It also doesn't matter if it runs on the next tick since it's only
+		// a nice to have UI feature.
+		onDidChangeActiveNodes.input = Event.chain(Event.any<any>(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange))
+			.debounce(() => null, 0)
+			.map(() => {
+				const set = new Set<ITreeNode<T, TFilterData>>();
 
-			for (const node of this.selection.getNodes()) {
-				set.add(node);
-			}
+				for (const node of this.focus.getNodes()) {
+					set.add(node);
+				}
 
-			onDidChangeActiveNodes.fire(fromSet(set));
-		}, null, this.disposables);
+				for (const node of this.selection.getNodes()) {
+					set.add(node);
+				}
+
+				return fromSet(set);
+			}).event;
 
 		if (_options.keyboardSupport !== false) {
 			const onKeyDown = Event.chain(this.view.onKeyDown)

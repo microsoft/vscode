@@ -14,14 +14,15 @@ import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchMainService';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
+import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
-import { IStateService } from 'vs/platform/state/common/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -270,8 +271,7 @@ class CodeMain {
 				}, 10000);
 			}
 
-			const channel = client.getChannel('launch');
-			const launchClient = new LaunchChannelClient(channel);
+			const launchService = createChannelSender<ILaunchMainService>(client.getChannel('launch'), { disableMarshalling: true });
 
 			// Process Info
 			if (environmentService.args.status) {
@@ -280,8 +280,8 @@ class CodeMain {
 					const sharedProcessClient = await connect(environmentService.sharedIPCHandle, 'main');
 					const diagnosticsChannel = sharedProcessClient.getChannel('diagnostics');
 					const diagnosticsService = new DiagnosticsService(diagnosticsChannel);
-					const mainProcessInfo = await launchClient.getMainProcessInfo();
-					const remoteDiagnostics = await launchClient.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
+					const mainProcessInfo = await launchService.getMainProcessInfo();
+					const remoteDiagnostics = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
 					console.log(diagnostics);
 
@@ -291,12 +291,12 @@ class CodeMain {
 
 			// Windows: allow to set foreground
 			if (platform.isWindows) {
-				await this.windowsAllowSetForegroundWindow(launchClient, logService);
+				await this.windowsAllowSetForegroundWindow(launchService, logService);
 			}
 
 			// Send environment over...
 			logService.trace('Sending env to running instance...');
-			await launchClient.start(environmentService.args, process.env as platform.IProcessEnvironment);
+			await launchService.start(environmentService.args, process.env as platform.IProcessEnvironment);
 
 			// Cleanup
 			await client.dispose();
@@ -358,9 +358,9 @@ class CodeMain {
 		});
 	}
 
-	private async windowsAllowSetForegroundWindow(client: LaunchChannelClient, logService: ILogService): Promise<void> {
+	private async windowsAllowSetForegroundWindow(launchService: ILaunchMainService, logService: ILogService): Promise<void> {
 		if (platform.isWindows) {
-			const processId = await client.getMainProcessId();
+			const processId = await launchService.getMainProcessId();
 
 			logService.trace('Sending some foreground love to the running instance:', processId);
 

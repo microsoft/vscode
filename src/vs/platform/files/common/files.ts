@@ -209,7 +209,7 @@ export interface IFileSystemProvider {
 
 	readonly onDidErrorOccur?: Event<string>; // TODO@ben remove once file watchers are solid
 
-	readonly onDidChangeFile: Event<IFileChange[]>;
+	readonly onDidChangeFile: Event<readonly IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
 	stat(resource: URI): Promise<IStat>;
@@ -389,19 +389,19 @@ export interface IFileChange {
 	/**
 	 * The type of change that occurred to the file.
 	 */
-	type: FileChangeType;
+	readonly type: FileChangeType;
 
 	/**
 	 * The unified resource identifier of the file that changed.
 	 */
-	resource: URI;
+	readonly resource: URI;
 }
 
 export class FileChangesEvent {
 
-	private _changes: IFileChange[];
+	private readonly _changes: readonly IFileChange[];
 
-	constructor(changes: IFileChange[]) {
+	constructor(changes: readonly IFileChange[]) {
 		this._changes = changes;
 	}
 

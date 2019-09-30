@@ -32,7 +32,7 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
 import { RemoteAuthorityResolverErrorCode, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import * as statusbar from 'vs/platform/statusbar/common/statusbar';
+import * as statusbar from 'vs/workbench/services/statusbar/common/statusbar';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -545,11 +545,13 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
-	$setState(handle: WebviewPanelHandle, state: modes.WebviewEditorState): void;
+	$setState(handle: WebviewPanelHandle, state: modes.WebviewContentState): void;
 	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void;
+	$setExtension(handle: WebviewPanelHandle, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
+
 	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
 
 	$registerSerializer(viewType: string): void;
@@ -937,21 +939,38 @@ export class IdObject {
 	}
 }
 
+export const enum ISuggestDataDtoField {
+	label = 'a',
+	kind = 'b',
+	detail = 'c',
+	documentation = 'd',
+	sortText = 'e',
+	filterText = 'f',
+	preselect = 'g',
+	insertText = 'h',
+	insertTextRules = 'i',
+	range = 'j',
+	commitCharacters = 'k',
+	additionalTextEdits = 'l',
+	command = 'm',
+	kindModifier = 'n',
+}
+
 export interface ISuggestDataDto {
-	a/* label */: string;
-	b/* kind */: modes.CompletionItemKind;
-	c/* detail */?: string;
-	d/* documentation */?: string | IMarkdownString;
-	e/* sortText */?: string;
-	f/* filterText */?: string;
-	g/* preselect */?: boolean;
-	h/* insertText */?: string;
-	i/* insertTextRules */?: modes.CompletionItemInsertTextRule;
-	j/* range */?: IRange;
-	k/* commitCharacters */?: string[];
-	l/* additionalTextEdits */?: ISingleEditOperation[];
-	m/* command */?: modes.Command;
-	n/* kindModifier */?: modes.CompletionItemTag[];
+	[ISuggestDataDtoField.label]: string;
+	[ISuggestDataDtoField.kind]: modes.CompletionItemKind;
+	[ISuggestDataDtoField.detail]?: string;
+	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
+	[ISuggestDataDtoField.sortText]?: string;
+	[ISuggestDataDtoField.filterText]?: string;
+	[ISuggestDataDtoField.preselect]?: boolean;
+	[ISuggestDataDtoField.insertText]?: string;
+	[ISuggestDataDtoField.insertTextRules]?: modes.CompletionItemInsertTextRule;
+	[ISuggestDataDtoField.range]?: IRange;
+	[ISuggestDataDtoField.commitCharacters]?: string[];
+	[ISuggestDataDtoField.additionalTextEdits]?: ISingleEditOperation[];
+	[ISuggestDataDtoField.command]?: modes.Command;
+	[ISuggestDataDtoField.kindModifier]?: modes.CompletionItemTag[];
 	// not-standard
 	x?: ChainedCacheId;
 }

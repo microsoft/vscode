@@ -12,6 +12,7 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { isObject } from 'vs/base/common/types';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { IDimension } from 'vs/editor/common/editorCommon';
 
 //#region typed options
 
@@ -514,6 +515,13 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+}
+
+export interface IEditorConstructionOptions extends IEditorOptions {
+	/**
+	 * The initial editor dimension (to avoid measuring the container).
+	 */
+	dimension?: IDimension;
 }
 
 /**

@@ -36,9 +36,14 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
+	public extension: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	} | undefined;
+
 	constructor(
 		private readonly id: string,
-		private _options: WebviewOptions,
+		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IThemeService themeService: IThemeService,
 		@ITunnelService tunnelService: ITunnelService,
@@ -52,7 +57,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		}
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
-			this._options.extension ? this._options.extension.location : undefined,
+			() => this.extension ? this.extension.location : undefined,
 			() => this.content.options.portMapping || [],
 			tunnelService
 		));
@@ -64,6 +69,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		};
 
 		this.element = document.createElement('iframe');
+		this.element.className = `webview ${options.customClasses}`;
 		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
 		this.element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		this.element.style.border = 'none';
@@ -113,9 +119,10 @@ export class IFrameWebview extends Disposable implements Webview {
 
 				case 'load-resource':
 					{
-						const requestPath = e.data.data.path;
-						const uri = URI.file(decodeURIComponent(requestPath));
-						this.loadResource(requestPath, uri);
+						const rawPath = e.data.data.path;
+						const normalizedPath = decodeURIComponent(rawPath);
+						const uri = URI.parse(normalizedPath.replace(/^\/(\w+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
+						this.loadResource(rawPath, uri);
 						return;
 					}
 
@@ -185,7 +192,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private preprocessHtml(value: string): string {
 		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
-			`${startQuote}${this.externalEndpoint}/vscode-resource${path}${endQuote}`);
+			`${startQuote}${this.externalEndpoint}/vscode-resource/file${path}${endQuote}`);
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
@@ -307,7 +314,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private async loadResource(requestPath: string, uri: URI) {
 		try {
-			const result = await loadLocalResource(uri, this.fileService, this._options.extension ? this._options.extension.location : undefined,
+			const result = await loadLocalResource(uri, this.fileService, this.extension ? this.extension.location : undefined,
 				() => (this.content.options.localResourceRoots || []));
 
 			if (result.type === 'success') {

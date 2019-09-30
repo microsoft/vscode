@@ -12,6 +12,10 @@
 	overflow: hidden;
 }
 
+.settings-editor .codicon {
+	color: inherit !important;
+}
+
 /* header styling */
 .settings-editor > .settings-header {
 	box-sizing: border-box;
@@ -88,7 +92,6 @@
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: none;
 	font-size: 13px;
-
 	padding-bottom: 7px;
 	padding-top: 7px;
 	padding-left: 8px;
@@ -154,29 +157,21 @@
 	width: 26px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-item.focused .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container:hover > .monaco-toolbar .toolbar-toggle-more,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .toolbar-toggle-more {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .codicon-more,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-item.focused .setting-toolbar-container > .monaco-toolbar .codicon-more,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container:hover > .monaco-toolbar .codicon-more,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .codicon-more {
 	opacity: 1;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more {
+.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon-more {
 	opacity: 0;
 	transition: opacity .3s;
 	width: 22px;
 	height: 22px;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: 16px;
-}
-
-.vs .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .toolbar-toggle-more {
-	background-image: url('configure-light.svg');
-}
-
-.vs-dark .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .toolbar-toggle-more {
-	background-image: url('configure-dark.svg');
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .settings-editor > .settings-body .settings-toc-container {
@@ -432,16 +427,10 @@
 	margin-right: 9px;
 	margin-left: 0px;
 	padding: 0px;
-	background-size: 16px !important;
 }
 
-.vs .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
-	background: url('check-light.svg') center center no-repeat;
-}
-
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked,
-.hc-black .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
-	background: url('check-dark.svg') center center no-repeat;
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.codicon:not(.checked)::before  {
+	opacity: 0;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-value {

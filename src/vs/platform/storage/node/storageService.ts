@@ -16,7 +16,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
-export class StorageService extends Disposable implements IStorageService {
+export class NativeStorageService extends Disposable implements IStorageService {
 
 	_serviceBrand: undefined;
 
@@ -83,7 +83,7 @@ export class StorageService extends Disposable implements IStorageService {
 			// Create workspace storage and initialize
 			mark('willInitWorkspaceStorage');
 			try {
-				await this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, StorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined).init();
+				await this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined).init();
 			} finally {
 				mark('didInitWorkspaceStorage');
 			}
@@ -144,7 +144,7 @@ export class StorageService extends Disposable implements IStorageService {
 		}
 
 		if (meta) {
-			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), StorageService.WORKSPACE_META_NAME);
+			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), NativeStorageService.WORKSPACE_META_NAME);
 			(async function () {
 				try {
 					const storageExists = await exists(workspaceStorageMetaPath);
@@ -220,7 +220,7 @@ export class StorageService extends Disposable implements IStorageService {
 		// Prepare new workspace storage folder
 		const result = await this.prepareWorkspaceStorageFolder(toWorkspace);
 
-		const newWorkspaceStoragePath = join(result.path, StorageService.WORKSPACE_STORAGE_NAME);
+		const newWorkspaceStoragePath = join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME);
 
 		// Copy current storage over to new workspace storage
 		await copy(this.workspaceStoragePath, newWorkspaceStoragePath);

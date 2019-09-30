@@ -24,6 +24,11 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	private _html: string = '';
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
+	private _extension: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	} | undefined;
+
 	private _owner: any = undefined;
 
 	public constructor(
@@ -82,6 +87,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 			this._webview.value = webview;
 			webview.state = this._state;
 			webview.html = this._html;
+			webview.extension = this._extension;
 			if (this.options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
@@ -131,6 +137,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	public set contentOptions(value: WebviewContentOptions) {
 		this._contentOptions = value;
 		this.withWebview(webview => webview.contentOptions = value);
+	}
+
+	public get extension() { return this._extension; }
+	public set extension(value) {
+		this._extension = value;
+		this.withWebview(webview => webview.extension = value);
 	}
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());

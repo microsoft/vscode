@@ -542,7 +542,7 @@ export class MouseController<T> implements IDisposable {
 			list.onContextMenu(this.onContextMenu, this, this.disposables);
 			list.onMouseDblClick(this.onDoubleClick, this, this.disposables);
 			list.onTouchStart(this.onMouseDown, this, this.disposables);
-			Gesture.addTarget(list.getHTMLElement());
+			this.disposables.add(Gesture.addTarget(list.getHTMLElement()));
 		}
 
 		list.onMouseClick(this.onPointer, this, this.disposables);

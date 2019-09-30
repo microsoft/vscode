@@ -8,7 +8,6 @@ html, body {
 	max-height: 100%;
 }
 
-
 body img {
 	max-width: none;
 	max-height: none;
@@ -34,6 +33,7 @@ body img {
 	padding: 0;
 	background-position: 0 0, 8px 8px;
 	background-size: 16px 16px;
+	border: 1px solid var(--vscode-imagePreview-border);
 }
 
 .container.image img {
@@ -62,11 +62,11 @@ body img {
 	margin: auto;
 }
 
-.container.zoom-in {
+.container.ready.zoom-in {
 	cursor: zoom-in;
 }
 
-.container.zoom-out {
+.container.ready.zoom-out {
 	cursor: zoom-out;
 }
 
@@ -75,4 +75,24 @@ body img {
 	cursor: pointer;
 	text-decoration: underline;
 	margin-left: 5px;
+}
+
+.loading {
+	position: fixed;
+	width: 30px;
+	height: 30px;
+	left: 50%;
+	top: 50%;
+	margin-top: -15px;
+	margin-left: -15px;
+	background-image: url('./loading.svg');
+	background-size: cover;
+}
+
+.vscode-dark .loading {
+	background-image: url('./loading-dark.svg');
+}
+
+.vscode-high-contrast .loading {
+	background-image: url('./loading-hc.svg');
 }

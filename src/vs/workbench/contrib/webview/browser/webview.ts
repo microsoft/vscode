@@ -40,13 +40,8 @@ export interface IWebviewService {
 	): WebviewEditorOverlay;
 }
 
-export const WebviewResourceScheme = 'vscode-resource';
-
 export interface WebviewOptions {
-	readonly extension?: {
-		readonly location: URI;
-		readonly id?: ExtensionIdentifier;
-	};
+	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
@@ -63,6 +58,10 @@ export interface Webview extends IDisposable {
 
 	html: string;
 	contentOptions: WebviewContentOptions;
+	extension: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	} | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;
 

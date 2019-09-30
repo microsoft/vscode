@@ -56,7 +56,7 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 		}
 	}
 
-	protected onTextFilesDirty(e: TextFileModelChangeEvent[]): void {
+	protected onTextFilesDirty(e: readonly TextFileModelChangeEvent[]): void {
 		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
 			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
 		}
@@ -84,17 +84,17 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 		}));
 	}
 
-	protected onTextFilesSaved(e: TextFileModelChangeEvent[]): void {
+	protected onTextFilesSaved(e: readonly TextFileModelChangeEvent[]): void {
 		if (this.hasDirtyCount) {
 			this.updateActivityBadge();
 		}
 	}
 
-	protected onTextFilesSaveError(e: TextFileModelChangeEvent[]): void {
+	protected onTextFilesSaveError(e: readonly TextFileModelChangeEvent[]): void {
 		this.updateActivityBadge();
 	}
 
-	protected onTextFilesReverted(e: TextFileModelChangeEvent[]): void {
+	protected onTextFilesReverted(e: readonly TextFileModelChangeEvent[]): void {
 		if (this.hasDirtyCount) {
 			this.updateActivityBadge();
 		}

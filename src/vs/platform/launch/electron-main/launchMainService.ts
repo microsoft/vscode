@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
@@ -16,7 +15,6 @@ import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/wor
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
-import { Event } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
@@ -58,64 +56,6 @@ export interface ILaunchMainService {
 	getMainProcessInfo(): Promise<IMainProcessInfo>;
 	getLogsPath(): Promise<string>;
 	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
-}
-
-export class LaunchChannel implements IServerChannel {
-
-	constructor(private service: ILaunchMainService) { }
-
-	listen<T>(_: unknown, event: string): Event<T> {
-		throw new Error(`Event not found: ${event}`);
-	}
-
-	call(_: unknown, command: string, arg: any): Promise<any> {
-		switch (command) {
-			case 'start':
-				const { args, userEnv } = arg as IStartArguments;
-				return this.service.start(args, userEnv);
-
-			case 'get-main-process-id':
-				return this.service.getMainProcessId();
-
-			case 'get-main-process-info':
-				return this.service.getMainProcessInfo();
-
-			case 'get-logs-path':
-				return this.service.getLogsPath();
-
-			case 'get-remote-diagnostics':
-				return this.service.getRemoteDiagnostics(arg);
-		}
-
-		throw new Error(`Call not found: ${command}`);
-	}
-}
-
-export class LaunchChannelClient implements ILaunchMainService {
-
-	_serviceBrand: undefined;
-
-	constructor(private channel: IChannel) { }
-
-	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
-		return this.channel.call('start', { args, userEnv });
-	}
-
-	getMainProcessId(): Promise<number> {
-		return this.channel.call('get-main-process-id', null);
-	}
-
-	getMainProcessInfo(): Promise<IMainProcessInfo> {
-		return this.channel.call('get-main-process-info', null);
-	}
-
-	getLogsPath(): Promise<string> {
-		return this.channel.call('get-logs-path', null);
-	}
-
-	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<IRemoteDiagnosticInfo[]> {
-		return this.channel.call('get-remote-diagnostics', options);
-	}
 }
 
 export class LaunchMainService implements ILaunchMainService {
@@ -201,6 +141,7 @@ export class LaunchMainService implements ILaunchMainService {
 				}
 			}
 
+			// Open new Window
 			if (openNewWindow) {
 				usedWindows = this.windowsMainService.open({
 					context,
@@ -210,8 +151,18 @@ export class LaunchMainService implements ILaunchMainService {
 					forceEmpty: true,
 					waitMarkerFileURI
 				});
-			} else {
-				usedWindows = [this.windowsMainService.focusLastActive(args, context)];
+			}
+
+			// Focus existing window or open if none opened
+			else {
+				const lastActive = this.windowsMainService.getLastActiveWindow();
+				if (lastActive) {
+					lastActive.focus();
+
+					usedWindows = [lastActive];
+				} else {
+					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true });
+				}
 			}
 		}
 
@@ -268,7 +219,7 @@ export class LaunchMainService implements ILaunchMainService {
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows,
-			screenReader: !!app.accessibilitySupportEnabled,
+			screenReader: !!app.isAccessibilitySupportEnabled(),
 			gpuFeatureStatus: app.getGPUFeatureStatus()
 		});
 	}

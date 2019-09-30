@@ -169,8 +169,7 @@
 		},
 		{
 			"scope": [
-				"meta.preprocessor",
-				"keyword.control.directive"
+				"meta.preprocessor"
 			],
 			"settings": {
 				"foreground": "#0000ff"

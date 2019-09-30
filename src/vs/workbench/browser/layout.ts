@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, position, size, EventHelper, Dimension } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, position, size, Dimension } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -31,7 +31,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -47,8 +47,6 @@ enum Settings {
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
 
-	// TODO @misolori update this when finished
-	OCTICONS_UPDATE_ENABLED = 'workbench.octiconsUpdate.enabled',
 }
 
 enum Storage {
@@ -186,10 +184,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			transitionDisposables: new DisposableStore()
 		},
 
-		// TODO @misolori update this when finished
-		octiconsUpdate: {
-			enabled: false
-		}
 	};
 
 	constructor(
@@ -255,11 +249,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Prevent workbench from scrolling #55456
 		this._register(addDisposableListener(this.container, EventType.SCROLL, () => this.container.scrollTop = 0));
-
-		// Prevent native context menus in web #73781
-		if (isWeb) {
-			this._register(addDisposableListener(this.container, EventType.CONTEXT_MENU, (e) => EventHelper.stop(e, true)));
-		}
 
 		// Menubar visibility changes
 		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
@@ -339,10 +328,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Menubar visibility
 		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
-
-		// TODO @misolori update this when finished
-		const newOcticonsUpdate = this.configurationService.getValue<boolean>(Settings.OCTICONS_UPDATE_ENABLED);
-		this.setOcticonsUpdate(newOcticonsUpdate);
 
 	}
 
@@ -456,9 +441,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Zen mode enablement
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
 
-		// TODO @misolori update this when finished
-		this.state.octiconsUpdate.enabled = this.configurationService.getValue<boolean>(Settings.OCTICONS_UPDATE_ENABLED);
-		this.setOcticonsUpdate(this.state.octiconsUpdate.enabled);
 	}
 
 	private resolveEditorsToOpen(fileService: IFileService): Promise<IResourceEditor[]> | IResourceEditor[] {
@@ -571,7 +553,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.TITLEBAR_PART:
 				if (getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
 					return false;
-				} else if (!this.state.fullscreen) {
+				} else if (!this.state.fullscreen && !isWeb) {
 					return true;
 				} else if (isMacintosh && isNative) {
 					return false;
@@ -763,18 +745,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.statusBarPartView, !hidden);
-	}
-
-	// TODO @misolori update this when finished
-	private setOcticonsUpdate(enabled: boolean): void {
-		this.state.octiconsUpdate.enabled = enabled;
-
-		// Update DOM
-		if (enabled) {
-			document.body.dataset.octiconsUpdate = 'enabled';
-		} else {
-			document.body.dataset.octiconsUpdate = '';
-		}
 	}
 
 	protected createWorkbenchLayout(instantiationService: IInstantiationService): void {
@@ -1055,6 +1025,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				const focus = !skipLayout;
 				this.panelService.openPanel(panelToOpen, focus);
 			}
+		}
+
+		// If not maximized and hiding, unmaximize before hiding to allow caching of size
+		if (this.isPanelMaximized() && hidden) {
+			this.toggleMaximizedPanel();
 		}
 
 		// Propagate to grid
