@@ -86,6 +86,7 @@ export interface IWindowsCountChangedEvent {
 }
 
 export interface IWindowsMainService {
+
 	_serviceBrand: undefined;
 
 	// events
@@ -138,9 +139,4 @@ export interface IOpenConfiguration {
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
-}
-
-export interface ISharedProcess {
-	whenReady(): Promise<void>;
-	toggle(): void;
 }

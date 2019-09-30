@@ -18,7 +18,7 @@ import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, IPathsToWaitFor, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, IPathsToWaitFor, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
@@ -776,7 +776,9 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	private doAddFoldersToExistingWindow(window: ICodeWindow, foldersToAdd: URI[]): ICodeWindow {
 		window.focus(); // make sure window has focus
 
-		window.sendWhenReady('vscode:addFolders', { foldersToAdd });
+		const request: IAddFoldersRequest = { foldersToAdd };
+
+		window.sendWhenReady('vscode:addFolders', request);
 
 		return window;
 	}
@@ -1623,8 +1625,10 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		if (cli && (cli.remote !== remote)) {
 			cli = { ...cli, remote };
 		}
+
 		const forceReuseWindow = options && options.reuse;
 		const forceNewWindow = !forceReuseWindow;
+
 		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
 	}
 
