@@ -34,7 +34,7 @@
       "properties": {
         "html.customData": {
           "type": "array",
-          "description": "%html.customData.desc%",
+          "markdownDescription": "%html.customData.desc%",
           "default": [],
           "items": {
             "type": "string"
@@ -188,6 +188,10 @@
       {
         "fileMatch": "*.html-data.json",
         "url": "https://raw.githubusercontent.com/Microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
+      },
+      {
+        "fileMatch": "package.json",
+        "url": "./schemas/package.schema.json"
       }
     ]
   },

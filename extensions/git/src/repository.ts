@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env, ProgressOptions, CancellationToken } from 'vscode';
+import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, Decoration, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env, ProgressOptions, CancellationToken } from 'vscode';
 import { Repository as BaseRepository, Commit, Stash, GitError, Submodule, CommitOptions, ForcePushMode } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -157,10 +157,7 @@ export class Resource implements SourceControlResourceState {
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
-		const letter = this.letter;
-		const color = this.color;
-
-		return { strikeThrough, faded, tooltip, light, dark, letter, color, source: 'git.resource' /*todo@joh*/ };
+		return { strikeThrough, faded, tooltip, light, dark };
 	}
 
 	get letter(): string {
@@ -247,12 +244,12 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
-	get resourceDecoration(): DecorationData {
+	get resourceDecoration(): Decoration {
 		const title = this.tooltip;
 		const letter = this.letter;
 		const color = this.color;
 		const priority = this.priority;
-		return { bubble: true, source: 'git.resource', title, letter, color, priority };
+		return { bubble: true, title, letter, color, priority };
 	}
 
 	constructor(
@@ -636,7 +633,6 @@ export class Repository implements Disposable {
 
 	private isRepositoryHuge = false;
 	private didWarnAboutLimit = false;
-	private isFreshRepository: boolean | undefined = undefined;
 
 	private disposables: Disposable[] = [];
 
@@ -1509,15 +1505,6 @@ export class Repository implements Disposable {
 
 		// set count badge
 		this.setCountBadge();
-
-		// Disable `Discard All Changes` for "fresh" repositories
-		// https://github.com/Microsoft/vscode/issues/43066
-		const isFreshRepository = !this._HEAD || !this._HEAD.commit;
-
-		if (this.isFreshRepository !== isFreshRepository) {
-			commands.executeCommand('setContext', 'gitFreshRepository', isFreshRepository);
-			this.isFreshRepository = isFreshRepository;
-		}
 
 		this._onDidChangeStatus.fire();
 	}

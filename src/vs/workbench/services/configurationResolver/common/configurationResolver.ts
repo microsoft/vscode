@@ -10,7 +10,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
 export interface IConfigurationResolverService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	resolve(folder: IWorkspaceFolder | undefined, value: string): string;
 	resolve(folder: IWorkspaceFolder | undefined, value: string[]): string[];
@@ -20,7 +20,7 @@ export interface IConfigurationResolverService {
 	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.
 	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
 	 */
-	resolveAny(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any;
+	resolveAny(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any>;
 
 	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.
@@ -36,6 +36,12 @@ export interface IConfigurationResolverService {
 	 * Keys in the map will be of the format input:variableName or command:variableName.
 	 */
 	resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined>;
+
+	/**
+	 * Contributes a variable that can be resolved later. Consumers that use resolveAny, resolveWithInteraction,
+	 * and resolveWithInteractionReplace will have contributed variables resolved.
+	 */
+	contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void;
 }
 
 export interface PromptStringInputInfo {

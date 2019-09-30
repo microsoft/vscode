@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as chokidar from 'vscode-chokidar';
+import * as chokidar from 'chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
@@ -37,16 +37,16 @@ export class ChokidarWatcherService implements IWatcherService {
 
 	private _pollingInterval?: number;
 	private _usePolling?: boolean;
-	private _verboseLogging: boolean;
+	private _verboseLogging: boolean | undefined;
 
-	private spamCheckStartTime: number;
-	private spamWarningLogged: boolean;
-	private enospcErrorLogged: boolean;
+	private spamCheckStartTime: number | undefined;
+	private spamWarningLogged: boolean | undefined;
+	private enospcErrorLogged: boolean | undefined;
 
-	private _onWatchEvent = new Emitter<IDiskFileChange[]>();
+	private readonly _onWatchEvent = new Emitter<IDiskFileChange[]>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	private _onLogMessage = new Emitter<ILogMessage>();
+	private readonly _onLogMessage = new Emitter<ILogMessage>();
 	readonly onLogMessage: Event<ILogMessage> = this._onLogMessage.event;
 
 	public watch(options: IWatcherOptions): Event<IDiskFileChange[]> {
@@ -231,7 +231,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			if (undeliveredFileEvents.length === 0) {
 				this.spamWarningLogged = false;
 				this.spamCheckStartTime = now;
-			} else if (!this.spamWarningLogged && this.spamCheckStartTime + ChokidarWatcherService.EVENT_SPAM_WARNING_THRESHOLD < now) {
+			} else if (!this.spamWarningLogged && typeof this.spamCheckStartTime === 'number' && this.spamCheckStartTime + ChokidarWatcherService.EVENT_SPAM_WARNING_THRESHOLD < now) {
 				this.spamWarningLogged = true;
 				this.warn(`Watcher is busy catching up with ${undeliveredFileEvents.length} file changes in 60 seconds. Latest changed path is "${event.path}"`);
 			}

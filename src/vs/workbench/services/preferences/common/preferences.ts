@@ -183,7 +183,7 @@ export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
 
 export interface IPreferencesService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI | null;

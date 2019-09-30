@@ -30,6 +30,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -86,14 +87,14 @@ export class VariablesView extends ViewletPanel {
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new VariablesDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
 			new VariablesDataSource(), {
-				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
-				accessibilityProvider: new VariablesAccessibilityProvider(),
-				identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e }
-			});
+			ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
+			accessibilityProvider: new VariablesAccessibilityProvider(),
+			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e }
+		});
 
 		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
 
@@ -179,7 +180,7 @@ export class VariablesView extends ViewletPanel {
 				const dataid = response.dataId;
 				if (dataid) {
 					actions.push(new Separator());
-					actions.push(new Action('debug.addDataBreakpoint', nls.localize('setDataBreakpoint', "Set Data Breakpoint"), undefined, true, () => {
+					actions.push(new Action('debug.breakWhenValueChanges', nls.localize('breakWhenValueChanges', "Break When Value Changes"), undefined, true, () => {
 						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist);
 					}));
 				}
@@ -188,7 +189,8 @@ export class VariablesView extends ViewletPanel {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
-				getActionsContext: () => variable
+				getActionsContext: () => variable,
+				onHide: () => dispose(actions)
 			});
 		}
 	}

@@ -61,7 +61,7 @@ class MarkerDecorations extends Disposable {
 
 export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
@@ -95,7 +95,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		return markerDecorations ? markerDecorations.getMarkers() : [];
 	}
 
-	private _handleMarkerChange(changedResources: URI[]): void {
+	private _handleMarkerChange(changedResources: readonly URI[]): void {
 		changedResources.forEach((resource) => {
 			const markerDecorations = this._markerDecorations.get(MODEL_ID(resource));
 			if (markerDecorations) {

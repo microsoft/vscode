@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { assign } from 'vs/base/common/objects';
-import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
-import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
-import * as paths from 'vs/base/common/path';
 import * as os from 'os';
 import * as fs from 'fs';
+import { spawn, ChildProcess, SpawnOptions } from 'child_process';
+import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile, OPTIONS } from 'vs/platform/environment/node/argv';
+import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import product from 'vs/platform/product/common/product';
+import * as paths from 'vs/base/common/path';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
-import * as iconv from 'iconv-lite';
 import { isWindows } from 'vs/base/common/platform';
 import { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { isString } from 'vs/base/common/types';
@@ -47,12 +44,12 @@ export async function main(argv: string[]): Promise<any> {
 	// Help
 	if (args.help) {
 		const executable = `${product.applicationName}${os.platform() === 'win32' ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, pkg.version));
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS));
 	}
 
 	// Version Info
 	else if (args.version) {
-		console.log(buildVersionMessage(pkg.version, product.commit));
+		console.log(buildVersionMessage(product.version, product.commit));
 	}
 
 	// Extensions Management
@@ -118,10 +115,15 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Just Code
 	else {
-		const env = assign({}, process.env, {
+		const env: NodeJS.ProcessEnv = {
+			...process.env,
 			'VSCODE_CLI': '1', // this will signal Code that it was spawned from this module
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
-		});
+		};
+
+		if (args['force-user-env']) {
+			env['VSCODE_FORCE_USER_ENV'] = '1';
+		}
 
 		delete env['ELECTRON_RUN_AS_NODE'];
 
@@ -176,7 +178,8 @@ export async function main(argv: string[]): Promise<any> {
 				if (!stdinFileError) {
 
 					// Pipe into tmp file using terminals encoding
-					resolveTerminalEncoding(verbose).then(encoding => {
+					resolveTerminalEncoding(verbose).then(async encoding => {
+						const iconv = await import('iconv-lite');
 						const converterStream = iconv.decodeStream(encoding);
 						process.stdin.pipe(converterStream).pipe(stdinFileStream);
 					});

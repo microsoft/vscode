@@ -38,7 +38,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	onDidChangeCapabilities: Event<void> = Event.None;
 
-	protected _capabilities: FileSystemProviderCapabilities;
+	protected _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
 			this._capabilities =
@@ -449,8 +449,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidErrorOccur: Event<string> = this._onDidWatchErrorOccur.event;
 
-	private _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
-	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
+	private _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
+	get onDidChangeFile(): Event<readonly IFileChange[]> { return this._onDidChangeFile.event; }
 
 	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | undefined;
 	private recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];

@@ -383,13 +383,13 @@ export const EXTENSION_BADGE_REMOTE_BACKGROUND = registerColor('extensionBadge.r
 	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
 	light: ACTIVITY_BAR_BADGE_BACKGROUND,
 	hc: ACTIVITY_BAR_BADGE_BACKGROUND
-}, nls.localize('extensionBadge.remoteBackground', "Background color for the remote badge in the extensions view"));
+}, nls.localize('extensionBadge.remoteBackground', "Background color for the remote badge in the extensions view."));
 
 export const EXTENSION_BADGE_REMOTE_FOREGROUND = registerColor('extensionBadge.remoteForeground', {
 	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
 	light: ACTIVITY_BAR_BADGE_FOREGROUND,
 	hc: ACTIVITY_BAR_BADGE_FOREGROUND
-}, nls.localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view"));
+}, nls.localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view."));
 
 
 // < --- Side Bar --- >
@@ -449,13 +449,13 @@ export const QUICK_INPUT_BACKGROUND = registerColor('quickInput.background', {
 	dark: SIDE_BAR_BACKGROUND,
 	light: SIDE_BAR_BACKGROUND,
 	hc: SIDE_BAR_BACKGROUND
-}, nls.localize('quickInputBackground', "Quick Input background color. The Quick Input widget is the container for views like the color theme picker"));
+}, nls.localize('quickInputBackground', "Quick Input background color. The Quick Input widget is the container for views like the color theme picker."));
 
 export const QUICK_INPUT_FOREGROUND = registerColor('quickInput.foreground', {
 	dark: SIDE_BAR_FOREGROUND,
 	light: SIDE_BAR_FOREGROUND,
 	hc: SIDE_BAR_FOREGROUND
-}, nls.localize('quickInputForeground', "Quick Input foreground color. The Quick Input widget is the container for views like the color theme picker"));
+}, nls.localize('quickInputForeground', "Quick Input foreground color. The Quick Input widget is the container for views like the color theme picker."));
 
 // < --- Title Bar --- >
 
@@ -558,6 +558,24 @@ export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
 	light: NOTIFICATIONS_CENTER_HEADER_BACKGROUND,
 	hc: NOTIFICATIONS_CENTER_HEADER_BACKGROUND
 }, nls.localize('notificationsBorder', "Notifications border color separating from other notifications in the notifications center. Notifications slide in from the bottom right of the window."));
+
+export const NOTIFICATIONS_ERROR_ICON_FOREGROUND = registerColor('notificationsErrorIcon.foreground', {
+	dark: '#F48771',
+	light: '#A1260D',
+	hc: '#F48771'
+}, nls.localize('notificationsErrorIconForeground', "The color used for the notification error icon."));
+
+export const NOTIFICATIONS_WARNING_ICON_FOREGROUND = registerColor('notificationsWarningIcon.foreground', {
+	dark: '#FFCC00',
+	light: '#DDB100',
+	hc: '#FFCC00'
+}, nls.localize('notificationsWarningIconForeground', "The color used for the notification warning icon."));
+
+export const NOTIFICATIONS_INFO_ICON_FOREGROUND = registerColor('notificationsInfoIcon.foreground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, nls.localize('notificationsInfoIconForeground', "The color used for the notification info icon."));
 
 /**
  * Base class for all themable workbench components.

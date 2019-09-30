@@ -103,7 +103,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	render(container: HTMLElement): void {
 		this.element = container;
-		Gesture.addTarget(container);
+		this._register(Gesture.addTarget(container));
 
 		const enableDragging = this.options && this.options.draggable;
 		if (enableDragging) {
@@ -311,14 +311,14 @@ export class ActionViewItem extends BaseActionViewItem {
 
 		if (this.options.icon) {
 			this.cssClass = this.getAction().class;
-			DOM.addClass(this.label, 'icon');
+			DOM.addClass(this.label, 'codicon');
 			if (this.cssClass) {
 				DOM.addClasses(this.label, this.cssClass);
 			}
 
 			this.updateEnabled();
 		} else {
-			DOM.removeClass(this.label, 'icon');
+			DOM.removeClass(this.label, 'codicon');
 		}
 	}
 

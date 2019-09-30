@@ -23,7 +23,7 @@ import { isDiffEditor, isCodeEditor, getCodeEditor } from 'vs/editor/browser/edi
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -39,7 +39,7 @@ export interface IEditorConfiguration {
 export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	private editorControl: IEditor;
 	private _editorContainer: HTMLElement;
-	private hasPendingConfigurationChange: boolean;
+	private hasPendingConfigurationChange: boolean | undefined;
 	private lastAppliedEditorOptions?: IEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
 
@@ -53,7 +53,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorService protected editorService: IEditorService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IWindowService private readonly windowService: IWindowService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(id, telemetryService, themeService, storageService);
 
@@ -151,7 +151,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		}
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onEditorFocusLost()));
-		this._register(this.windowService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
+		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
 	}
 
 	private onEditorFocusLost(): void {
@@ -191,7 +191,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, token);
 
 		// Update editor options after having set the input. We do this because there can be
@@ -200,7 +200,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		this._editorContainer.setAttribute('aria-label', this.computeAriaLabel());
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 
 		// Pass on to Editor
 		if (visible) {

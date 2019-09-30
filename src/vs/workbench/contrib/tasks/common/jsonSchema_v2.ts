@@ -74,7 +74,8 @@ const dependsOn: IJSONSchema = {
 				]
 			}
 		}
-	]
+	],
+	description: nls.localize('JsonSchema.tasks.dependsOn', 'Either a string representing another task or an array of other tasks that this task depends on.')
 };
 
 const dependsOrder: IJSONSchema = {
@@ -481,6 +482,7 @@ tasks.items = {
 definitionsTaskRunnerConfigurationProperties.inputs = inputsSchema.definitions!.inputs;
 
 definitions.commandConfiguration.properties!.isShellCommand = Objects.deepClone(shellCommand);
+definitions.commandConfiguration.properties!.args = Objects.deepClone(args);
 definitions.options.properties!.shell = {
 	$ref: '#/definitions/shellConfiguration'
 };

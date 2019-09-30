@@ -58,6 +58,7 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
+		this._register(this.treeView.onDidChangeTitle((newTitle) => this.updateTitle(newTitle)));
 		this._register(toDisposable(() => this.treeView.setVisibility(false)));
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this.updateTreeVisibility();
@@ -190,9 +191,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private readonly _onDidChangeActions: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeActions: Event<void> = this._onDidChangeActions.event;
 
+	private readonly _onDidChangeTitle: Emitter<string> = this._register(new Emitter<string>());
+	readonly onDidChangeTitle: Event<string> = this._onDidChangeTitle.event;
+
 	constructor(
 		private id: string,
-		private title: string,
+		private _title: string,
 		private viewContainer: ViewContainer,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
@@ -201,7 +205,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 		this.root = new Root();
@@ -261,6 +266,15 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.updateMessage();
 	}
 
+	get title(): string {
+		return this._title;
+	}
+
+	set title(name: string) {
+		this._title = name;
+		this._onDidChangeTitle.fire(this._title);
+	}
+
 	get canSelectMany(): boolean {
 		return this._canSelectMany;
 	}
@@ -294,7 +308,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	getPrimaryActions(): IAction[] {
 		if (this.showCollapseAllAction) {
-			const collapseAllAction = new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, () => this.tree ? new CollapseAllAction<ITreeItem, ITreeItem, FuzzyScore>(this.tree, true).run() : Promise.resolve());
+			const collapseAllAction = new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action codicon-collapse-all', true, () => this.tree ? new CollapseAllAction<ITreeItem, ITreeItem, FuzzyScore>(this.tree, true).run() : Promise.resolve());
 			return [...this.menus.getTitleActions(), collapseAllAction];
 		} else {
 			return this.menus.getTitleActions();
@@ -370,28 +384,28 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		const aligner = new Aligner(this.themeService);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner);
 
-		this.tree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new CustomTreeDelegate(), [renderer],
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CustomView', this.treeContainer, new CustomTreeDelegate(), [renderer],
 			dataSource, {
-				identityProvider: new CustomViewIdentityProvider(),
-				accessibilityProvider: {
-					getAriaLabel(element: ITreeItem): string {
-						return element.label ? element.label.label : '';
-					}
-				},
-				ariaLabel: this.title,
-				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (item: ITreeItem) => {
-						return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
-					}
-				},
-				expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
-				collapseByDefault: (e: ITreeItem): boolean => {
-					return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
-				},
-				multipleSelectionSupport: this.canSelectMany,
-			}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+			identityProvider: new CustomViewIdentityProvider(),
+			accessibilityProvider: {
+				getAriaLabel(element: ITreeItem): string {
+					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
+				}
+			},
+			ariaLabel: this._title,
+			keyboardNavigationLabelProvider: {
+				getKeyboardNavigationLabel: (item: ITreeItem) => {
+					return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
+				}
+			},
+			expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
+			collapseByDefault: (e: ITreeItem): boolean => {
+				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
+			},
+			multipleSelectionSupport: this.canSelectMany,
+		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		aligner.tree = this.tree;
-		const actionRunner = new MultipleSelectionActionRunner(() => this.tree!.getSelection());
+		const actionRunner = new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection());
 		renderer.actionRunner = actionRunner;
 
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
@@ -594,18 +608,10 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private refreshing: boolean = false;
 	private async doRefresh(elements: ITreeItem[]): Promise<void> {
 		const tree = this.tree;
-		if (tree) {
+		if (tree && this.visible) {
 			this.refreshing = true;
-			const parents: Set<ITreeItem> = new Set<ITreeItem>();
-			elements.forEach(element => {
-				if (element !== this.root) {
-					const parent = tree.getParentElement(element);
-					parents.add(parent);
-				} else {
-					parents.add(element);
-				}
-			});
-			await Promise.all(Array.from(parents.values()).map(element => tree.updateChildren(element, true)));
+			await Promise.all(elements.map(element => tree.updateChildren(element, true)));
+			elements.map(element => tree.rerender(element));
 			this.refreshing = false;
 			this.updateContentAreas();
 			if (this.focused) {
@@ -762,6 +768,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 
 		templateData.icon.style.backgroundImage = iconUrl ? DOM.asCSSUrl(iconUrl) : '';
+		templateData.icon.title = title ? title : '';
 		DOM.toggleClass(templateData.icon, 'custom-view-tree-node-item-icon', !!iconUrl);
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
@@ -848,20 +855,30 @@ class Aligner extends Disposable {
 
 class MultipleSelectionActionRunner extends ActionRunner {
 
-	constructor(private getSelectedResources: (() => ITreeItem[])) {
+	constructor(notificationService: INotificationService, private getSelectedResources: (() => ITreeItem[])) {
 		super();
+		this._register(this.onDidRun(e => {
+			if (e.error) {
+				notificationService.error(localize('command-error', 'Error running command {1}: {0}. This is likely caused by the extension that contributes {1}.', e.error.message, e.action.id));
+			}
+		}));
 	}
 
 	runAction(action: IAction, context: TreeViewItemHandleArg): Promise<any> {
 		const selection = this.getSelectedResources();
 		let selectionHandleArgs: TreeViewItemHandleArg[] | undefined = undefined;
+		let actionInSelected: boolean = false;
 		if (selection.length > 1) {
-			selectionHandleArgs = [];
-			selection.forEach(selected => {
-				if (selected.handle !== context.$treeItemHandle) {
-					selectionHandleArgs!.push({ $treeViewId: context.$treeViewId, $treeItemHandle: selected.handle });
+			selectionHandleArgs = selection.map(selected => {
+				if (selected.handle === context.$treeItemHandle) {
+					actionInSelected = true;
 				}
+				return { $treeViewId: context.$treeViewId, $treeItemHandle: selected.handle };
 			});
+		}
+
+		if (!actionInSelected) {
+			selectionHandleArgs = undefined;
 		}
 
 		return action.run(...[context, selectionHandleArgs]);
@@ -904,4 +921,3 @@ class TreeMenus extends Disposable implements IDisposable {
 		return result;
 	}
 }
-

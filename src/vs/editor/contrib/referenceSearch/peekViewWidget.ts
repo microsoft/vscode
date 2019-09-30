@@ -21,16 +21,17 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
 export interface IPeekViewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void;
 }
 
 registerSingleton(IPeekViewService, class implements IPeekViewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable }>();
 
@@ -56,8 +57,8 @@ export namespace PeekContext {
 	export const notInPeekEditor: ContextKeyExpr = inPeekEditor.toNegated();
 }
 
-export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
-	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | undefined {
+	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor instanceof EmbeddedCodeEditorWidget) {
 		return editor.getParentEditor();
 	}
@@ -80,9 +81,9 @@ const defaultOptions: IPeekViewOptions = {
 
 export abstract class PeekViewWidget extends ZoneWidget {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
-	private _onDidClose = new Emitter<PeekViewWidget>();
+	private readonly _onDidClose = new Emitter<PeekViewWidget>();
 
 	protected _headElement?: HTMLDivElement;
 	protected _primaryHeading?: HTMLElement;
@@ -167,7 +168,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
 		this._disposables.add(this._actionbarWidget);
 
-		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
+		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'codicon-close', true, () => {
 			this.dispose();
 			return Promise.resolve();
 		}), { label: false, icon: true });
@@ -216,8 +217,8 @@ export abstract class PeekViewWidget extends ZoneWidget {
 			return;
 		}
 
-		const headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
-		const bodyHeight = heightInPixel - (headHeight + 2 /* the border-top/bottom width*/);
+		const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
+		const bodyHeight = Math.round(heightInPixel - (headHeight + 2 /* the border-top/bottom width*/));
 
 		this._doLayoutHead(headHeight, widthInPixel);
 		this._doLayoutBody(bodyHeight, widthInPixel);

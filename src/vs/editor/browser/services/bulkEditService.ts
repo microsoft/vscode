@@ -21,7 +21,7 @@ export interface IBulkEditResult {
 }
 
 export interface IBulkEditService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	apply(edit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult>;
 }

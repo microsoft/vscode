@@ -11,7 +11,15 @@ import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import { ncp } from 'ncp';
-import { Application, Quality, ApplicationOptions } from './application';
+import {
+	Application,
+	Quality,
+	ApplicationOptions,
+	MultiLogger,
+	Logger,
+	ConsoleLogger,
+	FileLogger,
+} from '../../automation';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
@@ -28,7 +36,6 @@ import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
-import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
 
 if (!/^v10/.test(process.version)) {
 	console.error('Error: Smoketest must be run using Node 10. Currently running', process.version);

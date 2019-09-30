@@ -6,7 +6,7 @@
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -35,8 +35,14 @@ import { isObject } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import * as platform from 'vs/base/common/platform';
 
-const _sticky = false; // for development purposes only
+/**
+ * Stop suggest widget from disappearing when clicking into other areas
+ * For development purpose only
+ */
+const _sticky = false;
 
 class LineSuffix {
 
@@ -58,15 +64,19 @@ class LineSuffix {
 	}
 
 	dispose(): void {
-		if (this._marker) {
+		if (this._marker && !this._model.isDisposed()) {
 			this._model.deltaDecorations(this._marker, []);
 		}
 	}
 
 	delta(position: IPosition): number {
-		if (this._position.lineNumber !== position.lineNumber) {
+		if (this._model.isDisposed() || this._position.lineNumber !== position.lineNumber) {
+			// bail out early if things seems fishy
 			return 0;
-		} else if (this._marker) {
+		}
+		// read the marker (in case suggest was triggered at line end) or compare
+		// the cursor to the line end.
+		if (this._marker) {
 			const range = this._model.getDecorationRange(this._marker[0]);
 			const end = this._model.getOffsetAt(range!.getStartPosition());
 			return end - this._model.getOffsetAt(position);
@@ -125,7 +135,7 @@ export class SuggestController implements IEditorContribution {
 				const endColumn = position.column;
 				let value = true;
 				if (
-					this._editor.getConfiguration().contribInfo.acceptSuggestionOnEnter === 'smart'
+					this._editor.getOption(EditorOption.acceptSuggestionOnEnter) === 'smart'
 					&& this._model.state === State.Auto
 					&& !item.completion.command
 					&& !item.completion.additionalTextEdits
@@ -175,10 +185,25 @@ export class SuggestController implements IEditorContribution {
 			}
 		}));
 
+		this._toDispose.add(this._widget.getValue().onDetailsKeyDown(e => {
+			// cmd + c on macOS, ctrl + c on Win / Linux
+			if (
+				e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
+				(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
+			) {
+				e.stopPropagation();
+				return;
+			}
+
+			if (!e.toKeybinding().isModifierKey()) {
+				this._editor.focus();
+			}
+		}));
+
 		// Manage the acceptSuggestionsOnEnter context key
 		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
 		let updateFromConfig = () => {
-			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
+			const acceptSuggestionOnEnter = this._editor.getOption(EditorOption.acceptSuggestionOnEnter);
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
 		this._toDispose.add(this._editor.onDidChangeConfiguration(() => updateFromConfig()));

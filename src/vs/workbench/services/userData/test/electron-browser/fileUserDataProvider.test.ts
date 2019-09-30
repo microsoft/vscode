@@ -277,7 +277,7 @@ suite('FileUserDataProvider', () => {
 
 class TestFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
 
-	constructor(readonly onDidChangeFile: Event<IFileChange[]>) { }
+	constructor(readonly onDidChangeFile: Event<readonly IFileChange[]>) { }
 
 	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.FileReadWrite;
 
@@ -309,7 +309,7 @@ suite('FileUserDataProvider - Watching', () => {
 	let userDataResource: URI;
 	const disposables = new DisposableStore();
 
-	const fileEventEmitter: Emitter<IFileChange[]> = new Emitter<IFileChange[]>();
+	const fileEventEmitter: Emitter<readonly IFileChange[]> = new Emitter<readonly IFileChange[]>();
 	disposables.add(fileEventEmitter);
 
 	setup(() => {

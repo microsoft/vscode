@@ -21,7 +21,7 @@ import { localize } from 'vs/nls';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { timeout } from 'vs/base/common/async';
 
 interface INotificationToast {
@@ -54,7 +54,7 @@ export class NotificationsToasts extends Themable {
 
 	private notificationsToastsContainer: HTMLElement;
 	private workbenchDimensions: Dimension;
-	private isNotificationsCenterVisible: boolean;
+	private isNotificationsCenterVisible: boolean | undefined;
 	private mapNotificationToToast: Map<INotificationViewItem, INotificationToast>;
 	private notificationsToastsVisibleContextKey: IContextKey<boolean>;
 
@@ -67,7 +67,7 @@ export class NotificationsToasts extends Themable {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IWindowService private readonly windowService: IWindowService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
 
@@ -236,14 +236,13 @@ export class NotificationsToasts extends Themable {
 
 			purgeTimeoutHandle = setTimeout(() => {
 
-				// If the notification is sticky or prompting and the window does not have
-				// focus, we wait for the window to gain focus again before triggering
-				// the timeout again. This prevents an issue where focussing the window
-				// could immediately hide the notification because the timeout was triggered
-				// again.
-				if ((item.sticky || item.hasPrompt()) && !this.windowService.hasFocus) {
+				// If the window does not have focus, we wait for the window to gain focus
+				// again before triggering the timeout again. This prevents an issue where
+				// focussing the window could immediately hide the notification because the
+				// timeout was triggered again.
+				if (!this.hostService.hasFocus) {
 					if (!listener) {
-						listener = this.windowService.onDidChangeFocus(focus => {
+						listener = this.hostService.onDidChangeFocus(focus => {
 							if (focus) {
 								hideAfterTimeout();
 							}

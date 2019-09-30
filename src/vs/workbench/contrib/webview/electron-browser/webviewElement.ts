@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OnBeforeRequestDetails, OnHeadersReceivedDetails, Response } from 'electron';
+import { FindInPageOptions, OnBeforeRequestDetails, OnHeadersReceivedDetails, Response, WebContents, WebviewTag } from 'electron';
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
@@ -19,12 +19,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/browser/webview';
+import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
+import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
-import { WebviewFindWidget } from '../browser/webviewFindWidget';
+import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
 
 interface IKeydownEvent {
 	key: string;
@@ -46,7 +47,7 @@ class WebviewSession extends Disposable {
 	private readonly _onHeadersReceivedDelegates: Array<OnHeadersReceivedDelegate> = [];
 
 	public constructor(
-		webview: Electron.WebviewTag,
+		webview: WebviewTag,
 	) {
 		super();
 
@@ -91,8 +92,8 @@ class WebviewSession extends Disposable {
 
 class WebviewProtocolProvider extends Disposable {
 	constructor(
-		webview: Electron.WebviewTag,
-		private readonly _extensionLocation: URI | undefined,
+		webview: WebviewTag,
+		private readonly _getExtensionLocation: () => URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
 		private readonly _fileService: IFileService,
 	) {
@@ -106,12 +107,12 @@ class WebviewProtocolProvider extends Disposable {
 		})));
 	}
 
-	private registerProtocols(contents: Electron.WebContents) {
+	private registerProtocols(contents: WebContents) {
 		if (contents.isDestroyed()) {
 			return;
 		}
 
-		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._extensionLocation, () =>
+		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._getExtensionLocation(), () =>
 			this._getLocalResourceRoots()
 		);
 	}
@@ -123,12 +124,12 @@ class WebviewPortMappingProvider extends Disposable {
 
 	constructor(
 		session: WebviewSession,
-		extensionLocation: URI | undefined,
+		getExtensionLocation: () => URI | undefined,
 		mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
 		tunnelService: ITunnelService,
 	) {
 		super();
-		this._manager = this._register(new WebviewPortMappingManager(extensionLocation, mappings, tunnelService));
+		this._manager = this._register(new WebviewPortMappingManager(getExtensionLocation, mappings, tunnelService));
 
 		session.onBeforeRequest(async details => {
 			const redirect = await this._manager.getRedirect(details.url);
@@ -142,7 +143,7 @@ class WebviewKeyboardHandler extends Disposable {
 	private _ignoreMenuShortcut = false;
 
 	constructor(
-		private readonly _webview: Electron.WebviewTag
+		private readonly _webview: WebviewTag
 	) {
 		super();
 
@@ -194,7 +195,7 @@ class WebviewKeyboardHandler extends Disposable {
 		}
 	}
 
-	private getWebContents(): Electron.WebContents | undefined {
+	private getWebContents(): WebContents | undefined {
 		const contents = this._webview.getWebContents();
 		if (contents && !contents.isDestroyed()) {
 			return contents;
@@ -220,8 +221,8 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
-export class ElectronWebviewBasedWebview extends Disposable implements Webview {
-	private _webview: Electron.WebviewTag | undefined;
+export class ElectronWebviewBasedWebview extends Disposable implements Webview, WebviewFindDelegate {
+	private _webview: WebviewTag | undefined;
 	private _ready: Promise<void>;
 
 	private _webviewFindWidget: WebviewFindWidget | undefined;
@@ -233,8 +234,13 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
+	public extension: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	} | undefined;
+
 	constructor(
-		private readonly _options: WebviewOptions,
+		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -254,6 +260,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', `webview${Date.now()}`);
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
+		this._webview.className = `webview ${options.customClasses}`;
 
 		this._webview.style.flex = '0 1';
 		this._webview.style.width = '0';
@@ -279,13 +286,13 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 
 		this._register(new WebviewProtocolProvider(
 			this._webview,
-			this._options.extension ? this._options.extension.location : undefined,
+			() => this.extension ? this.extension.location : undefined,
 			() => (this.content.options.localResourceRoots || []),
 			fileService));
 
 		this._register(new WebviewPortMappingProvider(
 			session,
-			_options.extension ? _options.extension.location : undefined,
+			() => this.extension ? this.extension.location : undefined,
 			() => (this.content.options.portMapping || []),
 			tunnelService,
 		));
@@ -377,12 +384,17 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 					return;
 			}
 		}));
+
 		this._register(addDisposableListener(this._webview, 'devtools-opened', () => {
 			this._send('devtools-opened');
 		}));
 
-		if (_options.enableFindWidget) {
+		if (options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+
+			this._register(addDisposableListener(this._webview, 'found-in-page', e => {
+				this._hasFindResult.fire(e.result.matches > 0);
+			}));
 		}
 
 		this.style(themeService.getTheme());
@@ -524,9 +536,9 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		}
 		this._hasAlertedAboutMissingCsp = true;
 
-		if (this._options.extension && this._options.extension.id) {
+		if (this.extension && this.extension.id) {
 			if (this._environementService.isExtensionDevelopment) {
-				this._onMissingCsp.fire(this._options.extension.id);
+				this._onMissingCsp.fire(this.extension.id);
 			}
 
 			type TelemetryClassification = {
@@ -537,7 +549,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 			};
 
 			this._telemetryService.publicLog2<TelemetryData, TelemetryClassification>('webviewMissingCsp', {
-				extension: this._options.extension.id.value
+				extension: this.extension.id.value
 			});
 		}
 	}
@@ -576,7 +588,10 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		});
 	}
 
-	public startFind(value: string, options?: Electron.FindInPageOptions) {
+	private readonly _hasFindResult = this._register(new Emitter<boolean>());
+	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
+
+	public startFind(value: string, options?: FindInPageOptions) {
 		if (!value || !this._webview) {
 			return;
 		}
@@ -585,7 +600,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		options = options || {};
 
 		// FindNext must be false for a first request
-		const findOptions: Electron.FindInPageOptions = {
+		const findOptions: FindInPageOptions = {
 			forward: options.forward,
 			findNext: false,
 			matchCase: options.matchCase,
@@ -623,6 +638,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 	}
 
 	public stopFind(keepSelection?: boolean): void {
+		this._hasFindResult.fire(false);
 		if (!this._webview) {
 			return;
 		}

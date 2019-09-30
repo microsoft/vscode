@@ -16,62 +16,80 @@
 
 declare module 'vscode' {
 
-	//#region Joh - ExecutionContext
-	// THIS is a deprecated proposal
-	export enum ExtensionExecutionContext {
-		Local = 1,
-		Remote = 2
-	}
-	export interface ExtensionContext {
-		executionContext: ExtensionExecutionContext;
-	}
-	//#endregion
-
 	//#region Joh - call hierarchy
 
-	export enum CallHierarchyDirection {
-		CallsFrom = 1,
-		CallsTo = 2,
-	}
-
 	export class CallHierarchyItem {
-		kind: SymbolKind;
+		/**
+		 * The name of this item.
+		 */
 		name: string;
+
+		/**
+		 * The kind of this item.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * Tags for this item.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
+
+		/**
+		 * More detail for this item, e.g. the signature of a function.
+		 */
 		detail?: string;
+
+		/**
+		 * The resource identifier of this item.
+		 */
 		uri: Uri;
+
+		/**
+		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
+		 */
 		range: Range;
+
+		/**
+		 * The range that should be selected and reveal when this symbol is being picked, e.g. the name of a function.
+		 * Must be contained by the [`range`](#CallHierarchyItem.range).
+		 */
 		selectionRange: Range;
 
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
+	export class CallHierarchyIncomingCall {
+		source: CallHierarchyItem;
+		sourceRanges: Range[];
+		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
+	}
+
+	export class CallHierarchyOutgoingCall {
+		sourceRanges: Range[];
+		target: CallHierarchyItem;
+		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
+	}
+
 	export interface CallHierarchyItemProvider {
 
 		/**
-		 * Given a document and position compute a call hierarchy item. This is justed as
-		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		 * Provide a list of callers for the provided item, e.g. all function calling a function.
 		 */
-		provideCallHierarchyItem(
-			document: TextDocument,
-			position: Position,
-			token: CancellationToken
-		): ProviderResult<CallHierarchyItem>;
+		provideCallHierarchyIncomingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
 
 		/**
-		 * Resolve a call hierarchy item, e.g. compute all calls from or to a function.
-		 * The result is an array of item/location-tuples. The location in the returned tuples
-		 * is always relative to the "caller" with the caller either being the provided item or
-		 * the returned item.
-		 *
-		 * @param item A call hierarchy item previously returned from `provideCallHierarchyItem` or `resolveCallHierarchyItem`
-		 * @param direction Resolve calls from a function or calls to a function
-		 * @param token A cancellation token
+		 * Provide a list of calls for the provided item, e.g. all functions call from a function.
 		 */
-		resolveCallHierarchyItem(
-			item: CallHierarchyItem,
-			direction: CallHierarchyDirection,
-			token: CancellationToken
-		): ProviderResult<[CallHierarchyItem, Location[]][]>;
+		provideCallHierarchyOutgoingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
+
+		//  todo@joh this could return as 'prepareCallHierarchy' (similar to the RenameProvider#prepareRename)
+		//
+		// /**
+		//  *
+		//  * Given a document and position compute a call hierarchy item. This is justed as
+		//  * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		//  */
+		// resolveCallHierarchyItem(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
 	}
 
 	export namespace languages {
@@ -567,25 +585,17 @@ declare module 'vscode' {
 
 	//#region Joh: decorations
 
-	//todo@joh -> make class
-	export interface DecorationData {
+	export class Decoration {
 		letter?: string;
 		title?: string;
 		color?: ThemeColor;
 		priority?: number;
 		bubble?: boolean;
-		source?: string; // hacky... we should remove it and use equality under the hood
-	}
-
-	export interface SourceControlResourceDecorations {
-		source?: string;
-		letter?: string;
-		color?: ThemeColor;
 	}
 
 	export interface DecorationProvider {
 		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
-		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
+		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<Decoration>;
 	}
 
 	export namespace window {
@@ -604,6 +614,56 @@ declare module 'vscode' {
 		 * @deprecated Use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
+	}
+
+	/**
+	 * Debug console mode used by debug session, see [options](#DebugSessionOptions).
+	 */
+	export enum DebugConsoleMode {
+		/**
+		 * Debug session should have a separate debug console.
+		 */
+		Separate = 0,
+
+		/**
+		 * Debug session should share debug console with its parent session.
+		 * This value has no effect for sessions which do not have a parent session.
+		 */
+		MergeWithParent = 1
+	}
+
+	/**
+	 * Options for [starting a debug session](#debug.startDebugging).
+	 */
+	export interface DebugSessionOptions {
+
+		/**
+		 * When specified the newly created debug session is registered as a "child" session of this
+		 * "parent" debug session.
+		 */
+		parentSession?: DebugSession;
+
+		/**
+		 * Controls whether this session should have a separate debug console or share it
+		 * with the parent session. Has no effect for sessions which do not have a parent session.
+		 * Defaults to Separate.
+		 */
+		consoleMode?: DebugConsoleMode;
+	}
+
+	export namespace debug {
+		/**
+		 * Start debugging by using either a named launch or named compound configuration,
+		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
+		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
+		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
+		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
+		 * @param parentSessionOrOptions Debug sesison options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
+		 * @return A thenable that resolves when debugging could be successfully started.
+		 */
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
 	}
 
 	//#endregion
@@ -768,193 +828,6 @@ declare module 'vscode' {
 		 * created.
 		 */
 		readonly dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
-		 * provides access to the raw data stream from the process running within the terminal,
-		 * including VT sequences.
-		 *
-		 * @deprecated Use [window.onDidWriteTerminalData](#onDidWriteTerminalData).
-		 */
-		readonly onDidWriteData: Event<string>;
-	}
-
-	/**
-	 * Represents the dimensions of a terminal.
-	 */
-	export interface TerminalDimensions {
-		/**
-		 * The number of columns in the terminal.
-		 */
-		readonly columns: number;
-
-		/**
-		 * The number of rows in the terminal.
-		 */
-		readonly rows: number;
-	}
-
-	//#endregion
-
-	//#region Extension terminals
-
-	export namespace window {
-		/**
-		 * Creates a [Terminal](#Terminal) where an extension controls the terminal.
-		 *
-		 * @param options An [ExtensionTerminalOptions](#ExtensionTerminalOptions) object describing
-		 * the characteristics of the new terminal.
-		 * @return A new Terminal.
-		 */
-		export function createTerminal(options: ExtensionTerminalOptions): Terminal;
-	}
-
-	/**
-	 * Value-object describing what options a virtual process terminal should use.
-	 */
-	export interface ExtensionTerminalOptions {
-		/**
-		 * A human-readable string which will be used to represent the terminal in the UI.
-		 */
-		name: string;
-
-		/**
-		 * An implementation of [Pseudoterminal](#Pseudoterminal) that allows an extension to
-		 * control a terminal.
-		 */
-		pty: Pseudoterminal;
-	}
-
-	/**
-	 * Defines the interface of a terminal pty, enabling extensions to control a terminal.
-	 */
-	interface Pseudoterminal {
-		/**
-		 * An event that when fired will write data to the terminal. Unlike
-		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_
-		 * (the pty "slave"), this will write the text to the terminal itself (the pty "master").
-		 *
-		 * **Example:** Write red text to the terminal
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const pty: vscode.Pseudoterminal = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   open: () => writeEmitter.fire('\x1b[31mHello world\x1b[0m'),
-		 *   close: () => {}
-		 * };
-		 * vscode.window.createTerminal({ name: 'My terminal', pty });
-		 * ```
-		 *
-		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
-		 * ```typescript
-		 * writeEmitter.fire('\x1b[10;20H*');
-		 * ```
-		 */
-		onDidWrite: Event<string>;
-
-		/**
-		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
-		 * terminal. Note that when set, the overridden dimensions will only take effect when they
-		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
-		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions (fit to
-		 * the size of the panel).
-		 *
-		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
-		 * ```typescript
-		 * const dimensionsEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
-		 * const pty: vscode.Pseudoterminal = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   onDidOverrideDimensions: dimensionsEmitter.event,
-		 *   open: () => {
-		 *     dimensionsEmitter.fire({
-		 *       columns: 20,
-		 *       rows: 10
-		 *     });
-		 *   },
-		 *   close: () => {}
-		 * };
-		 * vscode.window.createTerminal({ name: 'My terminal', pty });
-		 * ```
-		 */
-		onDidOverrideDimensions?: Event<TerminalDimensions | undefined>;
-
-		/**
-		 * An event that when fired will signal that the pty is closed and dispose of the terminal.
-		 *
-		 * A number can be used to provide an exit code for the terminal. Exit codes must be
-		 * positive and a non-zero exit codes signals failure which shows a notification for a
-		 * regular terminal and allows dependent tasks to proceed when used with the
-		 * `CustomExecution2` API.
-		 *
-		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const closeEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
-		 * const pty: vscode.Pseudoterminal = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   onDidClose: closeEmitter.event,
-		 *   open: () => writeEmitter.fire('Press y to exit successfully'),
-		 *   close: () => {}
-		 *   handleInput: data => {
-		 *     if (data !== 'y') {
-		 *       vscode.window.showInformationMessage('Something went wrong');
-		 *     }
-		 *     closeEmitter.fire();
-		 *   }
-		 * };
-		 * vscode.window.createTerminal({ name: 'Exit example', pty });
-		 */
-		onDidClose?: Event<void | number>;
-
-		/**
-		 * Implement to handle when the pty is open and ready to start firing events.
-		 *
-		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
-		 * terminal panel has not been opened before this is called.
-		 */
-		open(initialDimensions: TerminalDimensions | undefined): void;
-
-		/**
-		 * Implement to handle when the terminal is closed by an act of the user.
-		 */
-		close(): void;
-
-		/**
-		 * Implement to handle incoming keystrokes in the terminal or when an extension calls
-		 * [Terminal.sendText](#Terminal.sendText). `data` contains the keystrokes/text serialized into
-		 * their corresponding VT sequence representation.
-		 *
-		 * @param data The incoming data.
-		 *
-		 * **Example:** Echo input in the terminal. The sequence for enter (`\r`) is translated to
-		 * CRLF to go to a new line and move the cursor to the start of the line.
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const pty: vscode.Pseudoterminal = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   open: () => {},
-		 *   close: () => {},
-		 *   handleInput: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
-		 * };
-		 * vscode.window.createTerminal({ name: 'Local echo', pty });
-		 * ```
-		 */
-		handleInput?(data: string): void;
-
-		/**
-		 * Implement to handle when the number of rows and columns that fit into the terminal panel
-		 * changes, for example when font size changes or when the panel is resized. The initial
-		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
-		 * as the size of a terminal isn't know until it shows up in the user interface.
-		 *
-		 * When dimensions are overridden by
-		 * [onDidOverrideDimensions](#Pseudoterminal.onDidOverrideDimensions), `setDimensions` will
-		 * continue to be called with the regular panel dimensions, allowing the extension continue
-		 * to react dimension changes.
-		 *
-		 * @param dimensions The new dimensions.
-		 */
-		setDimensions?(dimensions: TerminalDimensions): void;
 	}
 
 	//#endregion
@@ -997,12 +870,10 @@ declare module 'vscode' {
 	//#region Tree View
 
 	export interface TreeView<T> {
-
 		/**
-		 * An optional human-readable message that will be rendered in the view.
+		 * The name of the tree view. It is set from the extension package.json and can be changed later.
 		 */
-		message?: string;
-
+		title?: string;
 	}
 
 	/**
@@ -1043,17 +914,15 @@ declare module 'vscode' {
 	 */
 	export class CustomExecution2 {
 		/**
+		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
+		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
 		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
 		 * @param callback The callback that will be called when the task is started by a user.
 		 */
-		constructor(callback: (thisArg?: any) => Thenable<Pseudoterminal>);
-
-		/**
-		 * The callback used to execute the task. Cancellation should be handled using
-		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
-		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
-		 */
-		callback: (thisArg?: any) => Thenable<Pseudoterminal>;
+		constructor(callback: () => Thenable<Pseudoterminal>);
 	}
 
 	/**
@@ -1138,40 +1007,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh - CompletionItemTag, https://github.com/microsoft/vscode/issues/23927
-
-	export enum SymbolTag {
-		Deprecated = 1
-	}
-
-	export interface SymbolInformation {
-		/**
-		 *
-		 */
-		tags?: ReadonlyArray<SymbolTag>;
-	}
-
-	export interface DocumentSymbol {
-		/**
-		 *
-		 */
-		tags?: ReadonlyArray<SymbolTag>;
-	}
-
-	export enum CompletionItemTag {
-		Deprecated = 1
-	}
-
-	export interface CompletionItem {
-
-		/**
-		 *
-		 */
-		tags?: ReadonlyArray<CompletionItemTag>;
-	}
-
-	//#endregion
-
 	// #region Ben - extension auth flow (desktop+web)
 
 	export interface AppUriOptions {
@@ -1214,6 +1049,126 @@ declare module 'vscode' {
 		 * ```
 		 */
 		export function createAppUri(options?: AppUriOptions): Thenable<Uri>;
+	}
+
+	//#endregion
+
+	// #region Ben - UIKind
+
+	/**
+	 * Possible kinds of UI that can use extensions.
+	 */
+	export enum UIKind {
+
+		/**
+		 * Extensions are accessed from a desktop application.
+		 */
+		Desktop = 1,
+
+		/**
+		 * Extensions are accessed from a web browser.
+		 */
+		Web = 2
+	}
+
+	export namespace env {
+
+		/**
+		 * The UI kind property indicates from which UI extensions
+		 * are accessed from. For example, extensions could be accessed
+		 * from a desktop application or a web browser.
+		 */
+		export const uiKind: UIKind;
+	}
+
+	//#endregion
+
+	//#region Custom editors, mjbvz
+
+	export enum WebviewContentState {
+		/**
+		 * The webview content cannot be modified.
+		 *
+		 * This disables save.
+		 */
+		Readonly = 1,
+
+		/**
+		 * The webview content has not been changed but they can be modified and saved.
+		 */
+		Unchanged = 2,
+
+		/**
+		 * The webview content has been changed and can be saved.
+		 */
+		Dirty = 3,
+	}
+
+	export interface WebviewEditorState {
+		readonly contentState: WebviewContentState;
+	}
+
+	export interface WebviewPanel {
+		editorState: WebviewEditorState;
+
+		/**
+		 * Fired when the webview is being saved.
+		 *
+		 * Both `Unchanged` and `Dirty` editors can be saved.
+		 *
+		 * Extensions should call `waitUntil` to signal when the save operation complete
+		 */
+		readonly onWillSave: Event<{ waitUntil: (thenable: Thenable<boolean>) => void }>;
+	}
+
+	export interface WebviewEditor extends WebviewPanel {
+		// TODO: We likely do not want `editorState` and `onWillSave` enabled for
+		// resource backed webviews
+	}
+
+	export interface WebviewEditorProvider {
+		/**
+		* Fills out a `WebviewEditor` for a given resource.
+		*
+		* The provider should take ownership of passed in `editor`.
+		*/
+		resolveWebviewEditor(
+			resource: Uri,
+			editor: WebviewEditor
+		): Thenable<void>;
+	}
+
+	namespace window {
+		export function registerWebviewEditorProvider(
+			viewType: string,
+			provider: WebviewEditorProvider,
+		): Disposable;
+	}
+
+	//#endregion
+
+	// #region resolveExternalUri — mjbvz
+
+	namespace env {
+		/**
+		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
+		 * uri to the same resource on the client machine.
+		 *
+		 * This is a no-op if the extension is running locally. Currently only supports `https:` and `http:`.
+		 *
+		 * If the extension is running remotely, this function automatically establishes port forwarding from
+		 * the local machine to `target` on the remote and returns a local uri that can be used to for this connection.
+		 *
+		 * Extensions should not store the result of `resolveExternalUri` as the resolved uri may become invalid due to
+		 * a system or user action — for example, in remote cases, a user may close a port that was forwarded by
+		 * `resolveExternalUri`.
+		 *
+		 * Note: uris passed through `openExternal` are automatically resolved and you should not call `resolveExternalUri`
+		 * on them.
+		 *
+		 * @return A uri that can be used on the client machine.
+		 */
+		export function resolveExternalUri(target: Uri): Thenable<Uri>;
 	}
 
 	//#endregion

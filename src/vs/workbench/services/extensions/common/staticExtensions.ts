@@ -5,20 +5,19 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const IStaticExtensionsService = createDecorator<IStaticExtensionsService>('IStaticExtensionsService');
 
 export interface IStaticExtensionsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	getExtensions(): Promise<IExtensionDescription[]>;
 }
 
 export class StaticExtensionsService implements IStaticExtensionsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _descriptions: IExtensionDescription[] = [];
 
@@ -27,7 +26,7 @@ export class StaticExtensionsService implements IStaticExtensionsService {
 
 		this._descriptions = staticExtensions.map(data => <IExtensionDescription>{
 			identifier: new ExtensionIdentifier(`${data.packageJSON.publisher}.${data.packageJSON.name}`),
-			extensionLocation: URI.revive(data.extensionLocation),
+			extensionLocation: data.extensionLocation,
 			...data.packageJSON,
 		});
 	}

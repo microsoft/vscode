@@ -78,7 +78,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			});
 			instantiationService.stub(IMarkerService, new MarkerService());
 			instantiationService.stub(IModelService, <IModelService>{
-				_serviceBrand: IModelService,
+				_serviceBrand: undefined,
 				getModel(): any { return model; },
 				createModel() { throw new Error(); },
 				updateModel() { throw new Error(); },
@@ -857,4 +857,33 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.ok(value[0].parent);
 	});
 
+	// --- call hierarcht
+
+	test('Call Hierarchy, back and forth', async function () {
+
+		disposables.push(extHost.registerCallHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.CallHierarchyItemProvider {
+			provideCallHierarchyIncomingCalls(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyIncomingCall[]> {
+				return [
+					new types.CallHierarchyIncomingCall(new types.CallHierarchyItem(types.SymbolKind.Array, 'IN', '', document.uri, new types.Range(0, 0, 2, 0), new types.Range(0, 0, 2, 0)), [new types.Range(0, 0, 0, 0)]),
+				];
+			}
+			provideCallHierarchyOutgoingCalls(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyOutgoingCall[]> {
+				return [
+					new types.CallHierarchyOutgoingCall(new types.CallHierarchyItem(types.SymbolKind.Array, 'OUT', '', document.uri, new types.Range(0, 0, 2, 0), new types.Range(0, 0, 2, 0)), [new types.Range(0, 0, 0, 0)]),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		let incoming = await commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.executeCallHierarchyProviderIncomingCalls', model.uri, new types.Position(0, 10));
+		assert.equal(incoming.length, 1);
+		assert.ok(incoming[0].source instanceof types.CallHierarchyItem);
+		assert.equal(incoming[0].source.name, 'IN');
+
+		let outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.executeCallHierarchyProviderOutgoingCalls', model.uri, new types.Position(0, 10));
+		assert.equal(outgoing.length, 1);
+		assert.ok(outgoing[0].target instanceof types.CallHierarchyItem);
+		assert.equal(outgoing[0].target.name, 'OUT');
+	});
 });

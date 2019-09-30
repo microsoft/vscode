@@ -36,7 +36,7 @@
         "properties": {
           "css.customData": {
             "type": "array",
-            "description": "%css.customData.desc%",
+            "markdownDescription": "%css.customData.desc%",
             "default": [],
             "items": {
               "type": "string"
@@ -58,6 +58,12 @@
             "scope": "resource",
             "default": true,
             "description": "%css.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "css.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.completion.completePropertyWithSemicolon.desc%"
           },
           "css.validate": {
             "type": "boolean",
@@ -745,6 +751,10 @@
       {
         "fileMatch": "*.css-data.json",
         "url": "https://raw.githubusercontent.com/Microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
+      },
+      {
+        "fileMatch": "package.json",
+        "url": "./schemas/package.schema.json"
       }
     ]
   },

@@ -33,7 +33,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		this._onDidChangeInput.fire(value);
 	}
 
-	private _onDidChangeInput = new Emitter<modes.CommentInput | undefined>();
+	private readonly _onDidChangeInput = new Emitter<modes.CommentInput | undefined>();
 	get onDidChangeInput(): Event<modes.CommentInput | undefined> { return this._onDidChangeInput.event; }
 
 	private _label: string | undefined;
@@ -57,7 +57,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		this._contextValue = context;
 	}
 
-	private _onDidChangeLabel = new Emitter<string | undefined>();
+	private readonly _onDidChangeLabel = new Emitter<string | undefined>();
 	readonly onDidChangeLabel: Event<string | undefined> = this._onDidChangeLabel.event;
 
 	private _comments: modes.Comment[] | undefined;
@@ -71,7 +71,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		this._onDidChangeComments.fire(this._comments);
 	}
 
-	private _onDidChangeComments = new Emitter<modes.Comment[] | undefined>();
+	private readonly _onDidChangeComments = new Emitter<modes.Comment[] | undefined>();
 	get onDidChangeComments(): Event<modes.Comment[] | undefined> { return this._onDidChangeComments.event; }
 
 	set range(range: IRange) {
@@ -83,7 +83,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		return this._range;
 	}
 
-	private _onDidChangeRange = new Emitter<IRange>();
+	private readonly _onDidChangeRange = new Emitter<IRange>();
 	public onDidChangeRange = this._onDidChangeRange.event;
 
 	private _collapsibleState: modes.CommentThreadCollapsibleState | undefined;
@@ -96,7 +96,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		this._onDidChangeCollasibleState.fire(this._collapsibleState);
 	}
 
-	private _onDidChangeCollasibleState = new Emitter<modes.CommentThreadCollapsibleState | undefined>();
+	private readonly _onDidChangeCollasibleState = new Emitter<modes.CommentThreadCollapsibleState | undefined>();
 	public onDidChangeCollasibleState = this._onDidChangeCollasibleState.event;
 
 	private _isDisposed: boolean;

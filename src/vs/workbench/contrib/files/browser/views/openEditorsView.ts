@@ -213,13 +213,13 @@ export class OpenEditorsView extends ViewletPanel {
 			this.listLabels.clear();
 		}
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
+		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
-				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
-				dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
-			});
+			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
+			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
+		});
 		this._register(this.list);
 		this._register(this.listLabels);
 
@@ -244,8 +244,9 @@ export class OpenEditorsView extends ViewletPanel {
 			this.dirtyEditorFocusedContext.reset();
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
-				this.dirtyEditorFocusedContext.set(this.textFileService.isDirty(withNullAsUndefined(element.getResource())));
-				this.resourceContext.set(withUndefinedAsNull(element.getResource()));
+				const resource = element.getResource();
+				this.dirtyEditorFocusedContext.set(this.textFileService.isDirty(resource));
+				this.resourceContext.set(withUndefinedAsNull(resource));
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);
 			}
@@ -381,13 +382,16 @@ export class OpenEditorsView extends ViewletPanel {
 	private focusActiveEditor(): void {
 		if (this.list.length && this.editorGroupService.activeGroup) {
 			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
-			this.list.setFocus([index]);
-			this.list.setSelection([index]);
-			this.list.reveal(index);
-		} else {
-			this.list.setFocus([]);
-			this.list.setSelection([]);
+			if (index >= 0) {
+				this.list.setFocus([index]);
+				this.list.setSelection([index]);
+				this.list.reveal(index);
+				return;
+			}
 		}
+
+		this.list.setFocus([]);
+		this.list.setSelection([]);
 	}
 
 	private onConfigurationChange(event: IConfigurationChangeEvent): void {

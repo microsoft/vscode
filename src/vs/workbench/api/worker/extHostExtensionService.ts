@@ -6,73 +6,9 @@
 import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
 import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { endsWith, startsWith } from 'vs/base/common/strings';
+import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
-
-class ExportsTrap {
-
-	static readonly Instance = new ExportsTrap();
-
-	private readonly _names: string[] = [];
-	private readonly _exports = new Map<string, any>();
-
-	private constructor() {
-
-		const exportsProxy = new Proxy({}, {
-			set: (target: any, p: PropertyKey, value: any) => {
-				// store in target
-				target[p] = value;
-				// store in named-bucket
-				const name = this._names[this._names.length - 1];
-				this._exports.get(name)![p] = value;
-				return true;
-			}
-		});
-
-
-		const moduleProxy = new Proxy({}, {
-
-			get: (target: any, p: PropertyKey) => {
-				if (p === 'exports') {
-					return exportsProxy;
-				}
-
-				return target[p];
-			},
-
-			set: (target: any, p: PropertyKey, value: any) => {
-				// store in target
-				target[p] = value;
-
-				// override bucket
-				if (p === 'exports') {
-					const name = this._names[this._names.length - 1];
-					this._exports.set(name, value);
-				}
-				return true;
-			}
-		});
-
-		(<any>self).exports = exportsProxy;
-		(<any>self).module = moduleProxy;
-	}
-
-	add(name: string) {
-		this._exports.set(name, Object.create(null));
-		this._names.push(name);
-
-		return {
-			claim: () => {
-				const result = this._exports.get(name);
-				this._exports.delete(name);
-				this._names.pop();
-				return result;
-			}
-		};
-	}
-}
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -105,43 +41,33 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		await this._fakeModules.install();
 	}
 
-	protected _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected async _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 
-		(<any>self).window = self; // <- that's improper but might help extensions that aren't authored correctly
+		module = module.with({ path: ensureSuffix(module.path, '.js') });
+		const response = await fetch(module.toString(true));
 
-		// FAKE require function that only works for the vscode-module
-		const moduleStack: URI[] = [];
-		(<any>self).require = (mod: string) => {
+		if (response.status !== 200) {
+			throw new Error(response.statusText);
+		}
 
-			const parent = moduleStack[moduleStack.length - 1];
-			const result = this._fakeModules.getModule(mod, parent);
+		// fetch JS sources as text and create a new function around it
+		const initFn = new Function('module', 'exports', 'require', 'window', await response.text());
 
-			if (result !== undefined) {
-				return result;
+		// define commonjs globals: `module`, `exports`, and `require`
+		const _exports = {};
+		const _module = { exports: _exports };
+		const _require = (request: string) => {
+			const result = this._fakeModules.getModule(request, module);
+			if (result === undefined) {
+				throw new Error(`Cannot load module '${request}'`);
 			}
-
-			if (!startsWith(mod, '.')) {
-				throw new Error(`Cannot load module '${mod}'`);
-			}
-
-			const next = joinPath(parent, '..', ensureSuffix(mod, '.js'));
-			moduleStack.push(next);
-			const trap = ExportsTrap.Instance.add(next.toString());
-			importScripts(next.toString(true));
-			moduleStack.pop();
-
-			return trap.claim();
+			return result;
 		};
 
 		try {
 			activationTimesBuilder.codeLoadingStart();
-			module = module.with({ path: ensureSuffix(module.path, '.js') });
-			moduleStack.push(module);
-			const trap = ExportsTrap.Instance.add(module.toString());
-			importScripts(module.toString(true));
-			moduleStack.pop();
-			return Promise.resolve<T>(trap.claim());
-
+			initFn(_module, _exports, _require, self);
+			return <T>(_module.exports !== _exports ? _module.exports : _exports);
 		} finally {
 			activationTimesBuilder.codeLoadingStop();
 		}

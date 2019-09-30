@@ -33,7 +33,7 @@ suite('TokenizationSupport2Adapter', () => {
 	}
 
 	class MockThemeService implements IStandaloneThemeService {
-		_serviceBrand = <any>null;
+		_serviceBrand: undefined;
 		public setTheme(themeName: string): string {
 			throw new Error('Not implemented');
 		}

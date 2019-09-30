@@ -89,16 +89,17 @@ export class EditorGroup extends Disposable {
 	//#endregion
 
 	private _id: GroupIdentifier;
+	get id(): GroupIdentifier { return this._id; }
 
 	private editors: EditorInput[] = [];
 	private mru: EditorInput[] = [];
 	private mapResourceToEditorCount: ResourceMap<number> = new ResourceMap<number>();
 
-	private preview: EditorInput | null; // editor in preview state
-	private active: EditorInput | null;  // editor in active state
+	private preview: EditorInput | null = null; // editor in preview state
+	private active: EditorInput | null = null;  // editor in active state
 
-	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
-	private focusRecentEditorAfterClose: boolean;
+	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
+	private focusRecentEditorAfterClose: boolean | undefined;
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroup,
@@ -108,7 +109,7 @@ export class EditorGroup extends Disposable {
 		super();
 
 		if (isSerializedEditorGroup(labelOrSerializedGroup)) {
-			this.deserialize(labelOrSerializedGroup);
+			this._id = this.deserialize(labelOrSerializedGroup);
 		} else {
 			this._id = EditorGroup.IDS++;
 		}
@@ -124,10 +125,6 @@ export class EditorGroup extends Disposable {
 	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
 		this.editorOpenPositioning = this.configurationService.getValue('workbench.editor.openPositioning');
 		this.focusRecentEditorAfterClose = this.configurationService.getValue('workbench.editor.focusRecentEditorAfterClose');
-	}
-
-	get id(): GroupIdentifier {
-		return this._id;
 	}
 
 	get count(): number {
@@ -664,7 +661,7 @@ export class EditorGroup extends Disposable {
 		};
 	}
 
-	private deserialize(data: ISerializedEditorGroup): void {
+	private deserialize(data: ISerializedEditorGroup): number {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		if (typeof data.id === 'number') {
@@ -689,10 +686,15 @@ export class EditorGroup extends Disposable {
 
 			return null;
 		}));
+
 		this.mru = data.mru.map(i => this.editors[i]);
+
 		this.active = this.mru[0];
+
 		if (typeof data.preview === 'number') {
 			this.preview = this.editors[data.preview];
 		}
+
+		return this._id;
 	}
 }

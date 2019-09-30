@@ -33,8 +33,8 @@ export abstract class Part extends Component implements ISerializableView {
 	get dimension(): Dimension { return this._dimension; }
 
 	private parent: HTMLElement;
-	private titleArea: HTMLElement | null;
-	private contentArea: HTMLElement | null;
+	private titleArea: HTMLElement | null = null;
+	private contentArea: HTMLElement | null = null;
 	private partLayout: PartLayout;
 
 	constructor(
@@ -156,12 +156,13 @@ class PartLayout {
 			titleSize = new Dimension(0, 0);
 		}
 
-		// Content Size: Width (Fill), Height (Variable)
-		const contentSize = new Dimension(width, height - titleSize.height);
-
+		let contentWidth = width;
 		if (this.options && typeof this.options.borderWidth === 'function') {
-			contentSize.width -= this.options.borderWidth(); // adjust for border size
+			contentWidth -= this.options.borderWidth(); // adjust for border size
 		}
+
+		// Content Size: Width (Fill), Height (Variable)
+		const contentSize = new Dimension(contentWidth, height - titleSize.height);
 
 		// Content
 		if (this.contentArea) {

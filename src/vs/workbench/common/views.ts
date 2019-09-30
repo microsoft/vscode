@@ -10,7 +10,7 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { ITreeViewDataProvider } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values, keys } from 'vs/base/common/map';
@@ -130,8 +130,6 @@ export interface IViewDescriptor {
 
 	readonly when?: ContextKeyExpr;
 
-	readonly group?: string;
-
 	readonly order?: number;
 
 	readonly weight?: number;
@@ -146,6 +144,11 @@ export interface IViewDescriptor {
 	readonly workspace?: boolean;
 
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
+
+	// For contributed remote explorer views
+	readonly group?: string;
+
+	readonly remoteAuthority?: string | string[];
 }
 
 export interface IViewDescriptorCollection extends IDisposable {
@@ -295,7 +298,7 @@ export interface IViewsViewlet extends IViewlet {
 export const IViewsService = createDecorator<IViewsService>('viewsService');
 
 export interface IViewsService {
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	openView(id: string, focus?: boolean): Promise<IView | null>;
 
@@ -314,6 +317,8 @@ export interface ITreeView extends IDisposable {
 
 	message?: string;
 
+	title: string;
+
 	readonly visible: boolean;
 
 	readonly onDidExpandItem: Event<ITreeItem>;
@@ -325,6 +330,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeVisibility: Event<boolean>;
 
 	readonly onDidChangeActions: Event<void>;
+
+	readonly onDidChangeTitle: Event<string>;
 
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 

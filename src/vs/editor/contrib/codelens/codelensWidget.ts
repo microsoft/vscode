@@ -16,6 +16,7 @@ import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegis
 import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
 
@@ -80,7 +81,9 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	}
 
 	updateHeight(): void {
-		const { fontInfo, lineHeight } = this._editor.getConfiguration();
+		const options = this._editor.getOptions();
+		const fontInfo = options.get(EditorOption.fontInfo);
+		const lineHeight = options.get(EditorOption.lineHeight);
 		this._domNode.style.height = `${Math.round(lineHeight * 1.1)}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * 0.9)}px`;

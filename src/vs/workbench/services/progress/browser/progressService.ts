@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
@@ -23,12 +23,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export class ProgressService extends Disposable implements IProgressService {
 
-	_serviceBrand!: ServiceIdentifier<IProgressService>;
+	_serviceBrand: undefined;
 
 	private readonly stack: [IProgressOptions, Progress<IProgressStep>][] = [];
 	private readonly globalStatusEntry = this._register(new MutableDisposable());
@@ -205,10 +204,6 @@ export class ProgressService extends Disposable implements IProgressService {
 			updateProgress(handle, increment);
 
 			Event.once(handle.onDidClose)(() => {
-				if (typeof onDidCancel === 'function') {
-					onDidCancel();
-				}
-
 				toDispose.dispose();
 			});
 

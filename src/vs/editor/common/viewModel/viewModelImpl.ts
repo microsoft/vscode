@@ -6,7 +6,7 @@
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { IConfigurationChangedEvent, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -59,21 +59,27 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			this.lines = new IdentityLinesCollection(this.model);
 
 		} else {
-			const conf = this.configuration.editor;
+			const options = this.configuration.options;
+			const wrappingInfo = options.get(EditorOption.wrappingInfo);
+			const fontInfo = options.get(EditorOption.fontInfo);
+			const wordWrapBreakAfterCharacters = options.get(EditorOption.wordWrapBreakAfterCharacters);
+			const wordWrapBreakBeforeCharacters = options.get(EditorOption.wordWrapBreakBeforeCharacters);
+			const wordWrapBreakObtrusiveCharacters = options.get(EditorOption.wordWrapBreakObtrusiveCharacters);
+			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
 			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-				conf.wrappingInfo.wordWrapBreakBeforeCharacters,
-				conf.wrappingInfo.wordWrapBreakAfterCharacters,
-				conf.wrappingInfo.wordWrapBreakObtrusiveCharacters
+				wordWrapBreakBeforeCharacters,
+				wordWrapBreakAfterCharacters,
+				wordWrapBreakObtrusiveCharacters
 			);
 
 			this.lines = new SplitLinesCollection(
 				this.model,
 				hardWrappingLineMapperFactory,
 				this.model.getOptions().tabSize,
-				conf.wrappingInfo.wrappingColumn,
-				conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth,
-				conf.wrappingInfo.wrappingIndent
+				wrappingInfo.wrappingColumn,
+				fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
+				wrappingIndent
 			);
 		}
 
@@ -136,7 +142,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.hasFocus = hasFocus;
 	}
 
-	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: IConfigurationChangedEvent): void {
+	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: ConfigurationChangedEvent): void {
 
 		// We might need to restore the current centered view range, so save it (if available)
 		let previousViewportStartModelPosition: Position | null = null;
@@ -146,9 +152,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 		let restorePreviousViewportStart = false;
 
-		const conf = this.configuration.editor;
+		const options = this.configuration.options;
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
+		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
-		if (this.lines.setWrappingSettings(conf.wrappingInfo.wrappingIndent, conf.wrappingInfo.wrappingColumn, conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth)) {
+		if (this.lines.setWrappingSettings(wrappingIndent, wrappingInfo.wrappingColumn, fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
@@ -161,7 +170,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			}
 		}
 
-		if (e.readOnly) {
+		if (e.hasChanged(EditorOption.readOnly)) {
 			// Must read again all decorations due to readOnly filtering
 			this.decorations.reset();
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
@@ -552,7 +561,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
-		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.editor.readOnly, theme);
+		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.options.get(EditorOption.readOnly), theme);
 	}
 
 	public invalidateOverviewRulerColorCache(): void {
@@ -666,7 +675,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			range = new Range(lineNumber, this.model.getLineMinColumn(lineNumber), lineNumber, this.model.getLineMaxColumn(lineNumber));
 		}
 
-		const fontInfo = this.configuration.editor.fontInfo;
+		const fontInfo = this.configuration.options.get(EditorOption.fontInfo);
 		const colorMap = this._getColorMap();
 		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 

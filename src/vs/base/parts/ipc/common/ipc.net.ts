@@ -150,6 +150,10 @@ export const enum ProtocolConstants {
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	 */
 	ReconnectionGraceTime = 3 * 60 * 60 * 1000, // 3hrs
+	/**
+	 * Maximal grace time between the first and the last reconnection...
+	 */
+	ReconnectionShortGraceTime = 5 * 60 * 1000, // 5min
 }
 
 class ProtocolMessage {
@@ -347,10 +351,10 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
 
-	private _onMessage = new Emitter<VSBuffer>();
+	private readonly _onMessage = new Emitter<VSBuffer>();
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-	private _onClose = new Emitter<void>();
+	private readonly _onClose = new Emitter<void>();
 	readonly onClose: Event<void> = this._onClose.event;
 
 	constructor(socket: ISocket) {

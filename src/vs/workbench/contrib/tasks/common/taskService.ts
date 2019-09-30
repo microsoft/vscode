@@ -51,7 +51,7 @@ export interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
 }
 
 export interface ITaskService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onDidStateChange: Event<TaskEvent>;
 	supportsMultipleTaskExecutions: boolean;
 
@@ -83,6 +83,7 @@ export interface ITaskService {
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
+	setJsonTasksSupported(areSuppored: Promise<boolean>): void;
 
 	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
 }

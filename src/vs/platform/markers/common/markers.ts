@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 
 export interface IMarkerService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	getStatistics(): MarkerStatistics;
 
@@ -22,7 +22,7 @@ export interface IMarkerService {
 
 	read(filter?: { owner?: string; resource?: URI; severities?: number, take?: number; }): IMarker[];
 
-	onMarkerChanged: Event<URI[]>;
+	readonly onMarkerChanged: Event<readonly URI[]>;
 }
 
 /**

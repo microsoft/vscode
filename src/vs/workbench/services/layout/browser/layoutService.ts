@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -27,14 +27,9 @@ export const enum Position {
 	BOTTOM
 }
 
-export interface ILayoutOptions {
-	toggleMaximizedPanel?: boolean;
-	source?: Parts;
-}
-
 export interface IWorkbenchLayoutService extends ILayoutService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Emits when the visibility of the title bar changes.
@@ -143,6 +138,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Sets the panel position.
 	 */
 	setPanelPosition(position: Position): void;
+
+	/**
+	 * Gets the maximum possible size for editor.
+	 */
+	getMaximumEditorDimensions(): Dimension;
 
 	/**
 	 * Returns the element that is parent of the workbench element.

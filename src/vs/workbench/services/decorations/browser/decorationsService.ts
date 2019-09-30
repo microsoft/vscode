@@ -144,17 +144,7 @@ class DecorationStyles extends Disposable {
 		return {
 			labelClassName,
 			badgeClassName,
-			tooltip,
-			update: (replace) => {
-				let newData = data.slice();
-				for (let i = 0; i < newData.length; i++) {
-					if (newData[i].source === replace.source) {
-						// replace
-						newData[i] = replace;
-					}
-				}
-				return this.asDecoration(newData, onlyChildren);
-			}
+			tooltip
 		};
 	}
 
@@ -336,7 +326,7 @@ class DecorationProviderWrapper {
 
 export class FileDecorationsService implements IDecorationsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
 	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
@@ -402,7 +392,7 @@ export class FileDecorationsService implements IDecorationsService {
 		});
 	}
 
-	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration | undefined {
+	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined {
 		let data: IDecorationData[] = [];
 		let containsChildren: boolean = false;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
@@ -414,22 +404,9 @@ export class FileDecorationsService implements IDecorationsService {
 			});
 		}
 
-		if (data.length === 0) {
-			// nothing, maybe overwrite data
-			if (overwrite) {
-				return this._decorationStyles.asDecoration([overwrite], containsChildren);
-			} else {
-				return undefined;
-			}
-		} else {
-			// result, maybe overwrite
-			let result = this._decorationStyles.asDecoration(data, containsChildren);
-			if (overwrite) {
-				return result.update(overwrite);
-			} else {
-				return result;
-			}
-		}
+		return data.length === 0
+			? undefined
+			: this._decorationStyles.asDecoration(data, containsChildren);
 	}
 }
 function getColor(theme: ITheme, color: string | undefined) {

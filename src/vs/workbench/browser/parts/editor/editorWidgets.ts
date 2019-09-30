@@ -12,7 +12,7 @@ import { $, append } from 'vs/base/browser/dom';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
@@ -106,7 +106,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 	constructor(
 		private editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService
 	) {
@@ -163,7 +163,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			this._register(this.openWorkspaceButton.onClick(() => {
 				const model = this.editor.getModel();
 				if (model) {
-					this.windowService.openWindow([{ workspaceUri: model.uri }]);
+					this.hostService.openWindow([{ workspaceUri: model.uri }]);
 				}
 			}));
 

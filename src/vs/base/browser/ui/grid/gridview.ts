@@ -188,12 +188,12 @@ class BranchNode implements ISplitView, IDisposable {
 		return this.orientation === Orientation.HORIZONTAL ? this.maximumSize : this.maximumOrthogonalSize;
 	}
 
-	private _onDidChange = new Emitter<number | undefined>();
+	private readonly _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
 	private childrenChangeDisposable: IDisposable = Disposable.None;
 
-	private _onDidSashReset = new Emitter<number[]>();
+	private readonly _onDidSashReset = new Emitter<number[]>();
 	readonly onDidSashReset: Event<number[]> = this._onDidSashReset.event;
 	private splitviewSashResetDisposable: IDisposable = Disposable.None;
 	private childrenSashResetDisposable: IDisposable = Disposable.None;
@@ -249,6 +249,9 @@ class BranchNode implements ISplitView, IDisposable {
 
 		const onDidSashReset = Event.map(this.splitview.onDidSashReset, i => [i]);
 		this.splitviewSashResetDisposable = onDidSashReset(this._onDidSashReset.fire, this._onDidSashReset);
+
+		const onDidChildrenChange = Event.map(Event.any(...this.children.map(c => c.onDidChange)), () => undefined);
+		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
 
 		const onDidChildrenSashReset = Event.any(...this.children.map((c, i) => Event.map(c.onDidSashReset, location => [i, ...location])));
 		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
@@ -422,7 +425,6 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 
 		this.splitview.setViewVisible(index, visible);
-		this._onDidChange.fire(undefined);
 	}
 
 	getChildCachedVisibleSize(index: number): number | undefined {
@@ -537,7 +539,7 @@ class LeafNode implements ISplitView, IDisposable {
 		this._onDidSetLinkedNode.fire(undefined);
 	}
 
-	private _onDidSetLinkedNode = new Emitter<number | undefined>();
+	private readonly _onDidSetLinkedNode = new Emitter<number | undefined>();
 	private _onDidViewChange: Event<number | undefined>;
 	readonly onDidChange: Event<number | undefined>;
 

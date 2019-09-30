@@ -140,9 +140,9 @@ export class MarkdownPreview extends Disposable {
 			MarkdownPreview.viewType,
 			MarkdownPreview.getPreviewTitle(resource, locked),
 			previewColumn, {
-				enableFindWidget: true,
-				...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
-			});
+			enableFindWidget: true,
+			...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
+		});
 
 		return new MarkdownPreview(
 			webview,
@@ -288,11 +288,14 @@ export class MarkdownPreview extends Disposable {
 		const editor = vscode.window.activeTextEditor;
 		// Reposition scroll preview, position scroll to the top if active text editor
 		// doesn't corresponds with preview
-		if (editor && editor.document.uri.fsPath === resource.fsPath) {
-			this.line = getVisibleLine(editor);
-		} else {
-			this.line = 0;
+		if (editor) {
+			if (editor.document.uri.fsPath === resource.fsPath) {
+				this.line = getVisibleLine(editor);
+			} else {
+				this.line = 0;
+			}
 		}
+
 
 		// If we have changed resources, cancel any pending updates
 		const isResourceChange = resource.fsPath !== this._resource.fsPath;
@@ -540,7 +543,7 @@ export class MarkdownPreview extends Disposable {
 			}
 		}
 
-		vscode.commands.executeCommand('_markdown.openDocumentLink', { path, fragment });
+		vscode.commands.executeCommand('_markdown.openDocumentLink', { path, fragment, fromResource: this.resource });
 	}
 
 	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number }[]) {

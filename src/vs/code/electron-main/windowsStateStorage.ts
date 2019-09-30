@@ -35,12 +35,15 @@ export function restoreWindowsState(data: WindowsStateStorageData | undefined): 
 	if (windowsState.lastActiveWindow) {
 		result.lastActiveWindow = restoreWindowState(windowsState.lastActiveWindow);
 	}
+
 	if (windowsState.lastPluginDevelopmentHostWindow) {
 		result.lastPluginDevelopmentHostWindow = restoreWindowState(windowsState.lastPluginDevelopmentHostWindow);
 	}
+
 	if (Array.isArray(windowsState.openedWindows)) {
 		result.openedWindows = windowsState.openedWindows.map(windowState => restoreWindowState(windowState));
 	}
+
 	return result;
 }
 
@@ -49,9 +52,11 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 	if (windowState.backupPath) {
 		result.backupPath = windowState.backupPath;
 	}
+
 	if (windowState.remoteAuthority) {
 		result.remoteAuthority = windowState.remoteAuthority;
 	}
+
 	if (windowState.folder) {
 		result.folderUri = URI.parse(windowState.folder);
 	} else if (windowState.folderUri) {
@@ -59,11 +64,13 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 	} else if (windowState.folderPath) {
 		result.folderUri = URI.file(windowState.folderPath);
 	}
+
 	if (windowState.workspaceIdentifier) {
 		result.workspace = { id: windowState.workspaceIdentifier.id, configPath: URI.parse(windowState.workspaceIdentifier.configURIPath) };
 	} else if (windowState.workspace) {
 		result.workspace = { id: windowState.workspace.id, configPath: URI.file(windowState.workspace.configPath) };
 	}
+
 	return result;
 }
 

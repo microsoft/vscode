@@ -21,24 +21,15 @@
 }
 
 .monaco-split-view2 > .split-view-container {
-	display: flex;
 	width: 100%;
 	height: 100%;
 	white-space: nowrap;
-}
-
-.monaco-split-view2.vertical > .split-view-container {
-	flex-direction: column;
-}
-
-.monaco-split-view2.horizontal > .split-view-container {
-	flex-direction: row;
+	position: relative;
 }
 
 .monaco-split-view2 > .split-view-container > .split-view-view {
 	white-space: initial;
-	flex: none;
-	position: relative;
+	position: absolute;
 }
 
 .monaco-split-view2 > .split-view-container > .split-view-view:not(.visible) {
@@ -51,7 +42,6 @@
 
 .monaco-split-view2.horizontal > .split-view-container > .split-view-view {
 	height: 100%;
-	display: inline-block;
 }
 
 .monaco-split-view2.separator-border > .split-view-container > .split-view-view:not(:first-child)::before {

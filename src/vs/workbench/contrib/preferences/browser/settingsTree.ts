@@ -37,7 +37,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -393,6 +393,13 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			toggleMenuTitle
 		});
 		toolbar.setActions([], this.settingActions)();
+
+		// change icon from ellipsis to gear
+		let icon = container.querySelector('.codicon-more');
+		if (icon) {
+			(<HTMLElement>icon).classList.add('codicon-gear');
+		}
+
 		const button = container.querySelector('.toolbar-toggle-more');
 		if (button) {
 			(<HTMLElement>button).tabIndex = -1;
@@ -1071,7 +1078,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
-		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
+		const checkbox = new Checkbox({ actionClassName: 'codicon-check setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {
@@ -1469,7 +1476,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 	) {
 		const treeClass = 'settings-editor-tree';
 
-		super(container,
+		super('SettingsTree', container,
 			new SettingsTreeDelegate(),
 			renderers,
 			{
@@ -1537,27 +1544,27 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		this.getHTMLElement().classList.add(treeClass);
 
 		this.disposables.push(attachStyler(themeService, {
-			listActiveSelectionBackground: editorBackground,
+			listActiveSelectionBackground: 'transparent',
 			listActiveSelectionForeground: foreground,
-			listFocusAndSelectionBackground: editorBackground,
+			listFocusAndSelectionBackground: 'transparent',
 			listFocusAndSelectionForeground: foreground,
-			listFocusBackground: editorBackground,
+			listFocusBackground: 'transparent',
 			listFocusForeground: foreground,
 			listHoverForeground: foreground,
-			listHoverBackground: editorBackground,
-			listHoverOutline: editorBackground,
-			listFocusOutline: editorBackground,
-			listInactiveSelectionBackground: editorBackground,
+			listHoverBackground: 'transparent',
+			listHoverOutline: 'transparent',
+			listFocusOutline: 'transparent',
+			listInactiveSelectionBackground: 'transparent',
 			listInactiveSelectionForeground: foreground,
-			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
+			listInactiveFocusBackground: 'transparent',
+			listInactiveFocusOutline: 'transparent'
 		}, colors => {
 			this.style(colors);
 		}));
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
-		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(view, options);
+	protected createModel(user: string, view: ISpliceable<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, view, options);
 	}
 }
 

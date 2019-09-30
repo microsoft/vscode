@@ -30,6 +30,8 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 export interface Ctor<T> {
 	new(): T;
@@ -46,8 +48,9 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 		serviceCollection: new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
 			[IStorageService, new InMemoryStorageService()],
+			[IKeybindingService, new MockKeybindingService()],
 			[ISuggestMemoryService, new class implements ISuggestMemoryService {
-				_serviceBrand: any;
+				_serviceBrand: undefined;
 				memorize(): void {
 				}
 				select(): number {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join, dirname } from 'vs/base/common/path';
 import { mkdirp, writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
@@ -17,7 +17,45 @@ import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { originalFSPath, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { originalFSPath, isEqualOrParent, joinPath, isEqual, basename } from 'vs/base/common/resources';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { localize } from 'vs/nls';
+import product from 'vs/platform/product/common/product';
+import { MessageBoxOptions, BrowserWindow } from 'electron';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { findWindowOnWorkspace } from 'vs/platform/windows/node/window';
+
+export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
+
+export interface IWorkspaceEnteredEvent {
+	window: ICodeWindow;
+	workspace: IWorkspaceIdentifier;
+}
+
+export interface IWorkspacesMainService {
+
+	_serviceBrand: undefined;
+
+	readonly onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
+	readonly onWorkspaceEntered: Event<IWorkspaceEnteredEvent>;
+
+	enterWorkspace(intoWindow: ICodeWindow, openedWindows: ICodeWindow[], path: URI): Promise<IEnterWorkspaceResult | null>;
+
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
+	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
+
+	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
+	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
+
+	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[];
+	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
+
+	resolveLocalWorkspaceSync(path: URI): IResolvedWorkspace | null;
+	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
+}
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
@@ -26,16 +64,21 @@ export interface IStoredWorkspace {
 
 export class WorkspacesMainService extends Disposable implements IWorkspacesMainService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly untitledWorkspacesHome: URI; // local URI that contains all untitled workspaces
 
 	private readonly _onUntitledWorkspaceDeleted = this._register(new Emitter<IWorkspaceIdentifier>());
 	readonly onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier> = this._onUntitledWorkspaceDeleted.event;
 
+	private readonly _onWorkspaceEntered = this._register(new Emitter<IWorkspaceEnteredEvent>());
+	readonly onWorkspaceEntered: Event<IWorkspaceEnteredEvent> = this._onWorkspaceEntered.event;
+
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IBackupMainService private readonly backupMainService: IBackupMainService,
+		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		super();
 
@@ -209,6 +252,74 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			}
 		}
 		return untitledWorkspaces;
+	}
+
+	async enterWorkspace(window: ICodeWindow, windows: ICodeWindow[], path: URI): Promise<IEnterWorkspaceResult | null> {
+		if (!window || !window.win || !window.isReady) {
+			return null; // return early if the window is not ready or disposed
+		}
+
+		const isValid = await this.isValidTargetWorkspacePath(window, windows, path);
+		if (!isValid) {
+			return null; // return early if the workspace is not valid
+		}
+
+		const result = this.doEnterWorkspace(window, getWorkspaceIdentifier(path));
+
+		// Emit as event
+		this._onWorkspaceEntered.fire({ window, workspace: result.workspace });
+
+		return result;
+	}
+
+	private async isValidTargetWorkspacePath(window: ICodeWindow, windows: ICodeWindow[], path?: URI): Promise<boolean> {
+		if (!path) {
+			return true;
+		}
+
+		if (window.openedWorkspace && isEqual(window.openedWorkspace.configPath, path)) {
+			return false; // window is already opened on a workspace with that path
+		}
+
+		// Prevent overwriting a workspace that is currently opened in another window
+		if (findWindowOnWorkspace(windows, getWorkspaceIdentifier(path))) {
+			const options: MessageBoxOptions = {
+				title: product.nameLong,
+				type: 'info',
+				buttons: [localize('ok', "OK")],
+				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
+				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
+				noLink: true
+			};
+
+			await this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+
+			return false;
+		}
+
+		return true; // OK
+	}
+
+	private doEnterWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): IEnterWorkspaceResult {
+		window.focus();
+
+		// Register window for backups and migrate current backups over
+		let backupPath: string | undefined;
+		if (!window.config.extensionDevelopmentPath) {
+			backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace, remoteAuthority: window.remoteAuthority }, window.config.backupPath);
+		}
+
+		// if the window was opened on an untitled workspace, delete it.
+		if (window.openedWorkspace && this.isUntitledWorkspace(window.openedWorkspace)) {
+			this.deleteUntitledWorkspaceSync(window.openedWorkspace);
+		}
+
+		// Update window configuration properly based on transition to workspace
+		window.config.folderUri = undefined;
+		window.config.workspace = workspace;
+		window.config.backupPath = backupPath;
+
+		return { workspace, backupPath };
 	}
 }
 

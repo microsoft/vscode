@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, IDebugParams } from 'vs/platform/environment/common/environment';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
@@ -13,7 +13,7 @@ export const IWorkbenchEnvironmentService = createDecorator<IWorkbenchEnvironmen
 
 export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
-	_serviceBrand: ServiceIdentifier<IEnvironmentService>;
+	_serviceBrand: undefined;
 
 	readonly configuration: IWindowConfiguration;
 
@@ -24,6 +24,7 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
 	readonly debugSearch: IDebugParams;
 
+	readonly webviewExternalEndpoint: string;
 	readonly webviewResourceRoot: string;
 	readonly webviewCspSource: string;
 

@@ -12,7 +12,6 @@ import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
@@ -119,7 +118,7 @@ export class ToggleEditorLayoutAction extends Action {
 	) {
 		super(id, label);
 
-		this.class = 'flip-editor-layout';
+		this.class = 'codicon-editor-layout';
 		this.updateEnablement();
 
 		this.registerListeners();
@@ -141,15 +140,6 @@ export class ToggleEditorLayoutAction extends Action {
 		return Promise.resolve();
 	}
 }
-
-CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', function (accessor: ServicesAccessor, args: [GroupOrientation]) {
-	const editorGroupService = accessor.get(IEditorGroupsService);
-	const [orientation] = args;
-
-	editorGroupService.setGroupOrientation(orientation);
-
-	return Promise.resolve();
-});
 
 const group = viewCategory;
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', group);
@@ -234,14 +224,13 @@ export class ToggleEditorVisibilityAction extends Action {
 	}
 
 	run(): Promise<any> {
-		const hideEditor = this.layoutService.isVisible(Parts.EDITOR_PART);
-		this.layoutService.setEditorHidden(hideEditor);
+		this.layoutService.toggleMaximizedPanel();
 
 		return Promise.resolve();
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory, ContextKeyExpr.equals('config.workbench.useExperimentalGridLayout', true));
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory);
 
 export class ToggleSidebarVisibilityAction extends Action {
 

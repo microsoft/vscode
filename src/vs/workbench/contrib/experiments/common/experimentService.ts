@@ -19,7 +19,7 @@ import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/co
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
 
 export const enum ExperimentState {
@@ -63,7 +63,7 @@ export interface IExperiment {
 }
 
 export interface IExperimentService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	getExperimentById(id: string): Promise<IExperiment>;
 	getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]>;
 	getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]>;
@@ -108,7 +108,7 @@ interface IRawExperiment {
 }
 
 export class ExperimentService extends Disposable implements IExperimentService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	private _experiments: IExperiment[] = [];
 	private _loadExperimentsPromise: Promise<void>;
 	private _curatedMapping = Object.create(null);
@@ -169,7 +169,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 	}
 
-	protected getExperiments(): Promise<IRawExperiment[]> {
+	protected getExperiments(): Promise<IRawExperiment[] | null> {
 		if (!this.productService.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return Promise.resolve([]);
 		}
