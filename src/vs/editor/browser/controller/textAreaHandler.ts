@@ -152,7 +152,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');
 
-		if (options.get(EditorOption.readOnly)) {
+		if (platform.isWeb && options.get(EditorOption.readOnly)) {
 			this.textArea.setAttribute('readonly', 'true');
 		}
 
@@ -399,10 +399,12 @@ export class TextAreaHandler extends ViewPart {
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
 
-		if (options.get(EditorOption.readOnly)) {
-			this.textArea.setAttribute('readonly', 'true');
-		} else {
-			this.textArea.removeAttribute('readonly');
+		if (platform.isWeb && e.hasChanged(EditorOption.readOnly)) {
+			if (options.get(EditorOption.readOnly)) {
+				this.textArea.setAttribute('readonly', 'true');
+			} else {
+				this.textArea.removeAttribute('readonly');
+			}
 		}
 
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
