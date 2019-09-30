@@ -171,6 +171,10 @@ class ServerLogService extends AbstractLogService implements ILogService {
 	dispose(): void {
 		// noop
 	}
+
+	flush(): void {
+		// noop
+	}
 }
 
 export class RemoteExtensionHostAgentServer extends Disposable {
