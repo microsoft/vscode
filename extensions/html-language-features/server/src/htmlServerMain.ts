@@ -118,7 +118,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 
 	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
+	clientDynamicRegisterSupport = getClientCapability('workspace.rangeFormatting.dynamicRegistration', false);
 	scopedSettingsSupport = getClientCapability('workspace.configuration', false);
 	workspaceFoldersSupport = getClientCapability('workspace.workspaceFolders', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
