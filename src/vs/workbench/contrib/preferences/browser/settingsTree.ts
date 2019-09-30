@@ -413,7 +413,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const setting = element.setting;
 
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
-		DOM.toggleClass(template.containerElement, 'is-expanded', true);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR, element.setting.key);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_ID_ATTR, element.id);
 
@@ -1216,7 +1215,7 @@ export class SettingTreeRenderers {
 	}
 
 	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
-		const toolbarElement = settingDOMElement.querySelector('.toolbar-toggle-more');
+		const toolbarElement = settingDOMElement.querySelector('.monaco-toolbar');
 		if (toolbarElement) {
 			this._contextMenuService.showContextMenu({
 				getActions: () => this.settingActions,
