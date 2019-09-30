@@ -75,9 +75,10 @@ class DecorationRule {
 		}
 
 		// bubble badge
+		// TODO @misolori update bubble badge to use class name instead of unicode
 		createCSSRule(
 			`.${this.bubbleBadgeClassName}::after`,
-			`content: "\uf052"; color: ${getColor(theme, color)}; font-family: octicons; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+			`content: "\uf052"; color: ${getColor(theme, color)}; font-family: octicons; font-size: 14px; padding-right: 10px; opacity: 0.4;`,
 			element
 		);
 	}
