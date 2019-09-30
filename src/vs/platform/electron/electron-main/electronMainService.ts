@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app } from 'electron';
-import { INativeOpenInWindowOptions } from 'vs/platform/windows/node/window';
+import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
@@ -69,11 +69,17 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 		return undefined;
 	}
 
-	async openEmptyWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
+	openWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(windowId: number, toOpen: IWindowOpenable[], options?: INativeOpenWindowOptions): Promise<void>;
+	openWindow(windowId: number, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: INativeOpenWindowOptions): Promise<void> {
+		if (Array.isArray(arg1)) {
+			return this.doOpenWindow(windowId, arg1, arg2);
+		}
+
+		return this.doOpenEmptyWindow(windowId, arg1);
 	}
 
-	async openInWindow(windowId: number, toOpen: IWindowOpenable[], options: INativeOpenInWindowOptions = Object.create(null)): Promise<void> {
+	private async doOpenWindow(windowId: number, toOpen: IWindowOpenable[], options: INativeOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
 			this.windowsMainService.open({
 				context: OpenContext.API,
@@ -89,6 +95,10 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 				waitMarkerFileURI: options.waitMarkerFileURI
 			});
 		}
+	}
+
+	private async doOpenEmptyWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void> {
+		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
 
 	async toggleFullScreen(windowId: number): Promise<void> {
@@ -267,7 +277,7 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 		}
 	}
 
-	async closeWorkpsace(windowId: number): Promise<void> {
+	async closeWorkspace(windowId: number): Promise<void> {
 		const window = this.windowsMainService.getWindowById(windowId);
 		if (window) {
 			return this.windowsMainService.closeWorkspace(window);

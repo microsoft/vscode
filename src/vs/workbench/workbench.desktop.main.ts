@@ -133,7 +133,7 @@ import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
 
 // Welcome
-import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/openWebsite.contribution';
+import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
 
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/node/configurationExportHelper.contribution';

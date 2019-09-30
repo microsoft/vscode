@@ -297,7 +297,7 @@ export class ResourcesDropHandler {
 
 		// Open in separate windows if we drop workspaces or just one folder
 		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {
-			await this.hostService.openInWindow(toOpen, { forceReuseWindow: true });
+			await this.hostService.openWindow(toOpen, { forceReuseWindow: true });
 		}
 
 		// folders.length > 1: Multiple folders: Create new workspace with folders and open

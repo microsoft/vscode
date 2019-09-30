@@ -8,7 +8,7 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { join } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions } from 'vs/workbench/common/editor';
@@ -35,7 +35,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { MenuBarVisibility, IWindowConfiguration, IWindowOpenable, IOpenInWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, IWindowConfiguration, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -70,7 +70,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -86,6 +86,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -199,13 +201,13 @@ export class TestTextFileService extends NativeTextFileService {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IHostService hostService: IHostService,
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorService editorService: IEditorService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@IElectronService electronService: IElectronService
 	) {
 		super(
 			contextService,
@@ -219,13 +221,13 @@ export class TestTextFileService extends NativeTextFileService {
 			environmentService,
 			notificationService,
 			backupFileService,
-			hostService,
 			historyService,
 			contextKeyService,
 			dialogService,
 			fileDialogService,
 			editorService,
-			textResourceConfigurationService
+			textResourceConfigurationService,
+			electronService
 		);
 	}
 
@@ -296,6 +298,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkbenchLayoutService, new TestLayoutService());
+	instantiationService.stub(IElectronService, new TestElectronService());
 	instantiationService.stub(IModeService, instantiationService.createInstance(ModeServiceImpl));
 	instantiationService.stub(IHistoryService, new TestHistoryService());
 	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
@@ -1309,16 +1312,72 @@ export class TestHostService implements IHostService {
 	readonly hasFocus: boolean = true;
 	readonly onDidChangeFocus: Event<boolean> = Event.None;
 
-	windowCount = Promise.resolve(1);
-
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async closeWorkspace(): Promise<void> { }
 
 	async focus(): Promise<void> { }
 
-	async openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> { }
-	async openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void> { }
+	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }
+}
+
+export class TestElectronService implements IElectronService {
+	_serviceBrand: undefined;
+
+	onWindowOpen: Event<number> = Event.None;
+	onWindowMaximize: Event<number> = Event.None;
+	onWindowUnmaximize: Event<number> = Event.None;
+	onWindowFocus: Event<number> = Event.None;
+	onWindowBlur: Event<number> = Event.None;
+
+	windowCount = Promise.resolve(1);
+	getWindowCount(): Promise<number> { return this.windowCount; }
+
+	async getWindows(): Promise<IOpenedWindow[]> { return []; }
+	async getActiveWindowId(): Promise<number | undefined> { return undefined; }
+
+	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
+	openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	async toggleFullScreen(): Promise<void> { }
+	async handleTitleDoubleClick(): Promise<void> { }
+	async isMaximized(): Promise<boolean> { return true; }
+	async maximizeWindow(): Promise<void> { }
+	async unmaximizeWindow(): Promise<void> { }
+	async minimizeWindow(): Promise<void> { }
+	async isWindowFocused(): Promise<boolean> { return true; }
+	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
+	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
+	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
+	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
+	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
+	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
+	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
+	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
+	async showItemInFolder(path: string): Promise<void> { }
+	async setRepresentedFilename(path: string): Promise<void> { }
+	async setDocumentEdited(edited: boolean): Promise<void> { }
+	async openExternal(url: string): Promise<boolean> { return false; }
+	async updateTouchBar(items: { id: string; title: string | { value: string; original: string; }; category?: string | { value: string; original: string; } | undefined; iconLocation?: { dark: UriComponents; light?: { readonly scheme: string; readonly authority: string; readonly path: string; readonly query: string; readonly fragment: string; readonly fsPath: string; with: {}; toString: {}; toJSON: {}; } | undefined; } | undefined; precondition?: { getType: {}; equals: {}; evaluate: {}; serialize: {}; keys: {}; map: {}; negate: {}; } | undefined; toggled?: { getType: {}; equals: {}; evaluate: {}; serialize: {}; keys: {}; map: {}; negate: {}; } | undefined; }[][]): Promise<void> { }
+	async newWindowTab(): Promise<void> { }
+	async showPreviousWindowTab(): Promise<void> { }
+	async showNextWindowTab(): Promise<void> { }
+	async moveWindowTabToNewWindow(): Promise<void> { }
+	async mergeAllWindowTabs(): Promise<void> { }
+	async toggleWindowTabsBar(): Promise<void> { }
+	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
+	async reload(): Promise<void> { }
+	async closeWorkspace(): Promise<void> { }
+	async closeWindow(): Promise<void> { }
+	async quit(): Promise<void> { }
+	async openDevTools(options?: Electron.OpenDevToolsOptions | undefined): Promise<void> { }
+	async toggleDevTools(): Promise<void> { }
+	async startCrashReporter(options: Electron.CrashReporterStartOptions): Promise<void> { }
+	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
+	async openExtensionDevelopmentHostWindow(args: minimist.ParsedArgs, env: IProcessEnvironment): Promise<void> { }
 }

@@ -19,15 +19,17 @@ export interface IOpenedWindow {
 	filename?: string;
 }
 
-export interface IOpenInWindowOptions {
-	forceNewWindow?: boolean;
+export interface IBaseOpenWindowsOptions {
 	forceReuseWindow?: boolean;
+}
+
+export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
+	forceNewWindow?: boolean;
 
 	noRecentEntry?: boolean;
 }
 
-export interface IOpenEmptyWindowOptions {
-	reuse?: boolean;
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
 	remoteAuthority?: string;
 }
 

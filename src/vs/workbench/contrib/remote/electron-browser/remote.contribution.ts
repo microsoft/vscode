@@ -91,7 +91,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 				menu: {
 					menuId: MenuId.CommandPalette
 				},
-				handler: (_accessor) => this.remoteAuthority && hostService.openEmptyWindow({ reuse: true })
+				handler: (_accessor) => this.remoteAuthority && hostService.openWindow({ forceReuseWindow: true })
 			});
 
 			// Pending entry until extensions are ready

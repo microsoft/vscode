@@ -11,7 +11,7 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ParsedArgs } from 'vscode-minimist';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { INativeOpenInWindowOptions } from 'vs/platform/windows/node/window';
+import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
 
@@ -33,8 +33,8 @@ export interface IElectronService {
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
 
-	openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
-	openInWindow(toOpen: IWindowOpenable[], options?: INativeOpenInWindowOptions): Promise<void>;
+	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(toOpen: IWindowOpenable[], options?: INativeOpenWindowOptions): Promise<void>;
 
 	toggleFullScreen(): Promise<void>;
 
@@ -76,7 +76,7 @@ export interface IElectronService {
 	// Lifecycle
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 	reload(): Promise<void>;
-	closeWorkpsace(): Promise<void>;
+	closeWorkspace(): Promise<void>;
 	closeWindow(): Promise<void>;
 	quit(): Promise<void>;
 

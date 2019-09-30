@@ -235,7 +235,6 @@ import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
-import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
 
 // Call Hierarchy
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IOpenInWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 
-export interface INativeOpenInWindowOptions extends IOpenInWindowOptions {
+export interface INativeOpenWindowOptions extends IOpenWindowOptions {
 	diffMode?: boolean;
 	addMode?: boolean;
 	gotoLineMode?: boolean;

@@ -10,7 +10,7 @@ import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { INativeOpenInWindowOptions } from 'vs/platform/windows/node/window';
+import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 
 export interface OpenCommandPipeArgs {
 	type: 'open';
@@ -127,7 +127,7 @@ export class CLIServer {
 		}
 		if (urisToOpen.length) {
 			const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
-			const windowOpenArgs: INativeOpenInWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, waitMarkerFileURI };
+			const windowOpenArgs: INativeOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, waitMarkerFileURI };
 			this._commands.executeCommand('_files.windowOpen', urisToOpen, windowOpenArgs);
 		}
 		res.writeHead(200);

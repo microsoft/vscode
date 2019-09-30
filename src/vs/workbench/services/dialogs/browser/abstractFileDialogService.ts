@@ -91,7 +91,7 @@ export abstract class AbstractFileDialogService {
 
 			const toOpen: IWindowOpenable = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
-				return this.hostService.openInWindow([toOpen], { forceNewWindow: options.forceNewWindow });
+				return this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
 			} else {
 				return this.openerService.open(uri);
 			}
@@ -105,7 +105,7 @@ export abstract class AbstractFileDialogService {
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
 			if (options.forceNewWindow || preferNewWindow) {
-				return this.hostService.openInWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
+				return this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
 			} else {
 				return this.openerService.open(uri);
 			}
@@ -118,7 +118,7 @@ export abstract class AbstractFileDialogService {
 
 		const uri = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
-			return this.hostService.openInWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow });
+			return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow });
 		}
 	}
 
@@ -129,7 +129,7 @@ export abstract class AbstractFileDialogService {
 
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems });
 		if (uri) {
-			return this.hostService.openInWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow });
+			return this.hostService.openWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow });
 		}
 	}
 

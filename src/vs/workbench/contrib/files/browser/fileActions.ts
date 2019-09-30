@@ -737,7 +737,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
-				this.hostService.openInWindow([{ fileUri: fileResource }], { forceNewWindow: true });
+				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
 			} else {
 				this.notificationService.info(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 			}

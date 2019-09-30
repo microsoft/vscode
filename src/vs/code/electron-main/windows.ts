@@ -1626,7 +1626,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			cli = { ...cli, remote };
 		}
 
-		const forceReuseWindow = options && options.reuse;
+		const forceReuseWindow = options && options.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;
 
 		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
