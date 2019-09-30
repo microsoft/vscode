@@ -15,6 +15,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 
 export class ElectronMainService implements AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number /* window ID */> {
 
@@ -22,6 +23,7 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
@@ -174,15 +176,24 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	//#region Dialog
 
 	async showMessageBox(windowId: number, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		return this.windowsMainService.showMessageBox(options, this.windowsMainService.getWindowById(windowId));
+		return this.dialogMainService.showMessageBox(options, this.toBrowserWindow(windowId));
 	}
 
 	async showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
-		return this.windowsMainService.showSaveDialog(options, this.windowsMainService.getWindowById(windowId));
+		return this.dialogMainService.showSaveDialog(options, this.toBrowserWindow(windowId));
 	}
 
 	async showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
-		return this.windowsMainService.showOpenDialog(options, this.windowsMainService.getWindowById(windowId));
+		return this.dialogMainService.showOpenDialog(options, this.toBrowserWindow(windowId));
+	}
+
+	private toBrowserWindow(windowId: number): BrowserWindow | undefined {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return window.win;
+		}
+
+		return undefined;
 	}
 
 	async pickFileFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
@@ -224,7 +235,9 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	}
 
 	async openExternal(windowId: number, url: string): Promise<boolean> {
-		return this.windowsMainService.openExternal(url);
+		shell.openExternal(url);
+
+		return true;
 	}
 
 	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
