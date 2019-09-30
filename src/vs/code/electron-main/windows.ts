@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { basename, normalize, join } from 'vs/base/common/path';
+import { basename, normalize, join, } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
@@ -41,6 +41,8 @@ import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { isWindowsDriveLetter, toSlashes } from 'vs/base/common/extpath';
+import { CharCode } from 'vs/base/common/charCode';
 
 const enum WindowError {
 	UNRESPONSIVE = 1,
@@ -1098,11 +1100,36 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			anyPath = parsedPath.path;
 		}
 
-		// open remote if either specified in the cli even if it is a local file. TODO@aeschli: Future idea: resolve in remote host context.
+		// open remote if either specified in the cli even if it is a local file.
 		const remoteAuthority = options.remoteAuthority;
 
-		const candidate = normalize(anyPath);
+		if (remoteAuthority) {
+			// assume it's a folder or workspace file
+
+			const first = anyPath.charCodeAt(0);
+			// make absolute
+			if (first !== CharCode.Slash) {
+				if (isWindowsDriveLetter(first) && anyPath.charCodeAt(anyPath.charCodeAt(1)) === CharCode.Colon) {
+					anyPath = toSlashes(anyPath);
+				}
+				anyPath = '/' + anyPath;
+			}
+
+			const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: anyPath });
+
+			if (hasWorkspaceFileExtension(anyPath)) {
+				if (forceOpenWorkspaceAsFile) {
+					return { fileUri: uri, remoteAuthority };
+				}
+				return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
+			}
+			return { folderUri: uri, remoteAuthority };
+		}
+
+		let candidate = normalize(anyPath);
+
 		try {
+
 			const candidateStat = fs.statSync(candidate);
 			if (candidateStat.isFile()) {
 
