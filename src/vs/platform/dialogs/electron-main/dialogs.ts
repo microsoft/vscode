@@ -8,7 +8,7 @@ import { MessageBoxOptions, MessageBoxReturnValue, SaveDialogOptions, SaveDialog
 import { Queue } from 'vs/base/common/async';
 import { IStateService } from 'vs/platform/state/node/state';
 import { isMacintosh } from 'vs/base/common/platform';
-import { dirname } from 'path';
+import { dirname } from 'vs/base/common/path';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { exists } from 'vs/base/node/pfs';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
