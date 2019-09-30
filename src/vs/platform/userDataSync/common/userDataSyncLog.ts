@@ -44,4 +44,8 @@ export class UserDataSyncLogService extends AbstractLogService implements IUserD
 		this.logger.critical(message, ...args);
 	}
 
+	flush(): void {
+		this.logger.flush();
+	}
+
 }
