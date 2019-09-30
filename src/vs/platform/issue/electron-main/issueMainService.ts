@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/node/issue';
-import { BrowserWindow, ipcMain, screen, dialog, IpcMainEvent, Display, shell } from 'electron';
+import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
@@ -16,6 +16,7 @@ import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -32,7 +33,8 @@ export class IssueMainService implements IIssueService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
-		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService
+		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
+		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		this.registerListeners();
 	}
@@ -88,7 +90,7 @@ export class IssueMainService implements IIssueService {
 			};
 
 			if (this._issueWindow) {
-				dialog.showMessageBox(this._issueWindow, messageOptions)
+				this.dialogMainService.showMessageBox(messageOptions, this._issueWindow)
 					.then(result => {
 						event.sender.send('vscode:issueReporterClipboardResponse', result.response === 0);
 					});
@@ -112,7 +114,7 @@ export class IssueMainService implements IIssueService {
 			};
 
 			if (this._issueWindow) {
-				dialog.showMessageBox(this._issueWindow, messageOptions)
+				this.dialogMainService.showMessageBox(messageOptions, this._issueWindow)
 					.then(result => {
 						if (result.response === 0) {
 							if (this._issueWindow) {
