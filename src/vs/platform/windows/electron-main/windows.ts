@@ -9,7 +9,7 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IEnterWorkspaceResult } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow } from 'electron';
@@ -89,32 +89,31 @@ export interface IWindowsMainService {
 
 	_serviceBrand: undefined;
 
-	// events
 	readonly onWindowReady: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 	readonly onWindowClose: Event<number>;
 
-	// methods
-	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): void;
+	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[];
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
+
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void>;
-	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
-	getLastActiveWindow(): ICodeWindow | undefined;
-	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
-	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[];
-	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
+
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
-	getFocusedWindow(): ICodeWindow | undefined;
+
+	getLastActiveWindow(): ICodeWindow | undefined;
+
 	getWindowById(windowId: number): ICodeWindow | undefined;
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
+
+	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
+	reload(win: ICodeWindow, cli?: ParsedArgs): void;
+	closeWorkspace(win: ICodeWindow): void;
 	quit(): void;
 }
 

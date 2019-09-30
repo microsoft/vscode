@@ -31,7 +31,7 @@ export interface IWorkspacesService {
 	_serviceBrand: undefined;
 
 	// Management
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
+	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null>;
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;

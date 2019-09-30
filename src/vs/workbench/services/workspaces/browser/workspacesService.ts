@@ -113,7 +113,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	//#region Workspace Management
 
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
+	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
 		throw new Error('Untitled workspaces are currently unsupported in Web');
 	}
 

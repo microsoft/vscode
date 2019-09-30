@@ -364,8 +364,8 @@ export class Menubar {
 		const quit = new MenuItem(this.likeAction('workbench.action.quit', {
 			label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => {
 				if (
-					this.windowsMainService.getWindowCount() === 0 || 			// allow to quit when no more windows are open
-					!!this.windowsMainService.getFocusedWindow() ||				// allow to quit when window has focus (fix for https://github.com/Microsoft/vscode/issues/39191)
+					this.windowsMainService.getWindowCount() === 0 || 				// allow to quit when no more windows are open
+					!!BrowserWindow.getFocusedWindow() ||							// allow to quit when window has focus (fix for https://github.com/Microsoft/vscode/issues/39191)
 					this.windowsMainService.getLastActiveWindow()!.isMinimized()	// allow to quit when window has no focus but is minimized (https://github.com/Microsoft/vscode/issues/63000)
 				) {
 					this.windowsMainService.quit();
@@ -548,7 +548,7 @@ export class Menubar {
 					label: this.mnemonicLabel(nls.localize('miCheckForUpdates', "Check for &&Updates...")), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
 
-						const focusedWindow = this.windowsMainService.getFocusedWindow();
+						const focusedWindow = BrowserWindow.getFocusedWindow();
 						const context = focusedWindow ? { windowId: focusedWindow.id } : null;
 						this.updateService.checkForUpdates(context);
 					}, 0)
@@ -688,15 +688,16 @@ export class Menubar {
 
 	private makeContextAwareClickHandler(click: () => void, contextSpecificHandlers: IMenuItemClickHandler): () => void {
 		return () => {
+
 			// No Active Window
-			const activeWindow = this.windowsMainService.getFocusedWindow();
+			const activeWindow = BrowserWindow.getFocusedWindow();
 			if (!activeWindow) {
 				return contextSpecificHandlers.inNoWindow();
 			}
 
 			// DevTools focused
-			if (activeWindow.win.webContents.isDevToolsFocused()) {
-				return contextSpecificHandlers.inDevTools(activeWindow.win.webContents.devToolsWebContents);
+			if (activeWindow.webContents.isDevToolsFocused()) {
+				return contextSpecificHandlers.inDevTools(activeWindow.webContents.devToolsWebContents);
 			}
 
 			// Finally execute command in Window
@@ -710,14 +711,15 @@ export class Menubar {
 		// https://github.com/Microsoft/vscode/issues/11928
 		// Still allow to run when the last active window is minimized though for
 		// https://github.com/Microsoft/vscode/issues/63000
-		let activeWindow = this.windowsMainService.getFocusedWindow();
-		if (!activeWindow) {
+		let activeBrowserWindow = BrowserWindow.getFocusedWindow();
+		if (!activeBrowserWindow) {
 			const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
 			if (lastActiveWindow && lastActiveWindow.isMinimized()) {
-				activeWindow = lastActiveWindow;
+				activeBrowserWindow = lastActiveWindow.win;
 			}
 		}
 
+		const activeWindow = activeBrowserWindow ? this.windowsMainService.getWindowById(activeBrowserWindow.id) : undefined;
 		if (activeWindow) {
 			this.logService.trace('menubar#runActionInRenderer', invocation);
 

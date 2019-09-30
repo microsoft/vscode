@@ -384,8 +384,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Setup Auth Handler
-		const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-		this._register(authHandler);
+		this._register(new ProxyAuthHandler());
 
 		// Open Windows
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));

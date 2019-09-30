@@ -63,7 +63,7 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	}
 
 	async getActiveWindowId(windowId: number): Promise<number | undefined> {
-		const activeWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		const activeWindow = BrowserWindow.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 		if (activeWindow) {
 			return activeWindow.id;
 		}
@@ -252,7 +252,7 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.openNewTabbedWindow(OpenContext.API);
+		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceNewTabbedWindow: true, forceEmpty: true });
 	}
 
 	async showPreviousWindowTab(): Promise<void> {

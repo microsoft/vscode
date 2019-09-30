@@ -20,20 +20,20 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, IPathsToWaitFor, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
-import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
+import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/platform/windows/node/window';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension, IEnterWorkspaceResult, IRecent } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { dirExists } from 'vs/base/node/pfs';
-import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual, normalizePath, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
 import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
@@ -167,8 +167,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	private readonly windowsState: IWindowsState;
 	private lastClosedWindowState?: IWindowState;
 
-	private readonly workspacesManager: WorkspacesManager;
-
 	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
 	readonly onWindowReady: CommonEvent<ICodeWindow> = this._onWindowReady.event;
 
@@ -202,8 +200,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		if (!Array.isArray(this.windowsState.openedWindows)) {
 			this.windowsState.openedWindows = [];
 		}
-
-		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, this, dialogMainService);
 
 		this.lifecycleMainService.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.installWindowsMutex());
@@ -259,6 +255,11 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 				this.lastClosedWindowState = undefined;
 			}
 		});
+
+		// Signal a window is ready after having entered a workspace
+		this._register(this.workspacesMainService.onWorkspaceEntered(event => {
+			this._onWindowReady.fire(event.window);
+		}));
 	}
 
 	// Note that onBeforeShutdown() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -857,7 +858,8 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 				path.label = pathToOpen.label;
 				pathsToOpen.push(path);
 			} else {
-				const uri = resourceFromURIToOpen(pathToOpen);
+				const uri = this.resourceFromURIToOpen(pathToOpen);
+
 				// Warn about the invalid URI or path
 				let message, detail;
 				if (uri.scheme === Schemas.file) {
@@ -1020,7 +1022,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			return undefined;
 		}
 
-		let uri = resourceFromURIToOpen(toOpen);
+		let uri = this.resourceFromURIToOpen(toOpen);
 		if (uri.scheme === Schemas.file) {
 			return this.parsePath(uri.fsPath, options, isFileToOpen(toOpen));
 		}
@@ -1067,6 +1069,18 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			folderUri: uri,
 			remoteAuthority
 		};
+	}
+
+	private resourceFromURIToOpen(openable: IWindowOpenable): URI {
+		if (isWorkspaceToOpen(openable)) {
+			return openable.workspaceUri;
+		}
+
+		if (isFolderToOpen(openable)) {
+			return openable.folderUri;
+		}
+
+		return openable.fileUri;
 	}
 
 	private parsePath(anyPath: string, options: IPathParseOptions, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
@@ -1183,7 +1197,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return { openFolderInNewWindow: !!openFolderInNewWindow, openFilesInNewWindow };
 	}
 
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): void {
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[] {
 
 		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
@@ -1193,7 +1207,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			this.reload(existingWindow, openConfig.cli);
 			existingWindow.focus(); // make sure it gets focus and is restored
 
-			return;
+			return [existingWindow];
 		}
 		let folderUris = openConfig.cli['folder-uri'] || [];
 		let fileUris = openConfig.cli['file-uri'] || [];
@@ -1284,7 +1298,8 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			noRecentEntry: true,
 			waitMarkerFileURI: openConfig.waitMarkerFileURI
 		};
-		this.open(openArgs);
+
+		return this.open(openArgs);
 	}
 
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
@@ -1578,23 +1593,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		});
 	}
 
-	async enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		const result = await this.workspacesManager.enterWorkspace(win, path);
-
-		return result ? this.doEnterWorkspace(win, result) : undefined;
-	}
-
-	private doEnterWorkspace(win: ICodeWindow, result: IEnterWorkspaceResult): IEnterWorkspaceResult {
-
-		// Mark as recently opened
-		this.workspacesHistoryMainService.addRecentlyOpened([{ workspace: result.workspace }]);
-
-		// Trigger Eevent to indicate load of workspace into window
-		this._onWindowReady.fire(win);
-
-		return result;
-	}
-
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
@@ -1611,7 +1609,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return getLastActiveWindow(WindowsManager.WINDOWS);
 	}
 
-	getLastActiveWindowForAuthority(remoteAuthority: string | undefined): ICodeWindow | undefined {
+	private getLastActiveWindowForAuthority(remoteAuthority: string | undefined): ICodeWindow | undefined {
 		return getLastActiveWindow(WindowsManager.WINDOWS.filter(window => window.remoteAuthority === remoteAuthority));
 	}
 
@@ -1626,10 +1624,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		const forceNewWindow = !forceReuseWindow;
 
 		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
-	}
-
-	openNewTabbedWindow(context: OpenContext): ICodeWindow[] {
-		return this.open({ context, cli: this.environmentService.args, forceNewTabbedWindow: true, forceEmpty: true });
 	}
 
 	waitForWindowCloseOrLoad(windowId: number): Promise<void> {
@@ -1666,7 +1660,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 	}
 
-	getFocusedWindow(): ICodeWindow | undefined {
+	private getFocusedWindow(): ICodeWindow | undefined {
 		const win = BrowserWindow.getFocusedWindow();
 		if (win) {
 			return this.getWindowById(win.id);
@@ -1859,89 +1853,4 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			}, 10 /* delay to unwind callback stack (IPC) */);
 		}
 	}
-}
-
-class WorkspacesManager {
-
-	constructor(
-		private readonly workspacesMainService: IWorkspacesMainService,
-		private readonly backupMainService: IBackupMainService,
-		private readonly windowsMainService: IWindowsMainService,
-		private readonly dialogMainService: IDialogMainService
-	) { }
-
-	async enterWorkspace(window: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | null> {
-		if (!window || !window.win || !window.isReady) {
-			return null; // return early if the window is not ready or disposed
-		}
-
-		const isValid = await this.isValidTargetWorkspacePath(window, path);
-		if (!isValid) {
-			return null; // return early if the workspace is not valid
-		}
-
-		return this.doOpenWorkspace(window, getWorkspaceIdentifier(path));
-	}
-
-	private async isValidTargetWorkspacePath(window: ICodeWindow, path?: URI): Promise<boolean> {
-		if (!path) {
-			return true;
-		}
-
-		if (window.openedWorkspace && isEqual(window.openedWorkspace.configPath, path)) {
-			return false; // window is already opened on a workspace with that path
-		}
-
-		// Prevent overwriting a workspace that is currently opened in another window
-		if (findWindowOnWorkspace(this.windowsMainService.getWindows(), getWorkspaceIdentifier(path))) {
-			const options: MessageBoxOptions = {
-				title: product.nameLong,
-				type: 'info',
-				buttons: [localize('ok', "OK")],
-				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", resourcesBasename(path)),
-				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
-				noLink: true
-			};
-
-			await this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
-
-			return false;
-		}
-
-		return true; // OK
-	}
-
-	private doOpenWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): IEnterWorkspaceResult {
-		window.focus();
-
-		// Register window for backups and migrate current backups over
-		let backupPath: string | undefined;
-		if (!window.config.extensionDevelopmentPath) {
-			backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace, remoteAuthority: window.remoteAuthority }, window.config.backupPath);
-		}
-
-		// if the window was opened on an untitled workspace, delete it.
-		if (window.openedWorkspace && this.workspacesMainService.isUntitledWorkspace(window.openedWorkspace)) {
-			this.workspacesMainService.deleteUntitledWorkspaceSync(window.openedWorkspace);
-		}
-
-		// Update window configuration properly based on transition to workspace
-		window.config.folderUri = undefined;
-		window.config.workspace = workspace;
-		window.config.backupPath = backupPath;
-
-		return { workspace, backupPath };
-	}
-}
-
-function resourceFromURIToOpen(openable: IWindowOpenable): URI {
-	if (isWorkspaceToOpen(openable)) {
-		return openable.workspaceUri;
-	}
-
-	if (isFolderToOpen(openable)) {
-		return openable.folderUri;
-	}
-
-	return openable.fileUri;
 }

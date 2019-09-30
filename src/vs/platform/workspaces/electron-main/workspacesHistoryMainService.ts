@@ -23,6 +23,7 @@ import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
 import { exists } from 'vs/base/node/pfs';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
@@ -40,7 +41,7 @@ export interface IWorkspacesHistoryMainService {
 	updateWindowsJumpList(): void;
 }
 
-export class WorkspacesHistoryMainService implements IWorkspacesHistoryMainService {
+export class WorkspacesHistoryMainService extends Disposable implements IWorkspacesHistoryMainService {
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
 
@@ -60,18 +61,27 @@ export class WorkspacesHistoryMainService implements IWorkspacesHistoryMainServi
 	private readonly _onRecentlyOpenedChange = new Emitter<void>();
 	readonly onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;
 
-	private macOSRecentDocumentsUpdater: ThrottledDelayer<void>;
+	private macOSRecentDocumentsUpdater = this._register(new ThrottledDelayer<void>(800));
 
 	constructor(
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
-		this.macOSRecentDocumentsUpdater = new ThrottledDelayer<void>(800);
+		super();
 
-		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Install window jump list after opening window
+		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
+
+		// Add to history when entering workspace
+		this._register(this.workspacesMainService.onWorkspaceEntered(event => this.addRecentlyOpened([{ workspace: event.workspace }])));
 	}
 
 	private handleWindowsJumpList(): void {
