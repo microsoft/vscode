@@ -1406,6 +1406,53 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			});
 	});
 
+
+	test('get tasks configuration', () => {
+		const expectedTasksConfiguration = {
+			'version': '2.0.0',
+			'tasks': [
+				{
+					'label': 'Run Dev',
+					'type': 'shell',
+					'command': './scripts/code.sh',
+					'windows': {
+						'command': '.\\scripts\\code.bat'
+					},
+					'problemMatcher': []
+				}
+			]
+		};
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.getValue('tasks');
+				assert.deepEqual(actual, expectedTasksConfiguration);
+			});
+	});
+
+	test('inspect tasks configuration', () => {
+		const expectedTasksConfiguration = {
+			'version': '2.0.0',
+			'tasks': [
+				{
+					'label': 'Run Dev',
+					'type': 'shell',
+					'command': './scripts/code.sh',
+					'windows': {
+						'command': '.\\scripts\\code.bat'
+					},
+					'problemMatcher': []
+				}
+			]
+		};
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.inspect('tasks').workspace;
+				assert.deepEqual(actual, expectedTasksConfiguration);
+			});
+	});
+
 	test('update user configuration', () => {
 		return testObject.updateValue('configurationService.workspace.testSetting', 'userValue', ConfigurationTarget.USER)
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.testSetting'), 'userValue'));
@@ -1483,25 +1530,17 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			.then(() => assert.deepEqual(testObject.getValue('tasks', { resource: workspace.folders[0].uri }), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
 	});
 
-	test('update tasks configuration in a workspace is not supported', () => {
-		const workspace = workspaceContextService.getWorkspace();
-		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
-			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET));
-	});
-
 	test('update launch configuration in a workspace', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
 			.then(() => assert.deepEqual(testObject.getValue('launch'), { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }));
 	});
 
-	test('task configurations are not read from workspace', () => {
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: { 'version': '1.0' } }], true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => {
-				const actual = testObject.inspect('tasks.version');
-				assert.equal(actual.workspace, undefined);
-			});
+	test('update tasks configuration in a workspace', () => {
+		const workspace = workspaceContextService.getWorkspace();
+		const tasks = { 'version': '2.0.0', tasks: [{ 'label': 'myTask' }] };
+		return testObject.updateValue('tasks', tasks, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.deepEqual(testObject.getValue('tasks'), tasks));
 	});
 
 	test('configuration of newly added folder is available on configuration change event', async () => {
