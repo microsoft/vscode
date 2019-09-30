@@ -63,6 +63,12 @@ export function registerConfiguration(): IDisposable {
 				$ref: ignoredSettingsSchemaId,
 				additionalProperties: true,
 				uniqueItems: true
+			},
+			'configurationSync.enableAuth': {
+				'type': 'boolean',
+				description: localize('configurationSync.enableAuth', "Enables authentication and requires VS Code restart when changed"),
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});

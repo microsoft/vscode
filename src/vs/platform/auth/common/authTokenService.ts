@@ -8,6 +8,7 @@ import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const SERVICE_NAME = 'VS Code';
 const ACCOUNT = 'MyAccount';
@@ -23,9 +24,10 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	constructor(
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		if (productService.settingsSyncStoreUrl) {
+		if (productService.settingsSyncStoreUrl && configurationService.getValue('configurationSync.enableAuth')) {
 			this._status = AuthTokenStatus.Inactive;
 			this.getToken().then(token => {
 				if (token) {
