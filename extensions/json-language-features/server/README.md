@@ -12,7 +12,7 @@ The JSON Language server provides language-specific smarts for editing, validati
 
 The JSON language server supports requests on documents of language id `json` and `jsonc`.
 - `json` documents are parsed and validated following the [JSON specification](https://tools.ietf.org/html/rfc7159).
-- `jsonc` documents additionally accept single line (`//`) and multi-line comments (`/* ... */`) and accepts trailing commas. JSONC is a VSCode specific file format, intended for VSCode configuration files, without any aspirations to define a new common file format.
+- `jsonc` documents additionally accept single line (`//`) and multi-line comments (`/* ... */`). JSONC is a VSCode specific file format, intended for VSCode configuration files, without any aspirations to define a new common file format.
 
 The server implements the following capabilities of the language server protocol:
 
@@ -40,6 +40,13 @@ The JSON language server has the following dependencies on the client's capabili
 
 ## Configuration
 
+### Initialization options
+
+The client can send the following initialization options to the server:
+
+- `provideFormatter: boolean | undefined`. If defined, the value defines wheter the server provides the `documentRangeFormattingProvider` capability on initialization. If undefined, the setting `json.format.enable` is used to determined wheter formatting is provided. The formatter will then be registered through dynamic registration. If the client does not support dynamic registration, no formatter will be available.
+- `handledSchemaProtocols`: The URI schemas handles by the server. See section `Schema configuration` below.
+
 ### Settings
 
 Clients may send a `workspace/didChangeConfiguration` notification to notify the server of settings changes.
@@ -51,7 +58,7 @@ The server supports the following settings:
 
 - json
   - `format`
-    - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting*
+    - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting* and `initializationOptions.provideFormatter` is not defined.
     - `schema`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
 	  - `fileMatch`: an array or file names or paths (separated by `/`). `*` can be used as a wildcard.
 	  - `url`: The URL of the schema, optional when also a schema is provided.
