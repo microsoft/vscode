@@ -1168,7 +1168,7 @@ declare module 'vscode' {
 		 *
 		 * @return A uri that can be used on the client machine.
 		 */
-		export function resolveExternalUri(target: Uri): Thenable<Uri>;
+		export function asExternalUri(target: Uri): Thenable<Uri>;
 	}
 
 	//#endregion

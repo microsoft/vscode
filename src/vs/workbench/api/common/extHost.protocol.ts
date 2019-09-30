@@ -746,7 +746,7 @@ export interface IOpenUriOptions {
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): Promise<boolean>;
 	$openUri(uri: UriComponents, options: IOpenUriOptions): Promise<boolean>;
-	$resolveExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
+	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
 }
 
 // -- extension host
