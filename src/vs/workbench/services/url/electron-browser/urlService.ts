@@ -13,6 +13,7 @@ import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class RelayURLService extends URLService implements IURLHandler {
 
@@ -21,7 +22,8 @@ export class RelayURLService extends URLService implements IURLHandler {
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
-		@IElectronEnvironmentService private electronEnvironmentService: IElectronEnvironmentService
+		@IElectronEnvironmentService private electronEnvironmentService: IElectronEnvironmentService,
+		@IElectronService private electronService: IElectronService
 	) {
 		super();
 
@@ -52,8 +54,14 @@ export class RelayURLService extends URLService implements IURLHandler {
 		return await this.urlService.open(resource);
 	}
 
-	handleURL(uri: URI): Promise<boolean> {
-		return super.open(uri);
+	async handleURL(uri: URI): Promise<boolean> {
+		const result = await super.open(uri);
+
+		if (result) {
+			await this.electronService.focusWindow();
+		}
+
+		return result;
 	}
 }
 
