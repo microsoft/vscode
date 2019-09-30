@@ -87,7 +87,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
+import { INativeOpenDialogOptions, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue } from 'vs/platform/dialogs/node/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
@@ -1355,9 +1355,9 @@ export class TestElectronService implements IElectronService {
 	async minimizeWindow(): Promise<void> { }
 	async isWindowFocused(): Promise<boolean> { return true; }
 	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
-	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
-	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
-	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
+	async showMessageBox(options: Electron.MessageBoxOptions): Promise<MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
+	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
+	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
 	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
@@ -1448,15 +1448,15 @@ export class TestDialogMainService implements IDialogMainService {
 		throw new Error('Method not implemented.');
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.MessageBoxReturnValue> {
+	showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<MessageBoxReturnValue> {
 		throw new Error('Method not implemented.');
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.SaveDialogReturnValue> {
+	showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<SaveDialogReturnValue> {
 		throw new Error('Method not implemented.');
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.OpenDialogReturnValue> {
+	showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<OpenDialogReturnValue> {
 		throw new Error('Method not implemented.');
 	}
 }

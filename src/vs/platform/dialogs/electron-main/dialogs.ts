@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { MessageBoxOptions, MessageBoxReturnValue, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, dialog, FileFilter, BrowserWindow } from 'electron';
+import { MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, dialog, FileFilter, BrowserWindow } from 'electron';
 import { Queue } from 'vs/base/common/async';
 import { IStateService } from 'vs/platform/state/node/state';
 import { isMacintosh } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/path';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { exists } from 'vs/base/node/pfs';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
+import { INativeOpenDialogOptions, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue } from 'vs/platform/dialogs/node/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
@@ -139,11 +139,13 @@ export class DialogMainService implements IDialogMainService {
 
 	showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
 		return this.getDialogQueue(window).queue(async () => {
-			if (window) {
-				return dialog.showMessageBox(window, options);
-			}
+			return new Promise(resolve => {
+				if (window) {
+					return dialog.showMessageBox(window, options, (response, checkboxChecked) => resolve({ response, checkboxChecked }));
+				}
 
-			return dialog.showMessageBox(options);
+				return dialog.showMessageBox(options);
+			});
 		});
 	}
 
@@ -158,16 +160,17 @@ export class DialogMainService implements IDialogMainService {
 		}
 
 		return this.getDialogQueue(window).queue(async () => {
-			let result: SaveDialogReturnValue;
-			if (window) {
-				result = await dialog.showSaveDialog(window, options);
-			} else {
-				result = await dialog.showSaveDialog(options);
-			}
+			return new Promise<SaveDialogReturnValue>(resolve => {
+				if (window) {
+					dialog.showSaveDialog(window, options, filePath => resolve({ filePath }));
+				} else {
+					dialog.showSaveDialog(options, filePath => resolve({ filePath }));
+				}
+			}).then(result => {
+				result.filePath = normalizePath(result.filePath);
 
-			result.filePath = normalizePath(result.filePath);
-
-			return result;
+				return result;
+			});
 		});
 	}
 
@@ -192,16 +195,17 @@ export class DialogMainService implements IDialogMainService {
 			}
 
 			// Show dialog
-			let result: OpenDialogReturnValue;
-			if (window) {
-				result = await dialog.showOpenDialog(window, options);
-			} else {
-				result = await dialog.showOpenDialog(options);
-			}
+			return new Promise<OpenDialogReturnValue>(resolve => {
+				if (window) {
+					dialog.showOpenDialog(window, options, filePaths => resolve({ filePaths }));
+				} else {
+					dialog.showOpenDialog(options, filePaths => resolve({ filePaths }));
+				}
+			}).then(result => {
+				result.filePaths = normalizePaths(result.filePaths);
 
-			result.filePaths = normalizePaths(result.filePaths);
-
-			return result;
+				return result;
+			});
 		});
 	}
 }

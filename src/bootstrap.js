@@ -21,7 +21,6 @@ process.on('SIGPIPE', () => {
 //#endregion
 
 //#region Add support for redirecting the loading of node modules
-
 exports.injectNodeModuleLookupPath = function (injectPath) {
 	if (!injectPath) {
 		throw new Error('Missing injectPath');
@@ -37,8 +36,10 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
 
 	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent) {
-		const paths = originalResolveLookupPaths(moduleName, parent);
+	Module._resolveLookupPaths = function (moduleName, parent, newReturn) {
+		const result = originalResolveLookupPaths(moduleName, parent, newReturn);
+
+		const paths = newReturn ? result : result[1];
 		for (let i = 0, len = paths.length; i < len; i++) {
 			if (paths[i] === nodeModulesPath) {
 				paths.splice(i, 0, injectPath);
@@ -46,7 +47,7 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 			}
 		}
 
-		return paths;
+		return result;
 	};
 };
 //#endregion
@@ -70,10 +71,11 @@ exports.enableASARSupport = function (nodeModulesPath) {
 
 	// @ts-ignore
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
-
 	// @ts-ignore
-	Module._resolveLookupPaths = function (request, parent) {
-		const paths = originalResolveLookupPaths(request, parent);
+	Module._resolveLookupPaths = function (request, parent, newReturn) {
+		const result = originalResolveLookupPaths(request, parent, newReturn);
+
+		const paths = newReturn ? result : result[1];
 		for (let i = 0, len = paths.length; i < len; i++) {
 			if (paths[i] === NODE_MODULES_PATH) {
 				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
@@ -81,7 +83,7 @@ exports.enableASARSupport = function (nodeModulesPath) {
 			}
 		}
 
-		return paths;
+		return result;
 	};
 };
 //#endregion
