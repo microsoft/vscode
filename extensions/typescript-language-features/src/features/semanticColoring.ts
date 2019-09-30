@@ -109,11 +109,11 @@ class SemanticColoringProvider implements vscode.SemanticColoringProvider {
 }
 
 export function register(
-	_selector: vscode.DocumentSelector,
+	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient
 ) {
 	const provider = new SemanticColoringProvider(client);
-	// return vscode.languages.registerSemanticColoringProvider(selector, )
+
 
 	const run = async () => {
 		const ed = vscode.window.activeTextEditor;
@@ -149,7 +149,10 @@ export function register(
 
 	console.log(`I am running...`);
 
-	return vscode.Disposable.from();
+	// return vscode.Disposable.from();
 	// return vscode.languages.registerRenameProvider(selector,
 	// 	new TypeScriptRenameProvider(client, fileConfigurationManager));
+
+	return vscode.languages.registerSemanticColoringProvider(selector, provider);
+	// return vscode.languages.registerSemanticColoringProvider(selector, )
 }

@@ -26,6 +26,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { encodeSemanticTokensDto, ISemanticTokensFullAreaDto, ISemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 
 // --- adapter
 
@@ -615,46 +617,92 @@ class RenameAdapter {
 
 class SemanticColoringAdapter {
 
-	// private readonly _cache = new Cache<vscode.SignatureHelp>('SignatureHelp');
+	private readonly _previousResults = new Map<number, vscode.SemanticColoring>();
+	private _nextResultId = 1;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.SemanticColoringProvider,
 	) { }
 
-	provideSignatureHelp(resource: URI, token: CancellationToken): Promise<extHostProtocol.ISignatureHelpDto | undefined> {
+	provideSemanticColoring(resource: URI, previousSemanticColoringResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
 		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
-		const vscodeContext = this.reviveContext(context);
 
-		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
-			if (value) {
-				const id = this._cache.add([value]);
-				return { ...typeConvert.SignatureHelp.from(value), id };
+		return asPromise(() => this._provider.provideSemanticColoring(doc, token)).then(value => {
+			if (!value) {
+				return null;
 			}
-			return undefined;
+
+			const previousResult = (previousSemanticColoringResultId !== 0 ? this._previousResults.get(previousSemanticColoringResultId) : null);
+			if (previousResult) {
+				return this._deltaEncode(previousResult, value);
+			}
+
+			return this._encode(value);
 		});
 	}
 
-	private reviveContext(context: extHostProtocol.ISignatureHelpContextDto): vscode.SignatureHelpContext {
-		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
-		if (context.activeSignatureHelp) {
-			const revivedSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
-			const saved = this._cache.get(context.activeSignatureHelp.id, 0);
-			if (saved) {
-				activeSignatureHelp = saved;
-				activeSignatureHelp.activeSignature = revivedSignatureHelp.activeSignature;
-				activeSignatureHelp.activeParameter = revivedSignatureHelp.activeParameter;
-			} else {
-				activeSignatureHelp = revivedSignatureHelp;
-			}
-		}
-		return { ...context, activeSignatureHelp };
+	private _deltaEncode(previousResult: vscode.SemanticColoring, currentResult: vscode.SemanticColoring): VSBuffer {
+		console.log(previousResult);
+		console.log(currentResult);
+		throw new Error(`TODO - Not implemented`);
 	}
 
-	releaseSignatureHelp(id: number): any {
-		this._cache.delete(id);
+	private _encode(result: vscode.SemanticColoring): VSBuffer {
+		const myId = this._nextResultId++;
+		this._previousResults.set(myId, result);
+
+		const dto: ISemanticTokensDto = {
+			id: myId,
+			areas: result.areas.map(area => {
+				return {
+					type: 'full',
+					line: area.line,
+					data: area.data
+				};
+			})
+		};
+		const r = encodeSemanticTokensDto(dto);
+		console.log(r);
+		return r;
 	}
+
+	releaseSemanticColoring(semanticColoringResultId: number): Promise<void> {
+	}
+
+	// provideSignatureHelp(resource: URI, token: CancellationToken): Promise<extHostProtocol.ISignatureHelpDto | undefined> {
+	// 	const doc = this._documents.getDocument(resource);
+	// 	const pos = typeConvert.Position.to(position);
+	// 	const vscodeContext = this.reviveContext(context);
+
+	// 	return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
+	// 		if (value) {
+	// 			const id = this._cache.add([value]);
+	// 			return { ...typeConvert.SignatureHelp.from(value), id };
+	// 		}
+	// 		return undefined;
+	// 	});
+	// }
+
+	// private reviveContext(context: extHostProtocol.ISignatureHelpContextDto): vscode.SignatureHelpContext {
+	// 	let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
+	// 	if (context.activeSignatureHelp) {
+	// 		const revivedSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
+	// 		const saved = this._cache.get(context.activeSignatureHelp.id, 0);
+	// 		if (saved) {
+	// 			activeSignatureHelp = saved;
+	// 			activeSignatureHelp.activeSignature = revivedSignatureHelp.activeSignature;
+	// 			activeSignatureHelp.activeParameter = revivedSignatureHelp.activeParameter;
+	// 		} else {
+	// 			activeSignatureHelp = revivedSignatureHelp;
+	// 		}
+	// 	}
+	// 	return { ...context, activeSignatureHelp };
+	// }
+
+	// releaseSignatureHelp(id: number): any {
+	// 	this._cache.delete(id);
+	// }
 }
 
 class SuggestAdapter {
@@ -1405,6 +1453,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName, token), undefined);
 	}
 
+	$provideSemanticColoring(handle: number, resource: UriComponents, previousSemanticColoringResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
+		return this._withAdapter(handle, SemanticColoringAdapter, adapter => adapter.provideSemanticColoring(URI.revive(resource), previousSemanticColoringResultId, token), null);
+	}
+
+
 	$resolveRenameLocation(handle: number, resource: URI, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position, token), undefined);
 	}
@@ -1413,7 +1466,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerSemanticColoringProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SemanticColoringProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new SemanticColoringAdapter(this._documents, provider), extension);
-		this._proxy.$registerSemanticColoringProvider(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerSemanticColoringProvider(handle, this._transformDocumentSelector(selector), provider.getLegend());
 		return this._createDisposable(handle);
 	}
 

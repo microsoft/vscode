@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -13,12 +14,14 @@ import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { LanguageIdentifier, SemanticColoringProviderRegistry, SemanticColoringProvider, SemanticColoring, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -124,6 +127,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
+
+		this._register(new SemanticColoringFeature(this));
 	}
 
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -427,7 +432,7 @@ export interface ILineSequence {
 	getLineContent(lineNumber: number): string;
 }
 
-class SemanticColoring extends Disposable {
+class SemanticColoringFeature extends Disposable {
 	private _watchers: Record<string, ModelSemanticColoring>;
 
 	constructor(modelService: IModelService) {
@@ -445,9 +450,105 @@ class SemanticColoring extends Disposable {
 
 class ModelSemanticColoring extends Disposable {
 
+	private readonly _model: ITextModel;
+	private readonly _fetchSemanticTokens: RunOnceScheduler;
+	private _currentResponse: SemanticColoring | null;
+	private _currentRequestCancellationTokenSource: CancellationTokenSource | null;
+	private _currentRequestVersion: number;
+
 	constructor(model: ITextModel) {
 		super();
-		this._register
+
+		console.log(`ModelSemanticColoring created for ${model.uri}`);
+
+		this._model = model;
+		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 500));
+		this._currentResponse = null;
+		this._currentRequestCancellationTokenSource = null;
+		this._currentRequestVersion = -1;
+
+		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
+		this._register(SemanticColoringProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
+		this._fetchSemanticTokensNow();
 	}
 
+	public dispose(): void {
+		if (this._currentResponse) {
+			this._currentResponse.dispose();
+			this._currentResponse = null;
+		}
+		if (this._currentRequestCancellationTokenSource) {
+			this._currentRequestCancellationTokenSource.cancel();
+			this._currentRequestCancellationTokenSource = null;
+		}
+		super.dispose();
+	}
+
+	private _fetchSemanticTokensNow(): void {
+		if (this._currentRequestCancellationTokenSource) {
+			// there is already a request running, let it finish...
+			return;
+		}
+		const provider = this._getSemanticColoringProvider();
+		if (!provider) {
+			return;
+		}
+		this._currentRequestCancellationTokenSource = new CancellationTokenSource();
+		this._currentRequestVersion = this._model.getVersionId();
+		const request = Promise.resolve(provider.provideSemanticColoring(this._model, this._currentRequestCancellationTokenSource.token));
+
+		request.then((res) => {
+			this._currentRequestCancellationTokenSource = null;
+			this._setSemanticTokens(this._currentRequestVersion, res || null);
+			// if (this._currentResponse) {
+			// 	this._currentResponse.dispose();
+			// 	this._currentResponse = null;
+			// }
+			// this._currentRequestVersion = -1;
+			console.log(res);
+		}, (err) => {
+			this._currentRequestCancellationTokenSource = null;
+			errors.onUnexpectedError(err);
+			this._setSemanticTokens(this._currentRequestVersion, null);
+		});
+	}
+
+	private _setSemanticTokens(versionId: number, tokens: SemanticColoring | null): void {
+		if (this._currentResponse) {
+			this._currentResponse.dispose();
+			this._currentResponse = null;
+		}
+		this._currentResponse = tokens;
+		// TODO@semantic: diff here and reduce to only really needed tokens...
+		if (this._currentResponse) {
+			for (const area of this._currentResponse.areas) {
+				const tokenCount = area.data.length / 5;
+				const tokens = new Uint32Array(2 * tokenCount);
+				for (let i = 0; i < tokenCount; i++) {
+					const offset = 5 * i;
+					const deltaLine = area.data[offset];
+					const startCharacter = area.data[offset + 1];
+					const endCharacter = area.data[offset + 2];
+					const tokenType = area.data[offset + 3];
+					const tokenModifiers = area.data[offset + 4];
+
+					const fontStyle = FontStyle.Italic | FontStyle.Bold | FontStyle.Underline;
+					const foregroundColorId = 3;
+					const metadata = (
+						(fontStyle << MetadataConsts.FONT_STYLE_OFFSET)
+						| (foregroundColorId << MetadataConsts.FOREGROUND_OFFSET)
+					) >>> 0;
+					// tokens[2 * i] =
+				}
+			}
+			console.log(`_setSemanticTokens`, tokens);
+			// Convert this into editor friendly tokens
+			// for (let )
+		}
+	}
+
+	private _getSemanticColoringProvider(): SemanticColoringProvider | null {
+		const result = SemanticColoringProviderRegistry.ordered(this._model);
+		return (result.length > 0 ? result[0] : null);
+	}
 }
