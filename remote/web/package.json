@@ -1,0 +1,13 @@
+{
+	"name": "vscode-web",
+	"version": "0.0.0",
+	"dependencies": {
+		"@microsoft/applicationinsights-web": "^2.1.1",
+		"onigasm-umd": "^2.2.2",
+		"semver-umd": "^5.5.3",
+		"vscode-textmate": "^4.2.2",
+		"xterm": "4.1.0-beta8",
+		"xterm-addon-search": "0.2.0",
+		"xterm-addon-web-links": "0.2.0"
+	}
+}

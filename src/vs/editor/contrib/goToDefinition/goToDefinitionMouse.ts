@@ -10,13 +10,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { getDefinitionsAtPosition } from './goToDefinition';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -33,29 +33,26 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	static MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private readonly editor: ICodeEditor;
-	private toUnhook: IDisposable[];
-	private decorations: string[];
-	private currentWordUnderMouse: IWordAtPosition | null;
-	private previousPromise: CancelablePromise<LocationLink[] | null> | null;
+	private readonly toUnhook = new DisposableStore();
+	private decorations: string[] = [];
+	private currentWordUnderMouse: IWordAtPosition | null = null;
+	private previousPromise: CancelablePromise<LocationLink[] | null> | null = null;
 
 	constructor(
 		editor: ICodeEditor,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
-		this.toUnhook = [];
-		this.decorations = [];
 		this.editor = editor;
-		this.previousPromise = null;
 
 		let linkGesture = new ClickLinkGesture(editor);
-		this.toUnhook.push(linkGesture);
+		this.toUnhook.add(linkGesture);
 
-		this.toUnhook.push(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
+		this.toUnhook.add(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
 			this.startFindDefinition(mouseEvent, withNullAsUndefined(keyboardEvent));
 		}));
 
-		this.toUnhook.push(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
+		this.toUnhook.add(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
 			if (this.isEnabled(mouseEvent)) {
 				this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).then(() => {
 					this.removeDecorations();
@@ -66,7 +63,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			}
 		}));
 
-		this.toUnhook.push(linkGesture.onCancel(() => {
+		this.toUnhook.add(linkGesture.onCancel(() => {
 			this.removeDecorations();
 			this.currentWordUnderMouse = null;
 		}));
@@ -150,7 +147,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 						return;
 					}
 
-					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber);
+					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber, result);
 
 					let wordRange: Range;
 					if (result.originSelectionRange) {
@@ -159,7 +156,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
 
-					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri.fsPath);
+					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
 						wordRange,
 						new MarkdownString().appendCodeblock(modeId ? modeId : '', previewValue)
@@ -170,8 +167,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		}).then(undefined, onUnexpectedError);
 	}
 
-	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number) {
-		let rangeToUse = this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
+	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number, result: LocationLink) {
+		let rangeToUse = result.targetSelectionRange ? result.range : this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
 		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
 		if (numberOfLinesInRange >= GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
 			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
@@ -181,7 +178,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		return previewValue;
 	}
 
-	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: Range) {
+	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: IRange) {
 		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
 		let minIndent = startIndent;
 
@@ -294,7 +291,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Promise<any> {
 		this.editor.setPosition(target.position!);
-		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: '', label: '', id: '', precondition: null });
+		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: '', label: '', id: '', precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}
 
@@ -303,7 +300,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	public dispose(): void {
-		this.toUnhook = dispose(this.toUnhook);
+		this.toUnhook.dispose();
 	}
 }
 

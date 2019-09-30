@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getFirstFrame } from 'vs/base/node/console';
+import { getFirstFrame } from 'vs/base/common/console';
 import { normalize } from 'vs/base/common/path';
 
 suite('Console', () => {

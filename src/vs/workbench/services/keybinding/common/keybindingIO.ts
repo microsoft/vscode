@@ -14,7 +14,7 @@ export interface IUserKeybindingItem {
 	parts: (SimpleKeybinding | ScanCodeBinding)[];
 	command: string | null;
 	commandArgs?: any;
-	when: ContextKeyExpr | null;
+	when: ContextKeyExpr | undefined;
 }
 
 export class KeybindingIO {
@@ -41,7 +41,7 @@ export class KeybindingIO {
 
 	public static readUserKeybindingItem(input: IUserFriendlyKeybinding): IUserKeybindingItem {
 		const parts = (typeof input.key === 'string' ? KeybindingParser.parseUserBinding(input.key) : []);
-		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : null);
+		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : undefined);
 		const command = (typeof input.command === 'string' ? input.command : null);
 		const commandArgs = (typeof input.args !== 'undefined' ? input.args : undefined);
 		return {

@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Application } from '../../application';
+import { Application } from '../../../../automation';
 
 function toUri(path: string): string {
 	if (process.platform === 'win32') {

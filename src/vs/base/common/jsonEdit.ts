@@ -5,6 +5,7 @@
 
 import { ParseError, Node, JSONPath, Segment, parseTree, findNodeAtLocation } from './json';
 import { Edit, format, isEOL, FormattingOptions } from './jsonFormatter';
+import { mergeSort } from 'vs/base/common/arrays';
 
 
 export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {
@@ -143,11 +144,11 @@ function withFormatting(text: string, edit: Edit, formattingOptions: FormattingO
 
 	// apply the formatting edits and track the begin and end offsets of the changes
 	for (let i = edits.length - 1; i >= 0; i--) {
-		const edit = edits[i];
-		newText = applyEdit(newText, edit);
-		begin = Math.min(begin, edit.offset);
-		end = Math.max(end, edit.offset + edit.length);
-		end += edit.content.length - edit.length;
+		const curr = edits[i];
+		newText = applyEdit(newText, curr);
+		begin = Math.min(begin, curr.offset);
+		end = Math.max(end, curr.offset + curr.length);
+		end += curr.content.length - curr.length;
 	}
 	// create a single edit with all changes
 	const editLength = text.length - (newText.length - end) - begin;
@@ -156,6 +157,27 @@ function withFormatting(text: string, edit: Edit, formattingOptions: FormattingO
 
 export function applyEdit(text: string, edit: Edit): string {
 	return text.substring(0, edit.offset) + edit.content + text.substring(edit.offset + edit.length);
+}
+
+export function applyEdits(text: string, edits: Edit[]): string {
+	let sortedEdits = mergeSort(edits, (a, b) => {
+		const diff = a.offset - b.offset;
+		if (diff === 0) {
+			return a.length - b.length;
+		}
+		return diff;
+	});
+	let lastModifiedOffset = text.length;
+	for (let i = sortedEdits.length - 1; i >= 0; i--) {
+		let e = sortedEdits[i];
+		if (e.offset + e.length <= lastModifiedOffset) {
+			text = applyEdit(text, e);
+		} else {
+			throw new Error('Overlapping edit');
+		}
+		lastModifiedOffset = e.offset;
+	}
+	return text;
 }
 
 export function isWS(text: string, offset: number) {

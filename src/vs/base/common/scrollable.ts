@@ -377,8 +377,8 @@ export class SmoothScrollingOperation {
 	private readonly _startTime: number;
 	public animationFrameDisposable: IDisposable | null;
 
-	private scrollLeft: IAnimation;
-	private scrollTop: IAnimation;
+	private scrollLeft!: IAnimation;
+	private scrollTop!: IAnimation;
 
 	protected constructor(from: ISmoothScrollPosition, to: ISmoothScrollPosition, startTime: number, duration: number) {
 		this.from = from;

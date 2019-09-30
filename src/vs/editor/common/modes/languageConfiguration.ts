@@ -78,7 +78,9 @@ export interface LanguageConfiguration {
 	 *
 	 * @deprecated Will be replaced by a better API soon.
 	 */
-	__electricCharacterSupport?: IBracketElectricCharacterContribution;
+	__electricCharacterSupport?: {
+		docComment?: IDocComment;
+	};
 }
 
 /**
@@ -153,10 +155,6 @@ export interface OnEnterRule {
 	 * The action to execute.
 	 */
 	action: EnterAction;
-}
-
-export interface IBracketElectricCharacterContribution {
-	docComment?: IDocComment;
 }
 
 /**

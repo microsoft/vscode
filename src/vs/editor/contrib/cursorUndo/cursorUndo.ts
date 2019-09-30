@@ -14,9 +14,9 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class CursorState {
-	readonly selections: Selection[];
+	readonly selections: readonly Selection[];
 
-	constructor(selections: Selection[]) {
+	constructor(selections: readonly Selection[]) {
 		this.selections = selections;
 	}
 
@@ -119,7 +119,7 @@ export class CursorUndo extends EditorAction {
 			id: 'cursorUndo',
 			label: nls.localize('cursor.undo', "Soft Undo"),
 			alias: 'Soft Undo',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_U,

@@ -9,6 +9,7 @@ import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 import { textToMarkedString } from './markedTextUtil';
 
+import * as cp from 'child_process';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
@@ -73,11 +74,25 @@ export class PackageJSONContribution implements IJSONContribution {
 			let queryUrl: string;
 			if (currentWord.length > 0) {
 				if (currentWord[0] === '@') {
-					return this.collectScopedPackages(currentWord, addValue, isLast, collector);
+					if (currentWord.indexOf('/') !== -1) {
+						return this.collectScopedPackages(currentWord, addValue, isLast, collector);
+					}
+					for (let scope of this.knownScopes) {
+						const proposal = new CompletionItem(scope);
+						proposal.kind = CompletionItemKind.Property;
+						proposal.insertText = new SnippetString().appendText(`"${scope}/`).appendTabstop().appendText('"');
+						proposal.filterText = JSON.stringify(scope);
+						proposal.documentation = '';
+						proposal.command = {
+							title: '',
+							command: 'editor.action.triggerSuggest'
+						};
+						collector.add(proposal);
+					}
+					collector.setAsIncomplete();
 				}
 
-				queryUrl = 'https://skimdb.npmjs.com/registry/_design/app/_view/browseAll?group_level=2&limit=' + LIMIT + '&start_key=%5B%22' + encodeURIComponent(currentWord) + '%22%5D&end_key=%5B%22' + encodeURIComponent(currentWord + 'z') + '%22,%7B%7D%5D';
-
+				queryUrl = `https://api.npms.io/v2/search/suggestions?size=${LIMIT}&q=${encodeURIComponent(currentWord)}`;
 				return this.xhr({
 					url: queryUrl,
 					agent: USER_AGENT
@@ -85,26 +100,10 @@ export class PackageJSONContribution implements IJSONContribution {
 					if (success.status === 200) {
 						try {
 							const obj = JSON.parse(success.responseText);
-							if (obj && Array.isArray(obj.rows)) {
-								const results = <{ key: string[]; }[]>obj.rows;
+							if (obj && Array.isArray(obj)) {
+								const results = <{ package: SearchPackageInfo; }[]>obj;
 								for (const result of results) {
-									const keys = result.key;
-									if (Array.isArray(keys) && keys.length > 0) {
-										const name = keys[0];
-										const insertText = new SnippetString().appendText(JSON.stringify(name));
-										if (addValue) {
-											insertText.appendText(': "').appendTabstop().appendText('"');
-											if (!isLast) {
-												insertText.appendText(',');
-											}
-										}
-										const proposal = new CompletionItem(name);
-										proposal.kind = CompletionItemKind.Property;
-										proposal.insertText = insertText;
-										proposal.filterText = JSON.stringify(name);
-										proposal.documentation = keys[1];
-										collector.add(proposal);
-									}
+									this.processPackage(result.package, addValue, isLast, collector);
 								}
 								if (results.length === LIMIT) {
 									collector.setAsIncomplete();
@@ -148,20 +147,7 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	private collectScopedPackages(currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
 		let segments = currentWord.split('/');
-		if (segments.length === 1) {
-			for (let scope of this.knownScopes) {
-				const proposal = new CompletionItem(scope);
-				proposal.kind = CompletionItemKind.Property;
-				proposal.insertText = new SnippetString().appendText(`"${scope}/`).appendTabstop().appendText('"');
-				proposal.filterText = JSON.stringify(scope);
-				proposal.documentation = '';
-				proposal.command = {
-					title: '',
-					command: 'editor.action.triggerSuggest'
-				};
-				collector.add(proposal);
-			}
-		} else if (segments.length === 2 && segments[0].length > 1) {
+		if (segments.length === 2 && segments[0].length > 1) {
 			let scope = segments[0].substr(1);
 			let name = segments[1];
 			if (name.length < 4) {
@@ -176,30 +162,9 @@ export class PackageJSONContribution implements IJSONContribution {
 					try {
 						const obj = JSON.parse(success.responseText);
 						if (obj && Array.isArray(obj.results)) {
-							const objects = <{ package: { name: string; version: string, description: string; } }[]>obj.results;
+							const objects = <{ package: SearchPackageInfo }[]>obj.results;
 							for (let object of objects) {
-								if (object.package && object.package.name) {
-									const name = object.package.name;
-									const insertText = new SnippetString().appendText(JSON.stringify(name));
-									if (addValue) {
-										insertText.appendText(': "');
-										if (object.package.version) {
-											insertText.appendVariable('version', object.package.version);
-										} else {
-											insertText.appendTabstop();
-										}
-										insertText.appendText('"');
-										if (!isLast) {
-											insertText.appendText(',');
-										}
-									}
-									const proposal = new CompletionItem(name);
-									proposal.kind = CompletionItemKind.Property;
-									proposal.insertText = insertText;
-									proposal.filterText = JSON.stringify(name);
-									proposal.documentation = object.package.description || '';
-									collector.add(proposal);
-								}
+								this.processPackage(object.package, addValue, isLast, collector);
 							}
 							if (objects.length === SCOPED_LIMIT) {
 								collector.setAsIncomplete();
@@ -229,38 +194,29 @@ export class PackageJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
-				const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(currentKey).replace(/%40/g, '@');
-				return this.xhr({
-					url: queryUrl,
-					agent: USER_AGENT
-				}).then((success) => {
-					try {
-						const obj = JSON.parse(success.responseText);
-						const latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
-						if (latest) {
-							let name = JSON.stringify(latest);
-							let proposal = new CompletionItem(name);
-							proposal.kind = CompletionItemKind.Property;
-							proposal.insertText = name;
-							proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
-							result.add(proposal);
+				return this.npmView(currentKey).then(info => {
+					const latest = info.distTagsLatest;
+					if (latest) {
+						let name = JSON.stringify(latest);
+						let proposal = new CompletionItem(name);
+						proposal.kind = CompletionItemKind.Property;
+						proposal.insertText = name;
+						proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
+						result.add(proposal);
 
-							name = JSON.stringify('^' + latest);
-							proposal = new CompletionItem(name);
-							proposal.kind = CompletionItemKind.Property;
-							proposal.insertText = name;
-							proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
-							result.add(proposal);
+						name = JSON.stringify('^' + latest);
+						proposal = new CompletionItem(name);
+						proposal.kind = CompletionItemKind.Property;
+						proposal.insertText = name;
+						proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
+						result.add(proposal);
 
-							name = JSON.stringify('~' + latest);
-							proposal = new CompletionItem(name);
-							proposal.kind = CompletionItemKind.Property;
-							proposal.insertText = name;
-							proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
-							result.add(proposal);
-						}
-					} catch (e) {
-						// ignore
+						name = JSON.stringify('~' + latest);
+						proposal = new CompletionItem(name);
+						proposal.kind = CompletionItemKind.Property;
+						proposal.insertText = name;
+						proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
+						result.add(proposal);
 					}
 					return 0;
 				}, () => {
@@ -288,34 +244,35 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string[]> {
-
-		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack).replace(/%40/g, '@');
-		return this.xhr({
-			url: queryUrl,
-			agent: USER_AGENT
-		}).then((success) => {
-			try {
-				const obj = JSON.parse(success.responseText);
-				if (obj) {
-					const result: string[] = [];
-					if (obj.description) {
-						result.push(obj.description);
-					}
-					const latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
-					if (latest) {
-						result.push(localize('json.npm.version.hover', 'Latest version: {0}', latest));
-					}
-					if (obj.homepage) {
-						result.push(obj.homepage);
-					}
-					return result;
-				}
-			} catch (e) {
-				// ignore
-			}
-			return [];
+		return this.npmView(pack).then(info => {
+			const result: string[] = [];
+			result.push(info.description || '');
+			result.push(info.distTagsLatest ? localize('json.npm.version.hover', 'Latest version: {0}', info.distTagsLatest) : '');
+			result.push(info.homepage || '');
+			return result;
 		}, () => {
 			return [];
+		});
+	}
+
+	private npmView(pack: string): Promise<ViewPackageInfo> {
+		return new Promise((resolve, reject) => {
+			const command = 'npm view --json ' + pack + ' description dist-tags.latest homepage';
+			cp.exec(command, (error, stdout) => {
+				if (error) {
+					return reject();
+				}
+				try {
+					const content = JSON.parse(stdout);
+					resolve({
+						description: content['description'],
+						distTagsLatest: content['dist-tags.latest'],
+						homepage: content['homepage']
+					});
+				} catch (e) {
+					reject();
+				}
+			});
 		});
 	}
 
@@ -333,4 +290,41 @@ export class PackageJSONContribution implements IJSONContribution {
 		}
 		return null;
 	}
+
+	private processPackage(pack: SearchPackageInfo, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector) {
+		if (pack && pack.name) {
+			const name = pack.name;
+			const insertText = new SnippetString().appendText(JSON.stringify(name));
+			if (addValue) {
+				insertText.appendText(': "');
+				if (pack.version) {
+					insertText.appendVariable('version', pack.version);
+				} else {
+					insertText.appendTabstop();
+				}
+				insertText.appendText('"');
+				if (!isLast) {
+					insertText.appendText(',');
+				}
+			}
+			const proposal = new CompletionItem(name);
+			proposal.kind = CompletionItemKind.Property;
+			proposal.insertText = insertText;
+			proposal.filterText = JSON.stringify(name);
+			proposal.documentation = pack.description || '';
+			collector.add(proposal);
+		}
+	}
+}
+
+interface SearchPackageInfo {
+	name: string;
+	description?: string;
+	version?: string;
+}
+
+interface ViewPackageInfo {
+	description: string;
+	distTagsLatest?: string;
+	homepage?: string;
 }

@@ -32,7 +32,7 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  * A service that enables to search for files or with in files.
  */
 export interface ISearchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
@@ -48,12 +48,12 @@ export const enum SearchProviderType {
 }
 
 export interface ISearchResultProvider {
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete | undefined>;
-	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete | undefined>;
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
 }
 
-export interface IFolderQuery<U extends UriComponents=URI> {
+export interface IFolderQuery<U extends UriComponents = URI> {
 	folder: U;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
@@ -132,6 +132,7 @@ export interface IPatternInfo {
 	isWordMatch?: boolean;
 	wordSeparators?: string;
 	isMultiline?: boolean;
+	isUnicode?: boolean;
 	isCaseSensitive?: boolean;
 }
 
@@ -181,13 +182,19 @@ export function resultIsMatch(result: ITextSearchResult): result is ITextSearchM
 	return !!(<ITextSearchMatch>result).preview;
 }
 
-export interface IProgress {
-	total?: number;
-	worked?: number;
+export interface IProgressMessage {
 	message?: string;
 }
 
-export type ISearchProgressItem = IFileMatch | IProgress;
+export type ISearchProgressItem = IFileMatch | IProgressMessage;
+
+export function isFileMatch(p: ISearchProgressItem): p is IFileMatch {
+	return !!(<IFileMatch>p).resource;
+}
+
+export function isProgressMessage(p: ISearchProgressItem): p is IProgressMessage {
+	return !isFileMatch(p);
+}
 
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
@@ -245,31 +252,42 @@ export class TextSearchMatch implements ITextSearchMatch {
 	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions) {
 		this.ranges = range;
 
-		if (previewOptions && previewOptions.matchLines === 1 && !Array.isArray(range)) {
+		// Trim preview if this is one match and a single-line match with a preview requested.
+		// Otherwise send the full text, like for replace or for showing multiple previews.
+		// TODO this is fishy.
+		if (previewOptions && previewOptions.matchLines === 1 && (!Array.isArray(range) || range.length === 1) && isSingleLineRange(range)) {
+			const oneRange = Array.isArray(range) ? range[0] : range;
+
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const previewStart = Math.max(range.startColumn - leadingChars, 0);
+			const previewStart = Math.max(oneRange.startColumn - leadingChars, 0);
 			const previewText = text.substring(previewStart, previewOptions.charsPerLine + previewStart);
 
-			const endColInPreview = (range.endLineNumber - range.startLineNumber + 1) <= previewOptions.matchLines ?
-				Math.min(previewText.length, range.endColumn - previewStart) :  // if number of match lines will not be trimmed by previewOptions
+			const endColInPreview = (oneRange.endLineNumber - oneRange.startLineNumber + 1) <= previewOptions.matchLines ?
+				Math.min(previewText.length, oneRange.endColumn - previewStart) :  // if number of match lines will not be trimmed by previewOptions
 				previewText.length; // if number of lines is trimmed
 
+			const oneLineRange = new OneLineRange(0, oneRange.startColumn - previewStart, endColInPreview);
 			this.preview = {
 				text: previewText,
-				matches: new OneLineRange(0, range.startColumn - previewStart, endColInPreview)
+				matches: Array.isArray(range) ? [oneLineRange] : oneLineRange
 			};
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
 
-			// n line, no preview requested, or multiple matches in the preview
 			this.preview = {
 				text,
 				matches: mapArrayOrNot(range, r => new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn))
 			};
 		}
 	}
+}
+
+function isSingleLineRange(range: ISearchRange | ISearchRange[]): boolean {
+	return Array.isArray(range) ?
+		range[0].startLineNumber === range[0].endLineNumber :
+		range.startLineNumber === range.endLineNumber;
 }
 
 export class SearchRange implements ISearchRange {
@@ -410,14 +428,14 @@ export interface IRawFileMatch {
 }
 
 export interface ISearchEngine<T> {
-	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error | null, complete: ISearchEngineSuccess) => void) => void;
+	search: (onResult: (matches: T) => void, onProgress: (progress: IProgressMessage) => void, done: (error: Error | null, complete: ISearchEngineSuccess) => void) => void;
 	cancel: () => void;
 }
 
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	stats: IFileSearchStats | ITextSearchStats | null;
+	stats?: IFileSearchStats | ITextSearchStats;
 }
 
 export interface ISearchEngineSuccess {
@@ -454,14 +472,14 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 }
 
 export interface ISerializedFileMatch {
-	path?: string;
+	path: string;
 	results?: ITextSearchResult[];
 	numMatches?: number;
 }
 
 // Type of the possible values for progress calls from the engine
-export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgress;
-export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgress;
+export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgressMessage;
+export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgressMessage;
 
 
 export class SerializableFileMatch implements ISerializedFileMatch {
@@ -507,7 +525,7 @@ export class QueryGlobTester {
 	private _excludeExpression: glob.IExpression;
 	private _parsedExcludeExpression: glob.ParsedExpression;
 
-	private _parsedIncludeExpression: glob.ParsedExpression;
+	private _parsedIncludeExpression: glob.ParsedExpression | null = null;
 
 	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
 		this._excludeExpression = {

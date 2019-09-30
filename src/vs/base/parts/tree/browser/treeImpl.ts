@@ -77,7 +77,7 @@ export class Tree implements _.ITree {
 	readonly onDidExpandItem: Event<Model.IItemExpandEvent> = this._onDidExpandItem.event;
 	private _onDidCollapseItem = new Relay<Model.IItemCollapseEvent>();
 	readonly onDidCollapseItem: Event<Model.IItemCollapseEvent> = this._onDidCollapseItem.event;
-	private _onDispose = new Emitter<void>();
+	private readonly _onDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDispose.event;
 
 	constructor(container: HTMLElement, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
@@ -110,15 +110,15 @@ export class Tree implements _.ITree {
 	}
 
 	get onDidFocus(): Event<void> {
-		return this.view && this.view.onDOMFocus;
+		return this.view.onDOMFocus;
 	}
 
 	get onDidBlur(): Event<void> {
-		return this.view && this.view.onDOMBlur;
+		return this.view.onDOMBlur;
 	}
 
 	get onDidScroll(): Event<void> {
-		return this.view && this.view.onDidScroll;
+		return this.view.onDidScroll;
 	}
 
 	public getHTMLElement(): HTMLElement {
@@ -181,97 +181,24 @@ export class Tree implements _.ITree {
 		return this.model.toggleExpansion(element, recursive);
 	}
 
-	public toggleExpansionAll(elements: any[]): Promise<any> {
-		return this.model.toggleExpansionAll(elements);
-	}
-
 	public isExpanded(element: any): boolean {
 		return this.model.isExpanded(element);
-	}
-
-	public getExpandedElements(): any[] {
-		return this.model.getExpandedElements();
 	}
 
 	public reveal(element: any, relativeTop: number | null = null): Promise<any> {
 		return this.model.reveal(element, relativeTop);
 	}
 
-	public getRelativeTop(element: any): number {
-		const item = this.model.getItem(element);
-		return item ? this.view.getRelativeTop(item) : 0;
-	}
-
-	public getFirstVisibleElement(): any {
-		return this.view.getFirstVisibleElement();
-	}
-
-	public getLastVisibleElement(): any {
-		return this.view.getLastVisibleElement();
-	}
-
-	public getScrollPosition(): number {
-		return this.view.getScrollPosition();
-	}
-
-	public setScrollPosition(pos: number): void {
-		this.view.setScrollPosition(pos);
-	}
-
-	getContentHeight(): number {
-		return this.view.getContentHeight();
-	}
-
-	public setHighlight(element?: any, eventPayload?: any): void {
-		this.model.setHighlight(element, eventPayload);
-	}
-
 	public getHighlight(): any {
 		return this.model.getHighlight();
-	}
-
-	public isHighlighted(element: any): boolean {
-		return this.model.isFocused(element);
 	}
 
 	public clearHighlight(eventPayload?: any): void {
 		this.model.setHighlight(null, eventPayload);
 	}
 
-	public select(element: any, eventPayload?: any): void {
-		this.model.select(element, eventPayload);
-	}
-
-	public selectRange(fromElement: any, toElement: any, eventPayload?: any): void {
-		this.model.selectRange(fromElement, toElement, eventPayload);
-	}
-
-	public deselectRange(fromElement: any, toElement: any, eventPayload?: any): void {
-		this.model.deselectRange(fromElement, toElement, eventPayload);
-	}
-
-	public selectAll(elements: any[], eventPayload?: any): void {
-		this.model.selectAll(elements, eventPayload);
-	}
-
-	public deselect(element: any, eventPayload?: any): void {
-		this.model.deselect(element, eventPayload);
-	}
-
-	public deselectAll(elements: any[], eventPayload?: any): void {
-		this.model.deselectAll(elements, eventPayload);
-	}
-
 	public setSelection(elements: any[], eventPayload?: any): void {
 		this.model.setSelection(elements, eventPayload);
-	}
-
-	public toggleSelection(element: any, eventPayload?: any): void {
-		this.model.toggleSelection(element, eventPayload);
-	}
-
-	public isSelected(element: any): boolean {
-		return this.model.isSelected(element);
 	}
 
 	public getSelection(): any[] {
@@ -282,24 +209,8 @@ export class Tree implements _.ITree {
 		this.model.setSelection([], eventPayload);
 	}
 
-	public selectNext(count?: number, clearSelection?: boolean, eventPayload?: any): void {
-		this.model.selectNext(count, clearSelection, eventPayload);
-	}
-
-	public selectPrevious(count?: number, clearSelection?: boolean, eventPayload?: any): void {
-		this.model.selectPrevious(count, clearSelection, eventPayload);
-	}
-
-	public selectParent(clearSelection?: boolean, eventPayload?: any): void {
-		this.model.selectParent(clearSelection, eventPayload);
-	}
-
 	public setFocus(element?: any, eventPayload?: any): void {
 		this.model.setFocus(element, eventPayload);
-	}
-
-	public isFocused(element: any): boolean {
-		return this.model.isFocused(element);
 	}
 
 	public getFocus(): any {
@@ -346,39 +257,14 @@ export class Tree implements _.ITree {
 		this.model.setFocus(null, eventPayload);
 	}
 
-	public addTraits(trait: string, elements: any[]): void {
-		this.model.addTraits(trait, elements);
-	}
-
-	public removeTraits(trait: string, elements: any[]): void {
-		this.model.removeTraits(trait, elements);
-	}
-
-	public toggleTrait(trait: string, element: any): void {
-		this.model.hasTrait(trait, element) ? this.model.removeTraits(trait, [element])
-			: this.model.addTraits(trait, [element]);
-	}
-
-	public hasTrait(trait: string, element: any): boolean {
-		return this.model.hasTrait(trait, element);
-	}
-
 	getNavigator(fromElement?: any, subTreeOnly?: boolean): INavigator<any> {
 		return new MappedNavigator(this.model.getNavigator(fromElement, subTreeOnly), i => i && i.getElement());
 	}
 
 	public dispose(): void {
 		this._onDispose.fire();
-
-		if (this.model !== null) {
-			this.model.dispose();
-			this.model = null!; // StrictNullOverride Nulling out ok in dispose
-		}
-		if (this.view !== null) {
-			this.view.dispose();
-			this.view = null!; // StrictNullOverride Nulling out ok in dispose
-		}
-
+		this.model.dispose();
+		this.view.dispose();
 		this._onDidChangeFocus.dispose();
 		this._onDidChangeSelection.dispose();
 		this._onHighlightChange.dispose();

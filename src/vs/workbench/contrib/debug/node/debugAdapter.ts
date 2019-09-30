@@ -12,170 +12,11 @@ import * as path from 'vs/base/common/path';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { IDebugAdapter, IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
-
-/**
- * Abstract implementation of the low level API for a debug adapter.
- * Missing is how this API communicates with the debug adapter.
- */
-export abstract class AbstractDebugAdapter implements IDebugAdapter {
-
-	private sequence: number;
-	private pendingRequests: Map<number, (e: DebugProtocol.Response) => void>;
-	private requestCallback: (request: DebugProtocol.Request) => void;
-	private eventCallback: (request: DebugProtocol.Event) => void;
-	private messageCallback: (message: DebugProtocol.ProtocolMessage) => void;
-
-	protected readonly _onError: Emitter<Error>;
-	protected readonly _onExit: Emitter<number | null>;
-
-	constructor() {
-		this.sequence = 1;
-		this.pendingRequests = new Map();
-
-		this._onError = new Emitter<Error>();
-		this._onExit = new Emitter<number>();
-	}
-
-	abstract startSession(): Promise<void>;
-	abstract stopSession(): Promise<void>;
-
-	abstract sendMessage(message: DebugProtocol.ProtocolMessage): void;
-
-	get onError(): Event<Error> {
-		return this._onError.event;
-	}
-
-	get onExit(): Event<number | null> {
-		return this._onExit.event;
-	}
-
-	onMessage(callback: (message: DebugProtocol.ProtocolMessage) => void): void {
-		if (this.eventCallback) {
-			this._onError.fire(new Error(`attempt to set more than one 'Message' callback`));
-		}
-		this.messageCallback = callback;
-	}
-
-	onEvent(callback: (event: DebugProtocol.Event) => void): void {
-		if (this.eventCallback) {
-			this._onError.fire(new Error(`attempt to set more than one 'Event' callback`));
-		}
-		this.eventCallback = callback;
-	}
-
-	onRequest(callback: (request: DebugProtocol.Request) => void): void {
-		if (this.requestCallback) {
-			this._onError.fire(new Error(`attempt to set more than one 'Request' callback`));
-		}
-		this.requestCallback = callback;
-	}
-
-	sendResponse(response: DebugProtocol.Response): void {
-		if (response.seq > 0) {
-			this._onError.fire(new Error(`attempt to send more than one response for command ${response.command}`));
-		} else {
-			this.internalSend('response', response);
-		}
-	}
-
-	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void {
-
-		const request: any = {
-			command: command
-		};
-		if (args && Object.keys(args).length > 0) {
-			request.arguments = args;
-		}
-
-		this.internalSend('request', request);
-
-		if (typeof timeout === 'number') {
-			const timer = setTimeout(() => {
-				clearTimeout(timer);
-				const clb = this.pendingRequests.get(request.seq);
-				if (clb) {
-					this.pendingRequests.delete(request.seq);
-					const err: DebugProtocol.Response = {
-						type: 'response',
-						seq: 0,
-						request_seq: request.seq,
-						success: false,
-						command,
-						message: `timeout after ${timeout} ms`
-					};
-					clb(err);
-				}
-			}, timeout);
-		}
-
-		if (clb) {
-			// store callback for this request
-			this.pendingRequests.set(request.seq, clb);
-		}
-	}
-
-	acceptMessage(message: DebugProtocol.ProtocolMessage): void {
-		if (this.messageCallback) {
-			this.messageCallback(message);
-		} else {
-			switch (message.type) {
-				case 'event':
-					if (this.eventCallback) {
-						this.eventCallback(<DebugProtocol.Event>message);
-					}
-					break;
-				case 'request':
-					if (this.requestCallback) {
-						this.requestCallback(<DebugProtocol.Request>message);
-					}
-					break;
-				case 'response':
-					const response = <DebugProtocol.Response>message;
-					const clb = this.pendingRequests.get(response.request_seq);
-					if (clb) {
-						this.pendingRequests.delete(response.request_seq);
-						clb(response);
-					}
-					break;
-			}
-		}
-	}
-
-	private internalSend(typ: 'request' | 'response' | 'event', message: DebugProtocol.ProtocolMessage): void {
-
-		message.type = typ;
-		message.seq = this.sequence++;
-
-		this.sendMessage(message);
-	}
-
-	protected cancelPending() {
-		const pending = this.pendingRequests;
-		this.pendingRequests = new Map();
-		setTimeout(_ => {
-			pending.forEach((callback, request_seq) => {
-				const err: DebugProtocol.Response = {
-					type: 'response',
-					seq: 0,
-					request_seq,
-					success: false,
-					command: 'canceled',
-					message: 'canceled'
-				};
-				callback(err);
-			});
-		}, 1000);
-	}
-
-	dispose(): void {
-		this.cancelPending();
-	}
-}
+import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
 
 /**
  * An implementation that communicates via two streams with the debug adapter.
@@ -186,9 +27,9 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 	private static readonly HEADER_LINESEPARATOR = /\r?\n/;	// allow for non-RFC 2822 conforming line separators
 	private static readonly HEADER_FIELDSEPARATOR = /: */;
 
-	private outputStream: stream.Writable;
-	private rawData: Buffer;
-	private contentLength: number;
+	private outputStream!: stream.Writable;
+	private rawData = Buffer.allocUnsafe(0);
+	private contentLength = -1;
 
 	constructor() {
 		super();
@@ -286,11 +127,8 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 		});
 	}
 
-	stopSession(): Promise<void> {
-
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		this.cancelPending();
-
+	async stopSession(): Promise<void> {
+		await this.cancelPendingRequests();
 		if (this.socket) {
 			this.socket.end();
 			this.socket = undefined;
@@ -304,7 +142,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 */
 export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
-	private serverProcess: cp.ChildProcess;
+	private serverProcess: cp.ChildProcess | undefined;
 
 	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string, private readonly outputService?: IOutputService) {
 		super();
@@ -411,10 +249,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		}
 	}
 
-	stopSession(): Promise<void> {
-
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		this.cancelPending();
+	async stopSession(): Promise<void> {
 
 		if (!this.serverProcess) {
 			return Promise.resolve(undefined);
@@ -423,9 +258,10 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		// when killing a process in windows its child
 		// processes are *not* killed but become root
 		// processes. Therefore we use TASKKILL.EXE
+		await this.cancelPendingRequests();
 		if (platform.isWindows) {
 			return new Promise<void>((c, e) => {
-				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess.pid}`, function (err, stdout, stderr) {
+				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess!.pid}`, function (err, stdout, stderr) {
 					if (err) {
 						return e(err);
 					}

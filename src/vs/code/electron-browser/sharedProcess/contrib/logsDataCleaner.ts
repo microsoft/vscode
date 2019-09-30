@@ -20,7 +20,7 @@ export class LogsDataCleaner extends Disposable {
 	}
 
 	private cleanUpOldLogsSoon(): void {
-		let handle: any = setTimeout(() => {
+		let handle: NodeJS.Timeout | undefined = setTimeout(() => {
 			handle = undefined;
 
 			const currentLog = basename(this.environmentService.logsPath);
@@ -35,6 +35,11 @@ export class LogsDataCleaner extends Disposable {
 			}).then(null, onUnexpectedError);
 		}, 10 * 1000);
 
-		this._register(toDisposable(() => clearTimeout(handle)));
+		this._register(toDisposable(() => {
+			if (handle) {
+				clearTimeout(handle);
+				handle = undefined;
+			}
+		}));
 	}
 }

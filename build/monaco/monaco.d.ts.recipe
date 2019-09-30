@@ -5,6 +5,8 @@
 
 declare namespace monaco {
 
+	// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
+
 	export type Thenable<T> = PromiseLike<T>;
 
 	export interface IDisposable {
@@ -46,7 +48,7 @@ declare namespace monaco.editor {
 #include(vs/editor/standalone/common/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
 #include(vs/editor/common/modes/supports/tokenization): ITokenThemeRule
 #include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
-#include(vs/editor/standalone/browser/standaloneCodeEditor): IActionDescriptor, IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
+#include(vs/editor/standalone/browser/standaloneCodeEditor): IActionDescriptor, IStandaloneEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {
 	(...args: any[]): void;
 }
@@ -60,6 +62,7 @@ export interface ICommandHandler {
 #includeAll(vs/editor/common/editorCommon;editorOptions.=>): IScrollEvent
 #includeAll(vs/editor/common/model/textModelEvents):
 #includeAll(vs/editor/common/controller/cursorEvents):
+#include(vs/platform/accessibility/common/accessibility): AccessibilitySupport
 #includeAll(vs/editor/common/config/editorOptions):
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>;editorOptions.=>):
 #include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo

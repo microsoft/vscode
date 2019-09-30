@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -25,11 +25,10 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	get onDidContextMenu(): Event<void> { return this.impl.onDidContextMenu; }
 
@@ -42,14 +41,13 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
-		@ILayoutService layoutService: ILayoutService
+		@IThemeService themeService: IThemeService
 	) {
 		super();
 
 		// Custom context menu: Linux/Windows if custom title is enabled
 		if (!isMacintosh && getTitleBarStyle(configurationService, environmentService) === 'custom') {
-			this.impl = new HTMLContextMenuService(layoutService, telemetryService, notificationService, contextViewService, keybindingService, themeService);
+			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
 		}
 
 		// Native context menu: otherwise
@@ -65,10 +63,10 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 class NativeContextMenuService extends Disposable implements IContextMenuService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _onDidContextMenu = this._register(new Emitter<void>());
-	get onDidContextMenu(): Event<void> { return this._onDidContextMenu.event; }
+	readonly onDidContextMenu: Event<void> = this._onDidContextMenu.event;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -99,7 +97,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				x = elementPosition.left;
 				y = elementPosition.top + elementPosition.height;
 			} else {
-				const pos = <{ x: number; y: number; }>anchor;
+				const pos: { x: number; y: number; } = anchor;
 				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
 				y = pos.y;
 			}
@@ -117,7 +115,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: Array<IAction | ContextSubMenu>, onHide: () => void): IContextMenuItem[] {
+	private createMenu(delegate: IContextMenuDelegate, entries: ReadonlyArray<IAction | ContextSubMenu>, onHide: () => void): IContextMenuItem[] {
 		const actionRunner = delegate.actionRunner || new ActionRunner();
 
 		return entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide));
@@ -127,7 +125,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 		// Separator
 		if (entry instanceof Separator) {
-			return { type: 'separator' } as IContextMenuItem;
+			return { type: 'separator' };
 		}
 
 		// Submenu
@@ -135,7 +133,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			return {
 				label: unmnemonicLabel(entry.label),
 				submenu: this.createMenu(delegate, entry.entries, onHide)
-			} as IContextMenuItem;
+			};
 		}
 
 		// Normal Menu Item
@@ -174,19 +172,19 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 	}
 
-	private runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): void {
-		/* __GDPR__
-			"workbenchActionExecuted" : {
-				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
+	private async runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): Promise<void> {
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
-		const res = actionRunner.run(actionToRun, context) || Promise.resolve(null);
 
-		res.then(undefined, e => this.notificationService.error(e));
+		const runnable = actionRunner.run(actionToRun, context);
+		if (runnable) {
+			try {
+				await runnable;
+			} catch (error) {
+				this.notificationService.error(error);
+			}
+		}
 	}
 }
 

@@ -9,7 +9,7 @@ export class OutputAppender {
 
 	private appender: RotatingLogger;
 
-	constructor(name: string, file: string) {
+	constructor(name: string, readonly file: string) {
 		this.appender = createRotatingLogger(name, file, 1024 * 1024 * 30, 1);
 		this.appender.clearFormatters();
 	}

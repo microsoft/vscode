@@ -73,7 +73,7 @@ abstract class BaseNavigationAction extends Action {
 		return this.panelService.openPanel(activePanelId, true)!;
 	}
 
-	protected navigateToSidebar(): Promise<IViewlet | boolean> {
+	protected async navigateToSidebar(): Promise<IViewlet | boolean> {
 		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
 			return Promise.resolve(false);
 		}
@@ -84,8 +84,8 @@ abstract class BaseNavigationAction extends Action {
 		}
 		const activeViewletId = activeViewlet.getId();
 
-		return this.viewletService.openViewlet(activeViewletId, true)
-			.then(value => value === null ? false : value);
+		const value = await this.viewletService.openViewlet(activeViewletId, true);
+		return value === null ? false : value;
 	}
 
 	protected navigateAcrossEditorGroup(direction: GroupDirection): boolean {

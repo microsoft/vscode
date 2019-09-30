@@ -49,7 +49,7 @@ export const enum Type {
 export class LineCommentCommand implements editorCommon.ICommand {
 
 	private readonly _selection: Selection;
-	private _selectionId: string;
+	private _selectionId: string | null;
 	private _deltaColumn: number;
 	private _moveEndPositionDown: boolean;
 	private readonly _tabSize: number;
@@ -57,9 +57,11 @@ export class LineCommentCommand implements editorCommon.ICommand {
 
 	constructor(selection: Selection, tabSize: number, type: Type) {
 		this._selection = selection;
+		this._selectionId = null;
 		this._tabSize = tabSize;
 		this._type = type;
 		this._deltaColumn = 0;
+		this._moveEndPositionDown = false;
 	}
 
 	/**
@@ -323,7 +325,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId);
+		let result = helper.getTrackedSelection(this._selectionId!);
 
 		if (this._moveEndPositionDown) {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);

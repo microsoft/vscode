@@ -8,7 +8,7 @@ import { join } from 'vs/base/common/path';
 import { readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
+import { IBackupWorkspacesFormat } from 'vs/platform/backup/node/backup';
 
 export class StorageDataCleaner extends Disposable {
 
@@ -24,7 +24,7 @@ export class StorageDataCleaner extends Disposable {
 	}
 
 	private cleanUpStorageSoon(): void {
-		let handle: any = setTimeout(() => {
+		let handle: NodeJS.Timeout | undefined = setTimeout(() => {
 			handle = undefined;
 
 			// Leverage the backup workspace file to find out which empty workspace is currently in use to
@@ -52,6 +52,11 @@ export class StorageDataCleaner extends Disposable {
 			}).then(null, onUnexpectedError);
 		}, 30 * 1000);
 
-		this._register(toDisposable(() => clearTimeout(handle)));
+		this._register(toDisposable(() => {
+			if (handle) {
+				clearTimeout(handle);
+				handle = undefined;
+			}
+		}));
 	}
 }

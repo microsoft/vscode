@@ -16,14 +16,16 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "jsonc-parser": "^2.0.1",
+    "jsonc-parser": "^2.1.1",
+    "rimraf": "^2.6.3",
     "semver": "5.5.1",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "8.0.33",
+    "@types/node": "^10.14.8",
     "@types/semver": "^5.5.0",
+    "@types/rimraf": "2.0.2",
     "vscode": "^1.1.10"
   },
   "scripts": {
@@ -64,7 +66,7 @@
             "null"
           ],
           "default": null,
-          "description": "%typescript.tsdk.desc%",
+          "markdownDescription": "%typescript.tsdk.desc%",
           "scope": "window"
         },
         "typescript.disableAutomaticTypeAcquisition": {
@@ -83,7 +85,7 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "scope": "application"
+          "scope": "machine"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
@@ -129,7 +131,7 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "application"
+          "scope": "machine"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -262,6 +264,22 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
+        "typescript.format.semicolons": {
+          "type": "string",
+          "default": "ignore",
+          "description": "%format.semicolons%",
+          "scope": "resource",
+          "enum": [
+            "ignore",
+            "insert",
+            "remove"
+          ],
+          "enumDescriptions": [
+            "%format.semicolons.ignore%",
+            "%format.semicolons.insert%",
+            "%format.semicolons.remove%"
+          ]
+        },
         "javascript.validate.enable": {
           "type": "boolean",
           "default": true,
@@ -357,6 +375,22 @@
           "default": false,
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
+        },
+        "javascript.format.semicolons": {
+          "type": "string",
+          "default": "ignore",
+          "description": "%format.semicolons%",
+          "scope": "resource",
+          "enum": [
+            "ignore",
+            "insert",
+            "remove"
+          ],
+          "enumDescriptions": [
+            "%format.semicolons.ignore%",
+            "%format.semicolons.insert%",
+            "%format.semicolons.remove%"
+          ]
         },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
@@ -589,6 +623,12 @@
           "default": true,
           "description": "%configuration.surveys.enabled%",
           "scope": "window"
+        },
+        "typescript.tsserver.useSeparateSyntaxServer": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.tsserver.useSeparateSyntaxServer%",
+          "scope": "window"
         }
       }
     },
@@ -705,7 +745,7 @@
     "problemPatterns": [
       {
         "name": "tsc",
-        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+TS(\\d+)\\s*:\\s*(.*)$",
         "file": 1,
         "line": 2,
         "column": 3,

@@ -1155,6 +1155,39 @@
 		}
 	},
 	{
+		"c": "\t",
+		"t": "source.makefile meta.scope.recipe.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@-",
+		"t": "source.makefile meta.scope.recipe.makefile keyword.control.@-.makefile",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "./point-and-slash-should-not-be-highlighted",
+		"t": "source.makefile meta.scope.recipe.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
 		"c": "define",
 		"t": "source.makefile meta.scope.conditional.makefile keyword.control.define.makefile",
 		"r": {

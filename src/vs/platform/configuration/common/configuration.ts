@@ -5,7 +5,7 @@
 
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -29,6 +29,8 @@ export interface IConfigurationOverrides {
 
 export const enum ConfigurationTarget {
 	USER = 1,
+	USER_LOCAL,
+	USER_REMOTE,
 	WORKSPACE,
 	WORKSPACE_FOLDER,
 	DEFAULT,
@@ -37,6 +39,8 @@ export const enum ConfigurationTarget {
 export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
 	switch (configurationTarget) {
 		case ConfigurationTarget.USER: return 'USER';
+		case ConfigurationTarget.USER_LOCAL: return 'USER_LOCAL';
+		case ConfigurationTarget.USER_REMOTE: return 'USER_REMOTE';
 		case ConfigurationTarget.WORKSPACE: return 'WORKSPACE';
 		case ConfigurationTarget.WORKSPACE_FOLDER: return 'WORKSPACE_FOLDER';
 		case ConfigurationTarget.DEFAULT: return 'DEFAULT';
@@ -59,7 +63,7 @@ export interface IConfigurationChangeEvent {
 }
 
 export interface IConfigurationService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
@@ -88,6 +92,8 @@ export interface IConfigurationService {
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
+		userLocal?: T,
+		userRemote?: T,
 		workspace?: T,
 		workspaceFolder?: T,
 		memory?: T,
@@ -118,8 +124,7 @@ export interface IConfigurationData {
 	defaults: IConfigurationModel;
 	user: IConfigurationModel;
 	workspace: IConfigurationModel;
-	folders: { [folder: string]: IConfigurationModel };
-	isComplete: boolean;
+	folders: [UriComponents, IConfigurationModel][];
 }
 
 export function compare(from: IConfigurationModel, to: IConfigurationModel): { added: string[], removed: string[], updated: string[] } {
@@ -143,7 +148,7 @@ export function toOverrides(raw: any, conflictReporter: (message: string) => voi
 	const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 	for (const key of Object.keys(raw)) {
 		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-			const overrideRaw = {};
+			const overrideRaw: any = {};
 			for (const keyInOverrideRaw in raw[key]) {
 				if (configurationProperties[keyInOverrideRaw] && configurationProperties[keyInOverrideRaw].overridable) {
 					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];

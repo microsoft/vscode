@@ -20,7 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -30,7 +30,7 @@ export const IKeybindingEditingService = createDecorator<IKeybindingEditingServi
 
 export interface IKeybindingEditingService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	editKeybinding(keybindingItem: ResolvedKeybindingItem, key: string, when: string | undefined): Promise<void>;
 
@@ -41,10 +41,10 @@ export interface IKeybindingEditingService {
 
 export class KeybindingsEditingService extends Disposable implements IKeybindingEditingService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	private queue: Queue<void>;
 
-	private resource: URI = URI.file(this.environmentService.appKeybindingsPath);
+	private resource: URI = this.environmentService.keybindingsResource;
 
 	constructor(
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -186,7 +186,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private asObject(key: string, command: string | null, when: string | undefined, negate: boolean): any {
-		const object = { key };
+		const object: any = { key };
 		if (command) {
 			object['command'] = negate ? `-${command}` : command;
 		}
@@ -208,10 +208,10 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 
 	private resolveModelReference(): Promise<IReference<IResolvedTextEditorModel>> {
-		return this.fileService.existsFile(this.resource)
+		return this.fileService.exists(this.resource)
 			.then(exists => {
-				const EOL = this.configurationService.getValue('files', { overrideIdentifier: 'json' })['eol'];
-				const result: Promise<any> = exists ? Promise.resolve(null) : this.fileService.updateContent(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
+				const EOL = this.configurationService.getValue<{ eol: string }>('files', { overrideIdentifier: 'json' })['eol'];
+				const result: Promise<any> = exists ? Promise.resolve(null) : this.textFileService.write(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
 				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
 			});
 	}

@@ -13,7 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
 
 export interface ICodeEditorService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onCodeEditorAdd: Event<ICodeEditor>;
 	readonly onCodeEditorRemove: Event<ICodeEditor>;
@@ -26,16 +26,17 @@ export interface ICodeEditorService {
 
 	addCodeEditor(editor: ICodeEditor): void;
 	removeCodeEditor(editor: ICodeEditor): void;
-	listCodeEditors(): ICodeEditor[];
+	listCodeEditors(): readonly ICodeEditor[];
 
 	addDiffEditor(editor: IDiffEditor): void;
 	removeDiffEditor(editor: IDiffEditor): void;
-	listDiffEditors(): IDiffEditor[];
+	listDiffEditors(): readonly IDiffEditor[];
 
 	/**
-	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.
+	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or
+	 * `undefined` if none.
 	 */
-	getFocusedCodeEditor(): ICodeEditor | null;
+	getFocusedCodeEditor(): ICodeEditor | undefined;
 
 	registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
 	removeDecorationType(key: string): void;
@@ -44,6 +45,6 @@ export interface ICodeEditorService {
 	setTransientModelProperty(model: ITextModel, key: string, value: any): void;
 	getTransientModelProperty(model: ITextModel, key: string): any;
 
-	getActiveCodeEditor(): ICodeEditor | null;
-	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
+	getActiveCodeEditor(): ICodeEditor | undefined;
+	openCodeEditor(input: IResourceInput, source: ICodeEditor | undefined, sideBySide?: boolean): Promise<ICodeEditor | undefined>;
 }

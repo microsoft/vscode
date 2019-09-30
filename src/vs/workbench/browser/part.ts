@@ -9,7 +9,7 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Dimension, size } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
-import { ISerializableView, Orientation } from 'vs/base/browser/ui/grid/grid';
+import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
@@ -28,9 +28,13 @@ export interface ILayoutContentResult {
  * arranges an optional title and mandatory content area to show content.
  */
 export abstract class Part extends Component implements ISerializableView {
+
+	private _dimension: Dimension;
+	get dimension(): Dimension { return this._dimension; }
+
 	private parent: HTMLElement;
-	private titleArea: HTMLElement | null;
-	private contentArea: HTMLElement | null;
+	private titleArea: HTMLElement | null = null;
+	private contentArea: HTMLElement | null = null;
 	private partLayout: PartLayout;
 
 	constructor(
@@ -117,8 +121,8 @@ export abstract class Part extends Component implements ISerializableView {
 
 	//#region ISerializableView
 
-	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
-	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+	private _onDidChange = this._register(new Emitter<IViewSize | undefined>());
+	get onDidChange(): Event<IViewSize | undefined> { return this._onDidChange.event; }
 
 	element: HTMLElement;
 
@@ -127,7 +131,10 @@ export abstract class Part extends Component implements ISerializableView {
 	abstract minimumHeight: number;
 	abstract maximumHeight: number;
 
-	abstract layout(width: number, height: number, orientation: Orientation): void;
+	layout(width: number, height: number): void {
+		this._dimension = new Dimension(width, height);
+	}
+
 	abstract toJSON(): object;
 
 	//#endregion
@@ -149,12 +156,13 @@ class PartLayout {
 			titleSize = new Dimension(0, 0);
 		}
 
-		// Content Size: Width (Fill), Height (Variable)
-		const contentSize = new Dimension(width, height - titleSize.height);
-
+		let contentWidth = width;
 		if (this.options && typeof this.options.borderWidth === 'function') {
-			contentSize.width -= this.options.borderWidth(); // adjust for border size
+			contentWidth -= this.options.borderWidth(); // adjust for border size
 		}
+
+		// Content Size: Width (Fill), Height (Variable)
+		const contentSize = new Dimension(contentWidth, height - titleSize.height);
 
 		// Content
 		if (this.contentArea) {

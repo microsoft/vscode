@@ -37,7 +37,7 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions): void 
 }
 
 function createItem(item: IContextMenuItem, processedItems: IContextMenuItem[]): ISerializableContextMenuItem {
-	const serializableItem = {
+	const serializableItem: ISerializableContextMenuItem = {
 		id: processedItems.length,
 		label: item.label,
 		type: item.type,
@@ -45,7 +45,7 @@ function createItem(item: IContextMenuItem, processedItems: IContextMenuItem[]):
 		checked: item.checked,
 		enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
 		visible: typeof item.visible === 'boolean' ? item.visible : true
-	} as ISerializableContextMenuItem;
+	};
 
 	processedItems.push(item);
 

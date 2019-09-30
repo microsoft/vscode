@@ -13,7 +13,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderMinimap } from 'vs/editor/common/config/editorOptions';
+import { RenderMinimap, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
@@ -24,8 +24,12 @@ import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMin
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, minimapSelection } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Color } from 'vs/base/common/color';
+import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap): number {
 	if (renderMinimap === RenderMinimap.Large) {
@@ -106,17 +110,18 @@ class MinimapOptions {
 	public readonly canvasOuterHeight: number;
 
 	constructor(configuration: IConfiguration) {
-		const pixelRatio = configuration.editor.pixelRatio;
-		const layoutInfo = configuration.editor.layoutInfo;
-		const viewInfo = configuration.editor.viewInfo;
-		const fontInfo = configuration.editor.fontInfo;
+		const options = configuration.options;
+		const pixelRatio = options.get(EditorOption.pixelRatio);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
-		this.scrollBeyondLastLine = viewInfo.scrollBeyondLastLine;
-		this.showSlider = viewInfo.minimap.showSlider;
+		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
+		const minimapOpts = options.get(EditorOption.minimap);
+		this.showSlider = minimapOpts.showSlider;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
-		this.lineHeight = configuration.editor.lineHeight;
+		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.minimapLeft = layoutInfo.minimapLeft;
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
@@ -204,6 +209,10 @@ class MinimapLayout {
 		return Math.round(desiredSliderPosition / this._computedSliderRatio);
 	}
 
+	public getDesiredScrollTopFromTouchLocation(pageY: number): number {
+		return Math.round((pageY - this.sliderHeight / 2) / this._computedSliderRatio);
+	}
+
 	public static create(
 		options: MinimapOptions,
 		viewportStartLineNumber: number,
@@ -257,7 +266,12 @@ class MinimapLayout {
 		const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
 		const sliderTop = (scrollTop * computedSliderRatio);
 
-		if (minimapLinesFitting >= lineCount) {
+		let extraLinesAtTheBottom = 0;
+		if (options.scrollBeyondLastLine) {
+			const expectedViewportLineCount = viewportHeight / lineHeight;
+			extraLinesAtTheBottom = expectedViewportLineCount;
+		}
+		if (minimapLinesFitting >= lineCount + extraLinesAtTheBottom) {
 			// All lines fit in the minimap
 			const startLineNumber = 1;
 			const endLineNumber = lineCount;
@@ -330,10 +344,7 @@ class RenderData {
 	 * Check if the current RenderData matches accurately the new desired layout and no painting is needed.
 	 */
 	public linesEquals(layout: MinimapLayout): boolean {
-		if (this.renderedLayout.startLineNumber !== layout.startLineNumber) {
-			return false;
-		}
-		if (this.renderedLayout.endLineNumber !== layout.endLineNumber) {
+		if (!this.scrollEquals(layout)) {
 			return false;
 		}
 
@@ -347,6 +358,14 @@ class RenderData {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Check if the current RenderData matches the new layout's scroll position
+	 */
+	public scrollEquals(layout: MinimapLayout): boolean {
+		return this.renderedLayout.startLineNumber === layout.startLineNumber
+			&& this.renderedLayout.endLineNumber === layout.endLineNumber;
 	}
 
 	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[]; } {
@@ -430,15 +449,23 @@ export class Minimap extends ViewPart {
 	private readonly _domNode: FastDomNode<HTMLElement>;
 	private readonly _shadow: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
+	private readonly _decorationsCanvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
 	private readonly _mouseDownListener: IDisposable;
 	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 	private readonly _sliderMouseDownListener: IDisposable;
+	private readonly _sliderTouchStartListener: IDisposable;
+	private readonly _sliderTouchMoveListener: IDisposable;
+	private readonly _sliderTouchEndListener: IDisposable;
 
 	private _options: MinimapOptions;
 	private _lastRenderData: RenderData | null;
+	private _selections: Selection[] = [];
+	private _selectionColor: Color | undefined;
+	private _renderDecorations: boolean = false;
+	private _gestureInProgress: boolean = false;
 	private _buffers: MinimapBuffers | null;
 
 	constructor(context: ViewContext) {
@@ -447,6 +474,7 @@ export class Minimap extends ViewPart {
 		this._options = new MinimapOptions(this._context.configuration);
 		this._lastRenderData = null;
 		this._buffers = null;
+		this._selectionColor = this._context.theme.getColor(minimapSelection);
 
 		this._domNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._domNode, PartFingerprint.Minimap);
@@ -464,6 +492,12 @@ export class Minimap extends ViewPart {
 		this._canvas.setLeft(0);
 		this._domNode.appendChild(this._canvas);
 
+		this._decorationsCanvas = createFastDomNode(document.createElement('canvas'));
+		this._decorationsCanvas.setPosition('absolute');
+		this._decorationsCanvas.setClassName('minimap-decorations-layer');
+		this._decorationsCanvas.setLeft(0);
+		this._domNode.appendChild(this._decorationsCanvas);
+
 		this._slider = createFastDomNode(document.createElement('div'));
 		this._slider.setPosition('absolute');
 		this._slider.setClassName('minimap-slider');
@@ -479,7 +513,7 @@ export class Minimap extends ViewPart {
 
 		this._applyLayout();
 
-		this._mouseDownListener = dom.addStandardDisposableListener(this._canvas.domNode, 'mousedown', (e) => {
+		this._mouseDownListener = dom.addStandardDisposableListener(this._domNode.domNode, 'mousedown', (e) => {
 			e.preventDefault();
 
 			const renderMinimap = this._options.renderMinimap;
@@ -497,6 +531,7 @@ export class Minimap extends ViewPart {
 			lineNumber = Math.min(lineNumber, this._context.model.getLineCount());
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+				'mouse',
 				new Range(lineNumber, 1, lineNumber, 1),
 				viewEvents.VerticalRevealType.Center,
 				false,
@@ -508,6 +543,7 @@ export class Minimap extends ViewPart {
 
 		this._sliderMouseDownListener = dom.addStandardDisposableListener(this._slider.domNode, 'mousedown', (e) => {
 			e.preventDefault();
+			e.stopPropagation();
 			if (e.leftButton && this._lastRenderData) {
 
 				const initialMousePosition = e.posy;
@@ -539,12 +575,49 @@ export class Minimap extends ViewPart {
 				);
 			}
 		});
+
+		Gesture.addTarget(this._domNode.domNode);
+		this._sliderTouchStartListener = dom.addDisposableListener(this._domNode.domNode, EventType.Start, (e: GestureEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (this._lastRenderData) {
+				this._slider.toggleClassName('active', true);
+				this._gestureInProgress = true;
+				this.scrollDueToTouchEvent(e);
+			}
+		});
+
+		this._sliderTouchMoveListener = dom.addStandardDisposableListener(this._domNode.domNode, EventType.Change, (e: GestureEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (this._lastRenderData && this._gestureInProgress) {
+				this.scrollDueToTouchEvent(e);
+			}
+		});
+
+		this._sliderTouchEndListener = dom.addStandardDisposableListener(this._domNode.domNode, EventType.End, (e: GestureEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._gestureInProgress = false;
+			this._slider.toggleClassName('active', false);
+		});
+	}
+
+	private scrollDueToTouchEvent(touch: GestureEvent) {
+		const startY = this._domNode.domNode.getBoundingClientRect().top;
+		const scrollTop = this._lastRenderData!.renderedLayout.getDesiredScrollTopFromTouchLocation(touch.pageY - startY);
+		this._context.viewLayout.setScrollPositionNow({
+			scrollTop: scrollTop
+		});
 	}
 
 	public dispose(): void {
 		this._mouseDownListener.dispose();
 		this._sliderMouseMoveMonitor.dispose();
 		this._sliderMouseDownListener.dispose();
+		this._sliderTouchStartListener.dispose();
+		this._sliderTouchMoveListener.dispose();
+		this._sliderTouchEndListener.dispose();
 		super.dispose();
 	}
 
@@ -564,10 +637,17 @@ export class Minimap extends ViewPart {
 		this._domNode.setWidth(this._options.minimapWidth);
 		this._domNode.setHeight(this._options.minimapHeight);
 		this._shadow.setHeight(this._options.minimapHeight);
+
 		this._canvas.setWidth(this._options.canvasOuterWidth);
 		this._canvas.setHeight(this._options.canvasOuterHeight);
 		this._canvas.domNode.width = this._options.canvasInnerWidth;
 		this._canvas.domNode.height = this._options.canvasInnerHeight;
+
+		this._decorationsCanvas.setWidth(this._options.canvasOuterWidth);
+		this._decorationsCanvas.setHeight(this._options.canvasOuterHeight);
+		this._decorationsCanvas.domNode.width = this._options.canvasInnerWidth;
+		this._decorationsCanvas.domNode.height = this._options.canvasInnerHeight;
+
 		this._slider.setWidth(this._options.minimapWidth);
 	}
 
@@ -601,6 +681,11 @@ export class Minimap extends ViewPart {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return this._onOptionsMaybeChanged();
 	}
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._selections = e.selections;
+		this._renderDecorations = true;
+		return true;
+	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._lastRenderData = null;
 		return true;
@@ -624,6 +709,7 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this._renderDecorations = true;
 		return true;
 	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
@@ -639,6 +725,18 @@ export class Minimap extends ViewPart {
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		this._lastRenderData = null;
+		return true;
+	}
+
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		this._renderDecorations = true;
+		return true;
+	}
+
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		this._context.model.invalidateMinimapColorCache();
+		this._selectionColor = this._context.theme.getColor(minimapSelection);
+		this._renderDecorations = true;
 		return true;
 	}
 
@@ -684,7 +782,106 @@ export class Minimap extends ViewPart {
 		this._sliderHorizontal.setTop(0);
 		this._sliderHorizontal.setHeight(layout.sliderHeight);
 
+		this.renderDecorations(layout);
 		this._lastRenderData = this.renderLines(layout);
+	}
+
+	private renderDecorations(layout: MinimapLayout) {
+		if (this._renderDecorations) {
+			this._renderDecorations = false;
+			const decorations = this._context.model.getDecorationsInViewport(new Range(layout.startLineNumber, 1, layout.endLineNumber, this._context.model.getLineMaxColumn(layout.endLineNumber)));
+
+			const { renderMinimap, canvasInnerWidth, canvasInnerHeight } = this._options;
+			const lineHeight = getMinimapLineHeight(renderMinimap);
+			const characterWidth = getMinimapCharWidth(renderMinimap);
+			const tabSize = this._context.model.getOptions().tabSize;
+			const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
+
+			canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
+
+			const lineOffsetMap = new Map<number, number[]>();
+			for (let i = 0; i < this._selections.length; i++) {
+				const selection = this._selections[i];
+
+				for (let line = selection.startLineNumber; line <= selection.endLineNumber; line++) {
+					this.renderDecorationOnLine(canvasContext, lineOffsetMap, selection, this._selectionColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
+				}
+			}
+
+			// Loop over decorations, ignoring those that don't have the minimap property set and rendering rectangles for each line the decoration spans
+			for (let i = 0; i < decorations.length; i++) {
+				const decoration = decorations[i];
+
+				if (!decoration.options.minimap) {
+					continue;
+				}
+
+				for (let line = decoration.range.startLineNumber; line <= decoration.range.endLineNumber; line++) {
+					const decorationColor = (<ModelDecorationMinimapOptions>decoration.options.minimap).getColor(this._context.theme);
+					this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
+				}
+			}
+		}
+	}
+
+	private renderDecorationOnLine(canvasContext: CanvasRenderingContext2D,
+		lineOffsetMap: Map<number, number[]>,
+		decorationRange: Range,
+		decorationColor: Color | undefined,
+		layout: MinimapLayout,
+		lineNumber: number,
+		height: number,
+		lineHeight: number,
+		tabSize: number,
+		charWidth: number): void {
+		const y = (lineNumber - layout.startLineNumber) * lineHeight;
+
+		// Cache line offset data so that it is only read once per line
+		let lineIndexToXOffset = lineOffsetMap.get(lineNumber);
+		const isFirstDecorationForLine = !lineIndexToXOffset;
+		if (!lineIndexToXOffset) {
+			const lineData = this._context.model.getLineContent(lineNumber);
+			lineIndexToXOffset = [0];
+			for (let i = 1; i < lineData.length + 1; i++) {
+				const charCode = lineData.charCodeAt(i - 1);
+				const dx = charCode === CharCode.Tab
+					? tabSize * charWidth
+					: strings.isFullWidthCharacter(charCode)
+						? 2 * charWidth
+						: charWidth;
+
+				lineIndexToXOffset[i] = lineIndexToXOffset[i - 1] + dx;
+			}
+
+			lineOffsetMap.set(lineNumber, lineIndexToXOffset);
+		}
+
+		const { startColumn, endColumn, startLineNumber, endLineNumber } = decorationRange;
+		const x = startLineNumber === lineNumber ? lineIndexToXOffset[startColumn - 1] : 0;
+
+		const endColumnForLine = endLineNumber > lineNumber ? lineIndexToXOffset.length - 1 : endColumn - 1;
+
+		if (endColumnForLine > 0) {
+			// If the decoration starts at the last character of the column and spans over it, ensure it has a width
+			const width = lineIndexToXOffset[endColumnForLine] - x || 2;
+
+			this.renderDecoration(canvasContext, decorationColor, x, y, width, height);
+		}
+
+		if (isFirstDecorationForLine) {
+			this.renderLineHighlight(canvasContext, decorationColor, y, height);
+		}
+
+	}
+
+	private renderLineHighlight(canvasContext: CanvasRenderingContext2D, decorationColor: Color | undefined, y: number, height: number): void {
+		canvasContext.fillStyle = decorationColor && decorationColor.transparent(0.5).toString() || '';
+		canvasContext.fillRect(0, y, canvasContext.canvas.width, height);
+	}
+
+	private renderDecoration(canvasContext: CanvasRenderingContext2D, decorationColor: Color | undefined, x: number, y: number, width: number, height: number) {
+		canvasContext.fillStyle = decorationColor && decorationColor.toString() || '';
+		canvasContext.fillRect(x, y, width, height);
 	}
 
 	private renderLines(layout: MinimapLayout): RenderData {

@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
+import { Progress } from 'vs/platform/progress/common/progress';
 import { ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
+import { ProviderResult, TextSearchComplete, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import * as vscode from 'vscode';
 
 suite('TextSearchManager', () => {
 	test('fixes encoding', async () => {
 		let correctEncoding = false;
-		const provider: vscode.TextSearchProvider = {
-			provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TextSearchComplete> {
+		const provider: TextSearchProvider = {
+			provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete> {
 				correctEncoding = options.encoding === 'windows-1252';
 
 				return null;

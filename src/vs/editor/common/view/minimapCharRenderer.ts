@@ -16,10 +16,10 @@ export class MinimapTokensColorTracker {
 		return this._INSTANCE;
 	}
 
-	private _colors: RGBA8[];
-	private _backgroundIsLight: boolean;
+	private _colors!: RGBA8[];
+	private _backgroundIsLight!: boolean;
 
-	private _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = new Emitter<void>();
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private constructor() {

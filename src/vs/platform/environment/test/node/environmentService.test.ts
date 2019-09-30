@@ -5,13 +5,13 @@
 
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { parseExtensionHostPort, parseUserDataDir } from 'vs/platform/environment/node/environmentService';
 
 suite('EnvironmentService', () => {
 
 	test('parseExtensionHostPort when built', () => {
-		const parse = a => parseExtensionHostPort(parseArgs(a), true);
+		const parse = (a: string[]) => parseExtensionHostPort(parseArgs(a, OPTIONS), true);
 
 		assert.deepEqual(parse([]), { port: null, break: false, debugId: undefined });
 		assert.deepEqual(parse(['--debugPluginHost']), { port: null, break: false, debugId: undefined });
@@ -28,7 +28,7 @@ suite('EnvironmentService', () => {
 	});
 
 	test('parseExtensionHostPort when unbuilt', () => {
-		const parse = a => parseExtensionHostPort(parseArgs(a), false);
+		const parse = (a: string[]) => parseExtensionHostPort(parseArgs(a, OPTIONS), false);
 
 		assert.deepEqual(parse([]), { port: 5870, break: false, debugId: undefined });
 		assert.deepEqual(parse(['--debugPluginHost']), { port: 5870, break: false, debugId: undefined });
@@ -45,11 +45,22 @@ suite('EnvironmentService', () => {
 	});
 
 	test('userDataPath', () => {
-		const parse = (a, b: { cwd: () => string, env: { [key: string]: string } }) => parseUserDataDir(parseArgs(a), <any>b);
+		const parse = (a: string[], b: { cwd: () => string, env: { [key: string]: string } }) => parseUserDataDir(parseArgs(a, OPTIONS), <any>b);
 
 		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: {} }), path.resolve('/foo/dir'),
 			'should use cwd when --user-data-dir is specified');
 		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: { 'VSCODE_CWD': '/bar' } }), path.resolve('/bar/dir'),
 			'should use VSCODE_CWD as the cwd when --user-data-dir is specified');
+	});
+
+	// https://github.com/microsoft/vscode/issues/78440
+	test('careful with boolean file names', function () {
+		let actual = parseArgs(['-r', 'arg.txt'], OPTIONS);
+		assert(actual['reuse-window']);
+		assert.deepEqual(actual._, ['arg.txt']);
+
+		actual = parseArgs(['-r', 'true.txt'], OPTIONS);
+		assert(actual['reuse-window']);
+		assert.deepEqual(actual._, ['true.txt']);
 	});
 });

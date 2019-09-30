@@ -8,8 +8,8 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, SelectionRange } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -50,6 +50,8 @@ export function activate(context: ExtensionContext) {
 	let documentSelector = ['html', 'handlebars'];
 	let embeddedLanguages = { css: true, javascript: true };
 
+	let rangeFormatting: Disposable | undefined = undefined;
+
 	let dataPaths = [
 		...getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders),
 		...getCustomDataPathsFromAllExtensions()
@@ -63,8 +65,9 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			embeddedLanguages,
-			dataPaths
-		}
+			dataPaths,
+			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
+		},
 	};
 
 	// Create the language client and start the client.
@@ -88,26 +91,36 @@ export function activate(context: ExtensionContext) {
 		});
 		toDispose.push(disposable);
 
-		documentSelector.forEach(selector => {
-			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[]> {
-					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
-					if (Array.isArray(rawResult)) {
-						return rawResult.map(rawSelectionRanges => {
-							return rawSelectionRanges.reduceRight((parent: SelectionRange | undefined, selectionRange: SelectionRange) => {
-								return {
-									range: client.protocol2CodeConverter.asRange(selectionRange.range),
-									parent
-								};
-							}, undefined)!;
-						});
-					}
-					return [];
-				}
-			}));
-		});
+		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
+		updateFormatterRegistration();
+		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
+		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
 	});
+
+	function updateFormatterRegistration() {
+		const formatEnabled = workspace.getConfiguration().get('html.format.enable');
+		if (!formatEnabled && rangeFormatting) {
+			rangeFormatting.dispose();
+			rangeFormatting = undefined;
+		} else if (formatEnabled && !rangeFormatting) {
+			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
+				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+					let params: DocumentRangeFormattingParams = {
+						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+						range: client.code2ProtocolConverter.asRange(range),
+						options: client.code2ProtocolConverter.asFormattingOptions(options)
+					};
+					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
+						client.protocol2CodeConverter.asTextEdits,
+						(error) => {
+							client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
+							return Promise.resolve([]);
+						}
+					);
+				}
+			});
+		}
+	}
 
 	languages.setLanguageConfiguration('html', {
 		indentationRules: {
@@ -144,8 +157,10 @@ export function activate(context: ExtensionContext) {
 	});
 
 	const regionCompletionRegExpr = /^(\s*)(<(!(-(-\s*(#\w*)?)?)?)?)?$/;
+	const htmlSnippetCompletionRegExpr = /^(\s*)(<(h(t(m(l)?)?)?)?)?$/;
 	languages.registerCompletionItemProvider(documentSelector, {
 		provideCompletionItems(doc, pos) {
+			const results: CompletionItem[] = [];
 			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
 			let match = lineUntilPos.match(regionCompletionRegExpr);
 			if (match) {
@@ -156,15 +171,41 @@ export function activate(context: ExtensionContext) {
 				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
 				beginProposal.filterText = match[2];
 				beginProposal.sortText = 'za';
+				results.push(beginProposal);
 				let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
 				endProposal.range = range;
 				endProposal.insertText = new SnippetString('<!-- #endregion -->');
 				endProposal.documentation = localize('folding.end', 'Folding Region End');
 				endProposal.filterText = match[2];
 				endProposal.sortText = 'zb';
-				return [beginProposal, endProposal];
+				results.push(endProposal);
 			}
-			return null;
+			let match2 = lineUntilPos.match(htmlSnippetCompletionRegExpr);
+			if (match2 && doc.getText(new Range(new Position(0, 0), pos)).match(htmlSnippetCompletionRegExpr)) {
+				let range = new Range(new Position(pos.line, match2[1].length), pos);
+				let snippetProposal = new CompletionItem('HTML sample', CompletionItemKind.Snippet);
+				snippetProposal.range = range;
+				const content = ['<!DOCTYPE html>',
+					'<html>',
+					'<head>',
+					'\t<meta charset=\'utf-8\'>',
+					'\t<meta http-equiv=\'X-UA-Compatible\' content=\'IE=edge\'>',
+					'\t<title>${1:Page Title}</title>',
+					'\t<meta name=\'viewport\' content=\'width=device-width, initial-scale=1\'>',
+					'\t<link rel=\'stylesheet\' type=\'text/css\' media=\'screen\' href=\'${2:main.css}\'>',
+					'\t<script src=\'${3:main.js}\'></script>',
+					'</head>',
+					'<body>',
+					'\t$0',
+					'</body>',
+					'</html>'].join('\n');
+				snippetProposal.insertText = new SnippetString(content);
+				snippetProposal.documentation = localize('folding.html', 'Simple HTML5 starting point');
+				snippetProposal.filterText = match2[2];
+				snippetProposal.sortText = 'za';
+				results.push(snippetProposal);
+			}
+			return results;
 		}
 	});
 }

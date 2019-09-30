@@ -203,15 +203,15 @@
 |                 Ctrl+Alt+Equal |  ---  |                Ctrl+Alt+= |                Ctrl+Alt+= |          ctrl+alt+oem_plus |    NO   |
 |           Ctrl+Shift+Alt+Equal |  ---  |          Ctrl+Shift+Alt+= |          Ctrl+Shift+Alt+= |    ctrl+shift+alt+oem_plus |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                    BracketLeft |   х   |                         [ |                         х |                      oem_4 |    NO   |
-|              Shift+BracketLeft |   Х   |                   Shift+[ |                   Shift+х |                shift+oem_4 |    NO   |
-|           Ctrl+Alt+BracketLeft |  ---  |                Ctrl+Alt+[ |                Ctrl+Alt+х |             ctrl+alt+oem_4 |    NO   |
-|     Ctrl+Shift+Alt+BracketLeft |  ---  |          Ctrl+Shift+Alt+[ |          Ctrl+Shift+Alt+х |       ctrl+shift+alt+oem_4 |    NO   |
+|                    BracketLeft |   х   |                         [ |                         [ |                      oem_4 |    NO   |
+|              Shift+BracketLeft |   Х   |                   Shift+[ |                   Shift+[ |                shift+oem_4 |    NO   |
+|           Ctrl+Alt+BracketLeft |  ---  |                Ctrl+Alt+[ |                Ctrl+Alt+[ |             ctrl+alt+oem_4 |    NO   |
+|     Ctrl+Shift+Alt+BracketLeft |  ---  |          Ctrl+Shift+Alt+[ |          Ctrl+Shift+Alt+[ |       ctrl+shift+alt+oem_4 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                   BracketRight |   ъ   |                         ] |                         ъ |                      oem_6 |    NO   |
-|             Shift+BracketRight |   Ъ   |                   Shift+] |                   Shift+ъ |                shift+oem_6 |    NO   |
-|          Ctrl+Alt+BracketRight |  ---  |                Ctrl+Alt+] |                Ctrl+Alt+ъ |             ctrl+alt+oem_6 |    NO   |
-|    Ctrl+Shift+Alt+BracketRight |  ---  |          Ctrl+Shift+Alt+] |          Ctrl+Shift+Alt+ъ |       ctrl+shift+alt+oem_6 |    NO   |
+|                   BracketRight |   ъ   |                         ] |                         ] |                      oem_6 |    NO   |
+|             Shift+BracketRight |   Ъ   |                   Shift+] |                   Shift+] |                shift+oem_6 |    NO   |
+|          Ctrl+Alt+BracketRight |  ---  |                Ctrl+Alt+] |                Ctrl+Alt+] |             ctrl+alt+oem_6 |    NO   |
+|    Ctrl+Shift+Alt+BracketRight |  ---  |          Ctrl+Shift+Alt+] |          Ctrl+Shift+Alt+] |       ctrl+shift+alt+oem_6 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                      Backslash |   \   |                         \ |                         \ |                      oem_5 |    NO   |
 |                Shift+Backslash |   /   |                   Shift+\ |                   Shift+\ |                shift+oem_5 |    NO   |
@@ -225,35 +225,35 @@
 -----------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                      Semicolon |   ж   |                         ; |                         ж |                      oem_1 |    NO   |
-|                Shift+Semicolon |   Ж   |                   Shift+; |                   Shift+ж |                shift+oem_1 |    NO   |
-|             Ctrl+Alt+Semicolon |  ---  |                Ctrl+Alt+; |                Ctrl+Alt+ж |             ctrl+alt+oem_1 |    NO   |
-|       Ctrl+Shift+Alt+Semicolon |  ---  |          Ctrl+Shift+Alt+; |          Ctrl+Shift+Alt+ж |       ctrl+shift+alt+oem_1 |    NO   |
+|                      Semicolon |   ж   |                         ; |                         ; |                      oem_1 |    NO   |
+|                Shift+Semicolon |   Ж   |                   Shift+; |                   Shift+; |                shift+oem_1 |    NO   |
+|             Ctrl+Alt+Semicolon |  ---  |                Ctrl+Alt+; |                Ctrl+Alt+; |             ctrl+alt+oem_1 |    NO   |
+|       Ctrl+Shift+Alt+Semicolon |  ---  |          Ctrl+Shift+Alt+; |          Ctrl+Shift+Alt+; |       ctrl+shift+alt+oem_1 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                          Quote |   э   |                         ' |                         э |                      oem_7 |    NO   |
-|                    Shift+Quote |   Э   |                   Shift+' |                   Shift+э |                shift+oem_7 |    NO   |
-|                 Ctrl+Alt+Quote |  ---  |                Ctrl+Alt+' |                Ctrl+Alt+э |             ctrl+alt+oem_7 |    NO   |
-|           Ctrl+Shift+Alt+Quote |  ---  |          Ctrl+Shift+Alt+' |          Ctrl+Shift+Alt+э |       ctrl+shift+alt+oem_7 |    NO   |
+|                          Quote |   э   |                         ' |                         ' |                      oem_7 |    NO   |
+|                    Shift+Quote |   Э   |                   Shift+' |                   Shift+' |                shift+oem_7 |    NO   |
+|                 Ctrl+Alt+Quote |  ---  |                Ctrl+Alt+' |                Ctrl+Alt+' |             ctrl+alt+oem_7 |    NO   |
+|           Ctrl+Shift+Alt+Quote |  ---  |          Ctrl+Shift+Alt+' |          Ctrl+Shift+Alt+' |       ctrl+shift+alt+oem_7 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                      Backquote |   ё   |                         ` |                         ё |                      oem_3 |    NO   |
-|                Shift+Backquote |   Ё   |                   Shift+` |                   Shift+ё |                shift+oem_3 |    NO   |
-|             Ctrl+Alt+Backquote |  ---  |                Ctrl+Alt+` |                Ctrl+Alt+ё |             ctrl+alt+oem_3 |    NO   |
-|       Ctrl+Shift+Alt+Backquote |  ---  |          Ctrl+Shift+Alt+` |          Ctrl+Shift+Alt+ё |       ctrl+shift+alt+oem_3 |    NO   |
+|                      Backquote |   ё   |                         ` |                         ` |                      oem_3 |    NO   |
+|                Shift+Backquote |   Ё   |                   Shift+` |                   Shift+` |                shift+oem_3 |    NO   |
+|             Ctrl+Alt+Backquote |  ---  |                Ctrl+Alt+` |                Ctrl+Alt+` |             ctrl+alt+oem_3 |    NO   |
+|       Ctrl+Shift+Alt+Backquote |  ---  |          Ctrl+Shift+Alt+` |          Ctrl+Shift+Alt+` |       ctrl+shift+alt+oem_3 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                          Comma |   б   |                         , |                         б |                  oem_comma |    NO   |
-|                    Shift+Comma |   Б   |                   Shift+, |                   Shift+б |            shift+oem_comma |    NO   |
-|                 Ctrl+Alt+Comma |  ---  |                Ctrl+Alt+, |                Ctrl+Alt+б |         ctrl+alt+oem_comma |    NO   |
-|           Ctrl+Shift+Alt+Comma |  ---  |          Ctrl+Shift+Alt+, |          Ctrl+Shift+Alt+б |   ctrl+shift+alt+oem_comma |    NO   |
+|                          Comma |   б   |                         , |                         , |                  oem_comma |    NO   |
+|                    Shift+Comma |   Б   |                   Shift+, |                   Shift+, |            shift+oem_comma |    NO   |
+|                 Ctrl+Alt+Comma |  ---  |                Ctrl+Alt+, |                Ctrl+Alt+, |         ctrl+alt+oem_comma |    NO   |
+|           Ctrl+Shift+Alt+Comma |  ---  |          Ctrl+Shift+Alt+, |          Ctrl+Shift+Alt+, |   ctrl+shift+alt+oem_comma |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                         Period |   ю   |                         . |                         ю |                 oem_period |    NO   |
-|                   Shift+Period |   Ю   |                   Shift+. |                   Shift+ю |           shift+oem_period |    NO   |
-|                Ctrl+Alt+Period |  ---  |                Ctrl+Alt+. |                Ctrl+Alt+ю |        ctrl+alt+oem_period |    NO   |
-|          Ctrl+Shift+Alt+Period |  ---  |          Ctrl+Shift+Alt+. |          Ctrl+Shift+Alt+ю |  ctrl+shift+alt+oem_period |    NO   |
+|                         Period |   ю   |                         . |                         . |                 oem_period |    NO   |
+|                   Shift+Period |   Ю   |                   Shift+. |                   Shift+. |           shift+oem_period |    NO   |
+|                Ctrl+Alt+Period |  ---  |                Ctrl+Alt+. |                Ctrl+Alt+. |        ctrl+alt+oem_period |    NO   |
+|          Ctrl+Shift+Alt+Period |  ---  |          Ctrl+Shift+Alt+. |          Ctrl+Shift+Alt+. |  ctrl+shift+alt+oem_period |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                          Slash |   .   |                         / |                         . |                      oem_2 |    NO   |
-|                    Shift+Slash |   ,   |                   Shift+/ |                   Shift+. |                shift+oem_2 |    NO   |
-|                 Ctrl+Alt+Slash |  ---  |                Ctrl+Alt+/ |                Ctrl+Alt+. |             ctrl+alt+oem_2 |    NO   |
-|           Ctrl+Shift+Alt+Slash |  ---  |          Ctrl+Shift+Alt+/ |          Ctrl+Shift+Alt+. |       ctrl+shift+alt+oem_2 |    NO   |
+|                          Slash |   .   |                         / |                         / |                      oem_2 |    NO   |
+|                    Shift+Slash |   ,   |                   Shift+/ |                   Shift+/ |                shift+oem_2 |    NO   |
+|                 Ctrl+Alt+Slash |  ---  |                Ctrl+Alt+/ |                Ctrl+Alt+/ |             ctrl+alt+oem_2 |    NO   |
+|           Ctrl+Shift+Alt+Slash |  ---  |          Ctrl+Shift+Alt+/ |          Ctrl+Shift+Alt+/ |       ctrl+shift+alt+oem_2 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------

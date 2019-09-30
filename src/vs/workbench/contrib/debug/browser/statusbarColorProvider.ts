@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -34,7 +34,7 @@ export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBor
 }, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export class StatusBarColorProvider extends Themable implements IWorkbenchContribution {
-	private styleElement: HTMLStyleElement;
+	private styleElement: HTMLStyleElement | undefined;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -57,9 +57,6 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		super.updateStyles();
 
 		const container = this.layoutService.getContainer(Parts.STATUSBAR_PART);
-		if (!container) {
-			return;
-		}
 		if (isStatusbarInDebugMode(this.debugService)) {
 			addClass(container, 'debugging');
 		} else {
@@ -73,16 +70,20 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 
 		// Border Color
 		const borderColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_DEBUGGING_BORDER, STATUS_BAR_BORDER)) || this.getColor(contrastBorder);
-		container.style.borderTopWidth = borderColor ? '1px' : null;
-		container.style.borderTopStyle = borderColor ? 'solid' : null;
-		container.style.borderTopColor = borderColor;
+		if (borderColor) {
+			addClass(container, 'status-border-top');
+			container.style.setProperty('--status-border-top-color', borderColor.toString());
+		} else {
+			removeClass(container, 'status-border-top');
+			container.style.removeProperty('--status-border-top-color');
+		}
 
 		// Notification Beak
 		if (!this.styleElement) {
 			this.styleElement = createStyleSheet(container);
 		}
 
-		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
+		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
 	}
 
 	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
@@ -114,10 +115,3 @@ export function isStatusbarInDebugMode(debugService: IDebugService): boolean {
 
 	return true;
 }
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const statusBarItemDebuggingForeground = theme.getColor(STATUS_BAR_DEBUGGING_FOREGROUND);
-	if (statusBarItemDebuggingForeground) {
-		collector.addRule(`.monaco-workbench .part.statusbar.debugging > .statusbar-item .mask-icon { background-color: ${statusBarItemDebuggingForeground} !important; }`);
-	}
-});

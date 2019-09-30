@@ -38,8 +38,8 @@ export class SearchViewlet extends ViewContainerViewlet {
 		return Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 	}
 
-	getSearchView(): SearchView | null {
+	getSearchView(): SearchView | undefined {
 		const view = super.getView(VIEW_ID);
-		return view ? view as SearchView : null;
+		return view ? view as SearchView : undefined;
 	}
 }

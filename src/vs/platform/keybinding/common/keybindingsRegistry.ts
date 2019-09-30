@@ -49,7 +49,7 @@ export interface IKeybindingRule2 {
 	id: string;
 	args?: any;
 	weight: number;
-	when: ContextKeyExpr | null;
+	when: ContextKeyExpr | undefined;
 }
 
 export const enum KeybindingWeight {

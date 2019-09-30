@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
@@ -30,7 +30,7 @@ class ModelData implements IDisposable {
 	private _languageSelection: ILanguageSelection | null;
 	private _languageSelectionListener: IDisposable | null;
 
-	private _modelEventListeners: IDisposable[];
+	private readonly _modelEventListeners = new DisposableStore();
 
 	constructor(
 		model: ITextModel,
@@ -42,9 +42,8 @@ class ModelData implements IDisposable {
 		this._languageSelection = null;
 		this._languageSelectionListener = null;
 
-		this._modelEventListeners = [];
-		this._modelEventListeners.push(model.onWillDispose(() => onWillDispose(model)));
-		this._modelEventListeners.push(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
+		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
+		this._modelEventListeners.add(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
 	}
 
 	private _disposeLanguageSelection(): void {
@@ -59,7 +58,7 @@ class ModelData implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._modelEventListeners = dispose(this._modelEventListeners);
+		this._modelEventListeners.dispose();
 		this._disposeLanguageSelection();
 	}
 
@@ -89,7 +88,7 @@ interface IRawConfig {
 const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLine.LF : DefaultEndOfLine.CRLF;
 
 export class ModelServiceImpl extends Disposable implements IModelService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _configurationService: IConfigurationService;
 	private readonly _configurationServiceSubscription: IDisposable;
@@ -190,7 +189,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		};
 	}
 
-	public getCreationOptions(language: string, resource: URI | null | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
+	public getCreationOptions(language: string, resource: URI | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
 			const editor = this._configurationService.getValue<IRawEditorConfig>('editor', { overrideIdentifier: language, resource });
@@ -252,7 +251,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | null | undefined, isForSimpleWidget: boolean): ModelData {
+	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
 		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
@@ -343,7 +342,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		return [EditOperation.replaceMove(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
-	public createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource: URI | null | undefined, isForSimpleWidget: boolean = false): ITextModel {
+	public createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource?: URI, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
 		if (languageSelection) {

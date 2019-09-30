@@ -13,7 +13,11 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
  * and the modified version.
  */
 export class TextDiffEditorModel extends DiffEditorModel {
-	private _textDiffEditorModel: IDiffEditorModel | null;
+
+	protected readonly _originalModel!: BaseTextEditorModel | null;
+	protected readonly _modifiedModel!: BaseTextEditorModel | null;
+
+	private _textDiffEditorModel: IDiffEditorModel | null = null;
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);
@@ -21,24 +25,24 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		this.updateTextDiffEditorModel();
 	}
 
-	get originalModel(): BaseTextEditorModel {
-		return this._originalModel as BaseTextEditorModel;
+	get originalModel(): BaseTextEditorModel | null {
+		return this._originalModel;
 	}
 
-	get modifiedModel(): BaseTextEditorModel {
-		return this._modifiedModel as BaseTextEditorModel;
+	get modifiedModel(): BaseTextEditorModel | null {
+		return this._modifiedModel;
 	}
 
-	load(): Promise<EditorModel> {
-		return super.load().then(() => {
-			this.updateTextDiffEditorModel();
+	async load(): Promise<EditorModel> {
+		await super.load();
 
-			return this;
-		});
+		this.updateTextDiffEditorModel();
+
+		return this;
 	}
 
 	private updateTextDiffEditorModel(): void {
-		if (this.originalModel.isResolved() && this.modifiedModel.isResolved()) {
+		if (this.originalModel && this.originalModel.isResolved() && this.modifiedModel && this.modifiedModel.isResolved()) {
 
 			// Create new
 			if (!this._textDiffEditorModel) {
@@ -65,7 +69,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	}
 
 	isReadonly(): boolean {
-		return this.modifiedModel.isReadonly();
+		return !!this.modifiedModel && this.modifiedModel.isReadonly();
 	}
 
 	dispose(): void {
