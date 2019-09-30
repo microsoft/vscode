@@ -33,7 +33,7 @@ const defaultEditorId = 'default';
 
 const defaultEditorInfo: CustomEditorInfo = {
 	id: defaultEditorId,
-	displayName: nls.localize('promptOpenWith.defaultEditor', "Default built-in editor"),
+	displayName: nls.localize('promptOpenWith.defaultEditor', "VS Code's standard text editor"),
 	selector: [
 		{ filenamePattern: '*' }
 	],
