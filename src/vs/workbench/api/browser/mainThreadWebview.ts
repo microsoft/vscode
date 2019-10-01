@@ -96,6 +96,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		this._register(_webviewEditorService.registerResolver({
 			canResolve: (webview: WebviewInput) => {
 				if (webview.getTypeId() === CustomFileEditorInput.typeId) {
+					extensionService.activateByEvent(`onWebviewEditor:${(webview as CustomFileEditorInput).viewType}`);
 					return false;
 				}
 

@@ -16,7 +16,6 @@ import { ConfirmResult, IEditorInput, Verbosity } from 'vs/workbench/common/edit
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
 
 export class CustomFileEditorInput extends WebviewInput {
@@ -35,7 +34,6 @@ export class CustomFileEditorInput extends WebviewInput {
 		webview: UnownedDisposable<WebviewEditorOverlay>,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(id, viewType, '', webview);
@@ -93,7 +91,6 @@ export class CustomFileEditorInput extends WebviewInput {
 	public async resolve(): Promise<IEditorModel> {
 		if (!this._hasResolved) {
 			this._hasResolved = true;
-			this._extensionService.activateByEvent(`onWebviewEditor:${this.viewType}`);
 			await this._webviewEditorService.resolveWebview(this);
 		}
 		return super.resolve();
