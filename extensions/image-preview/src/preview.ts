@@ -13,10 +13,11 @@ export class Preview extends Disposable {
 	public static readonly viewType = 'imagePreview.previewEditor';
 
 	private _active = true;
+	private _isWebviewDispose = false;
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
-		resource: vscode.Uri,
+		private readonly resource: vscode.Uri,
 		private readonly webviewEditor: vscode.WebviewEditor,
 		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
@@ -34,7 +35,9 @@ export class Preview extends Disposable {
 			]
 		};
 
-		webviewEditor.webview.html = this.getWebiewContents(webviewEditor, resource);
+		this._register(webviewEditor.onDidDispose(() => {
+			this._isWebviewDispose = true;
+		}));
 
 		this._register(webviewEditor.webview.onDidReceiveMessage(message => {
 			switch (message.type) {
@@ -58,13 +61,29 @@ export class Preview extends Disposable {
 		this._register(webviewEditor.onDidChangeViewState(() => {
 			this.update();
 		}));
+
 		this._register(webviewEditor.onDidDispose(() => {
 			if (this._active) {
 				this.sizeStatusBarEntry.hide();
 				this.zoomStatusBarEntry.hide();
 			}
 		}));
+
+		const watcher = this._register(vscode.workspace.createFileSystemWatcher(resource.fsPath));
+		this._register(watcher.onDidChange(e => {
+			if (e.toString() === this.resource.toString()) {
+				this.render();
+			}
+		}));
+
+		this.render();
 		this.update();
+	}
+
+	private render() {
+		if (!this._isWebviewDispose) {
+			this.webviewEditor.webview.html = this.getWebiewContents();
+		}
 	}
 
 	private update() {
@@ -78,10 +97,11 @@ export class Preview extends Disposable {
 		}
 	}
 
-	private getWebiewContents(webviewEditor: vscode.WebviewEditor, resource: vscode.Uri): string {
+	private getWebiewContents(): string {
+		const version = Date.now().toString();
 		const settings = {
 			isMac: process.platform === 'darwin',
-			src: this.getResourcePath(webviewEditor, resource)
+			src: this.getResourcePath(this.webviewEditor, this.resource, version),
 		};
 
 		return /* html */`<!DOCTYPE html>
@@ -102,12 +122,12 @@ export class Preview extends Disposable {
 </html>`;
 	}
 
-	private getResourcePath(webviewEditor: vscode.WebviewEditor, resource: vscode.Uri) {
+	private getResourcePath(webviewEditor: vscode.WebviewEditor, resource: vscode.Uri, version: string) {
 		if (resource.scheme === 'data') {
 			return encodeURI(resource.toString(true));
 		}
 
-		return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true));
+		return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true) + `?version=${version}`);
 	}
 
 	private extensionResource(path: string) {
