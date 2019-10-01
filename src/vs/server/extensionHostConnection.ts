@@ -126,7 +126,7 @@ export class ExtensionHostConnection {
 		try {
 			const nlsConfig = await getNLSConfiguration(startParams.language, this._environmentService.userDataPath);
 
-			let execArgv = process.execArgv;
+			let execArgv: string[] = [];
 			if (startParams.port && !(<any>process).pkg) {
 				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=0.0.0.0:${startParams.port}`];
 			}
