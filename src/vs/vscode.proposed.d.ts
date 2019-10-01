@@ -1085,45 +1085,7 @@ declare module 'vscode' {
 
 	//#region Custom editors, mjbvz
 
-	export enum WebviewContentState {
-		/**
-		 * The webview content cannot be modified.
-		 *
-		 * This disables save.
-		 */
-		Readonly = 1,
-
-		/**
-		 * The webview content has not been changed but they can be modified and saved.
-		 */
-		Unchanged = 2,
-
-		/**
-		 * The webview content has been changed and can be saved.
-		 */
-		Dirty = 3,
-	}
-
-	export interface WebviewEditorState {
-		readonly contentState: WebviewContentState;
-	}
-
-	export interface WebviewPanel {
-		editorState: WebviewEditorState;
-
-		/**
-		 * Fired when the webview is being saved.
-		 *
-		 * Both `Unchanged` and `Dirty` editors can be saved.
-		 *
-		 * Extensions should call `waitUntil` to signal when the save operation complete
-		 */
-		readonly onWillSave: Event<{ waitUntil: (thenable: Thenable<boolean>) => void }>;
-	}
-
 	export interface WebviewEditor extends WebviewPanel {
-		// TODO: We likely do not want `editorState` and `onWillSave` enabled for
-		// resource backed webviews
 	}
 
 	export interface WebviewEditorProvider {
