@@ -7,6 +7,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { WebviewContentState } from 'vs/editor/common/modes';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -58,7 +59,7 @@ export class CustomFileEditorInput extends WebviewInput {
 	matches(other: IEditorInput): boolean {
 		return this === other || (other instanceof CustomFileEditorInput
 			&& this.viewType === other.viewType
-			&& this.getResource().toString() === other.getResource().toString());
+			&& isEqual(this.getResource(), other.getResource()));
 	}
 
 	@memoize
