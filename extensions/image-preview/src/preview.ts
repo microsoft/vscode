@@ -65,6 +65,8 @@ export class Preview extends Disposable {
 		}));
 
 		this._register(webviewEditor.onDidDispose(() => {
+			this._isWebviewDispose = true;
+			this._active = false;
 			if (this._active) {
 				this.sizeStatusBarEntry.hide();
 				this.zoomStatusBarEntry.hide();
