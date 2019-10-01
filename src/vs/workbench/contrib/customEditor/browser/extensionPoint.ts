@@ -5,7 +5,7 @@
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
-import { CustomEditorDiscretion, CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorPriority, CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 
@@ -13,14 +13,14 @@ namespace WebviewEditorContribution {
 	export const viewType = 'viewType';
 	export const displayName = 'displayName';
 	export const selector = 'selector';
-	export const discretion = 'discretion';
+	export const priority = 'priority';
 }
 
 interface IWebviewEditorsExtensionPoint {
 	readonly [WebviewEditorContribution.viewType]: string;
 	readonly [WebviewEditorContribution.displayName]: string;
 	readonly [WebviewEditorContribution.selector]?: readonly CustomEditorSelector[];
-	readonly [WebviewEditorContribution.discretion]?: CustomEditorDiscretion;
+	readonly [WebviewEditorContribution.priority]?: CustomEditorPriority;
 }
 
 const webviewEditorsContribution: IJSONSchema = {
@@ -60,16 +60,16 @@ const webviewEditorsContribution: IJSONSchema = {
 					}
 				}
 			},
-			[WebviewEditorContribution.discretion]: {
+			[WebviewEditorContribution.priority]: {
 				type: 'string',
-				description: nls.localize('contributes.discretion', 'Controls when the custom editor is used. May be overridden by users.'),
+				description: nls.localize('contributes.priority', 'Controls when the custom editor is used. May be overridden by users.'),
 				enum: [
-					CustomEditorDiscretion.default,
-					CustomEditorDiscretion.option
+					CustomEditorPriority.default,
+					CustomEditorPriority.option
 				],
 				enumDescriptions: [
-					nls.localize('contributes.discretion.default', 'Editor is automatically used for a resource if no other default custom editors are registered for it.'),
-					nls.localize('contributes.discretion.option', 'Editor is not automatically used but can be selected by a user.'),
+					nls.localize('contributes.priority.default', 'Editor is automatically used for a resource if no other default custom editors are registered for it.'),
+					nls.localize('contributes.priority.option', 'Editor is not automatically used but can be selected by a user.'),
 				],
 				default: 'default'
 			}
