@@ -55,7 +55,9 @@ export class Preview extends Disposable {
 		}));
 
 		this._register(zoomStatusBarEntry.onDidChangeScale(e => {
-			this.webviewEditor.webview.postMessage({ type: 'setScale', scale: e.scale });
+			if (this._active && !this._isWebviewDispose) {
+				this.webviewEditor.webview.postMessage({ type: 'setScale', scale: e.scale });
+			}
 		}));
 
 		this._register(webviewEditor.onDidChangeViewState(() => {
