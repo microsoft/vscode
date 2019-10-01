@@ -1163,13 +1163,3 @@ export namespace LogLevel {
 		return types.LogLevel.Info;
 	}
 }
-export namespace WebviewContentState {
-	export function from(state: vscode.WebviewContentState): modes.WebviewContentState {
-		switch (state) {
-			case types.WebviewContentState.Readonly: return modes.WebviewContentState.Readonly;
-			case types.WebviewContentState.Unchanged: return modes.WebviewContentState.Unchanged;
-			case types.WebviewContentState.Dirty: return modes.WebviewContentState.Dirty;
-			default: throw new Error('Unknown vscode.WebviewContentState');
-		}
-	}
-}

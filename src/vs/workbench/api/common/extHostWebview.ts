@@ -13,7 +13,7 @@ import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import * as vscode from 'vscode';
 import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
-import { Disposable, WebviewContentState } from './extHostTypes';
+import { Disposable } from './extHostTypes';
 
 type IconPath = URI | { light: URI, dark: URI };
 
@@ -102,9 +102,6 @@ export class ExtHostWebviewEditor implements vscode.WebviewEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private _visible: boolean = true;
 	private _active: boolean = true;
-	private _state: vscode.WebviewEditorState = {
-		contentState: WebviewContentState.Readonly,
-	};
 
 	_isDisposed: boolean = false;
 
@@ -222,15 +219,6 @@ export class ExtHostWebviewEditor implements vscode.WebviewEditor {
 	_setVisible(value: boolean) {
 		this.assertNotDisposed();
 		this._visible = value;
-	}
-
-	public get editorState(): vscode.WebviewEditorState {
-		return this._state;
-	}
-
-	public set editorState(newState: vscode.WebviewEditorState) {
-		this._state = newState;
-		this._proxy.$setState(this._handle, typeConverters.WebviewContentState.from(newState.contentState));
 	}
 
 	private readonly _onWillSave = new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>();
