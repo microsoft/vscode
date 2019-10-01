@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
-import { ZoomStatusBarEntry } from './zoomStatusBarEntry';
+import { ZoomStatusBarEntry, Scale } from './zoomStatusBarEntry';
 import { Disposable } from './dispose';
 
 const enum PreviewState {
@@ -18,7 +18,11 @@ export class Preview extends Disposable {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
+	private readonly id: string = `${Date.now()}-${Math.random().toString()}`;
+
 	private _previewState = PreviewState.Visible;
+	private _imageSize: string | undefined;
+	private _imageZoom: Scale | undefined;
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
@@ -44,12 +48,14 @@ export class Preview extends Disposable {
 			switch (message.type) {
 				case 'size':
 					{
-						this.sizeStatusBarEntry.update(message.value);
+						this._imageSize = message.value;
+						this.update();
 						break;
 					}
 				case 'zoom':
 					{
-						this.zoomStatusBarEntry.update(message.value);
+						this._imageZoom = message.value;
+						this.update();
 						break;
 					}
 			}
@@ -67,8 +73,8 @@ export class Preview extends Disposable {
 
 		this._register(webviewEditor.onDidDispose(() => {
 			if (this._previewState === PreviewState.Active) {
-				this.sizeStatusBarEntry.hide();
-				this.zoomStatusBarEntry.hide();
+				this.sizeStatusBarEntry.hide(this.id);
+				this.zoomStatusBarEntry.hide(this.id);
 			}
 			this._previewState = PreviewState.Disposed;
 		}));
@@ -97,12 +103,14 @@ export class Preview extends Disposable {
 
 		if (this.webviewEditor.active) {
 			this._previewState = PreviewState.Active;
-			this.sizeStatusBarEntry.show();
-			this.zoomStatusBarEntry.show();
+			this.sizeStatusBarEntry.show(this.id, this._imageSize || '');
+			this.zoomStatusBarEntry.show(this.id, this._imageZoom || 'fit');
 		} else {
+			if (this._previewState === PreviewState.Active) {
+				this.sizeStatusBarEntry.hide(this.id);
+				this.zoomStatusBarEntry.hide(this.id);
+			}
 			this._previewState = PreviewState.Visible;
-			this.sizeStatusBarEntry.hide();
-			this.zoomStatusBarEntry.hide();
 		}
 	}
 
@@ -132,11 +140,16 @@ export class Preview extends Disposable {
 	}
 
 	private getResourcePath(webviewEditor: vscode.WebviewEditor, resource: vscode.Uri, version: string) {
-		if (resource.scheme === 'data') {
-			return encodeURI(resource.toString(true));
-		}
+		switch (resource.scheme) {
+			case 'data':
+				return encodeURI(resource.toString(true));
 
-		return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true) + `?version=${version}`);
+			case 'git':
+
+
+			default:
+				return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true) + `?version=${version}`);
+		}
 	}
 
 	private extensionResource(path: string) {

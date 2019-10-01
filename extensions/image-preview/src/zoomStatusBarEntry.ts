@@ -11,13 +11,15 @@ const localize = nls.loadMessageBundle();
 
 const selectZoomLevelCommandId = '_imagePreview.selectZoomLevel';
 
-type Scale = number | 'fit';
+export type Scale = number | 'fit';
 
 export class ZoomStatusBarEntry extends Disposable {
 	private readonly _entry: vscode.StatusBarItem;
 
 	private readonly _onDidChangeScale = this._register(new vscode.EventEmitter<{ scale: Scale }>());
 	public readonly onDidChangeScale = this._onDidChangeScale.event;
+
+	private _showOwner: string | undefined;
 
 	constructor() {
 		super();
@@ -48,16 +50,17 @@ export class ZoomStatusBarEntry extends Disposable {
 		this._entry.command = selectZoomLevelCommandId;
 	}
 
-	public show() {
+	public show(owner: string, scale: Scale) {
+		this._showOwner = owner;
+		this._entry.text = this.zoomLabel(scale);
 		this._entry.show();
 	}
 
-	public hide() {
-		this._entry.hide();
-	}
-
-	public update(scale: Scale) {
-		this._entry.text = this.zoomLabel(scale);
+	public hide(owner: string) {
+		if (owner === this._showOwner) {
+			this._entry.hide();
+			this._showOwner = undefined;
+		}
 	}
 
 	private zoomLabel(scale: Scale): string {

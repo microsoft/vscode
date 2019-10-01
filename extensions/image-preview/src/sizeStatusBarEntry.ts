@@ -12,6 +12,8 @@ const localize = nls.loadMessageBundle();
 export class SizeStatusBarEntry extends Disposable {
 	private readonly _entry: vscode.StatusBarItem;
 
+	private _showingOwner: string | undefined;
+
 	constructor() {
 		super();
 		this._entry = this._register(vscode.window.createStatusBarItem({
@@ -22,15 +24,16 @@ export class SizeStatusBarEntry extends Disposable {
 		}));
 	}
 
-	public show() {
+	public show(owner: string, text: string) {
+		this._showingOwner = owner;
+		this._entry.text = text;
 		this._entry.show();
 	}
 
-	public hide() {
-		this._entry.hide();
-	}
-
-	public update(text: string) {
-		this._entry.text = text;
+	public hide(owner: string) {
+		if (owner === this._showingOwner) {
+			this._entry.hide();
+			this._showingOwner = undefined;
+		}
 	}
 }
