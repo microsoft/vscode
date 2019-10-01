@@ -216,7 +216,10 @@
 			"cwd": "${workspaceFolder}",
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"env": {
+				"MOCHA_COLORS": "true"
+			}
 		},
 		{
 			"type": "node",

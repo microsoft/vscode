@@ -68,7 +68,8 @@ suite('Multicursor selection', () => {
 		getNumber: (key: string) => undefined!,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
 		remove: (key) => undefined,
-		logStorage: () => undefined
+		logStorage: () => undefined,
+		migrate: (toWorkspace) => Promise.resolve(undefined)
 	} as IStorageService);
 
 	test('issue #8817: Cursor position changes when you cancel multicursor', () => {

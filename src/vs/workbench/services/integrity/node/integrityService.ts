@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -86,22 +86,32 @@ export class IntegrityServiceImpl implements IIntegrityService {
 			return; // Do not prompt
 		}
 
-		this.notificationService.prompt(
-			Severity.Warning,
-			nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort),
-			[
-				{
-					label: nls.localize('integrity.moreInformation', "More Information"),
-					run: () => this.openerService.open(URI.parse(product.checksumFailMoreInfoUrl))
-				},
-				{
-					label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),
-					isSecondary: true,
-					run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
-				}
-			],
-			{ sticky: true }
-		);
+		const checksumFailMoreInfoUrl = product.checksumFailMoreInfoUrl;
+		const message = nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort);
+		if (checksumFailMoreInfoUrl) {
+			this.notificationService.prompt(
+				Severity.Warning,
+				message,
+				[
+					{
+						label: nls.localize('integrity.moreInformation', "More Information"),
+						run: () => this.openerService.open(URI.parse(checksumFailMoreInfoUrl))
+					},
+					{
+						label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),
+						isSecondary: true,
+						run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
+					}
+				],
+				{ sticky: true }
+			);
+		} else {
+			this.notificationService.notify({
+				severity: Severity.Warning,
+				message,
+				sticky: true
+			});
+		}
 	}
 
 	isPure(): Promise<IntegrityTestResult> {

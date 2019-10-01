@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/common/product';
 import { Action } from 'vs/base/common/actions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
@@ -134,12 +134,12 @@ class ReportExtensionSlowAction extends Action {
 		// build issue
 		const title = encodeURIComponent('Extension causes high cpu load');
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
-		const message = `:warning: Make sure to **attach** this file from your *home*-directory:\n:warning:\`${path}\`\n\nFind more details here: https://github.com/Microsoft/vscode/wiki/Explain:-extension-causes-high-cpu-load`;
+		const message = `:warning: Make sure to **attach** this file from your *home*-directory:\n:warning:\`${path}\`\n\nFind more details here: https://github.com/microsoft/vscode/wiki/Explain-extension-causes-high-cpu-load`;
 		const body = encodeURIComponent(`- Issue Type: \`Performance\`
 - Extension Name: \`${this.extension.name}\`
 - Extension Version: \`${this.extension.version}\`
 - OS Version: \`${osVersion}\`
-- VSCode version: \`${pkg.version}\`\n\n${message}`);
+- VSCode version: \`${product.version}\`\n\n${message}`);
 
 		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues/new/?body=${body}&title=${title}`;
 		this._openerService.open(URI.parse(url));

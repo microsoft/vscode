@@ -54,6 +54,10 @@ export class EmptyView extends ViewletPanel {
 	}
 
 	renderHeader(container: HTMLElement): void {
+		const twisties = document.createElement('div');
+		DOM.addClasses(twisties, 'twisties', 'codicon', 'codicon-chevron-right');
+		container.appendChild(twisties);
+
 		const titleContainer = document.createElement('div');
 		DOM.addClass(titleContainer, 'title');
 		container.appendChild(titleContainer);

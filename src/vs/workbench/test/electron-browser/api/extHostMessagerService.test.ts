@@ -20,12 +20,16 @@ const emptyDialogService = new class implements IDialogService {
 	confirm(): never {
 		throw new Error('not implemented');
 	}
+
+	about(): never {
+		throw new Error('not implemented');
+	}
 };
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
-	onWillExecuteCommand: () => ({ dispose: () => { } }),
-	onDidExecuteCommand: () => ({ dispose: () => { } }),
+	onWillExecuteCommand: () => Disposable.None,
+	onDidExecuteCommand: () => Disposable.None,
 	executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 		return Promise.resolve(undefined);
 	}
@@ -102,7 +106,7 @@ suite('ExtHostMessageService', function () {
 					assert.equal(message, 'h');
 					assert.equal(buttons.length, 2);
 					assert.equal(buttons[1], 'Cancel');
-					return Promise.resolve(0);
+					return Promise.resolve({ choice: 0 });
 				}
 			} as IDialogService);
 
@@ -113,7 +117,7 @@ suite('ExtHostMessageService', function () {
 		test('returns undefined when cancelled', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				show() {
-					return Promise.resolve(1);
+					return Promise.resolve({ choice: 1 });
 				}
 			} as IDialogService);
 
@@ -125,7 +129,7 @@ suite('ExtHostMessageService', function () {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				show(severity: Severity, message: string, buttons: string[]) {
 					assert.equal(buttons.length, 1);
-					return Promise.resolve(0);
+					return Promise.resolve({ choice: 0 });
 				}
 			} as IDialogService);
 

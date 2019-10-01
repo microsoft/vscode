@@ -35,7 +35,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
@@ -49,7 +49,7 @@ import { INotificationHandle, INotificationService, Severity } from 'vs/platform
 import { Event } from 'vs/base/common/event';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -202,8 +202,6 @@ class State {
 
 	private _metadata: string | undefined;
 	get metadata(): string | undefined { return this._metadata; }
-
-	constructor() { }
 
 	update(update: StateDelta): StateChange {
 		const change = new StateChange();
@@ -414,7 +412,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('gotoLine', "Go to Line"),
 			command: 'workbench.action.gotoLine'
@@ -429,7 +427,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectIndentation', "Select Indentation"),
 			command: 'changeEditorIndentation'
@@ -444,7 +442,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectEncoding', "Select Encoding"),
 			command: 'workbench.action.editor.changeEncoding'
@@ -459,7 +457,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectEOL', "Select End of Line Sequence"),
 			command: 'workbench.action.editor.changeEOL'
@@ -474,7 +472,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectLanguageMode', "Select Language Mode"),
 			command: 'workbench.action.editor.changeLanguageMode'
@@ -489,7 +487,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('fileInfo', "File Information")
 		};
@@ -583,8 +581,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (activeCodeEditor) {
 
 			// Hook Listener for Configuration changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
-				if (event.accessibilitySupport) {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeConfiguration((event: ConfigurationChangedEvent) => {
+				if (event.hasChanged(EditorOption.accessibilitySupport)) {
 					this.onScreenReaderModeChange(activeCodeEditor);
 				}
 			}));
@@ -708,7 +706,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				}
 			}
 
-			screenReaderMode = (editorWidget.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled);
+			screenReaderMode = (editorWidget.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled);
 		}
 
 		if (screenReaderMode === false && this.screenReaderNotification) {
@@ -758,7 +756,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private onEOLChange(editorWidget: ICodeEditor | undefined): void {
 		const info: StateDelta = { EOL: undefined };
 
-		if (editorWidget && !editorWidget.getConfiguration().readOnly) {
+		if (editorWidget && !editorWidget.getOption(EditorOption.readOnly)) {
 			const codeEditorModel = editorWidget.getModel();
 			if (codeEditorModel) {
 				info.EOL = codeEditorModel.getEOL();
@@ -819,8 +817,7 @@ function isWritableCodeEditor(codeEditor: ICodeEditor | undefined): boolean {
 	if (!codeEditor) {
 		return false;
 	}
-	const config = codeEditor.getConfiguration();
-	return (!config.readOnly);
+	return !codeEditor.getOption(EditorOption.readOnly);
 }
 
 function isWritableBaseEditor(e: IBaseEditor): boolean {

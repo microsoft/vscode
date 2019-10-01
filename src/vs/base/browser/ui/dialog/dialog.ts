@@ -92,8 +92,6 @@ export class Dialog extends Disposable {
 			checkboxMessageElement.innerText = this.options.checkboxLabel;
 		}
 
-
-
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
 	}

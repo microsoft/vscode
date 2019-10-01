@@ -28,7 +28,7 @@ import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandSer
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingEvent, IKeyboardEvent, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
@@ -183,8 +183,12 @@ export class SimpleDialogService implements IDialogService {
 		return Promise.resolve(window.confirm(messageText));
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number> {
-		return Promise.resolve(0);
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
+		return Promise.resolve({ choice: 0 });
+	}
+
+	public about(): Promise<void> {
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -416,7 +420,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	_serviceBrand: undefined;
 
-	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	private readonly _configuration: Configuration;

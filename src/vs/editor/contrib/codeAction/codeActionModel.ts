@@ -17,6 +17,8 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { getCodeActions, CodeActionSet } from './codeAction';
 import { CodeActionTrigger } from './codeActionTrigger';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { isEqual } from 'vs/base/common/resources';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -46,13 +48,13 @@ class CodeActionOracle extends Disposable {
 		return this._createEventAndSignalChange(trigger, selection);
 	}
 
-	private _onMarkerChanges(resources: URI[]): void {
+	private _onMarkerChanges(resources: readonly URI[]): void {
 		const model = this._editor.getModel();
 		if (!model) {
 			return;
 		}
 
-		if (resources.some(resource => resource.toString() === model.uri.toString())) {
+		if (resources.some(resource => isEqual(resource, model.uri))) {
 			this._autoTriggerTimer.cancelAndSet(() => {
 				this.trigger({ type: 'auto' });
 			}, this._delay);
@@ -192,7 +194,7 @@ export class CodeActionModel extends Disposable {
 		const model = this._editor.getModel();
 		if (model
 			&& CodeActionProviderRegistry.has(model)
-			&& !this._editor.getConfiguration().readOnly
+			&& !this._editor.getOption(EditorOption.readOnly)
 		) {
 			const supportedActions: string[] = [];
 			for (const provider of CodeActionProviderRegistry.all(model)) {

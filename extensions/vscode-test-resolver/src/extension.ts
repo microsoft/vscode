@@ -91,7 +91,7 @@ export function activate(context: vscode.ExtensionContext) {
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
 			} else {
 				const serverCommand = process.platform === 'win32' ? 'server.cmd' : 'server.sh';
-				let serverLocation = env['VSCODE_REMOTE_SERVER_PATH']; // support environment
+				let serverLocation = env['VSCODE_REMOTE_SERVER_PATH']; // support environment variable to specify location of server on disk
 				if (!serverLocation) {
 					const serverBin = path.join(remoteDataDir, 'bin');
 					progress.report({ message: 'Installing VSCode Server' });

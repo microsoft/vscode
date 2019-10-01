@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { Application } from '../../application';
+import { Application } from '../../../../automation';
 
 const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-insert';
 const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-item[title$="Synchronize Changes"]';

@@ -139,11 +139,11 @@ export class Sash extends Disposable {
 		this._register(domEvent(this.el, 'mousedown')(this.onMouseDown, this));
 		this._register(domEvent(this.el, 'dblclick')(this.onMouseDoubleClick, this));
 
-		Gesture.addTarget(this.el);
+		this._register(Gesture.addTarget(this.el));
 		this._register(domEvent(this.el, EventType.Start)(this.onTouchStart, this));
 
 		if (isIPad) {
-			// see also http://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
+			// see also https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
 			addClass(this.el, 'touch');
 		}
 

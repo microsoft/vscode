@@ -41,12 +41,7 @@ var editorEntryPoints = [
 ];
 
 var editorResources = [
-	'out-build/vs/{base,editor}/**/*.{svg,png}',
-	'!out-build/vs/base/browser/ui/splitview/**/*',
-	'!out-build/vs/base/browser/ui/toolbar/**/*',
-	'!out-build/vs/base/browser/ui/octiconLabel/**/*',
-	'!out-build/vs/workbench/**',
-	'!**/test/**'
+	'out-editor-build/vs/base/browser/ui/codiconLabel/**/*.ttf'
 ];
 
 var BUNDLED_FILE_HEADER = [

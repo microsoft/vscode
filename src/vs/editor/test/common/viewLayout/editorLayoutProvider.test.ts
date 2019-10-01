@@ -4,12 +4,82 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorLayoutInfo, EditorLayoutProvider, IEditorLayoutProviderOpts, RenderMinimap } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorLayoutInfoComputer, RenderMinimap, EditorOption, EditorMinimapOptions, InternalEditorScrollbarOptions, EditorOptions, RenderLineNumbersType, InternalEditorRenderLineNumbersOptions } from 'vs/editor/common/config/editorOptions';
+import { ComputedEditorOptions } from 'vs/editor/common/config/commonEditorConfig';
+
+interface IEditorLayoutProviderOpts {
+	readonly outerWidth: number;
+	readonly outerHeight: number;
+
+	readonly showGlyphMargin: boolean;
+	readonly lineHeight: number;
+
+	readonly showLineNumbers: boolean;
+	readonly lineNumbersMinChars: number;
+	readonly lineNumbersDigitCount: number;
+
+	readonly lineDecorationsWidth: number;
+
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly maxDigitWidth: number;
+
+	readonly verticalScrollbarWidth: number;
+	readonly verticalScrollbarHasArrows: boolean;
+	readonly scrollbarArrowSize: number;
+	readonly horizontalScrollbarHeight: number;
+
+	readonly minimap: boolean;
+	readonly minimapSide: 'left' | 'right';
+	readonly minimapRenderCharacters: boolean;
+	readonly minimapMaxColumn: number;
+	readonly pixelRatio: number;
+}
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
-		let actual = EditorLayoutProvider.compute(input);
+		const options = new ComputedEditorOptions();
+		options._write(EditorOption.glyphMargin, input.showGlyphMargin);
+		options._write(EditorOption.lineNumbersMinChars, input.lineNumbersMinChars);
+		options._write(EditorOption.lineDecorationsWidth, input.lineDecorationsWidth);
+		options._write(EditorOption.folding, false);
+		const minimapOptions: EditorMinimapOptions = {
+			enabled: input.minimap,
+			side: input.minimapSide,
+			renderCharacters: input.minimapRenderCharacters,
+			maxColumn: input.minimapMaxColumn,
+			showSlider: 'mouseover'
+		};
+		options._write(EditorOption.minimap, minimapOptions);
+		const scrollbarOptions: InternalEditorScrollbarOptions = {
+			arrowSize: input.scrollbarArrowSize,
+			vertical: EditorOptions.scrollbar.defaultValue.vertical,
+			horizontal: EditorOptions.scrollbar.defaultValue.horizontal,
+			useShadows: EditorOptions.scrollbar.defaultValue.useShadows,
+			verticalHasArrows: input.verticalScrollbarHasArrows,
+			horizontalHasArrows: false,
+			handleMouseWheel: EditorOptions.scrollbar.defaultValue.handleMouseWheel,
+			horizontalScrollbarSize: input.horizontalScrollbarHeight,
+			horizontalSliderSize: EditorOptions.scrollbar.defaultValue.horizontalSliderSize,
+			verticalScrollbarSize: input.verticalScrollbarWidth,
+			verticalSliderSize: EditorOptions.scrollbar.defaultValue.verticalSliderSize,
+		};
+		options._write(EditorOption.scrollbar, scrollbarOptions);
+		const lineNumbersOptions: InternalEditorRenderLineNumbersOptions = {
+			renderType: input.showLineNumbers ? RenderLineNumbersType.On : RenderLineNumbersType.Off,
+			renderFn: null
+		};
+		options._write(EditorOption.lineNumbers, lineNumbersOptions);
+
+		const actual = EditorLayoutInfoComputer.computeLayout(options, {
+			outerWidth: input.outerWidth,
+			outerHeight: input.outerHeight,
+			lineHeight: input.lineHeight,
+			lineNumbersDigitCount: input.lineNumbersDigitCount,
+			typicalHalfwidthCharacterWidth: input.typicalHalfwidthCharacterWidth,
+			maxDigitWidth: input.maxDigitWidth,
+			pixelRatio: input.pixelRatio,
+		});
 		assert.deepEqual(actual, expected);
 	}
 

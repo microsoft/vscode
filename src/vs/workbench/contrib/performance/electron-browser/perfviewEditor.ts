@@ -20,8 +20,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/common/product';
 
 export class PerfviewContrib {
 
@@ -127,7 +126,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _addSummary(md: MarkdownBuilder, metrics: IStartupMetrics): void {
 		md.heading(2, 'System Info');
-		md.li(`${product.nameShort}: ${pkg.version} (${product.commit || '0000000'})`);
+		md.li(`${product.nameShort}: ${product.version} (${product.commit || '0000000'})`);
 		md.li(`OS: ${metrics.platform}(${metrics.release})`);
 		if (metrics.cpus) {
 			md.li(`CPUs: ${metrics.cpus.model}(${metrics.cpus.count} x ${metrics.cpus.speed})`);
@@ -178,10 +177,10 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			if (!times) {
 				continue;
 			}
-			if (times.startup) {
-				eager.push([id, times.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationEvent]);
+			if (times.activationReason.startup) {
+				eager.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationReason.activationEvent, times.activationReason.extensionId.value]);
 			} else {
-				normal.push([id, times.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationEvent]);
+				normal.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationReason.activationEvent, times.activationReason.extensionId.value]);
 			}
 		}
 
@@ -189,7 +188,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		if (table.length > 0) {
 			md.heading(2, 'Extension Activation Stats');
 			md.table(
-				['Extension', 'Eager', 'Load Code', 'Call Activate', 'Finish Activate', 'Event'],
+				['Extension', 'Eager', 'Load Code', 'Call Activate', 'Finish Activate', 'Event', 'By'],
 				table
 			);
 		}

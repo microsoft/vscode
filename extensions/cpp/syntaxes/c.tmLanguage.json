@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/7e5b098736796056fa99d1ef50e1b95b6131d16c",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/dd94b6a93799f2bce7e29b2515d96553e34574b0",
 	"name": "C",
 	"scopeName": "source.c",
 	"patterns": [
@@ -1150,93 +1150,89 @@
 		"comments": {
 			"patterns": [
 				{
-					"name": "comment.line.documentation.c",
-					"while": "(?-mix:(?:^)(?>\\s*)(\\/\\/[!\\/]+))",
-					"whileCaptures": {
-						"1": {
-							"name": "punctuation.definition.comment.continuation.documentation.c"
-						}
-					},
-					"begin": "(\\/\\/[!\\/]+)",
-					"beginCaptures": {
+					"match": "(?:^)(?>\\s*)(\\/\\/[!\\/]+)(.*)",
+					"captures": {
 						"1": {
 							"name": "punctuation.definition.comment.documentation.c"
+						},
+						"2": {
+							"patterns": [
+								{
+									"match": "(?<=[\\s*!\\/])[\\\\@](?:callergraph|callgraph|else|endif|f\\$|f\\[|f\\]|hidecallergraph|hidecallgraph|hiderefby|hiderefs|hideinitializer|htmlinclude|n|nosubgrouping|private|privatesection|protected|protectedsection|public|publicsection|pure|showinitializer|showrefby|showrefs|tableofcontents|\\$|\\#|<|>|%|\"|\\.|=|::|\\||\\-\\-|\\-\\-\\-)\\b(?:\\{[^}]*\\})?",
+									"name": "storage.type.class.doxygen.c"
+								},
+								{
+									"match": "((?<=[\\s*!\\/])[\\\\@](?:a|em|e))\\s+(\\S+)",
+									"captures": {
+										"1": {
+											"name": "storage.type.class.doxygen.c"
+										},
+										"2": {
+											"name": "markup.italic.doxygen.c"
+										}
+									}
+								},
+								{
+									"match": "((?<=[\\s*!\\/])[\\\\@]b)\\s+(\\S+)",
+									"captures": {
+										"1": {
+											"name": "storage.type.class.doxygen.c"
+										},
+										"2": {
+											"name": "markup.bold.doxygen.c"
+										}
+									}
+								},
+								{
+									"match": "((?<=[\\s*!\\/])[\\\\@](?:c|p))\\s+(\\S+)",
+									"captures": {
+										"1": {
+											"name": "storage.type.class.doxygen.c"
+										},
+										"2": {
+											"name": "markup.inline.raw.string.c"
+										}
+									}
+								},
+								{
+									"match": "(?<=[\\s*!\\/])[\\\\@](?:a|anchor|b|c|cite|copybrief|copydetail|copydoc|def|dir|dontinclude|e|em|emoji|enum|example|extends|file|idlexcept|implements|include|includedoc|includelineno|latexinclude|link|memberof|namespace|p|package|ref|refitem|related|relates|relatedalso|relatesalso|verbinclude)\\b(?:\\{[^}]*\\})?",
+									"name": "storage.type.class.doxygen.c"
+								},
+								{
+									"match": "(?<=[\\s*!\\/])[\\\\@](?:addindex|addtogroup|category|class|defgroup|diafile|dotfile|elseif|fn|headerfile|if|ifnot|image|ingroup|interface|line|mainpage|mscfile|name|overload|page|property|protocol|section|skip|skipline|snippet|snippetdoc|snippetlineno|struct|subpage|subsection|subsubsection|typedef|union|until|vhdlflow|weakgroup)\\b(?:\\{[^}]*\\})?",
+									"name": "storage.type.class.doxygen.c"
+								},
+								{
+									"match": "((?<=[\\s*!\\/])[\\\\@]param)\\s+(\\b\\w+\\b)",
+									"captures": {
+										"1": {
+											"name": "storage.type.class.doxygen.c"
+										},
+										"2": {
+											"name": "variable.parameter.c"
+										}
+									}
+								},
+								{
+									"match": "(?<=[\\s*!\\/])[\\\\@](?:arg|attention|author|authors|brief|bug|copyright|date|deprecated|details|exception|invariant|li|note|par|paragraph|param|post|pre|remark|remarks|result|return|returns|retval|sa|see|short|since|test|throw|todo|tparam|version|warning|xrefitem)\\b(?:\\{[^}]*\\})?",
+									"name": "storage.type.class.doxygen.c"
+								},
+								{
+									"match": "(?<=[\\s*!\\/])[\\\\@](?:code|cond|docbookonly|dot|htmlonly|internal|latexonly|link|manonly|msc|parblock|rtfonly|secreflist|uml|verbatim|xmlonly|endcode|endcond|enddocbookonly|enddot|endhtmlonly|endinternal|endlatexonly|endlink|endmanonly|endmsc|endparblock|endrtfonly|endsecreflist|enduml|endverbatim|endxmlonly)\\b(?:\\{[^}]*\\})?",
+									"name": "storage.type.class.doxygen.c"
+								},
+								{
+									"match": "(?:\\b[A-Z]+:|@[a-z_]+:)",
+									"name": "storage.type.class.gtkdoc"
+								},
+								{
+									"match": "[\\\\@]\\S++(?!(?:\\n|$))",
+									"name": "invalid.unknown.documentation.command.c"
+								}
+							]
 						}
 					},
-					"patterns": [
-						{
-							"match": "(?<=[\\s*!\\/])[\\\\@](?:callergraph|callgraph|else|endif|f\\$|f\\[|f\\]|hidecallergraph|hidecallgraph|hiderefby|hiderefs|hideinitializer|htmlinclude|n|nosubgrouping|private|privatesection|protected|protectedsection|public|publicsection|pure|showinitializer|showrefby|showrefs|tableofcontents|\\$|\\#|<|>|%|\"|\\.|=|::|\\||\\-\\-|\\-\\-\\-)\\b(?:\\{[^}]*\\})?",
-							"name": "storage.type.class.doxygen.c"
-						},
-						{
-							"match": "((?<=[\\s*!\\/])[\\\\@](?:a|em|e))\\s+(\\S+)",
-							"captures": {
-								"1": {
-									"name": "storage.type.class.doxygen.c"
-								},
-								"2": {
-									"name": "markup.italic.doxygen.c"
-								}
-							}
-						},
-						{
-							"match": "((?<=[\\s*!\\/])[\\\\@]b)\\s+(\\S+)",
-							"captures": {
-								"1": {
-									"name": "storage.type.class.doxygen.c"
-								},
-								"2": {
-									"name": "markup.bold.doxygen.c"
-								}
-							}
-						},
-						{
-							"match": "((?<=[\\s*!\\/])[\\\\@](?:c|p))\\s+(\\S+)",
-							"captures": {
-								"1": {
-									"name": "storage.type.class.doxygen.c"
-								},
-								"2": {
-									"name": "markup.inline.raw.string.c"
-								}
-							}
-						},
-						{
-							"match": "(?<=[\\s*!\\/])[\\\\@](?:a|anchor|b|c|cite|copybrief|copydetail|copydoc|def|dir|dontinclude|e|em|emoji|enum|example|extends|file|idlexcept|implements|include|includedoc|includelineno|latexinclude|link|memberof|namespace|p|package|ref|refitem|related|relates|relatedalso|relatesalso|verbinclude)\\b(?:\\{[^}]*\\})?",
-							"name": "storage.type.class.doxygen.c"
-						},
-						{
-							"match": "(?<=[\\s*!\\/])[\\\\@](?:addindex|addtogroup|category|class|defgroup|diafile|dotfile|elseif|fn|headerfile|if|ifnot|image|ingroup|interface|line|mainpage|mscfile|name|overload|page|property|protocol|section|skip|skipline|snippet|snippetdoc|snippetlineno|struct|subpage|subsection|subsubsection|typedef|union|until|vhdlflow|weakgroup)\\b(?:\\{[^}]*\\})?",
-							"name": "storage.type.class.doxygen.c"
-						},
-						{
-							"match": "((?<=[\\s*!\\/])[\\\\@]param)\\s+(\\b\\w+\\b)",
-							"captures": {
-								"1": {
-									"name": "storage.type.class.doxygen.c"
-								},
-								"2": {
-									"name": "variable.parameter.c"
-								}
-							}
-						},
-						{
-							"match": "(?<=[\\s*!\\/])[\\\\@](?:arg|attention|author|authors|brief|bug|copyright|date|deprecated|details|exception|invariant|li|note|par|paragraph|param|post|pre|remark|remarks|result|return|returns|retval|sa|see|short|since|test|throw|todo|tparam|version|warning|xrefitem)\\b(?:\\{[^}]*\\})?",
-							"name": "storage.type.class.doxygen.c"
-						},
-						{
-							"match": "(?<=[\\s*!\\/])[\\\\@](?:code|cond|docbookonly|dot|htmlonly|internal|latexonly|link|manonly|msc|parblock|rtfonly|secreflist|uml|verbatim|xmlonly|endcode|endcond|enddocbookonly|enddot|endhtmlonly|endinternal|endlatexonly|endlink|endmanonly|endmsc|endparblock|endrtfonly|endsecreflist|enduml|endverbatim|endxmlonly)\\b(?:\\{[^}]*\\})?",
-							"name": "storage.type.class.doxygen.c"
-						},
-						{
-							"match": "(?:\\b[A-Z]+:|@[a-z_]+:)",
-							"name": "storage.type.class.gtkdoc"
-						},
-						{
-							"match": "[\\\\@]\\S++(?!(?:\\n|$))",
-							"name": "invalid.unknown.documentation.command.c"
-						}
-					]
+					"name": "comment.line.double-slash.documentation.c"
 				},
 				{
 					"match": "(\\/\\*[!*]+(?=\\s))(.+)([!*]*\\*\\/)",
@@ -1328,7 +1324,7 @@
 				},
 				{
 					"name": "comment.block.documentation.c",
-					"begin": "(\\/\\*[!*]+(?:(?:\\n|$)|(?=\\s)))",
+					"begin": "((?>\\s*)\\/\\*[!*]+(?:(?:\\n|$)|(?=\\s)))",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.comment.begin.documentation.c"
@@ -1341,89 +1337,6 @@
 						}
 					},
 					"patterns": [
-						{
-							"while": "(?-mix:(?:^)(?>\\s*)(?![!*]*\\*\\/)((?>\\**)))",
-							"whileCaptures": {
-								"1": {
-									"name": "punctuation.definition.comment.continuation.documentation.c"
-								}
-							},
-							"begin": "\\G",
-							"patterns": [
-								{
-									"match": "(?<=[\\s*!\\/])[\\\\@](?:callergraph|callgraph|else|endif|f\\$|f\\[|f\\]|hidecallergraph|hidecallgraph|hiderefby|hiderefs|hideinitializer|htmlinclude|n|nosubgrouping|private|privatesection|protected|protectedsection|public|publicsection|pure|showinitializer|showrefby|showrefs|tableofcontents|\\$|\\#|<|>|%|\"|\\.|=|::|\\||\\-\\-|\\-\\-\\-)\\b(?:\\{[^}]*\\})?",
-									"name": "storage.type.class.doxygen.c"
-								},
-								{
-									"match": "((?<=[\\s*!\\/])[\\\\@](?:a|em|e))\\s+(\\S+)",
-									"captures": {
-										"1": {
-											"name": "storage.type.class.doxygen.c"
-										},
-										"2": {
-											"name": "markup.italic.doxygen.c"
-										}
-									}
-								},
-								{
-									"match": "((?<=[\\s*!\\/])[\\\\@]b)\\s+(\\S+)",
-									"captures": {
-										"1": {
-											"name": "storage.type.class.doxygen.c"
-										},
-										"2": {
-											"name": "markup.bold.doxygen.c"
-										}
-									}
-								},
-								{
-									"match": "((?<=[\\s*!\\/])[\\\\@](?:c|p))\\s+(\\S+)",
-									"captures": {
-										"1": {
-											"name": "storage.type.class.doxygen.c"
-										},
-										"2": {
-											"name": "markup.inline.raw.string.c"
-										}
-									}
-								},
-								{
-									"match": "(?<=[\\s*!\\/])[\\\\@](?:a|anchor|b|c|cite|copybrief|copydetail|copydoc|def|dir|dontinclude|e|em|emoji|enum|example|extends|file|idlexcept|implements|include|includedoc|includelineno|latexinclude|link|memberof|namespace|p|package|ref|refitem|related|relates|relatedalso|relatesalso|verbinclude)\\b(?:\\{[^}]*\\})?",
-									"name": "storage.type.class.doxygen.c"
-								},
-								{
-									"match": "(?<=[\\s*!\\/])[\\\\@](?:addindex|addtogroup|category|class|defgroup|diafile|dotfile|elseif|fn|headerfile|if|ifnot|image|ingroup|interface|line|mainpage|mscfile|name|overload|page|property|protocol|section|skip|skipline|snippet|snippetdoc|snippetlineno|struct|subpage|subsection|subsubsection|typedef|union|until|vhdlflow|weakgroup)\\b(?:\\{[^}]*\\})?",
-									"name": "storage.type.class.doxygen.c"
-								},
-								{
-									"match": "((?<=[\\s*!\\/])[\\\\@]param)\\s+(\\b\\w+\\b)",
-									"captures": {
-										"1": {
-											"name": "storage.type.class.doxygen.c"
-										},
-										"2": {
-											"name": "variable.parameter.c"
-										}
-									}
-								},
-								{
-									"match": "(?<=[\\s*!\\/])[\\\\@](?:arg|attention|author|authors|brief|bug|copyright|date|deprecated|details|exception|invariant|li|note|par|paragraph|param|post|pre|remark|remarks|result|return|returns|retval|sa|see|short|since|test|throw|todo|tparam|version|warning|xrefitem)\\b(?:\\{[^}]*\\})?",
-									"name": "storage.type.class.doxygen.c"
-								},
-								{
-									"match": "(?<=[\\s*!\\/])[\\\\@](?:code|cond|docbookonly|dot|htmlonly|internal|latexonly|link|manonly|msc|parblock|rtfonly|secreflist|uml|verbatim|xmlonly|endcode|endcond|enddocbookonly|enddot|endhtmlonly|endinternal|endlatexonly|endlink|endmanonly|endmsc|endparblock|endrtfonly|endsecreflist|enduml|endverbatim|endxmlonly)\\b(?:\\{[^}]*\\})?",
-									"name": "storage.type.class.doxygen.c"
-								},
-								{
-									"match": "(?:\\b[A-Z]+:|@[a-z_]+:)",
-									"name": "storage.type.class.gtkdoc"
-								},
-								{
-									"match": "[\\\\@]\\S++(?!(?:\\n|$))",
-									"name": "invalid.unknown.documentation.command.c"
-								}
-							]
-						},
 						{
 							"match": "(?<=[\\s*!\\/])[\\\\@](?:callergraph|callgraph|else|endif|f\\$|f\\[|f\\]|hidecallergraph|hidecallgraph|hiderefby|hiderefs|hideinitializer|htmlinclude|n|nosubgrouping|private|privatesection|protected|protectedsection|public|publicsection|pure|showinitializer|showrefby|showrefs|tableofcontents|\\$|\\#|<|>|%|\"|\\.|=|::|\\||\\-\\-|\\-\\-\\-)\\b(?:\\{[^}]*\\})?",
 							"name": "storage.type.class.doxygen.c"

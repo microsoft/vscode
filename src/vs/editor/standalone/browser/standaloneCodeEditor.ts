@@ -10,7 +10,7 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions, IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -79,7 +79,7 @@ export interface IActionDescriptor {
 /**
  * The options to create an editor.
  */
-export interface IEditorConstructionOptions extends IEditorOptions {
+export interface IStandaloneEditorConstructionOptions extends IEditorConstructionOptions {
 	/**
 	 * The initial model associated with this code editor.
 	 */
@@ -158,7 +158,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IEditorConstructionOptions,
+		options: IStandaloneEditorConstructionOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
@@ -287,7 +287,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IEditorConstructionOptions | undefined,
+		options: IStandaloneEditorConstructionOptions | undefined,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -376,7 +376,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IClipboardService clipboardService: IClipboardService
+		@optional(IClipboardService) clipboardService: IClipboardService | null,
 	) {
 		applyConfigurationValues(configurationService, options, true);
 		options = options || {};
@@ -384,7 +384,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			options.theme = themeService.setTheme(options.theme);
 		}
 
-		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, clipboardService);
+		super(domElement, options, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService);
 
 		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;

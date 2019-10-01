@@ -121,7 +121,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			name: EmptyView.NAME,
 			ctorDescriptor: { ctor: EmptyView },
 			order: 1,
-			canToggleVisibility: false
+			canToggleVisibility: true,
 		};
 	}
 

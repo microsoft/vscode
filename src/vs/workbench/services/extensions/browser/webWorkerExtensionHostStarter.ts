@@ -9,7 +9,7 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -18,7 +18,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
@@ -51,7 +51,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			const emitter = new Emitter<VSBuffer>();
 
 			const url = getWorkerBootstrapUrl(require.toUrl('../worker/extensionHostWorkerMain.js'), 'WorkerExtensionHost');
-			const worker = new Worker(url);
+			const worker = new Worker(url, { name: 'WorkerExtensionHost' });
 
 			worker.onmessage = (event) => {
 				const { data } = event;
@@ -150,6 +150,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 				authority: this._environmentService.configuration.remoteAuthority,
 				isRemote: false
 			},
+			uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop
 		};
 	}
 }

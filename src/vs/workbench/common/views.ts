@@ -130,8 +130,6 @@ export interface IViewDescriptor {
 
 	readonly when?: ContextKeyExpr;
 
-	readonly group?: string;
-
 	readonly order?: number;
 
 	readonly weight?: number;
@@ -146,6 +144,11 @@ export interface IViewDescriptor {
 	readonly workspace?: boolean;
 
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
+
+	// For contributed remote explorer views
+	readonly group?: string;
+
+	readonly remoteAuthority?: string | string[];
 }
 
 export interface IViewDescriptorCollection extends IDisposable {
@@ -314,6 +317,8 @@ export interface ITreeView extends IDisposable {
 
 	message?: string;
 
+	title: string;
+
 	readonly visible: boolean;
 
 	readonly onDidExpandItem: Event<ITreeItem>;
@@ -325,6 +330,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeVisibility: Event<boolean>;
 
 	readonly onDidChangeActions: Event<void>;
+
+	readonly onDidChangeTitle: Event<string>;
 
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 

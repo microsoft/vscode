@@ -27,11 +27,6 @@ export const enum Position {
 	BOTTOM
 }
 
-export interface ILayoutOptions {
-	toggleMaximizedPanel?: boolean;
-	source?: Parts;
-}
-
 export interface IWorkbenchLayoutService extends ILayoutService {
 
 	_serviceBrand: undefined;

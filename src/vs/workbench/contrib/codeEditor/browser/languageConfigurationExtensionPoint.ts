@@ -359,7 +359,7 @@ export class LanguageConfigurationFileHandler {
 const schemaId = 'vscode://schemas/language-configuration';
 const schema: IJSONSchema = {
 	allowComments: true,
-	allowsTrailingCommas: true,
+	allowTrailingCommas: true,
 	default: {
 		comments: {
 			blockComment: ['/*', '*/'],
