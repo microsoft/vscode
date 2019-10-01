@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { SizeStatusBarEntry } from './sizeStatusBarEntry';
-import { ZoomStatusBarEntry, Scale } from './zoomStatusBarEntry';
+import * as nls from 'vscode-nls';
 import { Disposable } from './dispose';
+import { SizeStatusBarEntry } from './sizeStatusBarEntry';
+import { Scale, ZoomStatusBarEntry } from './zoomStatusBarEntry';
+
+const localize = nls.loadMessageBundle();
 
 const enum PreviewState {
 	Disposed,
@@ -132,8 +135,9 @@ export class Preview extends Disposable {
 
 	<meta id="image-preview-settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
-<body class="container image scale-to-fit">
-	<div class='loading'></div>
+<body class="container image scale-to-fit loading">
+	<div class="loading-indicator"></div>
+	<div class="image-load-error-message">${localize('preview.imageLoadError', "An error occurred while loading the image")}</div>
 	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}"></script>
 </body>
 </html>`;
