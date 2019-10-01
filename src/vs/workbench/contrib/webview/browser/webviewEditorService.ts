@@ -258,7 +258,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 	): Promise<void> {
 		const didRevive = await this.tryRevive(webview);
 		if (!didRevive) {
-			this._revivalPool.add(webview, () => { });
+			let resolve: () => void;
+			const promise = new Promise<void>(r => { resolve = r; });
+			this._revivalPool.add(webview, resolve!);
+			return promise;
 		}
 	}
 
