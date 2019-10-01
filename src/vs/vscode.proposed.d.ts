@@ -1110,23 +1110,25 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// #region resolveExternalUri — mjbvz
+	// #region asExternalUri — mjbvz
 
 	namespace env {
 		/**
 		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
 		 * uri to the same resource on the client machine.
 		 *
-		 * This is a no-op if the extension is running locally. Currently only supports `https:` and `http:`.
+		 * This is a no-op if the extension is running on the client machine. Currently only supports
+		 * `https:` and `http:` uris.
 		 *
-		 * If the extension is running remotely, this function automatically establishes port forwarding from
-		 * the local machine to `target` on the remote and returns a local uri that can be used to for this connection.
+		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
+		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
+		 * the port fowarding tunnel is managed by VS Code and the tunnel can be closed by the user.
 		 *
-		 * Extensions should not store the result of `resolveExternalUri` as the resolved uri may become invalid due to
-		 * a system or user action — for example, in remote cases, a user may close a port that was forwarded by
-		 * `resolveExternalUri`.
+		 * Extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
+		 * a system or user action — for example, in remote cases, a user may close a port forwardng tunnel
+		 * that was opened by `asExternalUri`.
 		 *
-		 * Note: uris passed through `openExternal` are automatically resolved and you should not call `resolveExternalUri`
+		 * Note: uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri`
 		 * on them.
 		 *
 		 * @return A uri that can be used on the client machine.
