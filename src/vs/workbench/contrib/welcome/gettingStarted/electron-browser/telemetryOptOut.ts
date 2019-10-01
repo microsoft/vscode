@@ -30,6 +30,8 @@ export class NativeTelemetryOptOut extends AbstractTelemetryOptOut {
 		@IElectronService private readonly electronService: IElectronService
 	) {
 		super(storageService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService);
+
+		this.handleTelemetryOptOut();
 	}
 
 	protected getWindowCount(): Promise<number> {

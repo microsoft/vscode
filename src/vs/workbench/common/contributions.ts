@@ -119,7 +119,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 		try {
 			instantiationService.createInstance(ctor);
 		} catch (error) {
-			console.error(`Unable to instantiate workbench contribution ${ctor}.`, error);
+			console.error(`Unable to instantiate workbench contribution ${(ctor as any).name}.`, error);
 		}
 	}
 }
