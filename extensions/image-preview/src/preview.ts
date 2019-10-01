@@ -8,12 +8,17 @@ import { SizeStatusBarEntry } from './sizeStatusBarEntry';
 import { ZoomStatusBarEntry } from './zoomStatusBarEntry';
 import { Disposable } from './dispose';
 
+const enum PreviewState {
+	Disposed,
+	Visible,
+	Active,
+}
+
 export class Preview extends Disposable {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
-	private _active = true;
-	private _isWebviewDispose = false;
+	private _previewState = PreviewState.Visible;
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
@@ -35,10 +40,6 @@ export class Preview extends Disposable {
 			]
 		};
 
-		this._register(webviewEditor.onDidDispose(() => {
-			this._isWebviewDispose = true;
-		}));
-
 		this._register(webviewEditor.webview.onDidReceiveMessage(message => {
 			switch (message.type) {
 				case 'size':
@@ -55,7 +56,7 @@ export class Preview extends Disposable {
 		}));
 
 		this._register(zoomStatusBarEntry.onDidChangeScale(e => {
-			if (this._active && !this._isWebviewDispose) {
+			if (this._previewState === PreviewState.Active) {
 				this.webviewEditor.webview.postMessage({ type: 'setScale', scale: e.scale });
 			}
 		}));
@@ -65,12 +66,11 @@ export class Preview extends Disposable {
 		}));
 
 		this._register(webviewEditor.onDidDispose(() => {
-			this._isWebviewDispose = true;
-			this._active = false;
-			if (this._active) {
+			if (this._previewState === PreviewState.Active) {
 				this.sizeStatusBarEntry.hide();
 				this.zoomStatusBarEntry.hide();
 			}
+			this._previewState = PreviewState.Disposed;
 		}));
 
 		const watcher = this._register(vscode.workspace.createFileSystemWatcher(resource.fsPath));
@@ -85,17 +85,22 @@ export class Preview extends Disposable {
 	}
 
 	private render() {
-		if (!this._isWebviewDispose) {
+		if (this._previewState !== PreviewState.Disposed) {
 			this.webviewEditor.webview.html = this.getWebiewContents();
 		}
 	}
 
 	private update() {
-		this._active = this.webviewEditor.active;
-		if (this._active) {
+		if (this._previewState === PreviewState.Disposed) {
+			return;
+		}
+
+		if (this.webviewEditor.active) {
+			this._previewState = PreviewState.Active;
 			this.sizeStatusBarEntry.show();
 			this.zoomStatusBarEntry.show();
 		} else {
+			this._previewState = PreviewState.Visible;
 			this.sizeStatusBarEntry.hide();
 			this.zoomStatusBarEntry.hide();
 		}
