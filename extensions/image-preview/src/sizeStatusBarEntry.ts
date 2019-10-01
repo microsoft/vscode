@@ -5,6 +5,9 @@
 
 import * as vscode from 'vscode';
 import { Disposable } from './dispose';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 export class SizeStatusBarEntry extends Disposable {
 	private readonly _entry: vscode.StatusBarItem;
@@ -13,7 +16,7 @@ export class SizeStatusBarEntry extends Disposable {
 		super();
 		this._entry = this._register(vscode.window.createStatusBarItem({
 			id: 'imagePreview.size',
-			name: 'Image Size',
+			name: localize('sizeStatusBar.name', "Image Size"),
 			alignment: vscode.StatusBarAlignment.Right,
 			priority: 101 /* to the left of editor status (100) */,
 		}));

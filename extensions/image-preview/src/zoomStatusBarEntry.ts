@@ -23,7 +23,7 @@ export class ZoomStatusBarEntry extends Disposable {
 		super();
 		this._entry = this._register(vscode.window.createStatusBarItem({
 			id: 'imagePreview.zoom',
-			name: 'Image Zoom',
+			name: localize('zoomStatusBar.name', "Image Zoom"),
 			alignment: vscode.StatusBarAlignment.Right,
 			priority: 102 /* to the left of editor size entry (101) */,
 		}));
