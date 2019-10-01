@@ -871,7 +871,8 @@ declare module 'vscode' {
 
 	export interface TreeView<T> {
 		/**
-		 * The name of the tree view. It is set from the extension package.json and can be changed later.
+		 * The tree view title is initially taken from the extension package.json
+		 * Changes to the title property will be properly reflected in the UI in the title of the view.
 		 */
 		title?: string;
 	}
