@@ -18,7 +18,11 @@ suite('ExtHostWebview', () => {
 		const viewType = 'view.type';
 
 		const shape = createNoopMainThreadWebviews();
-		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), { webviewCspSource: '', webviewResourceRoot: '' });
+		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
+			webviewCspSource: '',
+			webviewResourceRoot: '',
+			isExtensionDevelopmentDebug: false,
+		});
 
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
@@ -52,7 +56,8 @@ suite('ExtHostWebview', () => {
 		const shape = createNoopMainThreadWebviews();
 		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
 			webviewCspSource: '',
-			webviewResourceRoot: 'vscode-resource://{{resource}}'
+			webviewResourceRoot: 'vscode-resource://{{resource}}',
+			isExtensionDevelopmentDebug: false,
 		});
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
@@ -92,7 +97,8 @@ suite('ExtHostWebview', () => {
 
 		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
 			webviewCspSource: '',
-			webviewResourceRoot: `https://{{uuid}}.webview.contoso.com/commit/{{resource}}`
+			webviewResourceRoot: `https://{{uuid}}.webview.contoso.com/commit/{{resource}}`,
+			isExtensionDevelopmentDebug: false,
 		});
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 

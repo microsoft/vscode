@@ -219,7 +219,7 @@ export class LaunchMainService implements ILaunchMainService {
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows,
-			screenReader: !!app.accessibilitySupportEnabled,
+			screenReader: !!app.isAccessibilitySupportEnabled(),
 			gpuFeatureStatus: app.getGPUFeatureStatus()
 		});
 	}

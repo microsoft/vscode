@@ -437,6 +437,7 @@ export class TreeView extends HeightMap {
 	private shouldInvalidateDropReaction: boolean;
 	private currentDropTargets: ViewItem[] | null = null;
 	private currentDropDisposable: Lifecycle.IDisposable = Lifecycle.Disposable.None;
+	private gestureDisposable: Lifecycle.IDisposable = Lifecycle.Disposable.None;
 	private dragAndDropScrollInterval: number | null = null;
 	private dragAndDropScrollTimeout: number | null = null;
 	private dragAndDropMouseY: number | null = null;
@@ -523,7 +524,7 @@ export class TreeView extends HeightMap {
 			this.wrapper.style.msTouchAction = 'none';
 			this.wrapper.style.msContentZooming = 'none';
 		} else {
-			Touch.Gesture.addTarget(this.wrapper);
+			this.gestureDisposable = Touch.Gesture.addTarget(this.wrapper);
 		}
 
 		this.rowsContainer = document.createElement('div');
@@ -1675,6 +1676,7 @@ export class TreeView extends HeightMap {
 		if (this.context.cache) {
 			this.context.cache.dispose();
 		}
+		this.gestureDisposable.dispose();
 
 		super.dispose();
 	}

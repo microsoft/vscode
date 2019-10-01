@@ -636,7 +636,7 @@ export class SaveExtensionHostProfileAction extends Action {
 			}]
 		});
 
-		if (!picked || !picked.filePath || picked.canceled) {
+		if (!picked || !picked.filePath) {
 			return;
 		}
 

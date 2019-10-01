@@ -63,7 +63,7 @@ export class Button extends Disposable {
 
 		container.appendChild(this._element);
 
-		Gesture.addTarget(this._element);
+		this._register(Gesture.addTarget(this._element));
 
 		[DOM.EventType.CLICK, EventType.Tap].forEach(eventType => {
 			this._register(DOM.addDisposableListener(this._element, eventType, e => {

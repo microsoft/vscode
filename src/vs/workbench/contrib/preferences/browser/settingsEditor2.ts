@@ -201,7 +201,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	createEditor(parent: HTMLElement): void {
 		parent.setAttribute('tabindex', '-1');
-		this.rootElement = DOM.append(parent, $('.settings-editor'));
+		this.rootElement = DOM.append(parent, $('.settings-editor', { tabindex: '-1' }));
 
 		this.createHeader(this.rootElement);
 		this.createBody(this.rootElement);

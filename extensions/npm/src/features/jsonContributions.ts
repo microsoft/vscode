@@ -25,7 +25,7 @@ export interface IJSONContribution {
 	getDocumentSelector(): DocumentSelector;
 	getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[] | null> | null;
 	collectPropertySuggestions(fileName: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
-	collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
+	collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any>;
 	collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any>;
 	resolveSuggestion?(item: CompletionItem): Thenable<CompletionItem | null> | null;
 }
