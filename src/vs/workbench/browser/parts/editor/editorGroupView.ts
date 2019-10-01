@@ -289,7 +289,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const removeGroupAction = this._register(new Action(
 			CLOSE_EDITOR_GROUP_COMMAND_ID,
 			localize('closeGroupAction', "Close"),
-			'close-editor-group',
+			'codicon-close',
 			true,
 			() => {
 				this.accessor.removeGroup(this);
