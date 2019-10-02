@@ -75,7 +75,8 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 					{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") },
 					{ label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") },
 					{ label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
-					{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") }
+					{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") },
+					{ label: 'defaultBuildTask', detail: localize('defaultBuildTask', "The name of the default build task. If there is not a single default build task then a quick pick is shown to choose the build task.") },
 				].map(variable => ({
 					label: '${' + variable.label + '}',
 					range: new vscode.Range(startPosition, position),
