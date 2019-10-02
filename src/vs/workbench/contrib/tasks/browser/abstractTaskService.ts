@@ -290,7 +290,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			let entry: TaskQuickPickEntry | null | undefined;
 			if (tasks && tasks.length > 0) {
-				entry = await this.showQuickPick(tasks, nls.localize('TaskService.pickBuildTaskForLabel', 'Select the build task'));
+				entry = await this.showQuickPick(tasks, nls.localize('TaskService.pickBuildTaskForLabel', 'Select the build task (there is no default build task defined)'));
 			}
 
 			let task: Task | undefined | null = entry ? entry.task : undefined;
