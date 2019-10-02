@@ -124,6 +124,8 @@ export class Preview extends Disposable {
 			src: this.getResourcePath(this.webviewEditor, this.resource, version),
 		};
 
+		const nonce = Date.now().toString();
+
 		return /* html */`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -131,14 +133,16 @@ export class Preview extends Disposable {
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 	<title>Image Preview</title>
-	<link rel="stylesheet" class="code-user-style" href="${escapeAttribute(this.extensionResource('/media/main.css'))}" type="text/css" media="screen">
 
+	<link rel="stylesheet" href="${escapeAttribute(this.extensionResource('/media/main.css'))}" type="text/css" media="screen" nonce="${nonce}">
+
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${this.webviewEditor.webview.cspSource}; script-src 'nonce-${nonce}'; style-src 'self' 'nonce-${nonce}';">
 	<meta id="image-preview-settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
 <body class="container image scale-to-fit loading">
 	<div class="loading-indicator"></div>
 	<div class="image-load-error-message">${localize('preview.imageLoadError', "An error occurred while loading the image")}</div>
-	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}"></script>
+	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}" nonce="${nonce}"></script>
 </body>
 </html>`;
 	}
