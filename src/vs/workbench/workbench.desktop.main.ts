@@ -111,9 +111,6 @@ import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 // Execution
 import 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 
-// Update
-import 'vs/workbench/contrib/update/electron-browser/update.contribution';
-
 // Performance
 import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
 
