@@ -104,13 +104,13 @@ suite('commands namespace tests', () => {
 		return Promise.all([a, b, c, d, e]);
 	});
 
-	test('api-command: vscode.open', function () {
-		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/image.png');
-		let a = commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
-		let b = commands.executeCommand('vscode.open', uri, ViewColumn.Two).then(() => assert.ok(true), () => assert.ok(false));
-		let c = commands.executeCommand('vscode.open').then(() => assert.ok(false), () => assert.ok(true));
-		let d = commands.executeCommand('vscode.open', uri, true).then(() => assert.ok(false), () => assert.ok(true));
+	// test('api-command: vscode.open', function () {
+	// 	let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/image.png');
+	// 	let a = commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
+	// 	let b = commands.executeCommand('vscode.open', uri, ViewColumn.Two).then(() => assert.ok(true), () => assert.ok(false));
+	// 	let c = commands.executeCommand('vscode.open').then(() => assert.ok(false), () => assert.ok(true));
+	// 	let d = commands.executeCommand('vscode.open', uri, true).then(() => assert.ok(false), () => assert.ok(true));
 
-		return Promise.all([a, b, c, d]);
-	});
+	// 	return Promise.all([a, b, c, d]);
+	// });
 });
