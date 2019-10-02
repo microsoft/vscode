@@ -172,6 +172,7 @@ export class InputBox extends Widget {
 
 		if(this.options.lineCount){
 			this.lineCounter = dom.append(wrapper, $('div.line-counter'));
+			this.lineCounter.hidden = true;
 		}
 
 		if (this.options.flexibleHeight) {
@@ -292,18 +293,10 @@ export class InputBox extends Widget {
 
 	public focus(): void {
 		this.input.focus();
-
-		if(this.lineCounter){
-			this.lineCounter.hidden = false;
-		}
 	}
 
 	public blur(): void {
 		this.input.blur();
-
-		if(this.lineCounter){
-			this.lineCounter.hidden = true;
-		}
 	}
 
 	public hasFocus(): boolean {
@@ -546,12 +539,7 @@ export class InputBox extends Widget {
 		const startSelectionPosition = this.input.selectionStart;
 		const endSelectionPosition = this.input.selectionEnd;
 
-		if(startSelectionPosition === null || endSelectionPosition === null){
-			this.lineCounter.hidden = true;
-			return;
-		}
-
-		if(this.value.length === 0){
+		if(this.value.length === 0 || startSelectionPosition === null || endSelectionPosition === null || !this.hasFocus()){
 			this.lineCounter.hidden = true;
 			return;
 		}else{
@@ -562,15 +550,14 @@ export class InputBox extends Widget {
 			//Show length of selection
 			this.lineCounter.innerText = (endSelectionPosition - startSelectionPosition).toString();
 		}else{
-
 			//Show length of line where the cursor is at
+
 			let lineStart = startSelectionPosition;
 			let lineEnd = endSelectionPosition;
 
 			for(let currentChar = startSelectionPosition - 1; currentChar >= 0 && !this.isEOL(this.value[currentChar]); currentChar--){
 				lineStart = currentChar;
 			}
-
 
 			for(let currentChar = endSelectionPosition; currentChar < this.value.length && !this.isEOL(this.value[currentChar]); currentChar++){
 				lineEnd = currentChar + 1;

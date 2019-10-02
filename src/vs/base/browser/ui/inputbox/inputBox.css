@@ -23,7 +23,11 @@
 }
 
 .monaco-inputbox > .wrapper > .line-counter{
-	margin: 0.36em 0.36em 0.36em;
+	margin: 0.36em 0.36em 0.36em 0;
+	font-size: 0.8em;
+	width: 2em;
+	max-width: 2em;
+	text-align: right;
 }
 
 .monaco-inputbox > .wrapper > .input,
