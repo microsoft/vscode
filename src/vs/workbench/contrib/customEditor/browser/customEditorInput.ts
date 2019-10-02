@@ -7,7 +7,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, DataUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { WebviewContentState } from 'vs/editor/common/modes';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -18,12 +18,12 @@ import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webvi
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
+import { Schemas } from 'vs/base/common/network';
 
 export class CustomFileEditorInput extends WebviewInput {
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
-	private name?: string;
 	private _hasResolved = false;
 	private readonly _editorResource: URI;
 	private _state = WebviewContentState.Readonly;
@@ -49,11 +49,28 @@ export class CustomFileEditorInput extends WebviewInput {
 		return this._editorResource;
 	}
 
+	@memoize
 	getName(): string {
-		if (!this.name) {
-			this.name = basename(this.labelService.getUriLabel(this.getResource()));
+		if (this.getResource().scheme === Schemas.data) {
+			const metadata = DataUri.parseMetaData(this.getResource());
+			const label = metadata.get(DataUri.META_DATA_LABEL);
+			if (typeof label === 'string') {
+				return label;
+			}
 		}
-		return this.name;
+		return basename(this.labelService.getUriLabel(this.getResource()));
+	}
+
+	@memoize
+	getDescription(): string | undefined {
+		if (this.getResource().scheme === Schemas.data) {
+			const metadata = DataUri.parseMetaData(this.getResource());
+			const description = metadata.get(DataUri.META_DATA_DESCRIPTION);
+			if (typeof description === 'string') {
+				return description;
+			}
+		}
+		return super.getDescription();
 	}
 
 	matches(other: IEditorInput): boolean {
