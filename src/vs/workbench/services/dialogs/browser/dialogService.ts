@@ -129,7 +129,7 @@ export class DialogService implements IDialogService {
 			navigator.userAgent
 		);
 
-		const { choice } = await this.show(Severity.Info, this.productService.nameLong, [nls.localize('copy', "Copy"), nls.localize('ok', "OK")], { detail });
+		const { choice } = await this.show(Severity.Info, this.productService.nameLong, [nls.localize('copy', "Copy"), nls.localize('ok', "OK")], { detail, cancelId: 1 });
 
 		if (choice === 0) {
 			this.clipboardService.writeText(detail);

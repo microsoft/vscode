@@ -72,7 +72,7 @@
 	let hasLoadedImage = false;
 
 	// Elements
-	const container =  /** @type {HTMLElement} */(document.querySelector('body'));
+	const container = document.body;
 	const image = document.createElement('img');
 
 	function updateScale(newScale) {
@@ -232,19 +232,15 @@
 	image.classList.add('scale-to-fit');
 
 	image.addEventListener('load', () => {
-		document.querySelector('.loading').remove();
 		hasLoadedImage = true;
-
-		if (!image) {
-			return;
-		}
 
 		vscode.postMessage({
 			type: 'size',
 			value: `${image.naturalWidth}x${image.naturalHeight}`,
 		});
 
-		container.classList.add('ready');
+		document.body.classList.remove('loading');
+		document.body.classList.add('ready');
 		document.body.append(image);
 
 		updateScale(scale);
@@ -252,6 +248,12 @@
 		if (initialState.scale !== 'fit') {
 			window.scrollTo(initialState.offsetX, initialState.offsetY);
 		}
+	});
+
+	image.addEventListener('error', () => {
+		hasLoadedImage = true;
+		document.body.classList.add('error');
+		document.body.classList.remove('loading');
 	});
 
 	image.src = decodeURI(settings.src);

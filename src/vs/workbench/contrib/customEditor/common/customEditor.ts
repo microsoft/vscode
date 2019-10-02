@@ -23,7 +23,7 @@ export interface ICustomEditorService {
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 }
 
-export const enum CustomEditorDiscretion {
+export const enum CustomEditorPriority {
 	default = 'default',
 	option = 'option',
 }
@@ -36,6 +36,6 @@ export interface CustomEditorSelector {
 export interface CustomEditorInfo {
 	readonly id: string;
 	readonly displayName: string;
-	readonly discretion: CustomEditorDiscretion;
+	readonly priority: CustomEditorPriority;
 	readonly selector: readonly CustomEditorSelector[];
 }

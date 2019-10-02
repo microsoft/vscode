@@ -172,7 +172,7 @@ class DecorationStyles extends Disposable {
 			if (value.isUnused()) {
 				let remove: boolean = false;
 				if (Array.isArray(data)) {
-					remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
+					remove = data.every(data => !usedDecorations.has(DecorationRule.keyOf(data)));
 				} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
 					remove = true;
 				}

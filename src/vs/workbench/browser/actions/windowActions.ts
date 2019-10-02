@@ -37,7 +37,7 @@ export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 abstract class BaseOpenRecentAction extends Action {
 
 	private removeFromRecentlyOpened: IQuickInputButton = {
-		iconClass: 'action-remove-from-recently-opened',
+		iconClass: 'codicon-close',
 		tooltip: nls.localize('remove', "Remove from Recently Opened")
 	};
 
