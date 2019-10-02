@@ -137,10 +137,10 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 }
 
-export class RestartWithExtensionsDisabledAction extends Action {
+export class ReloadWindowWithExtensionsDisabledAction extends Action {
 
-	static readonly ID = 'workbench.action.restartWithExtensionsDisabled';
-	static LABEL = nls.localize('restartWithExtensionsDisabled', "Restart With Extensions Disabled");
+	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
+	static LABEL = nls.localize('reloadWindowWithExtensionsDisabled', "Reload With Extensions Disabled");
 
 	constructor(
 		id: string,
@@ -151,7 +151,7 @@ export class RestartWithExtensionsDisabledAction extends Action {
 	}
 
 	async run(): Promise<boolean> {
-		await this.electronService.relaunch({ addArgs: ['--disable-extensions'] });
+		await this.electronService.reload({ disableExtensions: true });
 
 		return true;
 	}

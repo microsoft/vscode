@@ -283,10 +283,10 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 		return this.lifecycleMainService.relaunch(options);
 	}
 
-	async reload(windowId: number): Promise<void> {
+	async reload(windowId: number, options?: { disableExtensions?: boolean }): Promise<void> {
 		const window = this.windowsMainService.getWindowById(windowId);
 		if (window) {
-			return this.windowsMainService.reload(window);
+			return this.windowsMainService.reload(window, options && options.disableExtensions ? { _: [], 'disable-extensions': true } : undefined);
 		}
 	}
 
