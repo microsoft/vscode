@@ -855,7 +855,13 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	dispose() {
-		this.disable();
+		if (this._enabled) {
+			this.domNode.remove();
+			this.enabledDisposables = dispose(this.enabledDisposables);
+			this._enabled = false;
+			this.triggered = false;
+		}
+
 		this._onDidChangePattern.dispose();
 		this.disposables = dispose(this.disposables);
 	}
