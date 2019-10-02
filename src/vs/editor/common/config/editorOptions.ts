@@ -1871,25 +1871,14 @@ class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints,
 	}
 
 	public validate(_input: any): InternalParameterHintOptions {
-		if (typeof _input === 'boolean') {
-			// legacy
-			return {
-				enabled: _input,
-				cycle: this.defaultValue.cycle
-			};
-
-		} else if (typeof _input !== 'object') {
-			// invalid
+		if (typeof _input !== 'object') {
 			return this.defaultValue;
-
-		} else {
-			//
-			const input = _input as IEditorParameterHintOptions;
-			return {
-				enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
-				cycle: EditorBooleanOption.boolean(input.cycle, this.defaultValue.cycle)
-			};
 		}
+		const input = _input as IEditorParameterHintOptions;
+		return {
+			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
+			cycle: EditorBooleanOption.boolean(input.cycle, this.defaultValue.cycle)
+		};
 	}
 }
 
