@@ -130,7 +130,7 @@ if (SELFHOST) {
 		});
 	}
 } else {
-	env['VSCODE_AGENT_FOLDER'] = env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-web-dev');
+	env['VSCODE_AGENT_FOLDER'] = path.join(os.homedir(), '.vscode-web-dev');
 	node = process.execPath;
 	entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'vs', 'server', 'main.js');
 }

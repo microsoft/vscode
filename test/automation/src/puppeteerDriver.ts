@@ -92,17 +92,9 @@ let endpoint: string | undefined;
 
 export async function launch(_args: string[]): Promise<void> {
 	args = _args;
-	const agentFolder = args.filter(e => e.includes('--user-data-dir='))[0].replace('--user-data-dir=', '');
-	await promisify(mkdir)(agentFolder);
-	const env = {
-		VSCODE_AGENT_FOLDER: agentFolder,
-		...process.env
-	};
-	server = spawn(
-		join(args[0], `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`),
-		['--browser', 'none', '--driver', 'web'],
-		{ env }
-	);
+	const webUserDataDir = args.filter(e => e.includes('--user-data-dir='))[0].replace('--user-data-dir=', '');
+	await promisify(mkdir)(webUserDataDir);
+	server = spawn(join(args[0], `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`), ['--browser', 'none', '--driver', 'web', '--web-user-data-dir', webUserDataDir]);
 	server.stderr.on('data', e => console.log('Server stderr: ' + e));
 	server.stdout.on('data', e => console.log('Server stdout: ' + e));
 	process.on('exit', teardown);
