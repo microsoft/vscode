@@ -30,6 +30,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
@@ -541,6 +542,20 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 				getActionsContext: () => this.breakpoint,
 				onHide: () => dispose(actions)
 			});
+		}));
+
+		const updateSize = () => {
+			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+			this.domNode.style.height = `${lineHeight}px`;
+			this.domNode.style.width = `${Math.ceil(0.8 * lineHeight)}px`;
+			this.domNode.style.marginLeft = `${Math.ceil(0.35 * lineHeight)}px`;
+		};
+		updateSize();
+
+		this.toDispose.push(this.editor.onDidChangeConfiguration(c => {
+			if (c.hasChanged(EditorOption.fontSize) || c.hasChanged(EditorOption.lineHeight)) {
+				updateSize();
+			}
 		}));
 	}
 
