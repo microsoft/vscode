@@ -35,6 +35,7 @@ export interface IInputOptions extends IInputBoxStyles {
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
+	readonly lineCount?: boolean;
 }
 
 export interface IInputBoxStyles {
@@ -120,6 +121,8 @@ export class InputBox extends Widget {
 	private inputValidationErrorBackground?: Color;
 	private inputValidationErrorForeground?: Color;
 
+	private lineCounter: HTMLElement;
+
 	private _onDidChange = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
@@ -167,6 +170,10 @@ export class InputBox extends Widget {
 		this.onfocus(this.input, () => dom.addClass(this.element, 'synthetic-focus'));
 		this.onblur(this.input, () => dom.removeClass(this.element, 'synthetic-focus'));
 
+		if(this.options.lineCount){
+			this.lineCounter = dom.append(wrapper, $('div.line-counter'));
+		}
+
 		if (this.options.flexibleHeight) {
 			this.maxHeight = typeof this.options.flexibleMaxHeight === 'number' ? this.options.flexibleMaxHeight : Number.POSITIVE_INFINITY;
 
@@ -189,6 +196,9 @@ export class InputBox extends Widget {
 
 			const onSelectionChange = Event.filter(domEvent(document, 'selectionchange'), () => {
 				const selection = document.getSelection();
+
+				this.updateLineCounter();
+
 				return !!selection && selection.anchorNode === wrapper;
 			});
 
@@ -280,10 +290,18 @@ export class InputBox extends Widget {
 
 	public focus(): void {
 		this.input.focus();
+
+		if(this.lineCounter){
+			this.lineCounter.hidden = false;
+		}
 	}
 
 	public blur(): void {
 		this.input.blur();
+
+		if(this.lineCounter){
+			this.lineCounter.hidden = true;
+		}
 	}
 
 	public hasFocus(): boolean {
@@ -509,8 +527,52 @@ export class InputBox extends Widget {
 		this.updateMirror();
 		dom.toggleClass(this.input, 'empty', !this.value);
 
+		if(this.lineCounter){
+			this.updateLineCounter();
+		}
+
 		if (this.state === 'open' && this.contextViewProvider) {
 			this.contextViewProvider.layout();
+		}
+	}
+
+	private updateLineCounter(){
+
+		//TODO - MAKE PRETTY
+
+		//selectionStart and selectionEnd are also the cursor position when nothing is selected
+		const startSelectionPosition = this.input.selectionStart;
+		const endSelectionPosition = this.input.selectionEnd;
+
+		if(startSelectionPosition === null || endSelectionPosition === null){
+			this.lineCounter.hidden = true;
+			return;
+		}
+
+		if(this.value.length === 0){
+			this.lineCounter.hidden = true;
+			return;
+		}else{
+			this.lineCounter.hidden = false;
+		}
+
+		if(startSelectionPosition !== endSelectionPosition){ //If there is text selected
+			//Show length of selection
+			this.lineCounter.innerText = (endSelectionPosition - startSelectionPosition).toString();
+		}else{
+			//Show length of line where the cursor is at
+
+			const lines = this.value.split('\n'); //TODO - Find more reliable method to split by lines
+
+			let currentLine = 0;
+
+			for(let currentLength = 0; currentLength < endSelectionPosition && currentLine < lines.length; currentLine++){
+				currentLength += lines[currentLine].length + 1;
+			}
+
+			console.log(lines);
+
+			this.lineCounter.innerText = lines[currentLine-1].length.toString();
 		}
 	}
 

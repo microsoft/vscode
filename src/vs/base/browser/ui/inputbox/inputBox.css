@@ -22,6 +22,10 @@
 	border: 1px solid transparent;
 }
 
+.monaco-inputbox > .wrapper > .line-counter{
+	margin: 0.36em 0.36em 0.36em;
+}
+
 .monaco-inputbox > .wrapper > .input,
 .monaco-inputbox > .wrapper > .mirror {
 
@@ -30,6 +34,7 @@
 }
 
 .monaco-inputbox > .wrapper {
+	display: flex;
 	position: relative;
 	width: 100%;
 	height: 100%;

@@ -612,7 +612,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true, flexibleMaxHeight: 134 });
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true, flexibleMaxHeight: 134, lineCount: true });
 		this.inputBox.setEnabled(this.isBodyVisible());
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this._register(this.inputBox);
