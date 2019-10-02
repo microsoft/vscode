@@ -179,6 +179,12 @@ export class CustomEditorService implements ICustomEditorService {
 					replacement: input,
 					options: options ? EditorOptions.create(options) : undefined,
 				}], group);
+
+				for (const editor of existingEditors) {
+					if (editor instanceof CustomFileEditorInput) {
+						editor.dispose();
+					}
+				}
 			}
 		}
 		return this.editorService.openEditor(input, options, group);
