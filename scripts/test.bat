@@ -20,7 +20,7 @@ set ELECTRON_ENABLE_LOGGING=1
 %CODE% .\test\electron\index.js %*
 
 popd
-
+:: ending local
 endlocal
 
 :: app.exit(0) is exiting with code 255 in Electron 1.7.4.
