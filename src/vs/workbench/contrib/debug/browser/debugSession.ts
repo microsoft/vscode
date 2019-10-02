@@ -381,6 +381,10 @@ export class DebugSession implements IDebugSession {
 		if (this.raw) {
 			const source = this.getRawSource(uri);
 			const response = await this.raw.breakpointLocations({ source, line: lineNumber });
+			if (!response.body || !response.body.breakpoints) {
+				return [];
+			}
+
 			const positions = response.body.breakpoints.map(bp => ({ lineNumber: bp.line, column: bp.column || 1 }));
 
 			return distinct(positions, p => `${p.lineNumber}:${p.column}`);

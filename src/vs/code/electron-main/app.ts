@@ -24,7 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IURLService } from 'vs/platform/url/common/url';
+import { IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -588,7 +588,7 @@ export class CodeApplication extends Disposable {
 		// Create a URL handler to open file URIs in the active window
 		const environmentService = accessor.get(IEnvironmentService);
 		urlService.registerHandler({
-			async handleURL(uri: URI): Promise<boolean> {
+			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 
 				// Catch file URLs
 				if (uri.authority === Schemas.file && !!uri.path) {
@@ -615,7 +615,7 @@ export class CodeApplication extends Disposable {
 		// if there is none
 		if (isMacintosh) {
 			urlService.registerHandler({
-				async handleURL(uri: URI): Promise<boolean> {
+				async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
 						const cli = { ...environmentService.args };
 						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true, gotoLineMode: true });

@@ -196,6 +196,9 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 				case 'setBreakpoints':
 					fixSourcePath(true, (<DebugProtocol.SetBreakpointsArguments>request.arguments).source);
 					break;
+				case 'breakpointLocations':
+					fixSourcePath(true, (<DebugProtocol.BreakpointLocationsArguments>request.arguments).source);
+					break;
 				case 'source':
 					fixSourcePath(true, (<DebugProtocol.SourceArguments>request.arguments).source);
 					break;

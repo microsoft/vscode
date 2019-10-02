@@ -43,10 +43,11 @@ export class DialogService implements IDialogService {
 
 	_serviceBrand: undefined;
 
-	private impl: IDialogService;
+	private nativeImpl: IDialogService;
+	private customImpl: IDialogService;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 		@ILayoutService layoutService: ILayoutService,
 		@IThemeService themeService: IThemeService,
@@ -56,27 +57,32 @@ export class DialogService implements IDialogService {
 		@IClipboardService clipboardService: IClipboardService,
 		@IElectronService electronService: IElectronService
 	) {
+		this.customImpl = new HTMLDialogService(logService, layoutService, themeService, keybindingService, productService, clipboardService);
+		this.nativeImpl = new NativeDialogService(logService, sharedProcessService, electronService, clipboardService);
+	}
 
-		// Use HTML based dialogs
-		if (configurationService.getValue('workbench.dialogs.customEnabled') === true) {
-			this.impl = new HTMLDialogService(logService, layoutService, themeService, keybindingService, productService, clipboardService);
-		}
-		// Electron dialog service
-		else {
-			this.impl = new NativeDialogService(logService, sharedProcessService, electronService, clipboardService);
-		}
+	private get useCustomDialog(): boolean {
+		return this.configurationService.getValue('workbench.dialogs.customEnabled') === true;
 	}
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		return this.impl.confirm(confirmation);
+		if (this.useCustomDialog) {
+			return this.customImpl.confirm(confirmation);
+		}
+
+		return this.nativeImpl.confirm(confirmation);
 	}
 
 	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<IShowResult> {
-		return this.impl.show(severity, message, buttons, options);
+		if (this.useCustomDialog) {
+			return this.customImpl.show(severity, message, buttons, options);
+		}
+
+		return this.nativeImpl.show(severity, message, buttons, options);
 	}
 
 	about(): Promise<void> {
-		return this.impl.about();
+		return this.nativeImpl.about();
 	}
 }
 

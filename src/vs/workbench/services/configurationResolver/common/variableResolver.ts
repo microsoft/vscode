@@ -53,7 +53,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(root ? root.uri : undefined, value);
 	}
 
-	private async resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
+	private async resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, resolveContributed: boolean, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
 		const result = objects.deepClone(config) as any;
 
 		// hoist platform specific attributes to top level
@@ -71,16 +71,16 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		delete result.linux;
 
 		// substitute all variables recursively in string values
-		return this.recursiveResolvePromise(workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
+		return this.recursiveResolvePromise(workspaceFolder ? workspaceFolder.uri : undefined, result, resolveContributed, commandValueMapping, resolvedVariables);
 	}
 
-	public resolveAny(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any> {
-		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
+	public resolveAny(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolveContributed: boolean = true): Promise<any> {
+		return this.resolveAnyBase(workspaceFolder, config, resolveContributed, commandValueMapping);
 	}
 
-	protected async resolveAnyMap(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any, resolvedVariables: Map<string, string> }> {
+	protected async resolveAnyMap(workspaceFolder: IWorkspaceFolder | undefined, config: any, resolveContributed: boolean, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any, resolvedVariables: Map<string, string> }> {
 		const resolvedVariables = new Map<string, string>();
-		const newConfig = await this.resolveAnyBase(workspaceFolder, config, commandValueMapping, resolvedVariables);
+		const newConfig = await this.resolveAnyBase(workspaceFolder, config, resolveContributed, commandValueMapping, resolvedVariables);
 		return { newConfig, resolvedVariables };
 	}
 
@@ -116,17 +116,17 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return value;
 	}
 
-	private async recursiveResolvePromise(folderUri: uri | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
+	private async recursiveResolvePromise(folderUri: uri | undefined, value: any, resolveContributed: boolean, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
 		if (types.isString(value)) {
-			return this.resolveStringPromise(folderUri, value, commandValueMapping, resolvedVariables);
+			return this.resolveStringPromise(folderUri, value, commandValueMapping, resolveContributed, resolvedVariables);
 		} else if (types.isArray(value)) {
-			return Promise.all(value.map(s => this.recursiveResolvePromise(folderUri, s, commandValueMapping, resolvedVariables)));
+			return Promise.all(value.map(s => this.recursiveResolvePromise(folderUri, s, resolveContributed, commandValueMapping, resolvedVariables)));
 		} else if (types.isObject(value)) {
 			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 			const keys = Object.keys(value);
 			for (let key of keys) {
-				const replaced = await this.resolveStringPromise(folderUri, key, commandValueMapping, resolvedVariables);
-				result[replaced] = await this.recursiveResolvePromise(folderUri, value[key], commandValueMapping, resolvedVariables);
+				const replaced = await this.resolveStringPromise(folderUri, key, commandValueMapping, resolveContributed, resolvedVariables);
+				result[replaced] = await this.recursiveResolvePromise(folderUri, value[key], resolveContributed, commandValueMapping, resolvedVariables);
 			}
 			return result;
 		}
@@ -150,17 +150,19 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return replaced;
 	}
 
-	private async resolveStringPromise(folderUri: uri | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolvedVariables?: Map<string, string>): Promise<string> {
+	private async resolveStringPromise(folderUri: uri | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolveContributed: boolean, resolvedVariables?: Map<string, string>): Promise<string> {
 		// loop through all variables occurrences in 'value'
 		const matches = value.match(AbstractVariableResolverService.VARIABLE_REGEXP);
 		const replaces: Map<string, string> = new Map();
 		if (!matches) {
 			return value;
 		}
-		for (const match of matches) {
-			const evaluate = await this.evaluateSingleContributedVariable(match, match.match(AbstractVariableResolverService.VARIABLE_REGEXP_SINGLE)![1]);
-			if (evaluate !== match) {
-				replaces.set(match, evaluate);
+		if (resolveContributed) {
+			for (const match of matches) {
+				const evaluate = await this.evaluateSingleContributedVariable(match, match.match(AbstractVariableResolverService.VARIABLE_REGEXP_SINGLE)![1]);
+				if (evaluate !== match) {
+					replaces.set(match, evaluate);
+				}
 			}
 		}
 

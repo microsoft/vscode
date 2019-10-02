@@ -164,10 +164,14 @@ export class ModelBasedVariableResolver implements VariableResolver {
 	}
 }
 
+export interface IReadClipboardText {
+	(): string | undefined;
+}
+
 export class ClipboardBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _clipboardText: string | undefined,
+		private readonly _readClipboardText: IReadClipboardText,
 		private readonly _selectionIdx: number,
 		private readonly _selectionCount: number,
 		private readonly _spread: boolean
@@ -180,7 +184,8 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 			return undefined;
 		}
 
-		if (!this._clipboardText) {
+		const clipboardText = this._readClipboardText();
+		if (!clipboardText) {
 			return undefined;
 		}
 
@@ -188,12 +193,12 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 		// text whenever there the line count equals the cursor count
 		// and when enabled
 		if (this._spread) {
-			const lines = this._clipboardText.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
+			const lines = clipboardText.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
 			if (lines.length === this._selectionCount) {
 				return lines[this._selectionIdx];
 			}
 		}
-		return this._clipboardText;
+		return clipboardText;
 	}
 }
 export class CommentBasedVariableResolver implements VariableResolver {

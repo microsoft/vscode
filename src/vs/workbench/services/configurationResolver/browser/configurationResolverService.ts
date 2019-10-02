@@ -91,21 +91,21 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		config = await this.resolveAny(folder, config);
 
 		// resolve input variables in the order in which they are encountered
-		return this.resolveWithInteraction(folder, config, section, variables, true).then(mapping => {
+		return this.resolveWithInteraction(folder, config, section, variables, false).then(mapping => {
 			// finally substitute evaluated command variables (if there are any)
 			if (!mapping) {
 				return null;
 			} else if (mapping.size > 0) {
-				return this.resolveAny(folder, config, fromMap(mapping));
+				return this.resolveAny(folder, config, fromMap(mapping), false);
 			} else {
 				return config;
 			}
 		});
 	}
 
-	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, skipContributed: boolean = false): Promise<Map<string, string> | undefined> {
+	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, resolveContributed: boolean = true): Promise<Map<string, string> | undefined> {
 		// resolve any non-interactive variables and any contributed variables
-		const resolved = await this.resolveAnyMap(folder, config);
+		const resolved = await this.resolveAnyMap(folder, config, resolveContributed);
 		config = resolved.newConfig;
 		const allVariableMapping: Map<string, string> = resolved.resolvedVariables;
 
