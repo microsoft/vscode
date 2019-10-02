@@ -398,7 +398,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				EventHelper.stop(e, true);
 				this.onClick(e);
 			}));
-		}, 50);
+		}, 100);
 
 		this._register(this.runOnceToEnableMouseUp);
 	}

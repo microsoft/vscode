@@ -7,6 +7,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { WebviewContentState } from 'vs/editor/common/modes';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -16,7 +17,6 @@ import { ConfirmResult, IEditorInput, Verbosity } from 'vs/workbench/common/edit
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
 
 export class CustomFileEditorInput extends WebviewInput {
@@ -35,7 +35,6 @@ export class CustomFileEditorInput extends WebviewInput {
 		webview: UnownedDisposable<WebviewEditorOverlay>,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(id, viewType, '', webview);
@@ -60,7 +59,7 @@ export class CustomFileEditorInput extends WebviewInput {
 	matches(other: IEditorInput): boolean {
 		return this === other || (other instanceof CustomFileEditorInput
 			&& this.viewType === other.viewType
-			&& this.getResource().toString() === other.getResource().toString());
+			&& isEqual(this.getResource(), other.getResource()));
 	}
 
 	@memoize
@@ -93,7 +92,6 @@ export class CustomFileEditorInput extends WebviewInput {
 	public async resolve(): Promise<IEditorModel> {
 		if (!this._hasResolved) {
 			this._hasResolved = true;
-			this._extensionService.activateByEvent(`onWebviewEditor:${this.viewType}`);
 			await this._webviewEditorService.resolveWebview(this);
 		}
 		return super.resolve();

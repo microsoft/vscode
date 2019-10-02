@@ -32,7 +32,7 @@ export class LoggerService extends Disposable implements ILoggerService {
 			if (resource.scheme === Schemas.file) {
 				const baseName = basename(resource);
 				const ext = extname(resource);
-				logger = new SpdLogService(baseName.substring(0, baseName.length - ext.length), dirname(resource).path, this.logService.getLevel());
+				logger = new SpdLogService(baseName.substring(0, baseName.length - ext.length), dirname(resource).fsPath, this.logService.getLevel());
 			} else {
 				logger = this.instantiationService.createInstance(FileLogService, basename(resource), resource, this.logService.getLevel());
 			}

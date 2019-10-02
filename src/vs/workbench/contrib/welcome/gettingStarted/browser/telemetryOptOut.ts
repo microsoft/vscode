@@ -10,7 +10,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IExperimentService, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { language, locale } from 'vs/base/common/platform';
@@ -19,60 +18,65 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
-export class TelemetryOptOut implements IWorkbenchContribution {
+export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution {
 
 	private static TELEMETRY_OPT_OUT_SHOWN = 'workbench.telemetryOptOutShown';
 	private privacyUrl: string | undefined;
 
 	constructor(
-		@IStorageService storageService: IStorageService,
-		@IOpenerService openerService: IOpenerService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IHostService hostService: IHostService,
+		@IHostService private readonly hostService: IHostService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExperimentService private readonly experimentService: IExperimentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IProductService productService: IProductService
-	) {
-		if (!productService.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
-			return;
-		}
-		const experimentId = 'telemetryOptOut';
-		Promise.all([
-			hostService.windowCount,
-			experimentService.getExperimentById(experimentId)
-		]).then(([count, experimentState]) => {
-			if (!hostService.hasFocus && count > 1) {
-				return;
+		@IProductService private readonly productService: IProductService,
+	) { }
+
+	protected async handleTelemetryOptOut(): Promise<void> {
+		if (this.productService.telemetryOptOutUrl && !this.storageService.get(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
+			const experimentId = 'telemetryOptOut';
+
+			const [count, experimentState] = await Promise.all([this.getWindowCount(), this.experimentService.getExperimentById(experimentId)]);
+
+			if (!this.hostService.hasFocus && count > 1) {
+				return; // return early if meanwhile another window opened (we only show the opt-out once)
 			}
-			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
 
-			this.privacyUrl = productService.privacyStatementUrl || productService.telemetryOptOutUrl;
+			this.storageService.store(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
 
-			if (experimentState && experimentState.state === ExperimentState.Run && telemetryService.isOptedIn) {
+			this.privacyUrl = this.productService.privacyStatementUrl || this.productService.telemetryOptOutUrl;
+
+			if (experimentState && experimentState.state === ExperimentState.Run && this.telemetryService.isOptedIn) {
 				this.runExperiment(experimentId);
 				return;
 			}
 
-			const telemetryOptOutUrl = productService.telemetryOptOutUrl;
+			const telemetryOptOutUrl = this.productService.telemetryOptOutUrl;
 			if (telemetryOptOutUrl) {
-				const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", this.privacyUrl, productService.telemetryOptOutUrl);
-				const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", this.privacyUrl, productService.telemetryOptOutUrl);
-
-				notificationService.prompt(
-					Severity.Info,
-					telemetryService.isOptedIn ? optOutNotice : optInNotice,
-					[{
-						label: localize('telemetryOptOut.readMore', "Read More"),
-						run: () => openerService.open(URI.parse(telemetryOptOutUrl))
-					}],
-					{ sticky: true }
-				);
+				this.showTelemetryOptOut(telemetryOptOutUrl);
 			}
-		})
-			.then(undefined, onUnexpectedError);
+		}
 	}
+
+	private showTelemetryOptOut(telemetryOptOutUrl: string): void {
+		const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", this.privacyUrl, this.productService.telemetryOptOutUrl);
+		const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", this.privacyUrl, this.productService.telemetryOptOutUrl);
+
+		this.notificationService.prompt(
+			Severity.Info,
+			this.telemetryService.isOptedIn ? optOutNotice : optInNotice,
+			[{
+				label: localize('telemetryOptOut.readMore', "Read More"),
+				run: () => this.openerService.open(URI.parse(telemetryOptOutUrl))
+			}],
+			{ sticky: true }
+		);
+	}
+
+	protected abstract getWindowCount(): Promise<number>;
 
 	private runExperiment(experimentId: string) {
 		const promptMessageKey = 'telemetryOptOut.optOutOption';
@@ -146,5 +150,28 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			);
 			this.experimentService.markAsCompleted(experimentId);
 		});
+	}
+}
+
+export class BrowserTelemetryOptOut extends AbstractTelemetryOptOut {
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IOpenerService openerService: IOpenerService,
+		@INotificationService notificationService: INotificationService,
+		@IHostService hostService: IHostService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IExperimentService experimentService: IExperimentService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionGalleryService galleryService: IExtensionGalleryService,
+		@IProductService productService: IProductService
+	) {
+		super(storageService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService);
+
+		this.handleTelemetryOptOut();
+	}
+
+	protected async getWindowCount(): Promise<number> {
+		return 1;
 	}
 }

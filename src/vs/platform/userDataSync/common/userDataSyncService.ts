@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, IUserDataSyncLogService, UserDataSyncStoreError, UserDataSyncStoreErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
@@ -127,31 +127,36 @@ export class UserDataAutoSync extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncLogService private readonly userDataSyncLogService: IUserDataSyncLogService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
 	) {
 		super();
-		this.updateEnablement();
-		this.sync(true);
-		this._register(Event.any<any>(authTokenService.onDidChangeStatus, userDataSyncService.onDidChangeStatus)(() => this.updateEnablement()));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => this.updateEnablement()));
+		this.updateEnablement(false);
+		this._register(Event.any<any>(authTokenService.onDidChangeStatus, userDataSyncService.onDidChangeStatus)(() => this.updateEnablement(true)));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => this.updateEnablement(true)));
 
 		// Sync immediately if there is a local change.
 		this._register(Event.debounce(this.userDataSyncService.onDidChangeLocal, () => undefined, 500)(() => this.sync(false)));
 	}
 
-	private updateEnablement(): void {
+	private updateEnablement(stopIfDisabled: boolean): void {
 		const enabled = this.isSyncEnabled();
-		if (this.enabled !== enabled) {
-			this.enabled = enabled;
-			if (this.enabled) {
-				this.userDataSyncLogService.info('Syncing configuration started');
-				this.sync(true);
-			} else {
+		if (this.enabled === enabled) {
+			return;
+		}
+
+		this.enabled = enabled;
+		if (this.enabled) {
+			this.logService.info('Syncing configuration started');
+			this.sync(true);
+			return;
+		} else {
+			if (stopIfDisabled) {
 				this.userDataSyncService.stop();
-				this.userDataSyncLogService.info('Syncing configuration stopped.');
+				this.logService.info('Syncing configuration stopped.');
 			}
 		}
+
 	}
 
 	private async sync(loop: boolean): Promise<void> {
@@ -159,7 +164,14 @@ export class UserDataAutoSync extends Disposable {
 			try {
 				await this.userDataSyncService.sync();
 			} catch (e) {
-				this.userDataSyncLogService.error(e);
+				if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Unauthroized) {
+					if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Unauthroized && this.authTokenService.status === AuthTokenStatus.Disabled) {
+						this.logService.error('Sync failed because the server requires authorization. Please enable authorization.');
+					} else {
+						this.logService.error(e);
+					}
+				}
+				this.logService.error(e);
 			}
 			if (loop) {
 				await timeout(1000 * 5); // Loop sync for every 5s.

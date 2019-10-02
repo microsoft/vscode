@@ -37,7 +37,7 @@ export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 abstract class BaseOpenRecentAction extends Action {
 
 	private removeFromRecentlyOpened: IQuickInputButton = {
-		iconClass: 'action-remove-from-recently-opened',
+		iconClass: 'codicon-close',
 		tooltip: nls.localize('remove', "Remove from Recently Opened")
 	};
 
@@ -135,7 +135,7 @@ abstract class BaseOpenRecentAction extends Action {
 		});
 
 		if (pick) {
-			return this.hostService.openInWindow([pick.openable], { forceNewWindow: keyMods && keyMods.ctrlCmd });
+			return this.hostService.openWindow([pick.openable], { forceNewWindow: keyMods && keyMods.ctrlCmd });
 		}
 	}
 }
@@ -260,7 +260,7 @@ export class NewWindowAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.hostService.openEmptyWindow();
+		return this.hostService.openWindow();
 	}
 }
 

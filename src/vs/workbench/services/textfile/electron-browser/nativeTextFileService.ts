@@ -27,8 +27,45 @@ import { Readable } from 'stream';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { nodeReadableToString, streamToNodeReadable, nodeStreamToVSBufferReadable } from 'vs/base/node/stream';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class NativeTextFileService extends AbstractTextFileService {
+
+	constructor(
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IFileService fileService: IFileService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IModeService modeService: IModeService,
+		@IModelService modelService: IModelService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@INotificationService notificationService: INotificationService,
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IHistoryService historyService: IHistoryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDialogService dialogService: IDialogService,
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IEditorService editorService: IEditorService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@IElectronService private readonly electronService: IElectronService
+	) {
+		super(contextService, fileService, untitledEditorService, lifecycleService, instantiationService, configurationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, contextKeyService, dialogService, fileDialogService, editorService, textResourceConfigurationService);
+	}
 
 	private _encoding!: EncodingOracle;
 	get encoding(): EncodingOracle {
@@ -254,6 +291,10 @@ export class NativeTextFileService extends AbstractTextFileService {
 				}
 			});
 		});
+	}
+
+	protected getWindowCount(): Promise<number> {
+		return this.electronService.getWindowCount();
 	}
 }
 

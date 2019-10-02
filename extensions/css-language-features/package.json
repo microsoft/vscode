@@ -759,11 +759,11 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^5.3.0-next.6",
+    "vscode-languageclient": "^6.0.0-next.1",
     "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
     "@types/node": "^10.14.8",
-    "mocha": "^5.2.0"
+    "mocha": "^6.1.4"
   }
 }

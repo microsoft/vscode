@@ -111,9 +111,6 @@ import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 // Execution
 import 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 
-// Update
-import 'vs/workbench/contrib/update/electron-browser/update.contribution';
-
 // Performance
 import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
 
@@ -133,7 +130,7 @@ import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
 
 // Welcome
-import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/openWebsite.contribution';
+import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
 
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/node/configurationExportHelper.contribution';

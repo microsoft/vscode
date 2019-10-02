@@ -6,6 +6,7 @@
 html, body {
 	height: 100%;
 	max-height: 100%;
+	text-align: center;
 }
 
 body img {
@@ -77,16 +78,32 @@ body img {
 	margin-left: 5px;
 }
 
-.loading {
-	position: fixed;
+.container.loading,
+.container.error {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.loading-indicator {
 	width: 30px;
 	height: 30px;
-	left: 50%;
-	top: 50%;
-	margin-top: -15px;
-	margin-left: -15px;
 	background-image: url('./loading.svg');
 	background-size: cover;
+}
+
+.loading-indicator,
+.image-load-error-message {
+	display: none;
+}
+
+.loading .loading-indicator,
+.error .image-load-error-message {
+	display: block;
+}
+
+.image-load-error-message {
+	margin: 1em;
 }
 
 .vscode-dark .loading {

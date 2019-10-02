@@ -33,6 +33,8 @@ import { QuickOpenActionContributor } from '../browser/quickOpen';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { RunAutomaticTasks, ManageAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -232,6 +234,13 @@ MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultBuildTask'
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultTestTask', title: { value: nls.localize('ConfigureDefaultTestTask.label', "Configure Default Test Task"), original: 'Configure Default Test Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'workbench.action.tasks.build',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: undefined,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B
+});
 
 // Tasks Output channel. Register it before using it in Task Service.
 let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);

@@ -54,6 +54,10 @@
 	flex: 1;
 }
 
+.extensions-viewlet > .extensions .panel-header > .actions.show {
+	flex: inherit;
+}
+
 .extensions-viewlet > .extensions .message-container {
 	padding: 5px 9px 5px 16px;
 	cursor: default;

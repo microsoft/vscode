@@ -2684,14 +2684,14 @@ export class DisableAllAction extends Action {
 	}
 }
 
-export class DisableAllWorkpsaceAction extends Action {
+export class DisableAllWorkspaceAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.disableAllWorkspace';
 	static LABEL = localize('disableAllWorkspace', "Disable All Installed Extensions for this Workspace");
 
 
 	constructor(
-		id: string = DisableAllWorkpsaceAction.ID, label: string = DisableAllWorkpsaceAction.LABEL,
+		id: string = DisableAllWorkspaceAction.ID, label: string = DisableAllWorkspaceAction.LABEL,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
@@ -2736,14 +2736,14 @@ export class EnableAllAction extends Action {
 	}
 }
 
-export class EnableAllWorkpsaceAction extends Action {
+export class EnableAllWorkspaceAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.enableAllWorkspace';
 	static LABEL = localize('enableAllWorkspace', "Enable All Extensions for this Workspace");
 
 
 	constructor(
-		id: string = EnableAllWorkpsaceAction.ID, label: string = EnableAllWorkpsaceAction.LABEL,
+		id: string = EnableAllWorkspaceAction.ID, label: string = EnableAllWorkspaceAction.LABEL,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService

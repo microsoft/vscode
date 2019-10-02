@@ -34,7 +34,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this.registerContainerListeners();
 
 		// Gesture Support
-		Gesture.addTarget(this.titleContainer);
+		this._register(Gesture.addTarget(this.titleContainer));
 
 		const labelContainer = document.createElement('div');
 		addClass(labelContainer, 'label-container');

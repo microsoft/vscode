@@ -77,10 +77,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private resource: URI;
 
-	private contentEncoding: string; 	// encoding as reported from disk
-	private preferredEncoding: string;	// encoding as chosen by the user
+	private contentEncoding: string; // encoding as reported from disk
+	private preferredEncoding: string | undefined; // encoding as chosen by the user
 
-	private preferredMode: string | undefined;	// mode as chosen by the user
+	private preferredMode: string | undefined; // mode as chosen by the user
 
 	private versionId: number;
 	private bufferSavedVersionId: number;
@@ -107,7 +107,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	constructor(
 		resource: URI,
-		preferredEncoding: string,
+		preferredEncoding: string | undefined,
 		preferredMode: string | undefined,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IModeService modeService: IModeService,

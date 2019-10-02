@@ -41,6 +41,11 @@ export interface ILogger extends IDisposable {
 	warn(message: string, ...args: any[]): void;
 	error(message: string | Error, ...args: any[]): void;
 	critical(message: string | Error, ...args: any[]): void;
+
+	/**
+	 * An operation to flush the contents. Can be synchronous.
+	 */
+	flush(): void;
 }
 
 export interface ILogService extends ILogger {
@@ -69,6 +74,7 @@ export abstract class AbstractLogService extends Disposable {
 	getLevel(): LogLevel {
 		return this.level;
 	}
+
 }
 
 export class ConsoleLogMainService extends AbstractLogService implements ILogService {
@@ -145,6 +151,11 @@ export class ConsoleLogMainService extends AbstractLogService implements ILogSer
 	dispose(): void {
 		// noop
 	}
+
+	flush(): void {
+		// noop
+	}
+
 }
 
 export class ConsoleLogService extends AbstractLogService implements ILogService {
@@ -192,7 +203,13 @@ export class ConsoleLogService extends AbstractLogService implements ILogService
 		}
 	}
 
-	dispose(): void { }
+	dispose(): void {
+		// noop
+	}
+
+	flush(): void {
+		// noop
+	}
 }
 
 export class ConsoleLogInMainService extends AbstractLogService implements ILogService {
@@ -240,7 +257,13 @@ export class ConsoleLogInMainService extends AbstractLogService implements ILogS
 		}
 	}
 
-	dispose(): void { }
+	dispose(): void {
+		// noop
+	}
+
+	flush(): void {
+		// noop
+	}
 }
 
 export class MultiplexLogService extends AbstractLogService implements ILogService {
@@ -296,6 +319,12 @@ export class MultiplexLogService extends AbstractLogService implements ILogServi
 		}
 	}
 
+	flush(): void {
+		for (const logService of this.logServices) {
+			logService.flush();
+		}
+	}
+
 	dispose(): void {
 		for (const logService of this.logServices) {
 			logService.dispose();
@@ -346,6 +375,10 @@ export class DelegatedLogService extends Disposable implements ILogService {
 	critical(message: string | Error, ...args: any[]): void {
 		this.logService.critical(message, ...args);
 	}
+
+	flush(): void {
+		this.logService.flush();
+	}
 }
 
 export class NullLogService implements ILogService {
@@ -360,6 +393,7 @@ export class NullLogService implements ILogService {
 	error(message: string | Error, ...args: any[]): void { }
 	critical(message: string | Error, ...args: any[]): void { }
 	dispose(): void { }
+	flush(): void { }
 }
 
 export function getLogLevel(environmentService: IEnvironmentService): LogLevel {

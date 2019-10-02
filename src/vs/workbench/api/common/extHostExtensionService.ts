@@ -327,6 +327,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		}
 
 		this._logService.info(`ExtensionService#_doActivateExtension ${extensionDescription.identifier.value} ${JSON.stringify(reason)}`);
+		this._logService.flush();
 
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
 		return Promise.all([

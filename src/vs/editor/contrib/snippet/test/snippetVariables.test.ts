@@ -236,28 +236,28 @@ suite('Snippet Variables Resolver', function () {
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		assertVariableResolve(new ClipboardBasedVariableResolver(undefined, 1, 0, true), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => undefined, 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver(null!, 1, 0, true), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => null!, 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('', 1, 0, true), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => '', 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'CLIPBOARD', 'foo');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'CLIPBOARD', 'foo');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'foo', undefined);
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'cLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'foo', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'cLIPBOARD', undefined);
 	});
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1', 1, 2, true), 'CLIPBOARD', 'line1');
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2\nline3', 1, 2, true), 'CLIPBOARD', 'line1\nline2\nline3');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1', 1, 2, true), 'CLIPBOARD', 'line1');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2\nline3', 1, 2, true), 'CLIPBOARD', 'line1\nline2\nline3');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 1, 2, true), 'CLIPBOARD', 'line2');
-		resolver = new ClipboardBasedVariableResolver('line1\nline2', 0, 2, true);
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 0, 2, true), 'CLIPBOARD', 'line1');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2', 1, 2, true), 'CLIPBOARD', 'line2');
+		resolver = new ClipboardBasedVariableResolver(() => 'line1\nline2', 0, 2, true);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2', 0, 2, true), 'CLIPBOARD', 'line1');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 0, 2, false), 'CLIPBOARD', 'line1\nline2');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2', 0, 2, false), 'CLIPBOARD', 'line1\nline2');
 	});
 
 

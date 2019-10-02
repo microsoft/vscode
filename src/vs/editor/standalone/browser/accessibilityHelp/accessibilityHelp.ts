@@ -21,7 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
-import { IEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { IStandaloneEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -164,7 +164,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
 				alert(AccessibilityHelpNLS.openingDocs);
 
-				let url = (<IEditorConstructionOptions>this._editor.getRawOptions()).accessibilityHelpUrl;
+				let url = (<IStandaloneEditorConstructionOptions>this._editor.getRawOptions()).accessibilityHelpUrl;
 				if (typeof url === 'undefined') {
 					url = 'https://go.microsoft.com/fwlink/?linkid=852450';
 				}

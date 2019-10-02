@@ -103,7 +103,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	render(container: HTMLElement): void {
 		this.element = container;
-		Gesture.addTarget(container);
+		this._register(Gesture.addTarget(container));
 
 		const enableDragging = this.options && this.options.draggable;
 		if (enableDragging) {

@@ -83,7 +83,7 @@ export class BaseDropdown extends ActionRunner {
 			this._register(cleanupFn);
 		}
 
-		Gesture.addTarget(this._label);
+		this._register(Gesture.addTarget(this._label));
 	}
 
 	get element(): HTMLElement {

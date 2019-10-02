@@ -247,9 +247,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
-			resolveExternalUri(uri: URI) {
+			asExternalUri(uri: URI) {
 				checkProposedApiEnabled(extension);
-				return extHostWindow.resolveExternalUri(uri, { allowTunneling: !!initData.remote.isRemote });
+				return extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);

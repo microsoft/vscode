@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, Event as IpcMainEvent, BrowserWindow } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -78,6 +78,8 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { assign } from 'vs/base/common/objects';
+import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class CodeApplication extends Disposable {
 
@@ -85,6 +87,7 @@ export class CodeApplication extends Disposable {
 	private static readonly TRUE_MACHINE_ID_KEY = 'telemetry.trueMachineId';
 
 	private windowsMainService: IWindowsMainService | undefined;
+	private dialogMainService: IDialogMainService | undefined;
 
 	constructor(
 		private readonly mainIpcServer: Server,
@@ -381,8 +384,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Setup Auth Handler
-		const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-		this._register(authHandler);
+		this._register(new ProxyAuthHandler());
 
 		// Open Windows
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
@@ -449,6 +451,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
+		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
 		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
@@ -503,13 +506,13 @@ export class CodeApplication extends Disposable {
 
 			contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
 				if (!timeout) {
-					if (this.windowsMainService) {
-						this.windowsMainService.showMessageBox({
+					if (this.dialogMainService) {
+						this.dialogMainService.showMessageBox({
 							type: 'info',
 							message: localize('trace.message', "Successfully created trace."),
 							detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
 							buttons: [localize('trace.ok', "Ok")]
-						}, this.windowsMainService.getLastActiveWindow());
+						}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 					}
 				} else {
 					this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
@@ -580,6 +583,7 @@ export class CodeApplication extends Disposable {
 
 		// Propagate to clients
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		this.dialogMainService = accessor.get(IDialogMainService);
 
 		// Create a URL handler to open file URIs in the active window
 		const environmentService = accessor.get(IEnvironmentService);

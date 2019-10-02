@@ -9,13 +9,12 @@ import * as errors from 'vs/base/common/errors';
 import { equals, deepClone, assign } from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
@@ -62,17 +61,6 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
-const TextInputActions: IAction[] = [
-	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
-	new Action('redo', nls.localize('redo', "Redo"), undefined, true, () => Promise.resolve(document.execCommand('redo'))),
-	new Separator(),
-	new Action('editor.action.clipboardCutAction', nls.localize('cut', "Cut"), undefined, true, () => Promise.resolve(document.execCommand('cut'))),
-	new Action('editor.action.clipboardCopyAction', nls.localize('copy', "Copy"), undefined, true, () => Promise.resolve(document.execCommand('copy'))),
-	new Action('editor.action.clipboardPasteAction', nls.localize('paste', "Paste"), undefined, true, () => Promise.resolve(document.execCommand('paste'))),
-	new Separator(),
-	new Action('editor.action.selectAll', nls.localize('selectAll', "Select All"), undefined, true, () => Promise.resolve(document.execCommand('selectAll')))
-];
-
 export class ElectronWindow extends Disposable {
 
 	private touchBarMenu: IMenu | undefined;
@@ -96,7 +84,6 @@ export class ElectronWindow extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IFileService private readonly fileService: IFileService,
@@ -239,9 +226,6 @@ export class ElectronWindow extends Disposable {
 			}
 		}));
 
-		// Context menu support in input/textarea
-		window.document.addEventListener('contextmenu', e => this.onContextMenu(e));
-
 		// Listen to visible editor changes
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
 
@@ -297,21 +281,6 @@ export class ElectronWindow extends Disposable {
 		const visibleEditors = this.editorService.visibleControls.length;
 		if (visibleEditors === 0) {
 			this.electronService.closeWindow();
-		}
-	}
-
-	private onContextMenu(e: MouseEvent): void {
-		if (e.target instanceof HTMLElement) {
-			const target = <HTMLElement>e.target;
-			if (target.nodeName && (target.nodeName.toLowerCase() === 'input' || target.nodeName.toLowerCase() === 'textarea')) {
-				DOM.EventHelper.stop(e, true);
-
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => e,
-					getActions: () => TextInputActions,
-					onHide: () => target.focus() // fixes https://github.com/Microsoft/vscode/issues/52948
-				});
-			}
 		}
 	}
 

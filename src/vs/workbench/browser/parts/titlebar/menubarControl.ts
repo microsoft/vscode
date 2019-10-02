@@ -222,7 +222,7 @@ export abstract class MenubarControl extends Disposable {
 		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
-			return this.hostService.openInWindow([openable], {
+			return this.hostService.openWindow([openable], {
 				forceNewWindow: openInNewWindow
 			});
 		});

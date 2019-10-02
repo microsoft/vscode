@@ -37,7 +37,7 @@
 	margin: 8px 0;
 }
 
-.monaco-editor-hover p > code {
+.monaco-editor-hover code {
 	font-family: var(--monaco-monospace-font);
 }
 

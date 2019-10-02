@@ -16,6 +16,10 @@
 	color: inherit !important;
 }
 
+.settings-editor:focus {
+	outline: none !important;
+}
+
 /* header styling */
 .settings-editor > .settings-header {
 	box-sizing: border-box;
@@ -158,7 +162,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .codicon-more,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-item.focused .setting-toolbar-container > .monaco-toolbar .codicon-more,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-item-contents.focused .setting-toolbar-container > .monaco-toolbar .codicon-more,
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container:hover > .monaco-toolbar .codicon-more,
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .codicon-more {
 	opacity: 1;

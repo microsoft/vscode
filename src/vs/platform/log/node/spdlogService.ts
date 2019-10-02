@@ -30,7 +30,7 @@ interface ILog {
 	message: string;
 }
 
-function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string, sync: boolean): void {
+function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string): void {
 	switch (level) {
 		case LogLevel.Trace: logger.trace(message); break;
 		case LogLevel.Debug: logger.debug(message); break;
@@ -39,9 +39,6 @@ function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string, sy
 		case LogLevel.Error: logger.error(message); break;
 		case LogLevel.Critical: logger.critical(message); break;
 		default: throw new Error('Invalid log level');
-	}
-	if (sync) {
-		logger.flush();
 	}
 }
 
@@ -53,7 +50,7 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 	private _loggerCreationPromise: Promise<void> | undefined = undefined;
 	private _logger: spdlog.RotatingLogger | undefined;
 
-	constructor(private readonly name: string, private readonly logsFolder: string, level: LogLevel, private readonly sync: boolean = false) {
+	constructor(private readonly name: string, private readonly logsFolder: string, level: LogLevel) {
 		super();
 		this.setLevel(level);
 		this._createSpdLogLogger();
@@ -72,7 +69,7 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 						this._logger = logger;
 						this._logger.setLevel(this.getLevel());
 						for (const { level, message } of this.buffer) {
-							log(this._logger, level, message, this.sync);
+							log(this._logger, level, message);
 						}
 						this.buffer = [];
 					}
@@ -83,7 +80,7 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 
 	private _log(level: LogLevel, message: string): void {
 		if (this._logger) {
-			log(this._logger, level, message, this.sync);
+			log(this._logger, level, message);
 		} else if (this.getLevel() <= level) {
 			this.buffer.push({ level, message });
 		}
@@ -129,6 +126,14 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 	critical(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Critical) {
 			this._log(LogLevel.Critical, this.format([message, ...args]));
+		}
+	}
+
+	flush(): void {
+		if (this._logger) {
+			this._logger.flush();
+		} else if (this._loggerCreationPromise) {
+			this._loggerCreationPromise.then(() => this.flush());
 		}
 	}
 

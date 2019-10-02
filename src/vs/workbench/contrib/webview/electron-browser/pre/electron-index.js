@@ -13,6 +13,15 @@
 				return;
 			}
 			hasRegistered = true;
+
+			// @ts-ignore
+			require('electron').webFrame.registerURLSchemeAsPrivileged('vscode-resource', {
+				secure: true,
+				bypassCSP: false,
+				allowServiceWorkers: false,
+				supportFetchAPI: true,
+				corsEnabled: true
+			});
 		};
 	}());
 

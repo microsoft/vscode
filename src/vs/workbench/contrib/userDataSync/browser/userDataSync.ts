@@ -116,7 +116,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		} else if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
 			badge = new NumberBadge(1, () => localize('resolve conflicts', "Resolve Conflicts"));
 		} else if (this.userDataSyncService.status === SyncStatus.Syncing) {
-			badge = new ProgressBadge(() => localize('syncing', "Synchronising User Configuration..."));
+			badge = new ProgressBadge(() => localize('syncing', "Synchronizing User Configuration..."));
 			clazz = 'progress-badge';
 		}
 

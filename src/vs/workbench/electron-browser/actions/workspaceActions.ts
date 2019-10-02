@@ -65,6 +65,6 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		const newWorkspace = await this.workspacesService.createUntitledWorkspace(folders, remoteAuthority);
 		await this.workspaceEditingService.copyWorkspaceSettings(newWorkspace);
 
-		return this.hostService.openInWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
+		return this.hostService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
 	}
 }

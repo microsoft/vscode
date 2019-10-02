@@ -141,6 +141,7 @@ export class LaunchMainService implements ILaunchMainService {
 				}
 			}
 
+			// Open new Window
 			if (openNewWindow) {
 				usedWindows = this.windowsMainService.open({
 					context,
@@ -150,8 +151,18 @@ export class LaunchMainService implements ILaunchMainService {
 					forceEmpty: true,
 					waitMarkerFileURI
 				});
-			} else {
-				usedWindows = [this.windowsMainService.focusLastActive(args, context)];
+			}
+
+			// Focus existing window or open if none opened
+			else {
+				const lastActive = this.windowsMainService.getLastActiveWindow();
+				if (lastActive) {
+					lastActive.focus();
+
+					usedWindows = [lastActive];
+				} else {
+					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true });
+				}
 			}
 		}
 
@@ -208,7 +219,7 @@ export class LaunchMainService implements ILaunchMainService {
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows,
-			screenReader: !!app.accessibilitySupportEnabled,
+			screenReader: !!app.isAccessibilitySupportEnabled(),
 			gpuFeatureStatus: app.getGPUFeatureStatus()
 		});
 	}

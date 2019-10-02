@@ -23,13 +23,13 @@ export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspac
 
 	//#region Workspace Management
 
-	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
+	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | null> {
 		const window = this.windowsMainService.getWindowById(windowId);
 		if (window) {
-			return this.windowsMainService.enterWorkspace(window, path);
+			return this.workspacesMainService.enterWorkspace(window, this.windowsMainService.getWindows(), path);
 		}
 
-		return undefined;
+		return null;
 	}
 
 	createUntitledWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
