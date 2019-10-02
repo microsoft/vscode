@@ -175,7 +175,7 @@ export class CustomEditorService implements ICustomEditorService {
 			const existingEditors = group.editors.filter(editor => editor.getResource() && isEqual(editor.getResource()!, resource));
 			if (existingEditors.length) {
 				const existing = existingEditors[0];
-				if (existing.matches(input)) {
+				if (input.matches(existing)) {
 					return;
 				}
 
