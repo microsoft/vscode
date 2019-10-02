@@ -207,6 +207,17 @@ function migrateOptions(options: IEditorOptions): void {
 			enabled: false
 		};
 	}
+
+	const parameterHints = options.parameterHints;
+	if (<any>parameterHints === true) {
+		options.parameterHints = {
+			enabled: true
+		};
+	} else if (<any>parameterHints === false) {
+		options.parameterHints = {
+			enabled: false
+		};
+	}
 }
 
 function deepCloneAndMigrateOptions(_options: IEditorOptions): IEditorOptions {
