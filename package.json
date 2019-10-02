@@ -97,7 +97,7 @@
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
-    "gulp-tsb": "4.0.4",
+    "gulp-tsb": "4.0.5",
     "gulp-tslint": "^8.1.3",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
