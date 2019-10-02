@@ -338,6 +338,11 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private installMenubar(): void {
+		// If the menubar is already installed, skip
+		if (this.menubar) {
+			return;
+		}
+
 		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 
 		this.menubar = this.element.insertBefore($('div.menubar'), this.title);
