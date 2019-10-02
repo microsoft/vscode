@@ -174,11 +174,20 @@ export class CustomEditorService implements ICustomEditorService {
 		if (group) {
 			const existingEditors = group.editors.filter(editor => editor.getResource() && isEqual(editor.getResource()!, resource));
 			if (existingEditors.length) {
+				const existing = existingEditors[0];
+				if (existing.matches(input)) {
+					return;
+				}
+
 				await this.editorService.replaceEditors([{
-					editor: existingEditors[0],
+					editor: existing,
 					replacement: input,
 					options: options ? EditorOptions.create(options) : undefined,
 				}], group);
+
+				if (existing instanceof CustomFileEditorInput) {
+					existing.dispose();
+				}
 			}
 		}
 		return this.editorService.openEditor(input, options, group);
