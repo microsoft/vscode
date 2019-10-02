@@ -197,7 +197,9 @@ export class InputBox extends Widget {
 			const onSelectionChange = Event.filter(domEvent(document, 'selectionchange'), () => {
 				const selection = document.getSelection();
 
-				this.updateLineCounter();
+				if(this.lineCounter){
+					this.updateLineCounter();
+				}
 
 				return !!selection && selection.anchorNode === wrapper;
 			});
@@ -560,20 +562,26 @@ export class InputBox extends Widget {
 			//Show length of selection
 			this.lineCounter.innerText = (endSelectionPosition - startSelectionPosition).toString();
 		}else{
+
 			//Show length of line where the cursor is at
+			let lineStart = startSelectionPosition;
+			let lineEnd = endSelectionPosition;
 
-			const lines = this.value.split('\n'); //TODO - Find more reliable method to split by lines
-
-			let currentLine = 0;
-
-			for(let currentLength = 0; currentLength < endSelectionPosition && currentLine < lines.length; currentLine++){
-				currentLength += lines[currentLine].length + 1;
+			for(let currentChar = startSelectionPosition - 1; currentChar >= 0 && !this.isEOL(this.value[currentChar]); currentChar--){
+				lineStart = currentChar;
 			}
 
-			console.log(lines);
 
-			this.lineCounter.innerText = lines[currentLine-1].length.toString();
+			for(let currentChar = endSelectionPosition; currentChar < this.value.length && !this.isEOL(this.value[currentChar]); currentChar++){
+				lineEnd = currentChar + 1;
+			}
+
+			this.lineCounter.innerText = (lineEnd - lineStart).toString();
 		}
+	}
+
+	private isEOL(char: String): boolean{
+		return char === '\r' || char === '\n';
 	}
 
 	private updateMirror(): void {
