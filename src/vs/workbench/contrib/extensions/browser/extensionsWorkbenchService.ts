@@ -24,7 +24,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
+import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -1048,7 +1048,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.notificationService.error(err);
 	}
 
-	handleURL(uri: URI): Promise<boolean> {
+	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		if (!/^extension/.test(uri.path)) {
 			return Promise.resolve(false);
 		}
