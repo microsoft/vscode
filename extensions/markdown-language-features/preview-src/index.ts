@@ -141,7 +141,11 @@ document.addEventListener('click', event => {
 				break;
 			}
 			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:') || node.href.startsWith(settings.webviewResourceRoot)) {
-				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').replace(new RegExp(`^${escapeRegExp(settings.webviewResourceRoot)}`)).split('#');
+				const [path, fragment] = node.href
+					.replace(/^file:\/\//i, '')
+					.replace(/^vscode-resource:\/\/[^\/]+\//i, '')
+					.replace(new RegExp(`^${escapeRegExp(settings.webviewResourceRoot)}`))
+					.split('#');
 				messaging.postMessage('clickLink', { path, fragment });
 				event.preventDefault();
 				event.stopPropagation();
