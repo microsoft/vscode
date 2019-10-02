@@ -82,6 +82,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private onModelOrphanedChanged(e: TextFileModelChangeEvent): void {
 		if (e.resource.toString() === this.resource.toString()) {
+			FileEditorInput.MEMOIZER.clear();
 			this._onDidChangeLabel.fire();
 		}
 	}
@@ -209,6 +210,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private decorateLabel(label: string): string {
 		const model = this.textFileService.models.get(this.resource);
+
 		if (model && model.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted)", label);
 		}
