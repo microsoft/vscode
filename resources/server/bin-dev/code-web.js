@@ -38,8 +38,9 @@ const SKIP_UPDATE = process.argv.indexOf('--disable-update') !== -1;
 
 const serverArgs = [];
 
-// Port Config
+// Server Config
 let PORT = SELFHOST ? 9777 : 9888;
+let DRIVER = undefined;
 
 // Workspace Config
 let FOLDER = undefined;
@@ -55,6 +56,7 @@ for (let idx = 0; idx <= process.argv.length - 2; idx++) {
 		case '--folder': FOLDER = process.argv[idx + 1]; break;
 		case '--workspace': WORKSPACE = process.argv[idx + 1]; break;
 		case '--browser': BROWSER = process.argv[idx + 1]; break;
+		case '--driver': DRIVER = process.argv[idx + 1]; break;
 	}
 }
 
@@ -67,6 +69,9 @@ if (WORKSPACE) {
 }
 if (!FOLDER && !WORKSPACE && SELFHOST) {
 	serverArgs.push('--folder', process.cwd());
+}
+if (DRIVER) {
+	serverArgs.push('--driver', DRIVER);
 }
 
 // Insiders Config

@@ -19,6 +19,7 @@ const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'port': { type: 'string' },
 	'connectionToken': { type: 'string' },
 	'host': { type: 'string' },
+	'driver': { type: 'string' },
 
 	'fileWatcherPolling': { type: 'boolean' },
 	'enable-remote-auto-shutdown': { type: 'boolean' },
@@ -45,6 +46,7 @@ export interface ServerParsedArgs {
 	port?: string;
 	connectionToken?: string;
 	host?: string;
+	driver?: string;
 	'disable-telemetry'?: boolean;
 	fileWatcherPolling?: boolean;
 	'enable-remote-auto-shutdown'?: boolean;
