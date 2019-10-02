@@ -61,7 +61,7 @@ export class ReplacePattern {
 		if (match) {
 			if (this.hasParameters) {
 				if (match[0] === text) {
-					return text.replace(this._regExp, this.pattern);
+					return text.replace(this._regExp, this.buildReplaceString(match, preserveCase));
 				}
 				let replaceString = text.replace(this._regExp, this.pattern);
 				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
