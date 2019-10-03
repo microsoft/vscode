@@ -34,8 +34,11 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
  	echo "Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path"
 	echo "Using %VSCODE_REMOTE_SERVER_PATH% as server path"
 
-	:: Compile Test Extensions
-	call yarn gulp compile-extension:vscode-test-resolver
+	:: Compile Extensions that are needed during tests
+	:: Note: since we do set --extensions-dir, we have
+	:: to ensure that all extensions that are needed
+	:: are compiled properly.
+	call yarn gulp compile-extensions
 
 	:: Tests in the extension host running from built version (both client and server)
 	call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=%VSCODEUSERDATADIR% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver

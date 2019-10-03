@@ -37,7 +37,10 @@ else
 	echo "Using $INTEGRATION_TEST_ELECTRON_PATH as Electron path for integration tests"
 
 	# Compile Test Extensions
-	yarn gulp compile-extension:vscode-test-resolver
+	# Note: since we do set --extensions-dir, we have
+	# to ensure that all extensions that are needed
+	# are compiled properly.
+	yarn gulp compile-extensions
 
 	# Running from a build, we need to enable the vscode-test-resolver extension
 	EXTRA_INTEGRATION_TEST_ARGUMENTS="--extensions-dir=$EXT_PATH --enable-proposed-api=vscode.vscode-test-resolver"
