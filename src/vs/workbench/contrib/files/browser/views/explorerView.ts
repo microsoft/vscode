@@ -101,7 +101,7 @@ export class ExplorerView extends ViewletPanel {
 		this.resourceMoveableToTrash = ExplorerResourceMoveableToTrash.bindTo(contextKeyService);
 
 		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
-		decorationService.registerDecorationsProvider(decorationProvider);
+		this._register(decorationService.registerDecorationsProvider(decorationProvider));
 		this._register(decorationProvider);
 		this._register(this.resourceContext);
 	}
