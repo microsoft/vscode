@@ -88,7 +88,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
 		// resolve any non-interactive variables and any contributed variables
-		config = await this.resolveAny(folder, config);
+		config = this.resolveAny(folder, config);
 
 		// resolve input variables in the order in which they are encountered
 		return this.resolveWithInteraction(folder, config, section, variables).then(mapping => {
