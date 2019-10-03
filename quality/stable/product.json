@@ -23,7 +23,6 @@
 	"dataFolderName": ".vscode",
 	"serverDataFolderName": ".vscode-server",
 	"downloadUrl": "https://code.visualstudio.com",
-	"welcomePage": "https://go.microsoft.com/fwlink/?LinkId=723048",
 	"updateUrl": "https://update.code.visualstudio.com",
 	"quality": "stable",
 	"extensionsGallery": {

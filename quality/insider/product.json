@@ -23,7 +23,6 @@
 	"dataFolderName": ".vscode-insiders",
 	"serverDataFolderName": ".vscode-server-insiders",
 	"downloadUrl": "https://code.visualstudio.com/insiders",
-	"welcomePage": "https://go.microsoft.com/fwlink/?LinkId=723048",
 	"updateUrl": "https://update.code.visualstudio.com",
 	"quality": "insider",
 	"extensionsGallery": {
