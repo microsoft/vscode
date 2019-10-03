@@ -91,21 +91,21 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		config = await this.resolveAny(folder, config);
 
 		// resolve input variables in the order in which they are encountered
-		return this.resolveWithInteraction(folder, config, section, variables, false).then(mapping => {
+		return this.resolveWithInteraction(folder, config, section, variables).then(mapping => {
 			// finally substitute evaluated command variables (if there are any)
 			if (!mapping) {
 				return null;
 			} else if (mapping.size > 0) {
-				return this.resolveAny(folder, config, fromMap(mapping), false);
+				return this.resolveAny(folder, config, fromMap(mapping));
 			} else {
 				return config;
 			}
 		});
 	}
 
-	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, resolveContributed: boolean = true): Promise<Map<string, string> | undefined> {
+	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
 		// resolve any non-interactive variables and any contributed variables
-		const resolved = await this.resolveAnyMap(folder, config, resolveContributed);
+		const resolved = await this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
 		const allVariableMapping: Map<string, string> = resolved.resolvedVariables;
 
@@ -180,6 +180,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						throw new Error(nls.localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
 					}
 					break;
+				default:
+					// Try to resolve it as a contributed variable
+					if (this._contributedVariables.has(variable)) {
+						result = await this._contributedVariables.get(variable)!();
+					}
 			}
 
 			if (typeof result === 'string') {
@@ -208,6 +213,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					}
 				}
 			}
+			this._contributedVariables.forEach((value, contributed: string) => {
+				if ((variables.indexOf(contributed) < 0) && (object.indexOf('${' + contributed + '}') >= 0)) {
+					variables.push(contributed);
+				}
+			});
 		} else if (Types.isArray(object)) {
 			object.forEach(value => {
 				this.findVariables(value, variables);
