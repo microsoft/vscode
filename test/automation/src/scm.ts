@@ -67,7 +67,7 @@ export class SCM extends Viewlet {
 
 	async unstage(name: string): Promise<void> {
 		await this.code.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Unstage Changes'));
-		await this.waitForChange('app.js', 'Modified');
+		await this.waitForChange(name, 'Modified');
 	}
 
 	async commit(message: string): Promise<void> {

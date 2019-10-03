@@ -13,7 +13,6 @@ export function setup() {
 	describe('Git', () => {
 		before(async function () {
 			const app = this.app as Application;
-			await app.workbench.settingsEditor.addUserSetting('scm.defaultViewMode', '"list"');
 
 			cp.execSync('git config user.name testuser', { cwd: app.workspacePathOrFolder });
 			cp.execSync('git config user.email monacotools@microsoft.com', { cwd: app.workspacePathOrFolder });
@@ -52,6 +51,7 @@ export function setup() {
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
 
 			await app.workbench.scm.stage('app.js');
+			await app.workbench.scm.openChange('app.js');
 			await app.workbench.scm.unstage('app.js');
 		});
 
@@ -61,6 +61,7 @@ export function setup() {
 			await app.workbench.scm.openSCMViewlet();
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
 
+			await app.workbench.scm.openChange('app.js');
 			await app.workbench.scm.stage('app.js');
 
 			await app.workbench.scm.commit('first commit');
