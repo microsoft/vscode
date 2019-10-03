@@ -19,11 +19,10 @@ import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMai
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, IPathsToWaitFor, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/platform/windows/node/window';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
-import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -32,7 +31,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { dirExists } from 'vs/base/node/pfs';
 import { getComparisonKey, isEqual, normalizePath, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
@@ -1789,60 +1787,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		// Emit
 		this._onWindowsCountChanged.fire({ oldCount: WindowsManager.WINDOWS.length + 1, newCount: WindowsManager.WINDOWS.length });
 		this._onWindowClose.fire(win.id);
-	}
-
-	async pickFileFolderAndOpen(options: INativeOpenDialogOptions, window?: ICodeWindow): Promise<void> {
-		const paths = await this.dialogMainService.pickFileFolder(options);
-		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
-			this.doOpenPicked(await Promise.all(paths.map(async path => (await dirExists(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, window);
-		}
-	}
-
-	async pickFolderAndOpen(options: INativeOpenDialogOptions, window?: ICodeWindow): Promise<void> {
-		const paths = await this.dialogMainService.pickFolder(options);
-		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFolder', options.telemetryExtraData);
-			this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, window);
-		}
-	}
-
-	async pickFileAndOpen(options: INativeOpenDialogOptions, window?: ICodeWindow): Promise<void> {
-		const paths = await this.dialogMainService.pickFile(options);
-		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFile', options.telemetryExtraData);
-			this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, window);
-		}
-	}
-
-	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions, window?: ICodeWindow): Promise<void> {
-		const paths = await this.dialogMainService.pickWorkspace(options);
-		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openWorkspace', options.telemetryExtraData);
-			this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, window);
-		}
-	}
-
-	private doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, window?: ICodeWindow): void {
-		this.open({
-			context: OpenContext.DIALOG,
-			contextWindowId: window ? window.id : undefined,
-			cli: this.environmentService.args,
-			urisToOpen: openable,
-			forceNewWindow: options.forceNewWindow
-		});
-	}
-
-	private sendPickerTelemetry(paths: string[], telemetryEventName: string, telemetryExtraData?: ITelemetryData) {
-		const numberOfPaths = paths ? paths.length : 0;
-
-		// Telemetry
-		// __GDPR__TODO__ Dynamic event names and dynamic properties. Can not be registered statically.
-		this.telemetryService.publicLog(telemetryEventName, {
-			...telemetryExtraData,
-			outcome: numberOfPaths ? 'success' : 'canceled',
-			numberOfPaths
-		});
 	}
 
 	quit(): void {

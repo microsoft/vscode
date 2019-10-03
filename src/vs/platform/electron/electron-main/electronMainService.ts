@@ -16,8 +16,16 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { dirExists } from 'vs/base/node/pfs';
+import { URI } from 'vs/base/common/uri';
+import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export class ElectronMainService implements AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number /* window ID */> {
+export interface IElectronMainService extends AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number /* window ID */> { }
+
+export const IElectronMainService = createDecorator<IElectronService>('electronMainService');
+
+export class ElectronMainService implements IElectronMainService {
 
 	_serviceBrand: undefined;
 
@@ -25,7 +33,8 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 	}
 
@@ -197,19 +206,57 @@ export class ElectronMainService implements AddFirstParameterToFunctions<IElectr
 	}
 
 	async pickFileFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		return this.windowsMainService.pickFileFolderAndOpen(options, this.windowsMainService.getWindowById(windowId));
-	}
-
-	async pickFileAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		return this.windowsMainService.pickFileAndOpen(options, this.windowsMainService.getWindowById(windowId));
+		const paths = await this.dialogMainService.pickFileFolder(options);
+		if (paths) {
+			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
+			this.doOpenPicked(await Promise.all(paths.map(async path => (await dirExists(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
+		}
 	}
 
 	async pickFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		return this.windowsMainService.pickFolderAndOpen(options, this.windowsMainService.getWindowById(windowId));
+		const paths = await this.dialogMainService.pickFolder(options);
+		if (paths) {
+			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFolder', options.telemetryExtraData);
+			this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, windowId);
+		}
+	}
+
+	async pickFileAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
+		const paths = await this.dialogMainService.pickFile(options);
+		if (paths) {
+			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFile', options.telemetryExtraData);
+			this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, windowId);
+		}
 	}
 
 	async pickWorkspaceAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		return this.windowsMainService.pickWorkspaceAndOpen(options, this.windowsMainService.getWindowById(windowId));
+		const paths = await this.dialogMainService.pickWorkspace(options);
+		if (paths) {
+			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openWorkspace', options.telemetryExtraData);
+			this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, windowId);
+		}
+	}
+
+	private doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number): void {
+		this.windowsMainService.open({
+			context: OpenContext.DIALOG,
+			contextWindowId: windowId,
+			cli: this.environmentService.args,
+			urisToOpen: openable,
+			forceNewWindow: options.forceNewWindow
+		});
+	}
+
+	private sendPickerTelemetry(paths: string[], telemetryEventName: string, telemetryExtraData?: ITelemetryData) {
+		const numberOfPaths = paths ? paths.length : 0;
+
+		// Telemetry
+		// __GDPR__TODO__ Dynamic event names and dynamic properties. Can not be registered statically.
+		this.telemetryService.publicLog(telemetryEventName, {
+			...telemetryExtraData,
+			outcome: numberOfPaths ? 'success' : 'canceled',
+			numberOfPaths
+		});
 	}
 
 	//#endregion
