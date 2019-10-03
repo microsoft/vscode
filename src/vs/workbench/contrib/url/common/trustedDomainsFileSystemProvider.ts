@@ -33,8 +33,7 @@ const TRUSTED_DOMAINS_STAT: IStat = {
 	size: 0
 };
 
-const CONFIG_HELP_TEXT_PRE =
-	`// Links matching one or more entries in the list below can be opened without link protection.
+const CONFIG_HELP_TEXT_PRE = `// Links matching one or more entries in the list below can be opened without link protection.
 // The following examples show what entries can look like:
 // - "https://microsoft.com": Matches this specific domain using https
 // - "https://*.microsoft.com": Match all domains ending in "microsoft.com" using https
@@ -95,23 +94,36 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProvider, IW
 	}
 
 	readFile(resource: URI): Promise<Uint8Array> {
-		const { defaultTrustedDomains, trustedDomains } = readTrustedDomains(this.storageService, this.productService);
+		let trustedDomainsContent = this.storageService.get(
+			'http.linkProtectionTrustedDomainsContent',
+			StorageScope.GLOBAL
+		);
 
-		const trustedDomainsContent = computeTrustedDomainContent(defaultTrustedDomains, trustedDomains);
+		if (
+			!trustedDomainsContent ||
+			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_PRE) === -1 ||
+			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_AFTER) === -1
+		) {
+			const { defaultTrustedDomains, trustedDomains } = readTrustedDomains(this.storageService, this.productService);
+
+			trustedDomainsContent = computeTrustedDomainContent(defaultTrustedDomains, trustedDomains);
+		}
+
 		const buffer = VSBuffer.fromString(trustedDomainsContent).buffer;
 		return Promise.resolve(buffer);
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		try {
-			const trustedDomains = parse(content.toString());
+			const trustedDomainsContent = content.toString();
+			const trustedDomains = parse(trustedDomainsContent);
 
+			this.storageService.store('http.linkProtectionTrustedDomainsContent', trustedDomainsContent, StorageScope.GLOBAL);
 			this.storageService.store(
 				'http.linkProtectionTrustedDomains',
 				JSON.stringify(trustedDomains),
 				StorageScope.GLOBAL
 			);
-
 		} catch (err) { }
 
 		return Promise.resolve();
