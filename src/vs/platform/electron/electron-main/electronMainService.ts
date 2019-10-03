@@ -337,13 +337,6 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	async closeWorkspace(windowId: number): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
-		if (window) {
-			return this.windowsMainService.closeWorkspace(window);
-		}
-	}
-
 	async closeWindow(windowId: number): Promise<void> {
 		const window = this.windowsMainService.getWindowById(windowId);
 		if (window) {
