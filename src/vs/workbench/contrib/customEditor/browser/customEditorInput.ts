@@ -86,11 +86,17 @@ export class CustomFileEditorInput extends WebviewInput {
 
 	@memoize
 	private get mediumTitle(): string {
+		if (this.getResource().scheme === Schemas.data) {
+			return this.getName();
+		}
 		return this.labelService.getUriLabel(this.getResource(), { relative: true });
 	}
 
 	@memoize
 	private get longTitle(): string {
+		if (this.getResource().scheme === Schemas.data) {
+			return this.getName();
+		}
 		return this.labelService.getUriLabel(this.getResource());
 	}
 
