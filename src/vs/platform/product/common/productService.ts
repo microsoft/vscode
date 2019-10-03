@@ -56,8 +56,6 @@ export interface IProductConfiguration {
 		readonly productName: string;
 	};
 
-	readonly welcomePage?: string;
-
 	readonly enableTelemetry?: boolean;
 	readonly aiConfig?: {
 		readonly asimovKey: string;

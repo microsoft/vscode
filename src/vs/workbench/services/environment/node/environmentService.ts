@@ -36,8 +36,6 @@ export class WorkbenchEnvironmentService extends EnvironmentService implements I
 		this.configuration.backupWorkspaceResource = this.configuration.backupPath ? toBackupWorkspaceResource(this.configuration.backupPath, this) : undefined;
 	}
 
-	get skipGettingStarted(): boolean { return !!this.args['skip-getting-started']; }
-
 	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
 
 	@memoize
