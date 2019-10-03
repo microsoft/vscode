@@ -103,8 +103,6 @@ export interface IWindowsMainService {
 	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
-	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
 
@@ -113,8 +111,6 @@ export interface IWindowsMainService {
 	getWindowById(windowId: number): ICodeWindow | undefined;
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
-
-	quit(): void;
 }
 
 export interface IOpenConfiguration {
