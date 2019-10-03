@@ -1718,6 +1718,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			type: WindowError;
 		};
 		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type: error });
+
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
 			if (window.isExtensionDevelopmentHost || window.isExtensionTestHost || (window.win && window.win.webContents && window.win.webContents.isDevToolsOpened())) {
@@ -1790,66 +1791,46 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		this._onWindowClose.fire(win.id);
 	}
 
-	async pickFileFolderAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
+	async pickFileFolderAndOpen(options: INativeOpenDialogOptions, window?: ICodeWindow): Promise<void> {
 		const paths = await this.dialogMainService.pickFileFolder(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
-			const urisToOpen = await Promise.all(paths.map(async path => {
-				const isDir = await dirExists(path);
-
-				return isDir ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) };
-			}));
-			this.open({
-				context: OpenContext.DIALOG,
-				contextWindowId: win ? win.id : undefined,
-				cli: this.environmentService.args,
-				urisToOpen,
-				forceNewWindow: options.forceNewWindow
-			});
+			this.doOpenPicked(await Promise.all(paths.map(async path => (await dirExists(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, window);
 		}
 	}
 
-	async pickFolderAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
+	async pickFolderAndOpen(options: INativeOpenDialogOptions, window?: ICodeWindow): Promise<void> {
 		const paths = await this.dialogMainService.pickFolder(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFolder', options.telemetryExtraData);
-			this.open({
-				context: OpenContext.DIALOG,
-				contextWindowId: win ? win.id : undefined,
-				cli: this.environmentService.args,
-				urisToOpen: paths.map(path => ({ folderUri: URI.file(path) })),
-				forceNewWindow: options.forceNewWindow
-			});
+			this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, window);
 		}
 	}
 
-	async pickFileAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
+	async pickFileAndOpen(options: INativeOpenDialogOptions, window?: ICodeWindow): Promise<void> {
 		const paths = await this.dialogMainService.pickFile(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFile', options.telemetryExtraData);
-			this.open({
-				context: OpenContext.DIALOG,
-				contextWindowId: win ? win.id : undefined,
-				cli: this.environmentService.args,
-				urisToOpen: paths.map(path => ({ fileUri: URI.file(path) })),
-				forceNewWindow: options.forceNewWindow
-			});
+			this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, window);
 		}
 	}
 
-	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
+	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions, window?: ICodeWindow): Promise<void> {
 		const paths = await this.dialogMainService.pickWorkspace(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openWorkspace', options.telemetryExtraData);
-			this.open({
-				context: OpenContext.DIALOG,
-				contextWindowId: win ? win.id : undefined,
-				cli: this.environmentService.args,
-				urisToOpen: paths.map(path => ({ workspaceUri: URI.file(path) })),
-				forceNewWindow: options.forceNewWindow
-			});
+			this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, window);
 		}
+	}
 
+	private doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, window?: ICodeWindow): void {
+		this.open({
+			context: OpenContext.DIALOG,
+			contextWindowId: window ? window.id : undefined,
+			cli: this.environmentService.args,
+			urisToOpen: openable,
+			forceNewWindow: options.forceNewWindow
+		});
 	}
 
 	private sendPickerTelemetry(paths: string[], telemetryEventName: string, telemetryExtraData?: ITelemetryData) {
