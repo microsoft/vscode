@@ -47,6 +47,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	public get container() {
 		const container = document.createElement('div');
 		container.id = `webview-${this.id}`;
+		container.style.visibility = 'hidden';
 		this._layoutService.getContainer(Parts.EDITOR_PART).appendChild(container);
 		return container;
 	}
