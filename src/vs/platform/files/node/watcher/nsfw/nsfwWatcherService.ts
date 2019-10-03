@@ -104,7 +104,7 @@ export class NsfwWatcherService implements IWatcherService {
 			for (const e of events) {
 				// Logging
 				if (this._verboseLogging) {
-					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile || '') + ' -> ' + e.newFile : path.join(e.directory, e.file || '');
+					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile || '') + ' -> ' + path.join(e.newDirectory || e.directory, e.newFile || '') : path.join(e.directory, e.file || '');
 					this.log(`${e.action === nsfw.actions.CREATED ? '[CREATED]' : e.action === nsfw.actions.DELETED ? '[DELETED]' : e.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]'} ${logPath}`);
 				}
 
