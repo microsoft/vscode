@@ -70,6 +70,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private readonly _onWindowDestroy = this._register(new Emitter<ICodeWindow>());
 	readonly onWindowDestroy: CommonEvent<ICodeWindow> = this._onWindowDestroy.event;
 
+	private readonly _onWindowLoad = this._register(new Emitter<ICodeWindow>());
+	readonly onWindowLoad: CommonEvent<ICodeWindow> = this._onWindowLoad.event;
+
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: NodeJS.Timeout;
 	private _id: number;
@@ -324,6 +327,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return this._readyState === ReadyState.READY;
 	}
 
+	get whenWindowClosedOrLoaded(): Promise<void> {
+		return new Promise<void>(resolve => {
+
+			function handle() {
+				closeListener.dispose();
+				loadListener.dispose();
+
+				resolve();
+			}
+
+			const closeListener = this.onWindowClose(_ => handle());
+			const loadListener = this.onWindowLoad(_ => handle());
+		});
+	}
+
 	private handleMarketplaceRequests(): void {
 
 		// Resolve marketplace headers
@@ -349,7 +367,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
 
 		// Window close
-		this._win.on('closed', () => this._onWindowClose.fire(this));
+		this._win.on('closed', () => {
+			this._onWindowClose.fire(this);
+
+			this.dispose();
+		});
 
 		// Prevent loading of svgs
 		this._win.webContents.session.webRequest.onBeforeRequest(null!, (details, callback) => {
@@ -603,6 +625,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			}, 10000);
 		}
+
+		// Event
+		this._onWindowLoad.fire(this);
 	}
 
 	reload(configurationIn?: IWindowConfiguration, cli?: ParsedArgs): void {
