@@ -24,7 +24,7 @@ export namespace SeverityIcon {
 	}
 }
 
-registerThemingParticipant((thme, collector) => {
+registerThemingParticipant((theme, collector) => {
 
 	const errorIconForeground = theme.getColor(problemsErrorIconForeground);
 	if (errorIconForeground) {
