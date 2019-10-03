@@ -23,13 +23,11 @@ import { parseTree, Node } from 'vs/base/common/json';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { themeColorFromId, ThemeColor, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import Severity from 'vs/base/common/severity';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
@@ -399,8 +397,3 @@ function isInterestingEditorModel(editor: ICodeEditor): boolean {
 
 registerEditorContribution(DefineKeybindingController);
 registerEditorCommand(new DefineKeybindingCommand());
-
-registerThemingParticipant((theme, collector) => {
-	collector.addRule(`.monaco-editor .inlineKeybindingInfo:before { background: url("data:image/svg+xml,${SeverityIcon.getSVGData(Severity.Info, theme)}") -0.1em -0.2em no-repeat; }`);
-	collector.addRule(`.monaco-editor .inlineKeybindingError:before { background: url("data:image/svg+xml,${SeverityIcon.getSVGData(Severity.Error, theme)}") -0.1em -0.2em no-repeat; }`);
-});
