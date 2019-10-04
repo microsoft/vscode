@@ -66,12 +66,10 @@ enum ApiThemeClassName {
 
 namespace ApiThemeClassName {
 	export function fromTheme(theme: ITheme): ApiThemeClassName {
-		if (theme.type === LIGHT) {
-			return ApiThemeClassName.light;
-		} else if (theme.type === DARK) {
-			return ApiThemeClassName.dark;
-		} else {
-			return ApiThemeClassName.highContrast;
+		switch (theme.type) {
+			case LIGHT: return ApiThemeClassName.light;
+			case DARK: return ApiThemeClassName.dark;
+			default: return ApiThemeClassName.highContrast;
 		}
 	}
 }
