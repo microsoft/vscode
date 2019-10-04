@@ -9,6 +9,7 @@ import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/ed
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
+import { Emitter } from 'vs/base/common/event';
 
 interface WebviewThemeData {
 	readonly activeTheme: string;
@@ -17,14 +18,32 @@ interface WebviewThemeData {
 
 export class WebviewThemeDataProvider extends Disposable {
 
+
 	private static readonly MEMOIZER = createMemoizer();
+
+	private readonly _onThemeDataChanged = this._register(new Emitter<void>());
+	public readonly onThemeDataChanged = this._onThemeDataChanged.event;
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._register(_themeService.onThemeChange(() => WebviewThemeDataProvider.MEMOIZER.clear()));
+
+		this._register(this._themeService.onThemeChange(() => {
+			this.reset();
+		}));
+
+		const webviewConfigurationKeys = ['editor.fontFamily', 'editor.fontWeight', 'editor.fontSize'];
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (webviewConfigurationKeys.some(key => e.affectsConfiguration(key))) {
+				this.reset();
+			}
+		}));
+	}
+
+	public getTheme(): ITheme {
+		return this._themeService.getTheme();
 	}
 
 	@WebviewThemeDataProvider.MEMOIZER
@@ -55,6 +74,11 @@ export class WebviewThemeDataProvider extends Disposable {
 
 		const activeTheme = ApiThemeClassName.fromTheme(theme);
 		return { styles, activeTheme };
+	}
+
+	private reset() {
+		WebviewThemeDataProvider.MEMOIZER.clear();
+		this._onThemeDataChanged.fire();
 	}
 }
 

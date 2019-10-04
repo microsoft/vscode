@@ -12,7 +12,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
@@ -46,7 +45,6 @@ export class IFrameWebview extends Disposable implements Webview {
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
-		@IThemeService themeService: IThemeService,
 		@ITunnelService tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
@@ -148,7 +146,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		});
 
 		this.style();
-		this._register(themeService.onThemeChange(this.style, this));
+		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
 
 	private get externalEndpoint(): string {

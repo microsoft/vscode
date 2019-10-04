@@ -17,7 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
@@ -396,8 +396,8 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			}));
 		}
 
-		this.style(themeService.getTheme());
-		this._register(themeService.onThemeChange(this.style, this));
+		this.style();
+		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
 
 	public mountTo(parent: HTMLElement) {
@@ -557,12 +557,12 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 		this._send('message', data);
 	}
 
-	private style(theme: ITheme): void {
+	private style(): void {
 		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
 		this._send('styles', { styles, activeTheme });
 
 		if (this._webviewFindWidget) {
-			this._webviewFindWidget.updateTheme(theme);
+			this._webviewFindWidget.updateTheme(this.webviewThemeDataProvider.getTheme());
 		}
 	}
 
