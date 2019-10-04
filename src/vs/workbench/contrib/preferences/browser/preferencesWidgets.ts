@@ -632,13 +632,13 @@ export class SearchWidget extends Widget {
 		if (this.options.showResultCount) {
 			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
 			this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
-				const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-				const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+				const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+				const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
 				this.countElement.style.backgroundColor = background;
 
-				this.countElement.style.borderWidth = border ? '1px' : null;
-				this.countElement.style.borderStyle = border ? 'solid' : null;
+				this.countElement.style.borderWidth = border ? '1px' : '';
+				this.countElement.style.borderStyle = border ? 'solid' : '';
 				this.countElement.style.borderColor = border;
 
 				const color = this.themeService.getTheme().getColor(badgeForeground);

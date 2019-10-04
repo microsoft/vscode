@@ -156,12 +156,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			if (this.options.icon) {
 				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
-				this.label.style.backgroundColor = foreground ? foreground.toString() : null;
+				this.label.style.backgroundColor = foreground ? foreground.toString() : '';
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
 				this.label.style.color = foreground ? foreground.toString() : null;
-				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : null;
+				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
 			}
 		}
 
@@ -172,11 +172,11 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			const contrastBorderColor = theme.getColor(contrastBorder);
 
 			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : null;
-			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : null;
+			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : '';
 
-			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : null;
-			this.badgeContent.style.borderWidth = contrastBorderColor ? '1px' : null;
-			this.badgeContent.style.borderColor = contrastBorderColor ? contrastBorderColor.toString() : null;
+			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : '';
+			this.badgeContent.style.borderWidth = contrastBorderColor ? '1px' : '';
+			this.badgeContent.style.borderColor = contrastBorderColor ? contrastBorderColor.toString() : '';
 		}
 	}
 
@@ -563,7 +563,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		const theme = this.themeService.getTheme();
 		const dragBackground = this.options.colors(theme).dragAndDropBackground;
 
-		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : null;
+		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : '';
 	}
 
 	private showContextMenu(container: HTMLElement): void {

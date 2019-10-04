@@ -219,7 +219,7 @@ export class SimpleCheckbox extends Widget {
 
 	protected applyStyles(): void {
 		this.domNode.style.color = this.styles.checkboxForeground ? this.styles.checkboxForeground.toString() : null;
-		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : null;
-		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : null;
+		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : '';
+		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : '';
 	}
 }
