@@ -70,6 +70,7 @@
 	let ctrlPressed = false;
 	let altPressed = false;
 	let hasLoadedImage = false;
+	let firstClick = true;
 
 	// Elements
 	const container = document.body;
@@ -158,6 +159,11 @@
 		}
 
 		if (e.button !== 0) {
+			return;
+		}
+
+		if (firstClick) {
+			firstClick = false;
 			return;
 		}
 
