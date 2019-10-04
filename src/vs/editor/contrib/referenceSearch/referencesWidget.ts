@@ -158,8 +158,8 @@ class DecorationsManager implements IDisposable {
 }
 
 export class LayoutData {
-	ratio: number = 0.7;
-	heightInLines: number = 18;
+	public ratio: number = 0.7;
+	public heightInLines: number = 18;
 
 	static fromJSON(raw: string): LayoutData {
 		let ratio: number | undefined;
@@ -179,9 +179,9 @@ export class LayoutData {
 }
 
 export interface SelectionEvent {
-	kind: 'goto' | 'show' | 'side' | 'open';
-	source: 'editor' | 'tree' | 'title';
-	element?: Location;
+	readonly kind: 'goto' | 'show' | 'side' | 'open';
+	readonly source: 'editor' | 'tree' | 'title';
+	readonly element?: Location;
 }
 
 export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('referenceSearchTreeFocused', true);
