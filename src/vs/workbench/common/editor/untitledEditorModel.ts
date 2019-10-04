@@ -33,7 +33,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private dirty: boolean = false;
 	private versionId: number = 0;
 	private readonly contentChangeEventScheduler: RunOnceScheduler;
-	private configuredEncoding: string;
+	private configuredEncoding?: string;
 
 	constructor(
 		private readonly preferredMode: string,
@@ -87,7 +87,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.preferredMode;
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		return this.preferredEncoding || this.configuredEncoding;
 	}
 

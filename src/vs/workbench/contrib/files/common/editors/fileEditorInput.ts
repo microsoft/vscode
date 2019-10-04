@@ -31,8 +31,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private static readonly MEMOIZER = createMemoizer();
 
-	private preferredEncoding: string;
-	private preferredMode: string;
+	private preferredEncoding: string | undefined;
+	private preferredMode: string | undefined;
 
 	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
 
@@ -91,7 +91,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.resource;
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		const textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			return textModel.getEncoding();
@@ -100,7 +100,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.preferredEncoding;
 	}
 
-	getPreferredEncoding(): string {
+	getPreferredEncoding(): string | undefined {
 		return this.preferredEncoding;
 	}
 

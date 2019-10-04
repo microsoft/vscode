@@ -499,7 +499,7 @@ export interface IEncodingSupport {
 	/**
 	 * Gets the encoding of the input if known.
 	 */
-	getEncoding(): string;
+	getEncoding(): string | undefined;
 
 	/**
 	 * Sets the encoding for the input for saving.

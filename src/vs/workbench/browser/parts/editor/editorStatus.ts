@@ -54,7 +54,7 @@ import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatus
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		return this.master.getEncoding(); // always report from modified (right hand) side
 	}
 
@@ -352,7 +352,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
-		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
+		const picks: QuickPickInput<IQuickPickItem & { run(): void; }>[] = [
 			activeTextEditorWidget.getAction(IndentUsingSpaces.ID),
 			activeTextEditorWidget.getAction(IndentUsingTabs.ID),
 			activeTextEditorWidget.getAction(DetectIndentation.ID),
@@ -778,7 +778,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			const encodingSupport: IEncodingSupport | null = e.input ? toEditorWithEncodingSupport(e.input) : null;
 			if (encodingSupport) {
 				const rawEncoding = encodingSupport.getEncoding();
-				const encodingInfo = SUPPORTED_ENCODINGS[rawEncoding];
+				const encodingInfo = typeof rawEncoding === 'string' ? SUPPORTED_ENCODINGS[rawEncoding] : undefined;
 				if (encodingInfo) {
 					info.encoding = encodingInfo.labelShort; // if we have a label, take it from there
 				} else {

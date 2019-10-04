@@ -177,7 +177,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.getName();
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		if (this.cachedModel) {
 			return this.cachedModel.getEncoding();
 		}

@@ -992,7 +992,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	updatePreferredEncoding(encoding: string): void {
+	updatePreferredEncoding(encoding: string | undefined): void {
 		if (!this.isNewEncoding(encoding)) {
 			return;
 		}
@@ -1003,7 +1003,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this._onDidStateChange.fire(StateChange.ENCODING);
 	}
 
-	private isNewEncoding(encoding: string): boolean {
+	private isNewEncoding(encoding: string | undefined): boolean {
 		if (this.preferredEncoding === encoding) {
 			return false; // return early if the encoding is already the same
 		}
