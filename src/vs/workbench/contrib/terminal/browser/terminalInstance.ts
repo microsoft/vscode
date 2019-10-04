@@ -507,7 +507,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					return false;
 				});
 			}
-			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, this._processManager, this._configHelper);
+			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, xterm, this._processManager, this._configHelper);
 		});
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
