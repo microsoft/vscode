@@ -162,7 +162,7 @@
 		if (!isActive) {
 			isActive = true;
 			document.body.classList.add('ready');
-			return
+			return;
 		}
 
 		if (!image || !hasLoadedImage) {
