@@ -10,7 +10,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
 import 'vs/css!./media/referencesWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -66,7 +66,7 @@ class DecorationsManager implements IDisposable {
 		const model = this._editor.getModel();
 		if (model) {
 			for (const ref of this._model.groups) {
-				if (ref.uri.toString() === model.uri.toString()) {
+				if (isEqual(ref.uri, model.uri)) {
 					this._addDecorations(ref);
 					return;
 				}

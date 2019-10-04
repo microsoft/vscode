@@ -7,7 +7,7 @@ import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format } from 'vs/base/common/strings';
-import { extname, basename } from 'vs/base/common/resources';
+import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -794,7 +794,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		const activeControl = this.editorService.activeControl;
 		if (activeControl) {
 			const activeResource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
-			if (activeResource && activeResource.toString() === resource.toString()) {
+			if (activeResource && isEqual(activeResource, resource)) {
 				return this.onEncodingChange(activeControl); // only update if the encoding changed for the active resource
 			}
 		}

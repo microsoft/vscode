@@ -34,6 +34,7 @@ import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIV
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { isEqual } from 'vs/base/common/resources';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -387,7 +388,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		const oldFolder = this._folder;
 		const workspace = this.contextService.getWorkspace();
 		if (oldFolder) {
-			this._folder = workspace.folders.filter(folder => folder.uri.toString() === oldFolder.uri.toString())[0] || workspace.folders[0];
+			this._folder = workspace.folders.filter(folder => isEqual(folder.uri, oldFolder.uri))[0] || workspace.folders[0];
 		}
 		this._folder = this._folder ? this._folder : workspace.folders.length === 1 ? workspace.folders[0] : null;
 
@@ -440,7 +441,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: this.labelWithCount(folder.name, folderCount),
-					checked: this.folder && this.folder.uri.toString() === folder.uri.toString(),
+					checked: this.folder && isEqual(this.folder.uri, folder.uri),
 					enabled: true,
 					run: () => this._action.run(folder)
 				};
@@ -574,7 +575,7 @@ export class SettingsTargetsWidget extends Widget {
 		const isSameTarget = this.settingsTarget === settingsTarget ||
 			settingsTarget instanceof URI &&
 			this.settingsTarget instanceof URI &&
-			this.settingsTarget.toString() === settingsTarget.toString();
+			isEqual(this.settingsTarget, settingsTarget);
 
 		if (!isSameTarget) {
 			this.settingsTarget = settingsTarget;
