@@ -1410,6 +1410,12 @@
           ],
           "default": "committerdate",
           "description": "%config.branchSortOrder%"
+        },
+        "git.showCommitInput": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.showCommitInput%"
         }
       }
     },

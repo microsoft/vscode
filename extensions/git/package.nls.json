@@ -128,6 +128,7 @@
 	"config.openDiffOnClick": "Controls whether the diff editor should be opened when clicking a change. Otherwise the regular editor will be opened.",
 	"config.supportCancellation": "Controls whether a notification comes up when running the Sync action, which allows the user to cancel the operation.",
 	"config.branchSortOrder": "Controls the sort order for branches.",
+	"config.showCommitInput": "Controls whether to show the commit input in the Git source control panel.",
 	"colors.added": "Color for added resources.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",

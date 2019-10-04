@@ -700,6 +700,18 @@ export class Repository implements Disposable {
 		const onConfigListenerForBranchSortOrder = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchSortOrder', root));
 		onConfigListenerForBranchSortOrder(this.updateModelState, this, this.disposables);
 
+		const updateInputBoxVisibility = () => {
+			console.log('this is running!');
+			const config = workspace.getConfiguration('git', root);
+			const inputConfig = config.get<boolean>('showCommitInput');
+			this._sourceControl.inputBox.visible = (inputConfig === undefined) ? true : inputConfig;
+		};
+
+		const onConfigListenerForInputBoxVisibility = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.showCommitInput', root));
+		onConfigListenerForInputBoxVisibility(updateInputBoxVisibility, this, this.disposables);
+		updateInputBoxVisibility();
+
+
 		this.mergeGroup.hideWhenEmpty = true;
 
 		this.disposables.push(this.mergeGroup);
