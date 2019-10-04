@@ -701,7 +701,6 @@ export class Repository implements Disposable {
 		onConfigListenerForBranchSortOrder(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
-			console.log('this is running!');
 			const config = workspace.getConfiguration('git', root);
 			const inputConfig = config.get<boolean>('showCommitInput');
 			this._sourceControl.inputBox.visible = (inputConfig === undefined) ? true : inputConfig;
