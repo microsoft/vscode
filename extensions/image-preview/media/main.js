@@ -70,10 +70,15 @@
 	let ctrlPressed = false;
 	let altPressed = false;
 	let hasLoadedImage = false;
+	let isActive = false;
 
 	// Elements
 	const container = document.body;
 	const image = document.createElement('img');
+
+	function updateActive(active) {
+		isActive = active
+	}
 
 	function updateScale(newScale) {
 		if (!image || !hasLoadedImage || !image.parentElement) {
@@ -153,6 +158,13 @@
 	});
 
 	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
+		// Activate after first click.
+		if (!isActive) {
+			isActive = true;
+			document.body.classList.add('ready');
+			return
+		}
+
 		if (!image || !hasLoadedImage) {
 			return;
 		}
@@ -231,7 +243,6 @@
 		});
 
 		document.body.classList.remove('loading');
-		document.body.classList.add('ready');
 		document.body.append(image);
 
 		updateScale(scale);
