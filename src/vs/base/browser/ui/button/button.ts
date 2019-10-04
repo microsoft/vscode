@@ -79,7 +79,7 @@ export class Button extends Disposable {
 		this._register(DOM.addDisposableListener(this._element, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = false;
-			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+			if (this.enabled && (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
 				this._onDidClick.fire(e);
 				eventHandled = true;
 			} else if (event.equals(KeyCode.Escape)) {
