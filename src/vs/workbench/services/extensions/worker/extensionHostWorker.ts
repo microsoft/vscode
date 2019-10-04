@@ -35,9 +35,6 @@ self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 const nativeAddEventLister = addEventListener.bind(self);
 self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
 
-self.indexedDB.open = () => console.trace(`'indexedDB.open' has been blocked`);
-self.caches.open = () => console.trace(`'indexedDB.caches' has been blocked`);
-
 //#endregion ---
 
 const hostUtil = new class implements IHostUtils {
