@@ -411,3 +411,23 @@ export class Limiter<T> {
 		}
 	}
 }
+
+export function isGitCryptEncrypted(buf: Buffer) {
+	// \0GITCRYPT\0 is a magic word at the beginning of encrypted files
+	return buf.length >= 10 && buf.toString().startsWith('\u0000GITCRYPT\u0000');
+}
+
+export async function decryptGitCrypt(buf: Buffer, cwd: string): Promise<Buffer> {
+	const c = cp.spawn('git-crypt', ['smudge'], { cwd });
+	c.stdin.write(buf);
+	c.stdin.end();
+	let buffer = await readBytes(c.stdout, 4100);
+
+	try {
+		c.kill();
+	} catch (err) {
+		// noop
+	}
+
+	return buffer;
+}

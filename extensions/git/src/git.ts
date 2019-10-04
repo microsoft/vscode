@@ -11,7 +11,7 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
-import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
+import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, isGitCryptEncrypted, decryptGitCrypt } from './util';
 import { CancellationToken } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
@@ -778,7 +778,11 @@ export class Repository {
 			return Promise.reject<Buffer>('Can\'t open file from git');
 		}
 
-		const { exitCode, stdout, stderr } = await exec(child);
+		let { exitCode, stdout, stderr } = await exec(child);
+
+		if (isGitCryptEncrypted(stdout)) {
+			stdout = await decryptGitCrypt(stdout, this.repositoryRoot);
+		}
 
 		if (exitCode) {
 			const err = new GitError({
@@ -846,12 +850,16 @@ export class Repository {
 
 	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
 		const child = await this.stream(['show', object]);
-		const buffer = await readBytes(child.stdout, 4100);
+		let buffer = await readBytes(child.stdout, 4100);
 
 		try {
 			child.kill();
 		} catch (err) {
 			// noop
+		}
+
+		if (isGitCryptEncrypted(buffer)) {
+			buffer = await decryptGitCrypt(buffer, this.repositoryRoot);
 		}
 
 		const encoding = detectUnicodeEncoding(buffer);
