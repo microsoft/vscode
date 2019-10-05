@@ -247,7 +247,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		this.createGlobalActivityActionBar(globalActivities);
 
-		this.element.style.display = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? null : 'none';
+		this.element.style.display = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? '' : 'none';
 
 		return this.content;
 	}
@@ -257,18 +257,18 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Part container
 		const container = assertIsDefined(this.getContainer());
-		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
+		const background = this.getColor(ACTIVITY_BAR_BACKGROUND) || '';
 		container.style.backgroundColor = background;
 
-		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
+		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder) || '';
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
 		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : '';
-		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
-		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
-		container.style.borderRightColor = isPositionLeft ? borderColor : null;
-		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : null;
-		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : null;
-		container.style.borderLeftColor = !isPositionLeft ? borderColor : null;
+		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '';
+		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : '';
+		container.style.borderRightColor = isPositionLeft ? borderColor : '';
+		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
+		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
+		container.style.borderLeftColor = !isPositionLeft ? borderColor : '';
 	}
 
 	private getActivitybarItemColors(theme: ITheme): ICompositeBarColors {
@@ -421,7 +421,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	setVisible(visible: boolean): void {
 		if (this.element) {
-			this.element.style.display = visible ? null : 'none';
+			this.element.style.display = visible ? '' : 'none';
 		}
 	}
 
