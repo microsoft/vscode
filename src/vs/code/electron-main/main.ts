@@ -299,7 +299,7 @@ class CodeMain {
 			await launchService.start(environmentService.args, process.env as platform.IProcessEnvironment);
 
 			// Cleanup
-			await client.dispose();
+			client.dispose();
 
 			// Now that we started, make sure the warning dialog is prevented
 			if (startupWarningDialogHandle) {
