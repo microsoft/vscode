@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, shell, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app } from 'electron';
 import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -21,7 +21,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export interface IElectronMainService extends AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number /* window ID */> { }
+export interface IElectronMainService extends AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const IElectronMainService = createDecorator<IElectronService>('electronMainService');
 
@@ -67,11 +67,11 @@ export class ElectronMainService implements IElectronMainService {
 		}));
 	}
 
-	async getWindowCount(windowId: number): Promise<number> {
+	async getWindowCount(windowId: number | undefined): Promise<number> {
 		return this.windowsMainService.getWindowCount();
 	}
 
-	async getActiveWindowId(windowId: number): Promise<number | undefined> {
+	async getActiveWindowId(windowId: number | undefined): Promise<number | undefined> {
 		const activeWindow = BrowserWindow.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 		if (activeWindow) {
 			return activeWindow.id;
@@ -80,9 +80,9 @@ export class ElectronMainService implements IElectronMainService {
 		return undefined;
 	}
 
-	openWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void>;
-	openWindow(windowId: number, toOpen: IWindowOpenable[], options?: INativeOpenWindowOptions): Promise<void>;
-	openWindow(windowId: number, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: INativeOpenWindowOptions): Promise<void> {
+	openWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options?: INativeOpenWindowOptions): Promise<void>;
+	openWindow(windowId: number | undefined, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: INativeOpenWindowOptions): Promise<void> {
 		if (Array.isArray(arg1)) {
 			return this.doOpenWindow(windowId, arg1, arg2);
 		}
@@ -90,7 +90,7 @@ export class ElectronMainService implements IElectronMainService {
 		return this.doOpenEmptyWindow(windowId, arg1);
 	}
 
-	private async doOpenWindow(windowId: number, toOpen: IWindowOpenable[], options: INativeOpenWindowOptions = Object.create(null)): Promise<void> {
+	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: INativeOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
 			this.windowsMainService.open({
 				context: OpenContext.API,
@@ -108,26 +108,26 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	private async doOpenEmptyWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void> {
+	private async doOpenEmptyWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void> {
 		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
 
-	async toggleFullScreen(windowId: number): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async toggleFullScreen(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			window.toggleFullScreen();
 		}
 	}
 
-	async handleTitleDoubleClick(windowId: number): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			window.handleTitleDoubleClick();
 		}
 	}
 
-	async isMaximized(windowId: number): Promise<boolean> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async isMaximized(windowId: number | undefined): Promise<boolean> {
+		const window = this.windowById(windowId);
 		if (window) {
 			return window.win.isMaximized();
 		}
@@ -135,29 +135,29 @@ export class ElectronMainService implements IElectronMainService {
 		return false;
 	}
 
-	async maximizeWindow(windowId: number): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async maximizeWindow(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			window.win.maximize();
 		}
 	}
 
-	async unmaximizeWindow(windowId: number): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async unmaximizeWindow(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			window.win.unmaximize();
 		}
 	}
 
-	async minimizeWindow(windowId: number): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async minimizeWindow(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			window.win.minimize();
 		}
 	}
 
-	async isWindowFocused(windowId: number): Promise<boolean> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async isWindowFocused(windowId: number | undefined): Promise<boolean> {
+		const window = this.windowById(windowId);
 		if (window) {
 			return window.win.isFocused();
 		}
@@ -165,12 +165,12 @@ export class ElectronMainService implements IElectronMainService {
 		return false;
 	}
 
-	async focusWindow(windowId: number, options?: { windowId?: number; }): Promise<void> {
+	async focusWindow(windowId: number | undefined, options?: { windowId?: number; }): Promise<void> {
 		if (options && typeof options.windowId === 'number') {
 			windowId = options.windowId;
 		}
 
-		const window = this.windowsMainService.getWindowById(windowId);
+		const window = this.windowById(windowId);
 		if (window) {
 			if (isMacintosh) {
 				window.win.show();
@@ -184,20 +184,20 @@ export class ElectronMainService implements IElectronMainService {
 
 	//#region Dialog
 
-	async showMessageBox(windowId: number, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
+	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
 		return this.dialogMainService.showMessageBox(options, this.toBrowserWindow(windowId));
 	}
 
-	async showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
+	async showSaveDialog(windowId: number | undefined, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
 		return this.dialogMainService.showSaveDialog(options, this.toBrowserWindow(windowId));
 	}
 
-	async showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
+	async showOpenDialog(windowId: number | undefined, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
 		return this.dialogMainService.showOpenDialog(options, this.toBrowserWindow(windowId));
 	}
 
-	private toBrowserWindow(windowId: number): BrowserWindow | undefined {
-		const window = this.windowsMainService.getWindowById(windowId);
+	private toBrowserWindow(windowId: number | undefined): BrowserWindow | undefined {
+		const window = this.windowById(windowId);
 		if (window) {
 			return window.win;
 		}
@@ -205,7 +205,7 @@ export class ElectronMainService implements IElectronMainService {
 		return undefined;
 	}
 
-	async pickFileFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
+	async pickFileFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFileFolder(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
@@ -213,7 +213,7 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	async pickFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
+	async pickFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFolder(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFolder', options.telemetryExtraData);
@@ -221,7 +221,7 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	async pickFileAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
+	async pickFileAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFile(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFile', options.telemetryExtraData);
@@ -229,7 +229,7 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	async pickWorkspaceAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
+	async pickWorkspaceAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickWorkspace(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openWorkspace', options.telemetryExtraData);
@@ -237,7 +237,7 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	private doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number): void {
+	private doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number | undefined): void {
 		this.windowsMainService.open({
 			context: OpenContext.DIALOG,
 			contextWindowId: windowId,
@@ -263,32 +263,32 @@ export class ElectronMainService implements IElectronMainService {
 
 	//#region OS
 
-	async showItemInFolder(windowId: number, path: string): Promise<void> {
+	async showItemInFolder(windowId: number | undefined, path: string): Promise<void> {
 		shell.showItemInFolder(path);
 	}
 
-	async setRepresentedFilename(windowId: number, path: string): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async setRepresentedFilename(windowId: number | undefined, path: string): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			window.setRepresentedFilename(path);
 		}
 	}
 
-	async setDocumentEdited(windowId: number, edited: boolean): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async setDocumentEdited(windowId: number | undefined, edited: boolean): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			window.win.setDocumentEdited(edited);
 		}
 	}
 
-	async openExternal(windowId: number, url: string): Promise<boolean> {
+	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
 		shell.openExternal(url);
 
 		return true;
 	}
 
-	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			window.updateTouchBar(items);
 		}
@@ -326,35 +326,48 @@ export class ElectronMainService implements IElectronMainService {
 
 	//#region Lifecycle
 
-	async relaunch(windowId: number, options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
+	async relaunch(windowId: number | undefined, options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
 		return this.lifecycleMainService.relaunch(options);
 	}
 
-	async reload(windowId: number, options?: { disableExtensions?: boolean }): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
-			return this.windowsMainService.reload(window, options && options.disableExtensions ? { _: [], 'disable-extensions': true } : undefined);
+			return this.lifecycleMainService.reload(window, options && options.disableExtensions ? { _: [], 'disable-extensions': true } : undefined);
 		}
 	}
 
-	async closeWindow(windowId: number): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async closeWindow(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			return window.win.close();
 		}
 	}
 
-	async quit(windowId: number): Promise<void> {
-		return this.windowsMainService.quit();
+	async quit(windowId: number | undefined): Promise<void> {
+
+		// If the user selected to exit from an extension development host window, do not quit, but just
+		// close the window unless this is the last window that is opened.
+		const window = this.windowsMainService.getLastActiveWindow();
+		if (window && window.isExtensionDevelopmentHost && this.windowsMainService.getWindowCount() > 1) {
+			window.win.close();
+		}
+
+		// Otherwise: normal quit
+		else {
+			setTimeout(() => {
+				this.lifecycleMainService.quit();
+			}, 10 /* delay to unwind callback stack (IPC) */);
+		}
 	}
 
 	//#endregion
 
 	//#region Connectivity
 
-	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {
+	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
 		return new Promise(resolve => {
-			const window = this.windowsMainService.getWindowById(windowId);
+			const window = this.windowById(windowId);
 			if (window && window.win && window.win.webContents && window.win.webContents.session) {
 				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
 			} else {
@@ -367,15 +380,15 @@ export class ElectronMainService implements IElectronMainService {
 
 	//#region Development
 
-	async openDevTools(windowId: number, options?: OpenDevToolsOptions): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			window.win.webContents.openDevTools(options);
 		}
 	}
 
-	async toggleDevTools(windowId: number): Promise<void> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async toggleDevTools(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
 		if (window) {
 			const contents = window.win.webContents;
 			if (isMacintosh && window.hasHiddenTitleBarStyle() && !window.isFullScreen() && !contents.isDevToolsOpened()) {
@@ -386,7 +399,7 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	async startCrashReporter(windowId: number, options: CrashReporterStartOptions): Promise<void> {
+	async startCrashReporter(windowId: number | undefined, options: CrashReporterStartOptions): Promise<void> {
 		crashReporter.start(options);
 	}
 
@@ -396,7 +409,7 @@ export class ElectronMainService implements IElectronMainService {
 
 	// TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
 
-	async openExtensionDevelopmentHostWindow(windowId: number, args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+	async openExtensionDevelopmentHostWindow(windowId: number | undefined, args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		const extDevPaths = args.extensionDevelopmentPath;
 		if (extDevPaths) {
 			this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
@@ -408,4 +421,12 @@ export class ElectronMainService implements IElectronMainService {
 	}
 
 	//#endregion
+
+	private windowById(windowId: number | undefined): ICodeWindow | undefined {
+		if (typeof windowId !== 'number') {
+			return undefined;
+		}
+
+		return this.windowsMainService.getWindowById(windowId);
+	}
 }

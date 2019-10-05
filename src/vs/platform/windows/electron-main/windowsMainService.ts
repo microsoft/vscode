@@ -369,6 +369,19 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		};
 	}
 
+	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
+		let cli = this.environmentService.args;
+		const remote = options && options.remoteAuthority;
+		if (cli && (cli.remote !== remote)) {
+			cli = { ...cli, remote };
+		}
+
+		const forceReuseWindow = options && options.forceReuseWindow;
+		const forceNewWindow = !forceReuseWindow;
+
+		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
+	}
+
 	open(openConfig: IOpenConfiguration): ICodeWindow[] {
 		this.logService.trace('windowsManager#open');
 		openConfig = this.validateOpenConfig(openConfig);
@@ -1218,7 +1231,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// on the same extension path.
 		const existingWindow = findWindowOnExtensionDevelopmentPath(WindowsMainService.WINDOWS, extensionDevelopmentPath);
 		if (existingWindow) {
-			this.reload(existingWindow, openConfig.cli);
+			this.lifecycleMainService.reload(existingWindow, openConfig.cli);
 			existingWindow.focus(); // make sure it gets focus and is restored
 
 			return [existingWindow];
@@ -1399,7 +1412,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			once(window.onClose)(() => this.onWindowClosed(window!));
 			once(window.onDestroy)(() => this.onBeforeWindowClose(window!)); // try to save state before destroy because close will not fire
 			window.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
-			window.win.webContents.on('devtools-reload-page', () => this.reload(window!));
+			window.win.webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(window!));
 
 			// Lifecycle
 			(this.lifecycleMainService as LifecycleMainService).registerWindow(window);
@@ -1586,15 +1599,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return state;
 	}
 
-	async reload(win: ICodeWindow, cli?: ParsedArgs): Promise<void> {
-
-		// Only reload when the window has not vetoed this
-		const veto = await this.lifecycleMainService.unload(win, UnloadReason.RELOAD);
-		if (!veto) {
-			win.reload(undefined, cli);
-		}
-	}
-
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
@@ -1613,19 +1617,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private getLastActiveWindowForAuthority(remoteAuthority: string | undefined): ICodeWindow | undefined {
 		return getLastActiveWindow(WindowsMainService.WINDOWS.filter(window => window.remoteAuthority === remoteAuthority));
-	}
-
-	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
-		let cli = this.environmentService.args;
-		const remote = options && options.remoteAuthority;
-		if (cli && (cli.remote !== remote)) {
-			cli = { ...cli, remote };
-		}
-
-		const forceReuseWindow = options && options.forceReuseWindow;
-		const forceNewWindow = !forceReuseWindow;
-
-		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
 	}
 
 	sendToFocused(channel: string, ...args: any[]): void {
@@ -1657,6 +1648,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	getWindowById(windowId: number): ICodeWindow | undefined {
 		const res = WindowsMainService.WINDOWS.filter(window => window.id === windowId);
+
 		return arrays.firstOrDefault(res);
 	}
 
@@ -1677,22 +1669,5 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Emit
 		this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length + 1, newCount: WindowsMainService.WINDOWS.length });
 		this._onWindowClose.fire(win.id);
-	}
-
-	quit(): void {
-
-		// If the user selected to exit from an extension development host window, do not quit, but just
-		// close the window unless this is the last window that is opened.
-		const window = this.getFocusedWindow();
-		if (window && window.isExtensionDevelopmentHost && this.getWindowCount() > 1) {
-			window.win.close();
-		}
-
-		// Otherwise: normal quit
-		else {
-			setTimeout(() => {
-				this.lifecycleMainService.quit();
-			}, 10 /* delay to unwind callback stack (IPC) */);
-		}
 	}
 }
