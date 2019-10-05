@@ -529,6 +529,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (focusTheEditor) {
 				this._codeEditor.focus();
 			}
+
+			this._state.change({ isReplaceRevealed: false }, false);
+			this._tryUpdateHeight();
+
 			this._codeEditor.layoutOverlayWidget(this);
 			this._removeViewZone();
 		}
