@@ -280,7 +280,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private createGlobalActivityActionBar(container: HTMLElement): void {
 		this.globalActivityActionBar = this._register(new ActionBar(container, {
-			actionViewItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionViewItem, a, (theme: ITheme) => this.getActivitybarItemColors(theme)),
+			actionViewItemProvider: action => this.instantiationService.createInstance(GlobalActivityActionViewItem, action, (theme: ITheme) => this.getActivitybarItemColors(theme)),
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('manage', "Manage"),
 			animated: false

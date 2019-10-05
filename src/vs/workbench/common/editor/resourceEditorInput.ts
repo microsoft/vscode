@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { basename } from 'vs/base/common/resources';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
@@ -21,7 +22,7 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 	private modelReference: Promise<IReference<ITextEditorModel>> | null = null;
 
 	constructor(
-		private name: string,
+		private name: string | undefined,
 		private description: string | undefined,
 		private readonly resource: URI,
 		private preferredMode: string | undefined,
@@ -43,7 +44,7 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 	}
 
 	getName(): string {
-		return this.name;
+		return this.name || basename(this.resource);
 	}
 
 	setName(name: string): void {

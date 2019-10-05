@@ -6,7 +6,7 @@
 import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
+import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/product/common/product';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
@@ -132,7 +132,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(args: ParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, typeof process.env] {
+	private createServices(args: ParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment] {
 		const services = new ServiceCollection();
 
 		const environmentService = new EnvironmentService(args, process.execPath);
@@ -174,16 +174,17 @@ class CodeMain {
 		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateServiceInitialization]);
 	}
 
-	private patchEnvironment(environmentService: IEnvironmentService): typeof process.env {
-		const instanceEnvironment: typeof process.env = {
-			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
-			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG'],
-			VSCODE_LOGS: process.env['VSCODE_LOGS']
+	private patchEnvironment(environmentService: IEnvironmentService): IProcessEnvironment {
+		const instanceEnvironment: IProcessEnvironment = {
+			VSCODE_IPC_HOOK: environmentService.mainIPCHandle
 		};
 
-		if (process.env['VSCODE_PORTABLE']) {
-			instanceEnvironment['VSCODE_PORTABLE'] = process.env['VSCODE_PORTABLE'];
-		}
+		['VSCODE_NLS_CONFIG', 'VSCODE_LOGS', 'VSCODE_PORTABLE'].forEach(key => {
+			const value = process.env[key];
+			if (typeof value === 'string') {
+				instanceEnvironment[key] = value;
+			}
+		});
 
 		assign(process.env, instanceEnvironment);
 
@@ -213,7 +214,7 @@ class CodeMain {
 			}
 
 			// Since we are the second instance, we do not want to show the dock
-			if (platform.isMacintosh) {
+			if (isMacintosh) {
 				app.dock.hide();
 			}
 
@@ -224,7 +225,7 @@ class CodeMain {
 			} catch (error) {
 
 				// Handle unexpected connection errors by showing a dialog to the user
-				if (!retry || platform.isWindows || error.code !== 'ECONNREFUSED') {
+				if (!retry || isWindows || error.code !== 'ECONNREFUSED') {
 					if (error.code === 'EPERM') {
 						this.showStartupWarningDialog(
 							localize('secondInstanceAdmin', "A second instance of {0} is already running as administrator.", product.nameShort),
@@ -290,13 +291,13 @@ class CodeMain {
 			}
 
 			// Windows: allow to set foreground
-			if (platform.isWindows) {
+			if (isWindows) {
 				await this.windowsAllowSetForegroundWindow(launchService, logService);
 			}
 
 			// Send environment over...
 			logService.trace('Sending env to running instance...');
-			await launchService.start(environmentService.args, process.env as platform.IProcessEnvironment);
+			await launchService.start(environmentService.args, process.env as IProcessEnvironment);
 
 			// Cleanup
 			client.dispose();
@@ -317,7 +318,7 @@ class CodeMain {
 		}
 
 		// dock might be hidden at this case due to a retry
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			app.dock.show();
 		}
 
@@ -359,7 +360,7 @@ class CodeMain {
 	}
 
 	private async windowsAllowSetForegroundWindow(launchService: ILaunchMainService, logService: ILogService): Promise<void> {
-		if (platform.isWindows) {
+		if (isWindows) {
 			const processId = await launchService.getMainProcessId();
 
 			logService.trace('Sending some foreground love to the running instance:', processId);

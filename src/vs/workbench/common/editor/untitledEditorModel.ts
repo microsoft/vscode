@@ -36,7 +36,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private configuredEncoding?: string;
 
 	constructor(
-		private readonly preferredMode: string,
+		private readonly preferredMode: string | undefined,
 		private readonly resource: URI,
 		private _hasAssociatedFilePath: boolean,
 		private readonly initialValue: string | undefined,
