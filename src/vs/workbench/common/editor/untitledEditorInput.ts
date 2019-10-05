@@ -36,8 +36,8 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		private readonly resource: URI,
 		private readonly _hasAssociatedFilePath: boolean,
 		private preferredMode: string,
-		private readonly initialValue: string,
-		private preferredEncoding: string,
+		private readonly initialValue: string | undefined,
+		private preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILabelService private readonly labelService: ILabelService

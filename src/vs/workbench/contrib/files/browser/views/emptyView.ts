@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -84,8 +83,9 @@ export class EmptyView extends ViewletPanel {
 			if (!this.actionRunner) {
 				return;
 			}
-			const actionClass = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? AddRootFolderAction : OpenFolderAction;
-			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
+			const action = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE
+				? this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL)
+				: this.instantiationService.createInstance(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL);
 			this.actionRunner.run(action).then(() => {
 				action.dispose();
 			}, err => {

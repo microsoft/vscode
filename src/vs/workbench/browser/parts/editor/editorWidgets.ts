@@ -31,7 +31,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	constructor(
 		private editor: ICodeEditor,
 		private label: string,
-		keyBindingAction: string,
+		keyBindingAction: string | null,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
