@@ -130,6 +130,11 @@
 		updateScale(scale);
 	}
 
+	window.addEventListener('blur', (/** @type {MouseEvent} */) => {
+		isActive = false;
+		document.body.classList.remove('ready');
+	});
+
 	window.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
 		if (!image || !hasLoadedImage) {
 			return;
