@@ -312,16 +312,7 @@ async function getMarkdownOptions(md: () => MarkdownIt) {
 	return {
 		html: true,
 		highlight: (str: string, lang?: string) => {
-			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
-			if (lang && ['tsx', 'typescriptreact'].includes(lang.toLocaleLowerCase())) {
-				lang = 'jsx';
-			}
-			if (lang && lang.toLocaleLowerCase() === 'json5') {
-				lang = 'json';
-			}
-			if (lang && ['c#', 'csharp'].includes(lang.toLocaleLowerCase())) {
-				lang = 'cs';
-			}
+			lang = normalizeHighlightLang(lang);
 			if (lang && hljs.getLanguage(lang)) {
 				try {
 					return `<div>${hljs.highlight(lang, str, true).value}</div>`;
@@ -332,3 +323,24 @@ async function getMarkdownOptions(md: () => MarkdownIt) {
 		}
 	};
 }
+
+function normalizeHighlightLang(lang: string | undefined) {
+	switch (lang && lang.toLowerCase()) {
+		case 'tsx':
+		case 'typescriptreact':
+			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
+			return 'jsx';
+
+		case 'json5':
+		case 'jsonc':
+			return 'json';
+
+		case 'c#':
+		case 'csharp':
+			return 'cs';
+
+		default:
+			return lang;
+	}
+}
+
