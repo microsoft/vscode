@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as crypto from 'crypto';
-import { MarkdownIt, Token } from 'markdown-it';
 import * as path from 'path';
+import { MarkdownIt, Token } from 'markdown-it';
 import * as vscode from 'vscode';
 import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
-import { getUriForLinkWithKnownExternalScheme } from './util/links';
+import { Schemes, isOfScheme } from './util/links';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -105,10 +105,10 @@ export class MarkdownEngine {
 
 				this.addImageStabilizer(md);
 				this.addFencedRenderer(md);
-
 				this.addLinkNormalizer(md);
 				this.addLinkValidator(md);
 				this.addNamedHeaders(md);
+				this.addLinkRenderer(md);
 				return md;
 			});
 		}
@@ -143,6 +143,7 @@ export class MarkdownEngine {
 	public async render(input: SkinnyTextDocument | string): Promise<string> {
 		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this.getEngine(config);
+
 		const tokens = typeof input === 'string'
 			? this.tokenizeString(input, engine)
 			: this.tokenizeDocument(input, config, engine);
@@ -226,36 +227,28 @@ export class MarkdownEngine {
 		const normalizeLink = md.normalizeLink;
 		md.normalizeLink = (link: string) => {
 			try {
-				const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
-				if (externalSchemeUri) {
-					// set true to skip encoding
-					return normalizeLink(externalSchemeUri.toString(true));
-				}
+				// If original link doesn't look like a url with a scheme, assume it must be a link to a file in workspace
+				if (!/^[a-z\-]+:/i.test(link)) {
+					// Use a fake scheme for parsing
+					let uri = vscode.Uri.parse('markdown-link:' + link);
 
-				// Assume it must be an relative or absolute file path
-				// Use a fake scheme to avoid parse warnings
-				let uri = vscode.Uri.parse(`vscode-resource:${link}`);
-
-				if (uri.path) {
-					// Assume it must be a file
-					const fragment = uri.fragment;
+					// Relative paths should be resolved correctly inside the preview but we need to
+					// handle absolute paths specially (for images) to resolve them relative to the workspace root
 					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument!);
 						if (root) {
-							uri = vscode.Uri.file(path.join(root.uri.fsPath, uri.path));
+							uri = uri.with({
+								path: path.join(root.uri.fsPath, uri.path),
+							});
 						}
-					} else {
-						uri = vscode.Uri.file(path.join(path.dirname(this.currentDocument!.path), uri.path));
 					}
 
-					if (fragment) {
+					if (uri.fragment) {
 						uri = uri.with({
-							fragment: this.slugifier.fromHeading(fragment).value
+							fragment: this.slugifier.fromHeading(uri.fragment).value
 						});
 					}
-					return normalizeLink(uri.with({ scheme: 'vscode-resource' }).toString(true));
-				} else if (!uri.path && uri.fragment) {
-					return `#${this.slugifier.fromHeading(uri.fragment).value}`;
+					return normalizeLink(uri.toString(true).replace(/^markdown-link:/, ''));
 				}
 			} catch (e) {
 				// noop
@@ -268,7 +261,7 @@ export class MarkdownEngine {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
 			// support file:// links
-			return validateLink(link) || link.startsWith('file:') || /^data:image\/.*?;/.test(link);
+			return validateLink(link) || isOfScheme(Schemes.file, link) || /^data:image\/.*?;/.test(link);
 		};
 	}
 
@@ -294,6 +287,22 @@ export class MarkdownEngine {
 			} else {
 				return self.renderToken(tokens, idx, options, env, self);
 			}
+		};
+	}
+
+	private addLinkRenderer(md: any): void {
+		const old_render = md.renderer.rules.link_open || ((tokens: any, idx: number, options: any, _env: any, self: any) => {
+			return self.renderToken(tokens, idx, options);
+		});
+
+		md.renderer.rules.link_open = (tokens: any, idx: number, options: any, env: any, self: any) => {
+			const token = tokens[idx];
+			const hrefIndex = token.attrIndex('href');
+			if (hrefIndex >= 0) {
+				const href = token.attrs[hrefIndex][1];
+				token.attrPush(['data-href', href]);
+			}
+			return old_render(tokens, idx, options, env, self);
 		};
 	}
 }

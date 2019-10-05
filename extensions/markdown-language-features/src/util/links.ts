@@ -5,14 +5,30 @@
 
 import * as vscode from 'vscode';
 
-const knownSchemes = ['http:', 'https:', 'file:', 'mailto:', 'data:', `${vscode.env.uriScheme}:`, 'vscode:', 'vscode-insiders:', 'vscode-resource:'];
+export const Schemes = {
+	http: 'http:',
+	https: 'https:',
+	file: 'file:',
+	mailto: 'mailto:',
+	data: 'data:',
+	vscode: 'vscode:',
+	'vscode-insiders': 'vscode-insiders:',
+	'vscode-resource': 'vscode-resource',
+} as const;
 
-export function getUriForLinkWithKnownExternalScheme(
-	link: string,
-): vscode.Uri | undefined {
-	if (knownSchemes.some(knownScheme => link.toLowerCase().startsWith(knownScheme))) {
+const knownSchemes = [
+	...Object.values(Schemes),
+	`${vscode.env.uriScheme}:`
+] as const;
+
+export function getUriForLinkWithKnownExternalScheme(link: string): vscode.Uri | undefined {
+	if (knownSchemes.some(knownScheme => isOfScheme(knownScheme, link))) {
 		return vscode.Uri.parse(link);
 	}
 
 	return undefined;
+}
+
+export function isOfScheme(scheme: string, link: string): boolean {
+	return link.toLowerCase().startsWith(scheme);
 }
