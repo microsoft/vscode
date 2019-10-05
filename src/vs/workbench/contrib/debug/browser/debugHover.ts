@@ -94,12 +94,12 @@ export class DebugHoverWidget implements IContentWidget {
 			if (colors.editorHoverBackground) {
 				this.domNode.style.backgroundColor = colors.editorHoverBackground.toString();
 			} else {
-				this.domNode.style.backgroundColor = null;
+				this.domNode.style.backgroundColor = '';
 			}
 			if (colors.editorHoverBorder) {
 				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
 			} else {
-				this.domNode.style.border = null;
+				this.domNode.style.border = '';
 			}
 		}));
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
