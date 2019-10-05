@@ -10,6 +10,7 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { request } from 'vs/base/parts/request/browser/request';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { isEqual } from 'vs/base/common/resources';
 
 interface ICredential {
 	service: string;
@@ -203,9 +204,12 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	constructor(public readonly workspace: IWorkspace) { }
 
 	async open(workspace: IWorkspace, options?: { reuse?: boolean }): Promise<void> {
-		let targetHref: string | undefined = undefined;
+		if (options && options.reuse && this.isSame(this.workspace, workspace)) {
+			return; // return early if workspace is not changing and we are reusing window
+		}
 
 		// Empty
+		let targetHref: string | undefined = undefined;
 		if (!workspace) {
 			targetHref = `${document.location.origin}${document.location.pathname}?ew=true`;
 		}
@@ -227,6 +231,22 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				window.open(targetHref);
 			}
 		}
+	}
+
+	private isSame(workspaceA: IWorkspace, workspaceB: IWorkspace): boolean {
+		if (!workspaceA || !workspaceB) {
+			return workspaceA === workspaceB; // both empty
+		}
+
+		if (isFolderToOpen(workspaceA) && isFolderToOpen(workspaceB)) {
+			return isEqual(workspaceA.folderUri, workspaceB.folderUri); // same workspace
+		}
+
+		if (isWorkspaceToOpen(workspaceA) && isWorkspaceToOpen(workspaceB)) {
+			return isEqual(workspaceA.workspaceUri, workspaceB.workspaceUri); // same workspace
+		}
+
+		return false;
 	}
 }
 
