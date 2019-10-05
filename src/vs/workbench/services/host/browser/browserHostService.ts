@@ -193,10 +193,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 	async reload(): Promise<void> {
 		window.location.reload();
 	}
-
-	async closeWorkspace(): Promise<void> {
-		return this.doOpenEmptyWindow({ forceReuseWindow: true });
-	}
 }
 
 registerSingleton(IHostService, BrowserHostService, true);

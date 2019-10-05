@@ -103,8 +103,6 @@ export interface IWindowsMainService {
 	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
-	closeWorkspace(win: ICodeWindow): void;
-
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
 
 	sendToFocused(channel: string, ...args: any[]): void;

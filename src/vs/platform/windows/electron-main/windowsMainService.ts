@@ -1595,14 +1595,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 	}
 
-	closeWorkspace(win: ICodeWindow): void {
-		this.openInBrowserWindow({
-			cli: this.environmentService.args,
-			windowToUse: win,
-			remoteAuthority: win.remoteAuthority
-		});
-	}
-
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
