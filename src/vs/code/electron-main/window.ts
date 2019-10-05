@@ -6,6 +6,7 @@
 import * as path from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
+import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment } from 'electron';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -27,6 +28,9 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { endsWith } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -48,12 +52,23 @@ interface ITouchBarSegment extends SegmentedControlSegment {
 	id: string;
 }
 
+const enum WindowError {
+	UNRESPONSIVE = 1,
+	CRASHED = 2
+}
+
 export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly MIN_WIDTH = 200;
 	private static readonly MIN_HEIGHT = 120;
 
 	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
+
+	private readonly _onClose = this._register(new Emitter<void>());
+	readonly onClose: CommonEvent<void> = this._onClose.event;
+
+	private readonly _onDestroy = this._register(new Emitter<void>());
+	readonly onDestroy: CommonEvent<void> = this._onDestroy.event;
 
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: NodeJS.Timeout;
@@ -83,6 +98,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		super();
 
@@ -327,6 +344,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private registerListeners(): void {
 
+		// Crashes & Unrsponsive
+		this._win.webContents.on('crashed', () => this.onWindowError(WindowError.CRASHED));
+		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
+
+		// Window close
+		this._win.on('closed', () => this._onClose.fire());
+
 		// Prevent loading of svgs
 		this._win.webContents.session.webRequest.onBeforeRequest(null!, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
@@ -430,6 +454,78 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Handle Workspace events
 		this._register(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+	}
+
+	private onWindowError(error: WindowError): void {
+		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
+
+		type WindowErrorClassification = {
+			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+		};
+		type WindowErrorEvent = {
+			type: WindowError;
+		};
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type: error });
+
+		// Unresponsive
+		if (error === WindowError.UNRESPONSIVE) {
+			if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
+				// TODO@Ben Workaround for https://github.com/Microsoft/vscode/issues/56994
+				// In certain cases the window can report unresponsiveness because a breakpoint was hit
+				// and the process is stopped executing. The most typical cases are:
+				// - devtools are opened and debugging happens
+				// - window is an extensions development host that is being debugged
+				// - window is an extension test development host that is being debugged
+				return;
+			}
+
+			// Show Dialog
+			this.dialogMainService.showMessageBox({
+				title: product.nameLong,
+				type: 'warning',
+				buttons: [mnemonicButtonLabel(nls.localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(nls.localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(nls.localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
+				message: nls.localize('appStalled', "The window is no longer responding"),
+				detail: nls.localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
+				noLink: true
+			}, this._win).then(result => {
+				if (!this._win) {
+					return; // Return early if the window has been going down already
+				}
+
+				if (result.response === 0) {
+					this.reload();
+				} else if (result.response === 2) {
+					this.destroyWindow();
+				}
+			});
+		}
+
+		// Crashed
+		else {
+			this.dialogMainService.showMessageBox({
+				title: product.nameLong,
+				type: 'warning',
+				buttons: [mnemonicButtonLabel(nls.localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(nls.localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
+				message: nls.localize('appCrashed', "The window has crashed"),
+				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
+				noLink: true
+			}, this._win).then(result => {
+				if (!this._win) {
+					return; // Return early if the window has been going down already
+				}
+
+				if (result.response === 0) {
+					this.reload();
+				} else if (result.response === 1) {
+					this.destroyWindow();
+				}
+			});
+		}
+	}
+
+	private destroyWindow(): void {
+		this._onDestroy.fire(); // 'close' event will not be fired on destroy(), so signal crash via explicit event
+		this._win.destroy(); 	// make sure to destroy the window as it has crashed
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {

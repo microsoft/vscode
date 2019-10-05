@@ -12,6 +12,7 @@ import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow } from 'electron';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IWindowState {
 	width?: number;
@@ -29,7 +30,11 @@ export const enum WindowMode {
 	Fullscreen
 }
 
-export interface ICodeWindow {
+export interface ICodeWindow extends IDisposable {
+
+	readonly onClose: Event<void>;
+	readonly onDestroy: Event<void>;
+
 	readonly id: number;
 	readonly win: BrowserWindow;
 	readonly config: IWindowConfiguration;
@@ -47,6 +52,7 @@ export interface ICodeWindow {
 
 	readonly isReady: boolean;
 	ready(): Promise<ICodeWindow>;
+	setReady(): void;
 
 	addTabbedWindow(window: ICodeWindow): void;
 
@@ -64,17 +70,17 @@ export interface ICodeWindow {
 	toggleFullScreen(): void;
 	isFullScreen(): boolean;
 	isMinimized(): boolean;
+
 	hasHiddenTitleBarStyle(): boolean;
+
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string;
+
 	handleTitleDoubleClick(): void;
 
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
-	setReady(): void;
 	serializeWindowState(): IWindowState;
-
-	dispose(): void;
 }
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');

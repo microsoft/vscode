@@ -22,13 +22,11 @@ import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, IPathsToWait
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/platform/windows/node/window';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { getComparisonKey, isEqual, normalizePath, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
@@ -41,11 +39,6 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { isWindowsDriveLetter, toSlashes } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
-
-const enum WindowError {
-	UNRESPONSIVE = 1,
-	CRASHED = 2
-}
 
 export interface IWindowState {
 	workspace?: IWorkspaceIdentifier;
@@ -187,7 +180,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
@@ -1407,11 +1399,10 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			this._onWindowsCountChanged.fire({ oldCount: WindowsManager.WINDOWS.length - 1, newCount: WindowsManager.WINDOWS.length });
 
 			// Window Events
+			once(window.onClose)(() => this.onWindowClosed(window!));
+			once(window.onDestroy)(() => this.onBeforeWindowClose(window!)); // try to save state before destroy because close will not fire
 			window.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
 			window.win.webContents.on('devtools-reload-page', () => this.reload(window!));
-			window.win.webContents.on('crashed', () => this.onWindowError(window!, WindowError.CRASHED));
-			window.win.on('unresponsive', () => this.onWindowError(window!, WindowError.UNRESPONSIVE));
-			window.win.on('closed', () => this.onWindowClosed(window!));
 
 			// Lifecycle
 			(this.lifecycleMainService as LifecycleMainService).registerWindow(window);
@@ -1705,74 +1696,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 	getWindowCount(): number {
 		return WindowsManager.WINDOWS.length;
-	}
-
-	private onWindowError(window: ICodeWindow, error: WindowError): void {
-		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
-		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-		};
-		type WindowErrorEvent = {
-			type: WindowError;
-		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type: error });
-
-		// Unresponsive
-		if (error === WindowError.UNRESPONSIVE) {
-			if (window.isExtensionDevelopmentHost || window.isExtensionTestHost || (window.win && window.win.webContents && window.win.webContents.isDevToolsOpened())) {
-				// TODO@Ben Workaround for https://github.com/Microsoft/vscode/issues/56994
-				// In certain cases the window can report unresponsiveness because a breakpoint was hit
-				// and the process is stopped executing. The most typical cases are:
-				// - devtools are opened and debugging happens
-				// - window is an extensions development host that is being debugged
-				// - window is an extension test development host that is being debugged
-				return;
-			}
-
-			// Show Dialog
-			this.dialogMainService.showMessageBox({
-				title: product.nameLong,
-				type: 'warning',
-				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
-				message: localize('appStalled', "The window is no longer responding"),
-				detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
-				noLink: true
-			}, window.win).then(result => {
-				if (!window.win) {
-					return; // Return early if the window has been going down already
-				}
-
-				if (result.response === 0) {
-					window.reload();
-				} else if (result.response === 2) {
-					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
-					window.win.destroy(); // make sure to destroy the window as it is unresponsive
-				}
-			});
-		}
-
-		// Crashed
-		else {
-			this.dialogMainService.showMessageBox({
-				title: product.nameLong,
-				type: 'warning',
-				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
-				message: localize('appCrashed', "The window has crashed"),
-				detail: localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
-				noLink: true
-			}, window.win).then(result => {
-				if (!window.win) {
-					return; // Return early if the window has been going down already
-				}
-
-				if (result.response === 0) {
-					window.reload();
-				} else if (result.response === 1) {
-					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
-					window.win.destroy(); // make sure to destroy the window as it has crashed
-				}
-			});
-		}
 	}
 
 	private onWindowClosed(win: ICodeWindow): void {
