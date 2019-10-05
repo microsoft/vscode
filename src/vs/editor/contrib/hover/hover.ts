@@ -184,7 +184,7 @@ export class ModesHoverController implements IEditorContribution {
 			if (this._isHoverEnabled && mouseEvent.target.position) {
 				this.glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
 			}
-		} else {
+		} else if (!this.contentWidget.elementActive() || this._selectionEmpty()) {
 			this._hideWidgets();
 		}
 	}
@@ -194,6 +194,15 @@ export class ModesHoverController implements IEditorContribution {
 			// Do not hide hover when a modifier key is pressed
 			this._hideWidgets();
 		}
+	}
+
+	private _selectionEmpty(): boolean {
+		const selection = document.getSelection();
+		if (selection && selection && selection.toString().length > 0) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private _hideWidgets(): void {

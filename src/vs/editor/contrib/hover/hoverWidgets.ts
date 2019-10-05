@@ -132,6 +132,15 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 		super.dispose();
 	}
 
+	public elementActive(): boolean {
+		const activeElement = document.activeElement;
+		if (activeElement && activeElement.getAttribute('widgetid') === this._id) {
+			return true;
+		}
+
+		return false;
+	}
+
 	private updateFont(): void {
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
