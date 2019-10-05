@@ -31,7 +31,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { getComparisonKey, isEqual, normalizePath, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
+import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/platform/windows/electron-main/windowsStateStorage';
 import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -149,7 +149,7 @@ interface IWorkspacePathToOpen {
 	label?: string;
 }
 
-export class WindowsManager extends Disposable implements IWindowsMainService {
+export class WindowsMainService extends Disposable implements IWindowsMainService {
 
 	_serviceBrand: undefined;
 
@@ -185,7 +185,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	) {
 		super();
 
-		this.windowsState = restoreWindowsState(this.stateService.getItem<WindowsStateStorageData>(WindowsManager.windowsStateStorageKey));
+		this.windowsState = restoreWindowsState(this.stateService.getItem<WindowsStateStorageData>(WindowsMainService.windowsStateStorageKey));
 		if (!Array.isArray(this.windowsState.openedWindows)) {
 			this.windowsState.openedWindows = [];
 		}
@@ -299,7 +299,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		if (!currentWindowsState.lastActiveWindow) {
 			let activeWindow = this.getLastActiveWindow();
 			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
-				activeWindow = WindowsManager.WINDOWS.filter(window => !window.isExtensionDevelopmentHost)[0];
+				activeWindow = WindowsMainService.WINDOWS.filter(window => !window.isExtensionDevelopmentHost)[0];
 			}
 
 			if (activeWindow) {
@@ -308,7 +308,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 
 		// 2.) Find extension host window
-		const extensionHostWindow = WindowsManager.WINDOWS.filter(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost)[0];
+		const extensionHostWindow = WindowsMainService.WINDOWS.filter(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost)[0];
 		if (extensionHostWindow) {
 			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
 		}
@@ -319,11 +319,11 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.getWindowCount() > 1) {
-			currentWindowsState.openedWindows = WindowsManager.WINDOWS.filter(window => !window.isExtensionDevelopmentHost).map(window => this.toWindowState(window));
+			currentWindowsState.openedWindows = WindowsMainService.WINDOWS.filter(window => !window.isExtensionDevelopmentHost).map(window => this.toWindowState(window));
 		}
 
 		// Persist
-		this.stateService.setItem(WindowsManager.windowsStateStorageKey, getWindowsStateStoreData(currentWindowsState));
+		this.stateService.setItem(WindowsMainService.windowsStateStorageKey, getWindowsStateStoreData(currentWindowsState));
 	}
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
@@ -546,7 +546,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			const fileToCheck = fileInputs.filesToOpenOrCreate[0] || fileInputs.filesToDiff[0];
 
 			// only look at the windows with correct authority
-			const windows = WindowsManager.WINDOWS.filter(window => window.remoteAuthority === fileInputs!.remoteAuthority);
+			const windows = WindowsMainService.WINDOWS.filter(window => window.remoteAuthority === fileInputs!.remoteAuthority);
 
 			const bestWindowOrFolder = findBestWindowOrFolderForFile({
 				windows,
@@ -602,7 +602,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		if (allWorkspacesToOpen.length > 0) {
 
 			// Check for existing instances
-			const windowsOnWorkspace = arrays.coalesce(allWorkspacesToOpen.map(workspaceToOpen => findWindowOnWorkspace(WindowsManager.WINDOWS, workspaceToOpen.workspace)));
+			const windowsOnWorkspace = arrays.coalesce(allWorkspacesToOpen.map(workspaceToOpen => findWindowOnWorkspace(WindowsMainService.WINDOWS, workspaceToOpen.workspace)));
 			if (windowsOnWorkspace.length > 0) {
 				const windowOnWorkspace = windowsOnWorkspace[0];
 				const fileInputsForWindow = (fileInputs && fileInputs.remoteAuthority === windowOnWorkspace.remoteAuthority) ? fileInputs : undefined;
@@ -644,7 +644,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
-			const windowsOnFolderPath = arrays.coalesce(allFoldersToOpen.map(folderToOpen => findWindowOnWorkspace(WindowsManager.WINDOWS, folderToOpen.folderUri)));
+			const windowsOnFolderPath = arrays.coalesce(allFoldersToOpen.map(folderToOpen => findWindowOnWorkspace(WindowsMainService.WINDOWS, folderToOpen.folderUri)));
 			if (windowsOnFolderPath.length > 0) {
 				const windowOnFolderPath = windowsOnFolderPath[0];
 				const fileInputsForWindow = fileInputs && fileInputs.remoteAuthority === windowOnFolderPath.remoteAuthority ? fileInputs : undefined;
@@ -1216,7 +1216,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
 		// on the same extension path.
-		const existingWindow = findWindowOnExtensionDevelopmentPath(WindowsManager.WINDOWS, extensionDevelopmentPath);
+		const existingWindow = findWindowOnExtensionDevelopmentPath(WindowsMainService.WINDOWS, extensionDevelopmentPath);
 		if (existingWindow) {
 			this.reload(existingWindow, openConfig.cli);
 			existingWindow.focus(); // make sure it gets focus and is restored
@@ -1270,7 +1270,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 		cliArgs = cliArgs.filter(path => {
 			const uri = URI.file(path);
-			if (!!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, uri)) {
+			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, uri)) {
 				return false;
 			}
 			return uri.authority === authority;
@@ -1278,7 +1278,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 		folderUris = folderUris.filter(uri => {
 			const u = this.argToUri(uri);
-			if (!!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, u)) {
+			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, u)) {
 				return false;
 			}
 			return u ? u.authority === authority : false;
@@ -1286,7 +1286,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 		fileUris = fileUris.filter(uri => {
 			const u = this.argToUri(uri);
-			if (!!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, u)) {
+			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, u)) {
 				return false;
 			}
 			return u ? u.authority === authority : false;
@@ -1390,10 +1390,10 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			}
 
 			// Add to our list of windows
-			WindowsManager.WINDOWS.push(window);
+			WindowsMainService.WINDOWS.push(window);
 
 			// Indicate number change via event
-			this._onWindowsCountChanged.fire({ oldCount: WindowsManager.WINDOWS.length - 1, newCount: WindowsManager.WINDOWS.length });
+			this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length - 1, newCount: WindowsMainService.WINDOWS.length });
 
 			// Window Events
 			once(window.onClose)(() => this.onWindowClosed(window!));
@@ -1570,14 +1570,14 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	}
 
 	private ensureNoOverlap(state: ISingleWindowState): ISingleWindowState {
-		if (WindowsManager.WINDOWS.length === 0) {
+		if (WindowsMainService.WINDOWS.length === 0) {
 			return state;
 		}
 
 		state.x = typeof state.x === 'number' ? state.x : 0;
 		state.y = typeof state.y === 'number' ? state.y : 0;
 
-		const existingWindowBounds = WindowsManager.WINDOWS.map(win => win.getBounds());
+		const existingWindowBounds = WindowsMainService.WINDOWS.map(win => win.getBounds());
 		while (existingWindowBounds.some(b => b.x === state.x || b.y === state.y)) {
 			state.x += 30;
 			state.y += 30;
@@ -1616,11 +1616,11 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	}
 
 	getLastActiveWindow(): ICodeWindow | undefined {
-		return getLastActiveWindow(WindowsManager.WINDOWS);
+		return getLastActiveWindow(WindowsMainService.WINDOWS);
 	}
 
 	private getLastActiveWindowForAuthority(remoteAuthority: string | undefined): ICodeWindow | undefined {
-		return getLastActiveWindow(WindowsManager.WINDOWS.filter(window => window.remoteAuthority === remoteAuthority));
+		return getLastActiveWindow(WindowsMainService.WINDOWS.filter(window => window.remoteAuthority === remoteAuthority));
 	}
 
 	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
@@ -1645,7 +1645,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	}
 
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
-		for (const window of WindowsManager.WINDOWS) {
+		for (const window of WindowsMainService.WINDOWS) {
 			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(window.id) >= 0) {
 				continue; // do not send if we are instructed to ignore it
 			}
@@ -1664,26 +1664,26 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	}
 
 	getWindowById(windowId: number): ICodeWindow | undefined {
-		const res = WindowsManager.WINDOWS.filter(window => window.id === windowId);
+		const res = WindowsMainService.WINDOWS.filter(window => window.id === windowId);
 		return arrays.firstOrDefault(res);
 	}
 
 	getWindows(): ICodeWindow[] {
-		return WindowsManager.WINDOWS;
+		return WindowsMainService.WINDOWS;
 	}
 
 	getWindowCount(): number {
-		return WindowsManager.WINDOWS.length;
+		return WindowsMainService.WINDOWS.length;
 	}
 
 	private onWindowClosed(win: ICodeWindow): void {
 
 		// Remove from our list so that Electron can clean it up
-		const index = WindowsManager.WINDOWS.indexOf(win);
-		WindowsManager.WINDOWS.splice(index, 1);
+		const index = WindowsMainService.WINDOWS.indexOf(win);
+		WindowsMainService.WINDOWS.splice(index, 1);
 
 		// Emit
-		this._onWindowsCountChanged.fire({ oldCount: WindowsManager.WINDOWS.length + 1, newCount: WindowsManager.WINDOWS.length });
+		this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length + 1, newCount: WindowsMainService.WINDOWS.length });
 		this._onWindowClose.fire(win.id);
 	}
 

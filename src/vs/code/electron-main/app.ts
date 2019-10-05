@@ -5,7 +5,7 @@
 
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, Event as IpcMainEvent, BrowserWindow } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
-import { WindowsManager } from 'vs/code/electron-main/windows';
+import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { ActiveWindowManager } from 'vs/code/node/activeWindowTracker';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -449,7 +449,7 @@ export class CodeApplication extends Disposable {
 				break;
 		}
 
-		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
+		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
 		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
 		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
