@@ -76,10 +76,6 @@
 	const container = document.body;
 	const image = document.createElement('img');
 
-	function updateActive(active) {
-		isActive = active
-	}
-
 	function updateScale(newScale) {
 		if (!image || !hasLoadedImage || !image.parentElement) {
 			return;
