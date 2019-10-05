@@ -35,6 +35,8 @@ export interface ICodeWindow extends IDisposable {
 	readonly onClose: Event<void>;
 	readonly onDestroy: Event<void>;
 
+	readonly whenClosedOrLoaded: Promise<void>;
+
 	readonly id: number;
 	readonly win: BrowserWindow;
 	readonly config: IWindowConfiguration;
@@ -96,11 +98,14 @@ export interface IWindowsMainService {
 
 	readonly onWindowReady: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
-	readonly onWindowClose: Event<number>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
+
+	closeWorkspace(win: ICodeWindow): void;
+
+	reload(win: ICodeWindow, cli?: ParsedArgs): void;
 
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
@@ -111,9 +116,6 @@ export interface IWindowsMainService {
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
 
-	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
-	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	closeWorkspace(win: ICodeWindow): void;
 	quit(): void;
 }
 

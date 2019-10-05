@@ -188,7 +188,7 @@ export class LaunchMainService implements ILaunchMainService {
 		// In addition, we poll for the wait marker file to be deleted to return.
 		if (waitMarkerFileURI && usedWindows.length === 1 && usedWindows[0]) {
 			return Promise.race([
-				this.windowsMainService.waitForWindowCloseOrLoad(usedWindows[0].id),
+				usedWindows[0].whenClosedOrLoaded,
 				whenDeleted(waitMarkerFileURI.fsPath)
 			]).then(() => undefined, () => undefined);
 		}

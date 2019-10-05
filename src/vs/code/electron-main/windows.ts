@@ -166,9 +166,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	private readonly _onWindowClose = this._register(new Emitter<number>());
 	readonly onWindowClose: CommonEvent<number> = this._onWindowClose.event;
 
-	private readonly _onWindowLoad = this._register(new Emitter<number>());
-	readonly onWindowLoad: CommonEvent<number> = this._onWindowLoad.event;
-
 	private readonly _onWindowsCountChanged = this._register(new Emitter<IWindowsCountChangedEvent>());
 	readonly onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
 
@@ -502,7 +499,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		// process can continue. We do this by deleting the waitMarkerFilePath.
 		const waitMarkerFileURI = openConfig.waitMarkerFileURI;
 		if (openConfig.context === OpenContext.CLI && waitMarkerFileURI && usedWindows.length === 1 && usedWindows[0]) {
-			this.waitForWindowCloseOrLoad(usedWindows[0].id).then(() => fs.unlink(waitMarkerFileURI.fsPath, _error => undefined));
+			usedWindows[0].whenClosedOrLoaded.then(() => fs.unlink(waitMarkerFileURI.fsPath, _error => undefined));
 		}
 
 		return usedWindows;
@@ -1456,9 +1453,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 		// Load it
 		window.load(configuration);
-
-		// Signal event
-		this._onWindowLoad.fire(window.id);
 	}
 
 	private getNewWindowState(configuration: IWindowConfiguration): INewWindowState {
@@ -1642,22 +1636,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
 	}
 
-	waitForWindowCloseOrLoad(windowId: number): Promise<void> {
-		return new Promise<void>(resolve => {
-			function handler(id: number) {
-				if (id === windowId) {
-					closeListener.dispose();
-					loadListener.dispose();
-
-					resolve();
-				}
-			}
-
-			const closeListener = this.onWindowClose(id => handler(id));
-			const loadListener = this.onWindowLoad(id => handler(id));
-		});
-	}
-
 	sendToFocused(channel: string, ...args: any[]): void {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
@@ -1699,9 +1677,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	}
 
 	private onWindowClosed(win: ICodeWindow): void {
-
-		// Tell window
-		win.dispose();
 
 		// Remove from our list so that Electron can clean it up
 		const index = WindowsManager.WINDOWS.indexOf(win);
