@@ -972,7 +972,7 @@ export class MouseTargetFactory {
 
 		// Thank you browsers for making this so 'easy' :)
 
-		if (document.caretRangeFromPoint) {
+		if (typeof document.caretRangeFromPoint === 'function') {
 
 			return this._doHitTestWithCaretRangeFromPoint(ctx, request);
 
