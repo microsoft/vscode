@@ -117,8 +117,8 @@ export class CursorUndo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorUndo',
-			label: nls.localize('cursor.undo', "Soft Undo"),
-			alias: 'Soft Undo',
+			label: nls.localize('cursor.undo', "Cursor Undo"),
+			alias: 'Cursor Undo',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
