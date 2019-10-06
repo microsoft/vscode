@@ -15,7 +15,7 @@ cd "$ROOT"
 echo "Runs tests against the current documentation in https://github.com/microsoft/vscode-docs/tree/vnext"
 
 # Tests in AMD
-./scripts/test.sh --runGlob ./*glob*.releaseTest.js "$@"
+./scripts/test.sh --runGlob **/*.releaseTest.js "$@"
 
 
 rm -r "$VSCODEUSERDATADIR"
