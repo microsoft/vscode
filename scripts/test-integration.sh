@@ -4,14 +4,14 @@ set -e
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname $(dirname $(realpath "$0")))
-	VSCODEUSERDATADIR=`mktemp -d -t 'myuserdatadir'`
+	VSCODEUSERDATADIR=$(mktemp -d -t 'myuserdatadir')
 else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
-	VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
+	ROOT=$(dirname $(dirname $(readlink -f "$0")))
+	VSCODEUSERDATADIR=$(mktemp -d 2>/dev/null)
 	LINUX_NO_SANDBOX=""
 fi
 
-cd $ROOT
+cd "$ROOT"
 
 # Figure out which Electron to use for running tests
 if [ -z "$INTEGRATION_TEST_ELECTRON_PATH" ]
@@ -37,14 +37,14 @@ fi
 ./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
 
 # Tests in the extension host
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/workspace-tests --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/vscode-colorize-tests/test --extensionDevelopmentPath=$ROOT/extensions/vscode-colorize-tests --extensionTestsPath=$ROOT/extensions/vscode-colorize-tests/out --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/markdown-language-features/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/markdown-language-features --extensionTestsPath=$ROOT/extensions/markdown-language-features/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX "$ROOT"/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath="$ROOT"/extensions/vscode-api-tests --extensionTestsPath="$ROOT"/extensions/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir="$VSCODEUSERDATADIR"
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX "$ROOT"/extensions/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath="$ROOT"/extensions/vscode-api-tests --extensionTestsPath="$ROOT"/extensions/vscode-api-tests/out/workspace-tests --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir="$VSCODEUSERDATADIR"
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX "$ROOT"/extensions/vscode-colorize-tests/test --extensionDevelopmentPath="$ROOT"/extensions/vscode-colorize-tests --extensionTestsPath="$ROOT"/extensions/vscode-colorize-tests/out --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir="$VSCODEUSERDATADIR"
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX "$ROOT"/extensions/markdown-language-features/test-fixtures --extensionDevelopmentPath="$ROOT"/extensions/markdown-language-features --extensionTestsPath="$ROOT"/extensions/markdown-language-features/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir="$VSCODEUSERDATADIR"
 
-mkdir -p $ROOT/extensions/emmet/test-fixtures
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/emmet/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR
-rm -rf $ROOT/extensions/emmet/test-fixtures
+mkdir -p "$ROOT"/extensions/emmet/test-fixtures
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX "$ROOT"/extensions/emmet/test-fixtures --extensionDevelopmentPath="$ROOT"/extensions/emmet --extensionTestsPath="$ROOT"/extensions/emmet/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir="$VSCODEUSERDATADIR"
+rm -rf "$ROOT"/extensions/emmet/test-fixtures
 
 # Remote Integration Tests
 if [ -f ./resources/server/test/test-remote-integration.sh ]; then
@@ -52,7 +52,7 @@ if [ -f ./resources/server/test/test-remote-integration.sh ]; then
 fi
 
 # Tests in commonJS
-cd $ROOT/extensions/css-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
-cd $ROOT/extensions/html-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
+cd "$ROOT"/extensions/css-language-features/server && "$ROOT"/scripts/node-electron.sh test/index.js
+cd "$ROOT"/extensions/html-language-features/server && "$ROOT"/scripts/node-electron.sh test/index.js
 
-rm -r $VSCODEUSERDATADIR
+rm -r "$VSCODEUSERDATADIR"
