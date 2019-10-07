@@ -12,6 +12,7 @@ import { Action } from 'vs/base/common/actions';
 import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { startsWith } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
+import { find, equals } from 'vs/base/common/arrays';
 
 export interface INotificationsModel {
 
@@ -169,13 +170,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	}
 
 	private findNotification(item: INotificationViewItem): INotificationViewItem | undefined {
-		for (const notification of this._notifications) {
-			if (notification.equals(item)) {
-				return notification;
-			}
-		}
-
-		return undefined;
+		return find(this._notifications, notification => notification.equals(item));
 	}
 
 	private createViewItem(notification: INotification): INotificationViewItem | null {
@@ -641,17 +636,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 		const primaryActions = (this._actions && this._actions.primary) || [];
 		const otherPrimaryActions = (other.actions && other.actions.primary) || [];
-		if (primaryActions.length !== otherPrimaryActions.length) {
-			return false;
-		}
-
-		for (let i = 0; i < primaryActions.length; i++) {
-			if ((primaryActions[i].id + primaryActions[i].label) !== (otherPrimaryActions[i].id + otherPrimaryActions[i].label)) {
-				return false;
-			}
-		}
-
-		return true;
+		return equals(primaryActions, otherPrimaryActions, (a, b) => (a.id + a.label) === (b.id + b.label));
 	}
 }
 

@@ -16,6 +16,7 @@ import { GroupDirection, MergeGroupMode } from 'vs/workbench/services/editor/com
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { find } from 'vs/base/common/arrays';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -544,13 +545,7 @@ export class EditorDropTarget extends Themable {
 
 	private findTargetGroupView(child: HTMLElement): IEditorGroupView | undefined {
 		const groups = this.accessor.groups;
-		for (const groupView of groups) {
-			if (isAncestor(child, groupView.element)) {
-				return groupView;
-			}
-		}
-
-		return undefined;
+		return find(groups, groupView => isAncestor(child, groupView.element));
 	}
 
 	private updateContainer(isDraggedOver: boolean): void {

@@ -29,6 +29,7 @@ import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/termi
 import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { find } from 'vs/base/common/arrays';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -414,13 +415,8 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 	}
 
-	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | null {
-		for (const tab of this._terminalTabs) {
-			if (tab.terminalInstances.indexOf(instance) !== -1) {
-				return tab;
-			}
-		}
-		return null;
+	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {
+		return find(this._terminalTabs, tab => tab.terminalInstances.indexOf(instance) !== -1);
 	}
 
 	public showPanel(focus?: boolean): Promise<void> {
