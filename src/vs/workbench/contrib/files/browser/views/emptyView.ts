@@ -33,7 +33,6 @@ export class EmptyView extends ViewletPanel {
 
 	private button!: Button;
 	private messageElement!: HTMLElement;
-	private titleElement!: HTMLElement;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -50,19 +49,6 @@ export class EmptyView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setLabels()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.setLabels()));
-	}
-
-	renderHeader(container: HTMLElement): void {
-		const twisties = document.createElement('div');
-		DOM.addClasses(twisties, 'twisties', 'codicon', 'codicon-chevron-right');
-		container.appendChild(twisties);
-
-		const titleContainer = document.createElement('div');
-		DOM.addClass(titleContainer, 'title');
-		container.appendChild(titleContainer);
-
-		this.titleElement = document.createElement('span');
-		titleContainer.appendChild(this.titleElement);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -129,7 +115,7 @@ export class EmptyView extends ViewletPanel {
 			if (this.button) {
 				this.button.label = nls.localize('addFolder', "Add Folder");
 			}
-			this.titleElement.textContent = EmptyView.NAME;
+			this.updateTitle(EmptyView.NAME);
 		} else {
 			if (this.environmentService.configuration.remoteAuthority && !isWeb) {
 				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.configuration.remoteAuthority);
@@ -140,7 +126,7 @@ export class EmptyView extends ViewletPanel {
 			if (this.button) {
 				this.button.label = nls.localize('openFolder', "Open Folder");
 			}
-			this.titleElement.textContent = this.title;
+			this.updateTitle(this.title);
 		}
 	}
 
