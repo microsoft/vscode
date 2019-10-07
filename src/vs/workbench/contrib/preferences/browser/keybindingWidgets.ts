@@ -59,6 +59,9 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		super(parent, options, contextViewService, instantiationService, themeService);
 		this._register(attachInputBoxStyler(this.inputBox, themeService));
 		this._register(toDisposable(() => this.stopRecordingKeys()));
+		this._firstPart = null;
+		this._chordPart = null;
+		this._inputValue = '';
 
 		this._reset();
 	}
@@ -166,7 +169,45 @@ export class DefineKeybindingWidget extends Widget {
 		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
-		this.create();
+
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setDisplay('none');
+		this._domNode.setClassName('defineKeybindingWidget');
+		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
+		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
+
+		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
+		dom.append(this._domNode.domNode, dom.$('.message', undefined, message));
+
+		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, editorWidgetForeground, widgetShadow }, colors => {
+			if (colors.editorWidgetBackground) {
+				this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground.toString();
+			} else {
+				this._domNode.domNode.style.backgroundColor = null;
+			}
+			if (colors.editorWidgetForeground) {
+				this._domNode.domNode.style.color = colors.editorWidgetForeground.toString();
+			} else {
+				this._domNode.domNode.style.color = null;
+			}
+
+			if (colors.widgetShadow) {
+				this._domNode.domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
+			} else {
+				this._domNode.domNode.style.boxShadow = null;
+			}
+		}));
+
+		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message }));
+		this._keybindingInputWidget.startRecordingKeys();
+		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
+		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
+		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
+		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
+
+		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
+		this._showExistingKeybindingsNode = dom.append(this._domNode.domNode, dom.$('.existing'));
+
 		if (parent) {
 			dom.append(parent, this._domNode.domNode);
 		}
@@ -215,46 +256,6 @@ export class DefineKeybindingWidget extends Widget {
 			existingElement.onmouseup = (e) => { e.preventDefault(); };
 			existingElement.onclick = () => { this._onShowExistingKeybindings.fire(this.getUserSettingsLabel()); };
 		}
-	}
-
-	private create(): void {
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setDisplay('none');
-		this._domNode.setClassName('defineKeybindingWidget');
-		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
-		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
-
-		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
-		dom.append(this._domNode.domNode, dom.$('.message', undefined, message));
-
-		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, editorWidgetForeground, widgetShadow }, colors => {
-			if (colors.editorWidgetBackground) {
-				this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground.toString();
-			} else {
-				this._domNode.domNode.style.backgroundColor = null;
-			}
-			if (colors.editorWidgetForeground) {
-				this._domNode.domNode.style.color = colors.editorWidgetForeground.toString();
-			} else {
-				this._domNode.domNode.style.color = null;
-			}
-
-			if (colors.widgetShadow) {
-				this._domNode.domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
-			} else {
-				this._domNode.domNode.style.boxShadow = null;
-			}
-		}));
-
-		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message }));
-		this._keybindingInputWidget.startRecordingKeys();
-		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
-		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
-		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
-		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
-
-		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
-		this._showExistingKeybindingsNode = dom.append(this._domNode.domNode, dom.$('.existing'));
 	}
 
 	private onKeybinding(keybinding: [ResolvedKeybinding | null, ResolvedKeybinding | null]): void {

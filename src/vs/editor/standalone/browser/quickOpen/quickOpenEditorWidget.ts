@@ -31,11 +31,8 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 	constructor(codeEditor: ICodeEditor, onOk: () => void, onCancel: () => void, onType: (value: string) => void, configuration: IQuickOpenEditorWidgetOptions, themeService: IThemeService) {
 		this.codeEditor = codeEditor;
 		this.themeService = themeService;
+		this.visible = false;
 
-		this.create(onOk, onCancel, onType, configuration);
-	}
-
-	private create(onOk: () => void, onCancel: () => void, onType: (value: string) => void, configuration: IQuickOpenEditorWidgetOptions): void {
 		this.domNode = document.createElement('div');
 
 		this.quickOpenWidget = new QuickOpenWidget(
