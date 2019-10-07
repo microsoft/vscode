@@ -61,7 +61,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	private mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
 	private mapActionsBindingToComposite = new Map<string, () => void>();
-	private activeComposite: Composite | null;
+	private activeComposite: Composite | undefined;
 	private lastActiveCompositeId: string;
 	private instantiatedCompositeItems: Map<string, CompositeItem>;
 	private titleLabel: ICompositeTitleLabel;
@@ -90,7 +90,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	) {
 		super(id, options, themeService, storageService, layoutService);
 
-		this.activeComposite = null;
 		this.instantiatedCompositeItems = new Map<string, CompositeItem>();
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 	}
@@ -332,7 +331,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return this.toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
-	protected getActiveComposite(): IComposite | null {
+	protected getActiveComposite(): IComposite | undefined {
 		return this.activeComposite;
 	}
 
@@ -346,7 +345,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		const composite = this.activeComposite;
-		this.activeComposite = null;
+		this.activeComposite = undefined;
 
 		const compositeContainer = this.mapCompositeToCompositeContainer.get(composite.getId());
 

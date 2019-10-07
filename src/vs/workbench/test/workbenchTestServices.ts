@@ -626,8 +626,8 @@ export class TestPanelService implements IPanelService {
 	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	public openPanel(id: string, focus?: boolean): IPanel {
-		return null!;
+	public openPanel(id: string, focus?: boolean): undefined {
+		return undefined;
 	}
 
 	public getPanel(id: string): any {

@@ -28,12 +28,12 @@ export interface IPanelService {
 	/**
 	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openPanel(id: string, focus?: boolean): IPanel | null;
+	openPanel(id: string, focus?: boolean): IPanel | undefined;
 
 	/**
 	 * Returns the current active panel or null if none
 	 */
-	getActivePanel(): IPanel | null;
+	getActivePanel(): IPanel | undefined;
 
 	/**
 	 * Returns the panel by id.

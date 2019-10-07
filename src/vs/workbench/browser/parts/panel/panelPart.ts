@@ -30,7 +30,7 @@ import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isUndefinedOrNull, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
+import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -218,9 +218,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	openPanel(id: string, focus?: boolean): Panel | null {
+	openPanel(id: string, focus?: boolean): Panel | undefined {
 		if (this.blockOpeningPanel) {
-			return null; // Workaround against a potential race condition
+			return undefined; // Workaround against a potential race condition
 		}
 
 		// First check if panel is hidden and show if so
@@ -233,7 +233,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return withUndefinedAsNull(this.openComposite(id, focus));
+		return this.openComposite(id, focus);
 	}
 
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
@@ -263,7 +263,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		];
 	}
 
-	getActivePanel(): IPanel | null {
+	getActivePanel(): IPanel | undefined {
 		return this.getActiveComposite();
 	}
 
