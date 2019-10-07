@@ -35,6 +35,7 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -797,7 +798,7 @@ export class SimpleFileDialog {
 	}
 
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
-		let result: string = uri.fsPath.replace(/\n/g, '');
+		let result: string = normalizeDriveLetter(uri.fsPath).replace(/\n/g, '');
 		if (this.separator === '/') {
 			result = result.replace(/\\/g, this.separator);
 		} else {
