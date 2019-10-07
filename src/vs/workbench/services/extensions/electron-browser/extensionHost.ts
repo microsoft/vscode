@@ -16,7 +16,7 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log } from 'vs/base/common/console';
 import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
-import { findFreePort, randomPort } from 'vs/base/node/ports';
+import { findFreePort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
@@ -129,10 +129,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
 				this._tryListenOnPipe(),
-				!this._environmentService.args['disable-inspect'] ? this._tryFindDebugPort() : Promise.resolve(null)
+				!this._environmentService.args['disable-inspect'] ? this._tryFindDebugPort() : 0
 			]).then(data => {
 				const pipeName = data[0];
-				const portData = data[1];
+				const portNumber = data[1];
 
 				const opts = {
 					env: objects.mixin(objects.deepClone(process.env), {
@@ -153,16 +153,11 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					silent: true
 				};
 
-				if (portData && portData.actual) {
+				if (portNumber !== 0) {
 					opts.execArgv = [
 						'--nolazy',
-						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portData.actual
+						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portNumber
 					];
-					if (!portData.expected) {
-						// No one asked for 'inspect' or 'inspect-brk', only us. We add another
-						// option such that the extension host can manipulate the execArgv array
-						opts.env.VSCODE_PREVENT_FOREIGN_INSPECT = true;
-					}
 				}
 
 				const crashReporterOptions = undefined; // TODO@electron pass this in as options to the extension host after verifying this actually works
@@ -221,11 +216,11 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				this._extensionHostProcess.on('exit', (code: number, signal: string) => this._onExtHostProcessExit(code, signal));
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
-				if (portData) {
-					if (this._isExtensionDevHost && portData.actual && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
-						this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portData.actual);
+				if (portNumber) {
+					if (this._isExtensionDevHost && portNumber && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
+						this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portNumber);
 					}
-					this._inspectPort = portData.actual;
+					this._inspectPort = portNumber;
 					this._onDidSetInspectPort.fire();
 				}
 
@@ -279,29 +274,31 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	/**
 	 * Find a free port if extension host debugging is enabled.
 	 */
-	private _tryFindDebugPort(): Promise<{ expected: number; actual: number }> {
-		let expected: number;
-		let startPort = randomPort();
-		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
-			startPort = expected = this._environmentService.debugExtensionHost.port;
+	private async _tryFindDebugPort(): Promise<number> {
+
+		if (typeof this._environmentService.debugExtensionHost.port !== 'number') {
+			return 0;
 		}
-		return new Promise(resolve => {
-			return findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
-				if (!port) {
-					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color:');
-				} else {
-					if (expected && port !== expected) {
-						console.warn(`%c[Extension Host] %cProvided debugging port ${expected} is not free, using ${port} instead.`, 'color: blue', 'color:');
-					}
-					if (this._isExtensionDevDebugBrk) {
-						console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color:');
-					} else {
-						console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
-					}
-				}
-				return resolve({ expected, actual: port });
-			});
-		});
+
+		const expected = this._environmentService.debugExtensionHost.port;
+		const port = await findFreePort(expected, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */);
+
+		if (!port) {
+			console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color:');
+			return 0;
+		}
+
+		if (port !== expected) {
+			console.warn(`%c[Extension Host] %cProvided debugging port ${expected} is not free, using ${port} instead.`, 'color: blue', 'color:');
+		}
+		if (this._isExtensionDevDebugBrk) {
+			console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color:');
+		} else {
+			console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
+		}
+		return port;
+
+
 	}
 
 	private _tryExtHostHandshake(): Promise<PersistentProtocol> {
