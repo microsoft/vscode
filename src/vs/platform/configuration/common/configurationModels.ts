@@ -518,14 +518,14 @@ export class Configuration {
 		return folderConsolidatedConfiguration;
 	}
 
-	private getFolderConfigurationModelForResource(resource: URI | null | undefined, workspace: Workspace | undefined): ConfigurationModel | null {
+	private getFolderConfigurationModelForResource(resource: URI | null | undefined, workspace: Workspace | undefined): ConfigurationModel | undefined {
 		if (workspace && resource) {
 			const root = workspace.getFolder(resource);
 			if (root) {
-				return types.withUndefinedAsNull(this._folderConfigurations.get(root.uri));
+				return this._folderConfigurations.get(root.uri);
 			}
 		}
-		return null;
+		return undefined;
 	}
 
 	toData(): IConfigurationData {
