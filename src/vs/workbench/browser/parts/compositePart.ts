@@ -32,7 +32,6 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, append, $, addClass, hide, show, addClasses } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface ICompositeTitleLabel {
 
@@ -58,15 +57,15 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
-	protected toolBar!: ToolBar;
+	protected toolBar: ToolBar;
 
 	private mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
 	private mapActionsBindingToComposite = new Map<string, () => void>();
 	private activeComposite: Composite | null;
 	private lastActiveCompositeId: string;
 	private instantiatedCompositeItems: Map<string, CompositeItem>;
-	private titleLabel!: ICompositeTitleLabel;
-	private progressBar!: ProgressBar;
+	private titleLabel: ICompositeTitleLabel;
+	private progressBar: ProgressBar;
 	private contentAreaSize: Dimension | undefined;
 	private readonly telemetryActionsListener = this._register(new MutableDisposable());
 	private currentCompositeOpenToken: string | undefined;
@@ -169,7 +168,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Instantiate composite from registry otherwise
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
-			const compositeProgressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, this.progressBar, compositeDescriptor.id, isActive);
+			const compositeProgressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, this.progressBar, compositeDescriptor.id, !!isActive);
 			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 				[IEditorProgressService, compositeProgressIndicator] // provide the editor progress service for any editors instantiated within the composite
 			));
@@ -240,7 +239,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Update title with composite title if it differs from descriptor
 		const descriptor = this.registry.getComposite(composite.getId());
 		if (descriptor && descriptor.name !== composite.getTitle()) {
-			this.updateTitle(composite.getId(), withNullAsUndefined(composite.getTitle()));
+			this.updateTitle(composite.getId(), composite.getTitle());
 		}
 
 		// Handle Composite Actions

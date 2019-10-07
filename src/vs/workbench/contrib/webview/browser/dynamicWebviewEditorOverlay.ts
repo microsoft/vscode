@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { memoize } from 'vs/base/common/decorators';
+import { Dimension } from 'vs/base/browser/dom';
+import { assertIsDefined } from 'vs/base/common/types';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
@@ -22,6 +25,11 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	private _html: string = '';
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
+	private _extension: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	} | undefined;
+
 	private _owner: any = undefined;
 
 	public constructor(
@@ -40,7 +48,11 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	public get container() {
 		const container = document.createElement('div');
 		container.id = `webview-${this.id}`;
-		this._layoutService.getContainer(Parts.EDITOR_PART).appendChild(container);
+		container.style.visibility = 'hidden';
+
+		const editorPart = assertIsDefined(this._layoutService.getContainer(Parts.EDITOR_PART));
+		editorPart.appendChild(container);
+
 		return container;
 	}
 
@@ -61,12 +73,26 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		}
 	}
 
+	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension) {
+		if (!this.container || !this.container.parentElement) {
+			return;
+		}
+		const frameRect = element.getBoundingClientRect();
+		const containerRect = this.container.parentElement.getBoundingClientRect();
+		this.container.style.position = 'absolute';
+		this.container.style.top = `${frameRect.top - containerRect.top}px`;
+		this.container.style.left = `${frameRect.left - containerRect.left}px`;
+		this.container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
+		this.container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
+	}
+
 	private show() {
 		if (!this._webview.value) {
 			const webview = this._webviewService.createWebview(this.id, this.options, this._contentOptions);
 			this._webview.value = webview;
 			webview.state = this._state;
 			webview.html = this._html;
+			webview.extension = this._extension;
 			if (this.options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
@@ -76,6 +102,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 			webview.onDidFocus(() => { this._onDidFocus.fire(); }, undefined, this._webviewEvents);
 			webview.onDidClickLink(x => { this._onDidClickLink.fire(x); }, undefined, this._webviewEvents);
 			webview.onMessage(x => { this._onMessage.fire(x); }, undefined, this._webviewEvents);
+			webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }, undefined, this._webviewEvents);
 
 			webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
@@ -117,6 +144,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		this.withWebview(webview => webview.contentOptions = value);
 	}
 
+	public get extension() { return this._extension; }
+	public set extension(value) {
+		this._extension = value;
+		this.withWebview(webview => webview.extension = value);
+	}
+
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
@@ -131,6 +164,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
+
+	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
+	public readonly onMissingCsp: Event<any> = this._onMissingCsp.event;
 
 	sendMessage(data: any): void {
 		if (this._webview.value) {

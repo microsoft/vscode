@@ -38,8 +38,8 @@ import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAn
 import { isMacintosh } from 'vs/base/common/platform';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
 import { ITask, sequence } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -228,43 +228,37 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = once(async (success: boolean, blur: boolean) => {
+		const done = once((success: boolean, finishEditing: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
-			container.removeChild(label.element);
-			editableData.onFinish(value, success);
+			label.element.remove();
+			if (finishEditing) {
+				editableData.onFinish(value, success);
+			}
 		});
-
-		// It can happen that the tree re-renders this node. When that happens,
-		// we're gonna get a blur event first and only after an element disposable.
-		// Because of that, we should setTimeout the blur handler to differentiate
-		// between the blur happening because of a unrender or because of a user action.
-		let ignoreBlur = false;
 
 		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
-						done(true, false);
+						done(true, true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false, false);
+					done(false, true);
 				}
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				setTimeout(() => {
-					if (!ignoreBlur) {
-						done(inputBox.isInputValid(), true);
-					}
-				}, 0);
+				done(inputBox.isInputValid(), true);
 			}),
 			label,
 			styler
 		];
 
-		return toDisposable(() => ignoreBlur = true);
+		return toDisposable(() => {
+			done(false, false);
+		});
 	}
 
 	disposeElement?(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
@@ -449,7 +443,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IWindowService private windowService: IWindowService,
+		@IHostService private hostService: IHostService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		this.toDispose = [];
@@ -610,14 +604,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-
 	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
 		// Check for dropped external files to be folders
 		const result = await this.fileService.resolveAll(droppedResources);
 
 		// Pass focus to window
-		this.windowService.focusWindow();
+		this.hostService.focus();
 
 		// Handle folders by adding to workspace if we are in workspace context
 		const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
@@ -636,7 +629,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					: localize('dropFolder', "Do you want to copy '{0}' or add '{0}' as a folder to the workspace?", basename(folders[0].uri));
 			}
 
-			const choice = await this.dialogService.show(Severity.Info, message, buttons);
+			const { choice } = await this.dialogService.show(Severity.Info, message, buttons);
 			if (choice === buttons.length - 3) {
 				return this.workspaceEditingService.addFolders(folders);
 			}

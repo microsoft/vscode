@@ -922,7 +922,7 @@ export interface DocumentSymbol {
 
 /**
  * The document symbol provider interface defines the contract between extensions and
- * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
+ * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
  */
 export interface DocumentSymbolProvider {
 
@@ -1400,6 +1400,15 @@ export interface IWebviewOptions {
 export interface IWebviewPanelOptions {
 	readonly enableFindWidget?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+}
+
+/**
+ * @internal
+ */
+export const enum WebviewContentState {
+	Readonly = 1,
+	Unchanged = 2,
+	Dirty = 3,
 }
 
 export interface CodeLens {

@@ -4,27 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import product from 'vs/platform/product/node/product';
+import * as os from 'os';
+import product from 'vs/platform/product/common/product';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { DialogService as HTMLDialogService } from 'vs/platform/dialogs/browser/dialogService';
+import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { DialogService as HTMLDialogService } from 'vs/workbench/services/dialogs/browser/dialogService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { DialogChannel } from 'vs/platform/dialogs/electron-browser/dialogIpc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { MessageBoxOptions } from 'electron';
 
 interface IMassagedMessageBoxOptions {
 
 	/**
 	 * OS massaged message box options.
 	 */
-	options: Electron.MessageBoxOptions;
+	options: MessageBoxOptions;
 
 	/**
 	 * Since the massaged result of the message box options potentially
@@ -35,45 +40,61 @@ interface IMassagedMessageBoxOptions {
 }
 
 export class DialogService implements IDialogService {
-	_serviceBrand: any;
 
-	private impl: IDialogService;
+	_serviceBrand: undefined;
+
+	private nativeImpl: IDialogService;
+	private customImpl: IDialogService;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 		@ILayoutService layoutService: ILayoutService,
 		@IThemeService themeService: IThemeService,
-		@IWindowService windowService: IWindowService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IProductService productService: IProductService,
+		@IClipboardService clipboardService: IClipboardService,
+		@IElectronService electronService: IElectronService
 	) {
+		this.customImpl = new HTMLDialogService(logService, layoutService, themeService, keybindingService, productService, clipboardService);
+		this.nativeImpl = new NativeDialogService(logService, sharedProcessService, electronService, clipboardService);
+	}
 
-		// Use HTML based dialogs
-		if (configurationService.getValue('workbench.dialogs.customEnabled') === true) {
-			this.impl = new HTMLDialogService(logService, layoutService, themeService);
-		}
-		// Electron dialog service
-		else {
-			this.impl = new NativeDialogService(windowService, logService, sharedProcessService);
-		}
+	private get useCustomDialog(): boolean {
+		return this.configurationService.getValue('workbench.dialogs.customEnabled') === true;
 	}
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		return this.impl.confirm(confirmation);
+		if (this.useCustomDialog) {
+			return this.customImpl.confirm(confirmation);
+		}
+
+		return this.nativeImpl.confirm(confirmation);
 	}
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<number> {
-		return this.impl.show(severity, message, buttons, options);
+
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<IShowResult> {
+		if (this.useCustomDialog) {
+			return this.customImpl.show(severity, message, buttons, options);
+		}
+
+		return this.nativeImpl.show(severity, message, buttons, options);
+	}
+
+	about(): Promise<void> {
+		return this.nativeImpl.about();
 	}
 }
 
 class NativeDialogService implements IDialogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
-		@IWindowService private readonly windowService: IWindowService,
 		@ILogService private readonly logService: ILogService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
+		@IElectronService private readonly electronService: IElectronService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		sharedProcessService.registerChannel('dialog', new DialogChannel(this));
 	}
@@ -83,14 +104,14 @@ class NativeDialogService implements IDialogService {
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
-		const result = await this.windowService.showMessageBox(options);
+		const result = await this.electronService.showMessageBox(options);
 		return {
-			confirmed: buttonIndexMap[result.button] === 0 ? true : false,
+			confirmed: buttonIndexMap[result.response] === 0 ? true : false,
 			checkboxChecked: result.checkboxChecked
 		};
 	}
 
-	private getConfirmOptions(confirmation: IConfirmation): Electron.MessageBoxOptions {
+	private getConfirmOptions(confirmation: IConfirmation): MessageBoxOptions {
 		const buttons: string[] = [];
 		if (confirmation.primaryButton) {
 			buttons.push(confirmation.primaryButton);
@@ -104,7 +125,7 @@ class NativeDialogService implements IDialogService {
 			buttons.push(nls.localize('cancelButton', "Cancel"));
 		}
 
-		const opts: Electron.MessageBoxOptions = {
+		const opts: MessageBoxOptions = {
 			title: confirmation.title,
 			message: confirmation.message,
 			buttons,
@@ -127,7 +148,7 @@ class NativeDialogService implements IDialogService {
 		return opts;
 	}
 
-	async show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Promise<number> {
+	async show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
@@ -135,14 +156,16 @@ class NativeDialogService implements IDialogService {
 			buttons,
 			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
 			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
-			detail: dialogOptions ? dialogOptions.detail : undefined
+			detail: dialogOptions ? dialogOptions.detail : undefined,
+			checkboxLabel: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.label : undefined,
+			checkboxChecked: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.checked : undefined
 		});
 
-		const result = await this.windowService.showMessageBox(options);
-		return buttonIndexMap[result.button];
+		const result = await this.electronService.showMessageBox(options);
+		return { choice: buttonIndexMap[result.response], checkboxChecked: result.checkboxChecked };
 	}
 
-	private massageMessageBoxOptions(options: Electron.MessageBoxOptions): IMassagedMessageBoxOptions {
+	private massageMessageBoxOptions(options: MessageBoxOptions): IMassagedMessageBoxOptions {
 		let buttonIndexMap = (options.buttons || []).map((button, index) => index);
 		let buttons = (options.buttons || []).map(button => mnemonicButtonLabel(button));
 		let cancelId = options.cancelId;
@@ -184,6 +207,50 @@ class NativeDialogService implements IDialogService {
 		options.title = options.title || product.nameLong;
 
 		return { options, buttonIndexMap };
+	}
+
+	async about(): Promise<void> {
+		let version = product.version;
+		if (product.target) {
+			version = `${version} (${product.target} setup)`;
+		}
+
+		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
+		const detail = nls.localize('aboutDetail',
+			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
+			version,
+			product.commit || 'Unknown',
+			product.date || 'Unknown',
+			process.versions['electron'],
+			process.versions['chrome'],
+			process.versions['node'],
+			process.versions['v8'],
+			`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
+		);
+
+		const ok = nls.localize('okButton', "OK");
+		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
+		let buttons: string[];
+		if (isLinux) {
+			buttons = [copy, ok];
+		} else {
+			buttons = [ok, copy];
+		}
+
+		const result = await this.electronService.showMessageBox({
+			title: product.nameLong,
+			type: 'info',
+			message: product.nameLong,
+			detail: `\n${detail}`,
+			buttons,
+			noLink: true,
+			defaultId: buttons.indexOf(ok),
+			cancelId: buttons.indexOf(ok)
+		});
+
+		if (buttons[result.response] === copy) {
+			this.clipboardService.writeText(detail);
+		}
 	}
 }
 

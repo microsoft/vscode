@@ -1,0 +1,5 @@
+{
+	"displayName": "Image Preview",
+	"description": "Provides VS Code's built-in image preview",
+	"webviewEditors.displayName": "Image Preview"
+}

@@ -5,7 +5,7 @@
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainContext, MainThreadKeytarShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 
 @extHostNamedCustomer(MainContext.MainThreadKeytar)
 export class MainThreadKeytar implements MainThreadKeytarShape {
@@ -29,6 +29,10 @@ export class MainThreadKeytar implements MainThreadKeytarShape {
 
 	async $findPassword(service: string): Promise<string | null> {
 		return this._credentialsService.findPassword(service);
+	}
+
+	async $findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+		return this._credentialsService.findCredentials(service);
 	}
 
 	dispose(): void {

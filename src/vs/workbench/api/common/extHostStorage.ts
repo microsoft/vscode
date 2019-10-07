@@ -16,11 +16,11 @@ export interface IStorageChangeEvent {
 
 export class ExtHostStorage implements ExtHostStorageShape {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private _proxy: MainThreadStorageShape;
 
-	private _onDidChangeStorage = new Emitter<IStorageChangeEvent>();
+	private readonly _onDidChangeStorage = new Emitter<IStorageChangeEvent>();
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
 	constructor(mainContext: IExtHostRpcService) {

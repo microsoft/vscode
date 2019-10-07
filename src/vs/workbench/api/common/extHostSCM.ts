@@ -157,7 +157,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this.updateValue(value);
 	}
 
-	private _onDidChange = new Emitter<string>();
+	private readonly _onDidChange = new Emitter<string>();
 
 	get onDidChange(): Event<string> {
 		return this._onDidChange.event;
@@ -174,9 +174,9 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this._placeholder = placeholder;
 	}
 
-	private _validateInput: IValidateInput;
+	private _validateInput: IValidateInput | undefined;
 
-	get validateInput(): IValidateInput {
+	get validateInput(): IValidateInput | undefined {
 		if (!this._extension.enableProposedApi) {
 			throw new Error(`[${this._extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
 		}
@@ -184,7 +184,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		return this._validateInput;
 	}
 
-	set validateInput(fn: IValidateInput) {
+	set validateInput(fn: IValidateInput | undefined) {
 		if (!this._extension.enableProposedApi) {
 			throw new Error(`[${this._extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
 		}
@@ -233,9 +233,9 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	private _resourceStatesMap: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
 	private _resourceStatesCommandsMap: Map<ResourceStateHandle, vscode.Command> = new Map<ResourceStateHandle, vscode.Command>();
 
-	private _onDidUpdateResourceStates = new Emitter<void>();
+	private readonly _onDidUpdateResourceStates = new Emitter<void>();
 	readonly onDidUpdateResourceStates = this._onDidUpdateResourceStates.event;
-	private _onDidDispose = new Emitter<void>();
+	private readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose = this._onDidDispose.event;
 
 	private _handlesSnapshot: number[] = [];
@@ -319,11 +319,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 				const faded = r.decorations && !!r.decorations.faded;
 
-				const source = r.decorations && r.decorations.source || undefined;
-				const letter = r.decorations && r.decorations.letter || undefined;
-				const color = r.decorations && r.decorations.color || undefined;
-
-				const rawResource = [handle, <UriComponents>sourceUri, icons, tooltip, strikeThrough, faded, source, letter, color] as SCMRawResource;
+				const rawResource = [handle, <UriComponents>sourceUri, icons, tooltip, strikeThrough, faded] as SCMRawResource;
 
 				return { rawResource, handle };
 			});
@@ -455,7 +451,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._selected;
 	}
 
-	private _onDidChangeSelection = new Emitter<boolean>();
+	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	private handle: number = ExtHostSourceControl._handlePool++;
@@ -539,7 +535,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
 	private _sourceControlsByExtension: Map<string, ExtHostSourceControl[]> = new Map<string, ExtHostSourceControl[]>();
 
-	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
+	private readonly _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
 
 	private _selectedSourceControlHandles = new Set<number>();
@@ -671,7 +667,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return Promise.resolve(undefined);
 		}
 
-		return asPromise(() => sourceControl.inputBox.validateInput(value, cursorPosition)).then(result => {
+		return asPromise(() => sourceControl.inputBox.validateInput!(value, cursorPosition)).then(result => {
 			if (!result) {
 				return Promise.resolve(undefined);
 			}

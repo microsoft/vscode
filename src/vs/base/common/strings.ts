@@ -5,11 +5,6 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 
-/**
- * The empty string.
- */
-export const empty = '';
-
 export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	if (!str || typeof str !== 'string') {
 		return true;
@@ -70,7 +65,7 @@ export function escape(html: string): string {
  * Escapes regular expression characters in a given string
  */
 export function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[\-\\\{\}\*\+\?\|\^\$\.\[\]\(\)\#]/g, '\\$&');
+	return value.replace(/[\\\{\}\*\+\?\|\^\$\.\[\]\(\)]/g, '\\$&');
 }
 
 /**
@@ -608,7 +603,7 @@ export function lcut(text: string, n: number) {
 		re.lastIndex += 1;
 	}
 
-	return text.substring(i).replace(/^\s/, empty);
+	return text.substring(i).replace(/^\s/, '');
 }
 
 // Escape codes
@@ -636,7 +631,7 @@ export const removeAccents: (str: string) => string = (function () {
 		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
 		const regex = /[\u0300-\u036f]/g;
 		return function (str: string) {
-			return (str as any).normalize('NFD').replace(regex, empty);
+			return (str as any).normalize('NFD').replace(regex, '');
 		};
 	}
 })();

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode-chokidar' {
+declare module 'chokidar' {
 
 	// TypeScript Version: 3.0
 

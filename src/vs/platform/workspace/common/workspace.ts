@@ -12,35 +12,23 @@ import { IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder,
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
-export const enum WorkbenchState {
-	EMPTY = 1,
-	FOLDER,
-	WORKSPACE
-}
-
-export interface IWorkspaceFoldersChangeEvent {
-	added: IWorkspaceFolder[];
-	removed: IWorkspaceFolder[];
-	changed: IWorkspaceFolder[];
-}
-
 export interface IWorkspaceContextService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event which fires on workbench state changes.
 	 */
-	onDidChangeWorkbenchState: Event<WorkbenchState>;
+	readonly onDidChangeWorkbenchState: Event<WorkbenchState>;
 
 	/**
 	 * An event which fires on workspace name changes.
 	 */
-	onDidChangeWorkspaceName: Event<void>;
+	readonly onDidChangeWorkspaceName: Event<void>;
 
 	/**
 	 * An event which fires on workspace folders change.
 	 */
-	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
+	readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
 	 * Provides access to the complete workspace object.
@@ -79,6 +67,18 @@ export interface IWorkspaceContextService {
 	isInsideWorkspace(resource: URI): boolean;
 }
 
+export const enum WorkbenchState {
+	EMPTY = 1,
+	FOLDER,
+	WORKSPACE
+}
+
+export interface IWorkspaceFoldersChangeEvent {
+	added: IWorkspaceFolder[];
+	removed: IWorkspaceFolder[];
+	changed: IWorkspaceFolder[];
+}
+
 export namespace IWorkspace {
 	export function isIWorkspace(thing: any): thing is IWorkspace {
 		return thing && typeof thing === 'object'
@@ -106,6 +106,7 @@ export interface IWorkspace {
 }
 
 export interface IWorkspaceFolderData {
+
 	/**
 	 * The associated URI for this workspace folder.
 	 */
@@ -143,7 +144,7 @@ export interface IWorkspaceFolder extends IWorkspaceFolderData {
 export class Workspace implements IWorkspace {
 
 	private _foldersMap: TernarySearchTree<WorkspaceFolder> = TernarySearchTree.forPaths<WorkspaceFolder>();
-	private _folders: WorkspaceFolder[];
+	private _folders!: WorkspaceFolder[];
 
 	constructor(
 		private _id: string,
@@ -264,5 +265,6 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 			}
 		}
 	}
+
 	return result;
 }

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -24,7 +25,7 @@ export const IWebviewService = createDecorator<IWebviewService>('webviewService'
  * Handles the creation of webview elements.
  */
 export interface IWebviewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createWebview(
 		id: string,
@@ -39,13 +40,8 @@ export interface IWebviewService {
 	): WebviewEditorOverlay;
 }
 
-export const WebviewResourceScheme = 'vscode-resource';
-
 export interface WebviewOptions {
-	readonly extension?: {
-		readonly location: URI;
-		readonly id?: ExtensionIdentifier;
-	};
+	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
@@ -62,6 +58,10 @@ export interface Webview extends IDisposable {
 
 	html: string;
 	contentOptions: WebviewContentOptions;
+	extension: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	} | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;
 
@@ -70,6 +70,7 @@ export interface Webview extends IDisposable {
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onMessage: Event<any>;
+	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
 	sendMessage(data: any): void;
 	update(
@@ -99,6 +100,8 @@ export interface WebviewEditorOverlay extends Webview {
 	release(owner: any): void;
 
 	getInnerWebview(): Webview | undefined;
+
+	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
 }
 
 export const webviewDeveloperCategory = nls.localize('developer', "Developer");

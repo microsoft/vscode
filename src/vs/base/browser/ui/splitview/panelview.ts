@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, addClass, removeClass, toggleClass, trackFocus, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { $, append, addClass, removeClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
@@ -57,6 +57,9 @@ export abstract class Panel extends Disposable implements IView {
 
 	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
+
+	private readonly _onDidChangeExpansionState = this._register(new Emitter<boolean>());
+	readonly onDidChangeExpansionState: Event<boolean> = this._onDidChangeExpansionState.event;
 
 	get draggableElement(): HTMLElement {
 		return this.header;
@@ -144,6 +147,7 @@ export abstract class Panel extends Disposable implements IView {
 			}, 200);
 		}
 
+		this._onDidChangeExpansionState.fire(expanded);
 		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
 		return true;
 	}
@@ -391,13 +395,7 @@ export class PanelView extends Disposable {
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
 		const disposables = new DisposableStore();
-
-		// https://github.com/Microsoft/vscode/issues/59950
-		let shouldAnimate = false;
-		disposables.add(scheduleAtNextAnimationFrame(() => shouldAnimate = true));
-
-		disposables.add(Event.filter(panel.onDidChange, () => shouldAnimate)
-			(this.setupAnimation, this));
+		panel.onDidChangeExpansionState(this.setupAnimation, this, disposables);
 
 		const panelItem = { panel, disposable: disposables };
 		this.panelItems.splice(index, 0, panelItem);

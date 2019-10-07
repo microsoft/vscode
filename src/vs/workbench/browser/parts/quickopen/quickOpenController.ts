@@ -30,7 +30,7 @@ import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Exten
 import * as errors from 'vs/base/common/errors';
 import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -61,7 +61,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private static readonly MAX_SHORT_RESPONSE_TIME = 500;
 	private static readonly ID = 'workbench.component.quickopen';
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly _onShow: Emitter<void> = this._register(new Emitter<void>());
 	readonly onShow: Event<void> = this._onShow.event;
@@ -183,10 +183,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					onHide: (reason) => this.handleOnHide(reason),
 					onFocusLost: () => !this.closeOnFocusLost
 				}, {
-					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
-					keyboardSupport: false,
-					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
-				}
+				inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
+				keyboardSupport: false,
+				treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
+			}
 			));
 			this._register(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: QUICK_INPUT_BACKGROUND, foreground: QUICK_INPUT_FOREGROUND }));
 

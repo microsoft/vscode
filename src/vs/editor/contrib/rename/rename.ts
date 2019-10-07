@@ -29,6 +29,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 class RenameSkeleton {
 
@@ -45,15 +46,15 @@ class RenameSkeleton {
 		return this._providers.length > 0;
 	}
 
-	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation & Rejection | null | undefined> {
+	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation & Rejection | undefined> {
 		const firstProvider = this._providers[0];
 		if (!firstProvider) {
 			return undefined;
 		}
 
-		let res: RenameLocation & Rejection | null | undefined;
+		let res: RenameLocation & Rejection | undefined;
 		if (firstProvider.resolveRenameLocation) {
-			res = await firstProvider.resolveRenameLocation(this.model, this.position, token);
+			res = withNullAsUndefined(await firstProvider.resolveRenameLocation(this.model, this.position, token));
 		}
 
 		if (!res) {
@@ -160,7 +161,7 @@ class RenameController extends Disposable implements IEditorContribution {
 			return undefined;
 		}
 
-		let loc: RenameLocation & Rejection | null | undefined;
+		let loc: RenameLocation & Rejection | undefined;
 		try {
 			const resolveLocationOperation = skeleton.resolveRenameLocation(token);
 			this._progressService.showWhile(resolveLocationOperation, 250);
@@ -254,6 +255,8 @@ class RenameController extends Disposable implements IEditorContribution {
 		if (this._activeRename) {
 			this._activeRename.operation.cancel();
 			this._activeRename = undefined;
+
+			this.cancelRenameInput();
 		}
 	}
 }

@@ -1,0 +1,62 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+
+		<!-- Disable pinch zooming -->
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
+		<!-- Content Security Policy -->
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="
+				default-src 'self';
+				img-src 'self' https: data: blob:;
+				media-src 'none';
+				script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https: 'sha256-AMRGFXNZ7mBnD/6F4lTV00XAjE5CBSM7ZeIv3DIp5YM=' 'sha256-meDZW3XhN5JmdjFUrWGhTouRKBiWYtXHltaKnqn/WMo=';
+				child-src 'self';
+				frame-src 'self' https://*.vscode-webview-test.com;
+				worker-src 'self';
+				style-src 'self' 'unsafe-inline';
+				connect-src 'self' ws: wss: https:;
+				font-src 'self' blob:;
+				manifest-src 'self';
+		">
+
+		<!-- Workbench Configuration -->
+		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONGIGURATION}}">
+
+		<!-- Workarounds/Hacks (remote user data uri) -->
+		<meta id="vscode-remote-user-data-uri" data-settings="{{REMOTE_USER_DATA_URI}}">
+
+		<!-- Workbench Icon/Manifest/CSS -->
+		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+		<link rel="manifest" href="/manifest.json">
+	</head>
+
+	<body aria-label="">
+	</body>
+
+	<!-- Startup (do not modify order of script tags!) -->
+	<script>
+		// NOTE: Changes to inline scripts require update of content security policy
+		self.require = {
+			baseUrl: `${window.location.origin}/static/out`,
+			paths: {
+				'vscode-textmate': `${window.location.origin}/static/remote/web/node_modules/vscode-textmate/release/main`,
+				'onigasm-umd': `${window.location.origin}/static/remote/web/node_modules/onigasm-umd/release/main`,
+				'xterm': `${window.location.origin}/static/remote/web/node_modules/xterm/lib/xterm.js`,
+				'xterm-addon-search': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
+				'xterm-addon-web-links': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-web-links/lib/xterm-addon-web-links.js`,
+				'semver-umd': `${window.location.origin}/static/remote/web/node_modules/semver-umd/lib/semver-umd.js`,
+				'@microsoft/applicationinsights-web': `${window.location.origin}/static/remote/web/node_modules/@microsoft/applicationinsights-web/dist/applicationinsights-web.js`,
+			}
+		};
+	</script>
+	<script src="./static/out/vs/loader.js"></script>
+	<script>
+		// NOTE: Changes to inline scripts require update of content security policy
+		require(['vs/code/browser/workbench/workbench'], function() {});
+	</script>
+</html>

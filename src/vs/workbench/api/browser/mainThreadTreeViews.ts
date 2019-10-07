@@ -35,9 +35,11 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			this._dataProviders.set(treeViewId, dataProvider);
 			const viewer = this.getTreeView(treeViewId);
 			if (viewer) {
-				viewer.dataProvider = dataProvider;
+				// Order is important here. The internal tree isn't created until the dataProvider is set.
+				// Set all other properties first!
 				viewer.showCollapseAllAction = !!options.showCollapseAll;
 				viewer.canSelectMany = !!options.canSelectMany;
+				viewer.dataProvider = dataProvider;
 				this.registerListeners(treeViewId, viewer);
 				this._proxy.$setVisible(treeViewId, viewer.visible);
 			} else {
@@ -71,6 +73,13 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
 			viewer.message = message;
+		}
+	}
+
+	$setTitle(treeViewId: string, title: string): void {
+		const viewer = this.getTreeView(treeViewId);
+		if (viewer) {
+			viewer.title = title;
 		}
 	}
 

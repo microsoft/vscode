@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 export const IMenubarService = createDecorator<IMenubarService>('menubarService');
 
 export interface IMenubarService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void>;
 }

@@ -1628,7 +1628,7 @@ export class Repository {
 		const args = ['for-each-ref', '--format', '%(refname) %(objectname)'];
 
 		if (opts && opts.sort && opts.sort !== 'alphabetically') {
-			args.push('--sort', opts.sort);
+			args.push('--sort', `-${opts.sort}`);
 		}
 
 		const result = await this.run(args);
@@ -1766,7 +1766,7 @@ export class Repository {
 			}
 
 			const raw = await readfile(templatePath, 'utf8');
-			return raw.replace(/\n?#.*/g, '');
+			return raw.replace(/^\s*#.*$\n?/gm, '');
 
 		} catch (err) {
 			return '';

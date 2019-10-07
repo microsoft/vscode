@@ -28,8 +28,11 @@ export interface IVariableResolveContext {
 export class AbstractVariableResolverService implements IConfigurationResolverService {
 
 	static VARIABLE_REGEXP = /\$\{(.*?)\}/g;
+	static VARIABLE_REGEXP_SINGLE = /\$\{(.*?)\}/;
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
+
+	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
 
 	constructor(
 		private _context: IVariableResolveContext,
@@ -88,6 +91,14 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 	public resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
 		throw new Error('resolveWithInteraction not implemented.');
+	}
+
+	public contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void {
+		if (this._contributedVariables.has(variable)) {
+			throw new Error('Variable ' + variable + ' is contributed twice.');
+		} else {
+			this._contributedVariables.set(variable, resolution);
+		}
 	}
 
 	private recursiveResolve(folderUri: uri | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
@@ -265,15 +276,15 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						return match;
 
 					default:
-						return match;
+						return this.resolveFromMap(match, variable, commandValueMapping, undefined);
 				}
 			}
 		}
 	}
 
-	private resolveFromMap(match: string, argument: string | undefined, commandValueMapping: IStringDictionary<string> | undefined, prefix: string): string {
+	private resolveFromMap(match: string, argument: string | undefined, commandValueMapping: IStringDictionary<string> | undefined, prefix: string | undefined): string {
 		if (argument && commandValueMapping) {
-			const v = commandValueMapping[prefix + ':' + argument];
+			const v = (prefix === undefined) ? commandValueMapping[argument] : commandValueMapping[prefix + ':' + argument];
 			if (typeof v === 'string') {
 				return v;
 			}

@@ -15,12 +15,15 @@ import 'vs/workbench/services/extensions/worker/extHost.services';
 //#region --- Define, capture, and override some globals
 //todo@joh do not allow extensions to call postMessage and other globals...
 
+// declare WorkerSelf#postMessage
+declare function postMessage(data: any, transferables?: Transferable[]): void;
+
 declare namespace self {
 	let close: any;
 	let postMessage: any;
 	let addEventLister: any;
-	let indexedDB: any;
-	let caches: any;
+	let indexedDB: { open: any, [k: string]: any };
+	let caches: { open: any, [k: string]: any };
 }
 
 const nativeClose = self.close.bind(self);
@@ -32,14 +35,10 @@ self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 const nativeAddEventLister = addEventListener.bind(self);
 self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
 
-// readonly, cannot redefine...
-// self.indexedDB = undefined;
-// self.caches = undefined;
-
 //#endregion ---
 
 const hostUtil = new class implements IHostUtils {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	exit(_code?: number | undefined): void {
 		nativeClose();
 	}

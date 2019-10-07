@@ -11,9 +11,9 @@ import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector, ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -32,6 +32,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { values } from 'vs/base/common/map';
+import { assertIsDefined } from 'vs/base/common/types';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -57,7 +58,7 @@ class StatusbarViewModel extends Disposable {
 	private readonly _entries: IStatusbarViewModelEntry[] = [];
 	get entries(): IStatusbarViewModelEntry[] { return this._entries; }
 
-	private hidden: Set<string>;
+	private hidden!: Set<string>;
 
 	constructor(private storageService: IStorageService) {
 		super();
@@ -238,7 +239,10 @@ class StatusbarViewModel extends Disposable {
 					return entryB.priority - entryA.priority; // higher priority towards the left
 				}
 
-				return mapEntryToIndex.get(entryA)! - mapEntryToIndex.get(entryB)!; // otherwise maintain stable order
+				const indexA = mapEntryToIndex.get(entryA);
+				const indexB = mapEntryToIndex.get(entryB);
+
+				return indexA! - indexB!; // otherwise maintain stable order (both values known to be in map)
 			}
 
 			if (entryA.alignment === StatusbarAlignment.LEFT) {
@@ -323,7 +327,7 @@ class HideStatusbarEntryAction extends Action {
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	_serviceBrand!: ServiceIdentifier<IStatusbarService>;
+	_serviceBrand: undefined;
 
 	//#region IView
 
@@ -334,14 +338,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	//#endregion
 
-	private styleElement: HTMLStyleElement;
+	private styleElement: HTMLStyleElement | undefined;
 
 	private pendingEntries: IPendingStatusbarEntry[] = [];
 
 	private readonly viewModel: StatusbarViewModel;
 
-	private leftItemsContainer: HTMLElement;
-	private rightItemsContainer: HTMLElement;
+	private leftItemsContainer: HTMLElement | undefined;
+	private rightItemsContainer: HTMLElement | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -475,7 +479,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			...this.viewModel.getEntries(StatusbarAlignment.LEFT),
 			...this.viewModel.getEntries(StatusbarAlignment.RIGHT).reverse() // reversing due to flex: row-reverse
 		].forEach(entry => {
-			const target = entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer;
+			const target = assertIsDefined(entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
 
 			target.appendChild(entry.container);
 		});
@@ -488,7 +492,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			entries.reverse(); // reversing due to flex: row-reverse
 		}
 
-		const target = alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer;
+		const target = assertIsDefined(alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
 
 		// find an entry that has lower priority than the new one
 		// and then insert the item before that one
@@ -571,7 +575,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = assertIsDefined(this.getContainer());
 
 		// Background colors
 		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);
@@ -580,9 +584,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Border color
 		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
-		container.style.borderTopWidth = borderColor ? '1px' : null;
-		container.style.borderTopStyle = borderColor ? 'solid' : null;
-		container.style.borderTopColor = borderColor;
+		if (borderColor) {
+			addClass(container, 'status-border-top');
+			container.style.setProperty('--status-border-top-color', borderColor.toString());
+		} else {
+			removeClass(container, 'status-border-top');
+			container.style.removeProperty('--status-border-top-color');
+		}
 
 		// Notification Beak
 		if (!this.styleElement) {
@@ -623,10 +631,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 }
 
 class StatusbarEntryItem extends Disposable {
-	private entry: IStatusbarEntry;
+	private entry!: IStatusbarEntry;
 
-	private labelContainer: HTMLElement;
-	private label: OcticonLabel;
+	private labelContainer!: HTMLElement;
+	private label!: OcticonLabel;
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());
@@ -687,8 +695,9 @@ class StatusbarEntryItem extends Disposable {
 		if (!this.entry || entry.command !== this.entry.command) {
 			this.commandListener.clear();
 
-			if (entry.command) {
-				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(entry.command!, entry.arguments));
+			const command = entry.command;
+			if (command) {
+				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command, entry.arguments));
 
 				removeClass(this.labelContainer, 'disabled');
 			} else {

@@ -241,7 +241,7 @@ export abstract class EditorAction extends EditorCommand {
 
 // --- Registration of commands and actions
 
-export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
+export function registerLanguageCommand<Args extends { [n: string]: any }>(id: string, handler: (accessor: ServicesAccessor, args: Args) => any) {
 	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
 }
 

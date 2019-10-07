@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -24,6 +24,8 @@ import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/c
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { assertIsDefined } from 'vs/base/common/types';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -69,7 +71,8 @@ export class TerminalPanel extends Panel {
 
 		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 
-		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
+		const container = assertIsDefined(this.getContainer());
+		this._terminalService.setContainers(container, this._terminalContainer);
 
 		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {

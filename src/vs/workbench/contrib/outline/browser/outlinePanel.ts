@@ -169,7 +169,7 @@ class OutlineViewState {
 	private _filterOnType = true;
 	private _sortBy = OutlineSortOrder.ByKind;
 
-	private _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
+	private readonly _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
 	readonly onDidChange = this._onDidChange.event;
 
 	set followCursor(value: boolean) {
@@ -249,8 +249,6 @@ export class OutlinePanel extends ViewletPanel {
 	private _treeComparator!: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
 
-	private _treeFakeUIEvent = new UIEvent('me');
-
 	private readonly _contextKeyFocused: IContextKey<boolean>;
 	private readonly _contextKeyFiltered: IContextKey<boolean>;
 
@@ -317,6 +315,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
 		this._tree = this._instantiationService.createInstance(
 			WorkbenchDataTree,
+			'OutlinePanel',
 			treeContainer,
 			new OutlineVirtualDelegate(),
 			[new OutlineGroupRenderer(), this._treeRenderer],
@@ -384,7 +383,7 @@ export class OutlinePanel extends ViewletPanel {
 
 	getActions(): IAction[] {
 		return [
-			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action collapse-explorer', true, () => {
+			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action codicon-collapse-all', true, () => {
 				return new CollapseAction(this._tree, true, undefined).run();
 			})
 		];
@@ -530,10 +529,8 @@ export class OutlinePanel extends ViewletPanel {
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorDisposables.add(this._tree.onDidChangeSelection(e => {
-			if (e.browserEvent === this._treeFakeUIEvent /* || e.payload && e.payload.didClickOnTwistie */) {
-				return;
-			}
+		this._editorDisposables.add(this._tree.onDidOpen(e => {
+
 			let [first] = e.elements;
 			if (!(first instanceof OutlineElement)) {
 				return;
@@ -635,7 +632,7 @@ export class OutlinePanel extends ViewletPanel {
 		if (top === null) {
 			this._tree.reveal(item, 0.5);
 		}
-		this._tree.setFocus([item], this._treeFakeUIEvent);
-		this._tree.setSelection([item], this._treeFakeUIEvent);
+		this._tree.setFocus([item]);
+		this._tree.setSelection([item]);
 	}
 }

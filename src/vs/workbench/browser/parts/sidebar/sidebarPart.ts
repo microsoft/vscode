@@ -19,7 +19,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -32,10 +32,11 @@ import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
@@ -173,7 +174,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
+		const container = assertIsDefined(this.getContainer());
 
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND);
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND);
@@ -225,8 +226,17 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	}
 
 	getViewlets(): ViewletDescriptor[] {
-		return this.viewletRegistry.getViewlets()
-			.sort((v1, v2) => v1.order! - v2.order!);
+		return this.viewletRegistry.getViewlets().sort((v1, v2) => {
+			if (typeof v1.order !== 'number') {
+				return -1;
+			}
+
+			if (typeof v2.order !== 'number') {
+				return 1;
+			}
+
+			return v1.order - v2.order;
+		});
 	}
 
 	getDefaultViewletId(): string {

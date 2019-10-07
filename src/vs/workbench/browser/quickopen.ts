@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as objects from 'vs/base/common/objects';
-import * as arrays from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
-import * as types from 'vs/base/common/types';
+import { localize } from 'vs/nls';
+import { mixin, assign } from 'vs/base/common/objects';
+import { first } from 'vs/base/common/arrays';
+import { startsWith } from 'vs/base/common/strings';
+import { isString, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -111,9 +111,9 @@ export class QuickOpenHandler {
 	 */
 	getEmptyLabel(searchString: string): string {
 		if (searchString.length > 0) {
-			return nls.localize('noResultsMatching', "No results matching");
+			return localize('noResultsMatching', "No results matching");
 		}
-		return nls.localize('noResultsFound2', "No results found");
+		return localize('noResultsFound2', "No results found");
 	}
 }
 
@@ -128,9 +128,9 @@ export interface QuickOpenHandlerHelpEntry {
  */
 export class QuickOpenHandlerDescriptor {
 	prefix: string;
-	description: string;
+	description?: string;
 	contextKey?: string;
-	helpEntries: QuickOpenHandlerHelpEntry[];
+	helpEntries?: QuickOpenHandlerHelpEntry[];
 	instantProgress: boolean;
 
 	private id: string;
@@ -145,7 +145,7 @@ export class QuickOpenHandlerDescriptor {
 		this.contextKey = contextKey;
 		this.instantProgress = instantProgress;
 
-		if (types.isString(param)) {
+		if (isString(param)) {
 			this.description = param;
 		} else {
 			this.helpEntries = param;
@@ -195,7 +195,7 @@ export interface IQuickOpenRegistry {
 
 class QuickOpenRegistry implements IQuickOpenRegistry {
 	private handlers: QuickOpenHandlerDescriptor[] = [];
-	private defaultHandler: QuickOpenHandlerDescriptor;
+	private defaultHandler: QuickOpenHandlerDescriptor | undefined;
 
 	registerQuickOpenHandler(descriptor: QuickOpenHandlerDescriptor): void {
 		this.handlers.push(descriptor);
@@ -214,11 +214,11 @@ class QuickOpenRegistry implements IQuickOpenRegistry {
 	}
 
 	getQuickOpenHandler(text: string): QuickOpenHandlerDescriptor | null {
-		return text ? (arrays.first<QuickOpenHandlerDescriptor>(this.handlers, h => strings.startsWith(text, h.prefix)) || null) : null;
+		return text ? (first<QuickOpenHandlerDescriptor>(this.handlers, h => startsWith(text, h.prefix)) || null) : null;
 	}
 
 	getDefaultQuickOpenHandler(): QuickOpenHandlerDescriptor {
-		return this.defaultHandler;
+		return assertIsDefined(this.defaultHandler);
 	}
 }
 
@@ -275,17 +275,17 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 			if (input instanceof EditorInput) {
 				let opts = this.getOptions();
 				if (opts) {
-					opts = objects.mixin(opts, openOptions, true);
+					opts = mixin(opts, openOptions, true);
 				} else if (openOptions) {
 					opts = EditorOptions.create(openOptions);
 				}
 
-				this.editorService.openEditor(input, types.withNullAsUndefined(opts), sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				this.editorService.openEditor(input, withNullAsUndefined(opts), sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			} else {
 				const resourceInput = <IResourceInput>input;
 
 				if (openOptions) {
-					resourceInput.options = objects.assign(resourceInput.options || Object.create(null), openOptions);
+					resourceInput.options = assign(resourceInput.options || Object.create(null), openOptions);
 				}
 
 				this.editorService.openEditor(resourceInput, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);

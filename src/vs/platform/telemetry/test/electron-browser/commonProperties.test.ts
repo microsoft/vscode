@@ -31,7 +31,7 @@ suite('Telemetry - common properties', function () {
 	test('default', async function () {
 		await mkdirp(parentDir);
 		fs.writeFileSync(installSource, 'my.install.source');
-		const props = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', installSource);
+		const props = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', undefined, installSource);
 		assert.ok('commitHash' in props);
 		assert.ok('sessionID' in props);
 		assert.ok('timestamp' in props);
@@ -52,7 +52,7 @@ suite('Telemetry - common properties', function () {
 		assert.ok('common.instanceId' in props, 'instanceId');
 		assert.ok('common.machineId' in props, 'machineId');
 		fs.unlinkSync(installSource);
-		const props_1 = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', installSource);
+		const props_1 = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', undefined, installSource);
 		assert.ok(!('common.source' in props_1));
 	});
 
@@ -60,14 +60,14 @@ suite('Telemetry - common properties', function () {
 
 		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL);
 
-		const props = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', installSource);
+		const props = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', undefined, installSource);
 		assert.ok('common.lastSessionDate' in props); // conditional, see below
 		assert.ok('common.isNewSession' in props);
 		assert.equal(props['common.isNewSession'], 0);
 	});
 
 	test('values chance on ask', async function () {
-		const props = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', installSource);
+		const props = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', undefined, installSource);
 		let value1 = props['common.sequence'];
 		let value2 = props['common.sequence'];
 		assert.ok(value1 !== value2, 'seq');
@@ -80,5 +80,53 @@ suite('Telemetry - common properties', function () {
 		await timeout(10);
 		value2 = props['common.timesincesessionstart'];
 		assert.ok(value1 !== value2, 'timesincesessionstart');
+	});
+
+	test('mixes in additional properties', async function () {
+		const resolveCommonTelemetryProperties = () => {
+			return {
+				'userId': '1'
+			};
+		};
+
+		const props = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', undefined, installSource, undefined, resolveCommonTelemetryProperties);
+
+		assert.ok('commitHash' in props);
+		assert.ok('sessionID' in props);
+		assert.ok('timestamp' in props);
+		assert.ok('common.platform' in props);
+		assert.ok('common.nodePlatform' in props);
+		assert.ok('common.nodeArch' in props);
+		assert.ok('common.timesincesessionstart' in props);
+		assert.ok('common.sequence' in props);
+		assert.ok('common.platformVersion' in props, 'platformVersion');
+		assert.ok('version' in props);
+		assert.ok('common.firstSessionDate' in props, 'firstSessionDate');
+		assert.ok('common.lastSessionDate' in props, 'lastSessionDate');
+		assert.ok('common.isNewSession' in props, 'isNewSession');
+		assert.ok('common.instanceId' in props, 'instanceId');
+		assert.ok('common.machineId' in props, 'machineId');
+
+		assert.equal(props['userId'], '1');
+	});
+
+	test('mixes in additional dyanmic properties', async function () {
+		let i = 1;
+		const resolveCommonTelemetryProperties = () => {
+			return Object.defineProperties({}, {
+				'userId': {
+					get: () => {
+						return i++;
+					},
+					enumerable: true
+				}
+			});
+		};
+
+		const props = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', undefined, installSource, undefined, resolveCommonTelemetryProperties);
+		assert.equal(props['userId'], '1');
+
+		const props2 = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', undefined, installSource, undefined, resolveCommonTelemetryProperties);
+		assert.equal(props2['userId'], '2');
 	});
 });

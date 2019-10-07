@@ -63,11 +63,11 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 	}
 
 	start(accessor: ServicesAccessor): void {
-		this.instantiationService = accessor.get(IInstantiationService);
-		this.lifecycleService = accessor.get(ILifecycleService);
+		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
+		const lifecycleService = this.lifecycleService = accessor.get(ILifecycleService);
 
 		[LifecyclePhase.Starting, LifecyclePhase.Ready, LifecyclePhase.Restored, LifecyclePhase.Eventually].forEach(phase => {
-			this.instantiateByPhase(this.instantiationService!, this.lifecycleService!, phase);
+			this.instantiateByPhase(instantiationService, lifecycleService, phase);
 		});
 	}
 
@@ -91,7 +91,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 			if (phase !== LifecyclePhase.Eventually) {
 				// instantiate everything synchronously and blocking
 				for (const ctor of toBeInstantiated) {
-					instantiationService.createInstance(ctor);
+					this.safeCreateInstance(instantiationService, ctor); // catch error so that other contributions are still considered
 				}
 			} else {
 				// for the Eventually-phase we instantiate contributions
@@ -102,7 +102,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 				let instantiateSome = (idle: IdleDeadline) => {
 					while (i < toBeInstantiated.length) {
 						const ctor = toBeInstantiated[i++];
-						instantiationService.createInstance(ctor);
+						this.safeCreateInstance(instantiationService, ctor); // catch error so that other contributions are still considered
 						if (idle.timeRemaining() < 1) {
 							// time is up -> reschedule
 							runWhenIdle(instantiateSome, forcedTimeout);
@@ -112,6 +112,14 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 				};
 				runWhenIdle(instantiateSome, forcedTimeout);
 			}
+		}
+	}
+
+	private safeCreateInstance(instantiationService: IInstantiationService, ctor: IConstructorSignature0<IWorkbenchContribution>): void {
+		try {
+			instantiationService.createInstance(ctor);
+		} catch (error) {
+			console.error(`Unable to instantiate workbench contribution ${(ctor as any).name}.`, error);
 		}
 	}
 }

@@ -6,10 +6,11 @@ import * as dom from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
+
+const WebviewPanelResourceScheme = 'webview-panel';
 
 class WebviewIconsManager {
 	private readonly _icons = new Map<string, { light: URI, dark: URI }>();
@@ -50,9 +51,9 @@ class WebviewIconsManager {
 	}
 }
 
-export class WebviewEditorInput extends EditorInput {
+export class WebviewInput extends EditorInput {
 
-	public static readonly typeId = 'workbench.editors.webviewInput';
+	public static typeId = 'workbench.editors.webviewInput';
 
 	private static readonly iconsManager = new WebviewIconsManager();
 
@@ -65,27 +66,22 @@ export class WebviewEditorInput extends EditorInput {
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		public readonly extension: undefined | {
-			readonly location: URI;
-			readonly id: ExtensionIdentifier;
-		},
-		webview: Unowned<WebviewEditorOverlay>,
+		webview: Unowned<WebviewEditorOverlay>
 	) {
 		super();
 
 		this._name = name;
-		this.extension = extension;
 
 		this._webview = this._register(webview.acquire()); // The input owns this webview
 	}
 
 	public getTypeId(): string {
-		return WebviewEditorInput.typeId;
+		return WebviewInput.typeId;
 	}
 
 	public getResource(): URI {
 		return URI.from({
-			scheme: 'webview-panel',
+			scheme: WebviewPanelResourceScheme,
 			path: `webview-panel/webview-${this.id}`
 		});
 	}
@@ -94,11 +90,11 @@ export class WebviewEditorInput extends EditorInput {
 		return this._name;
 	}
 
-	public getTitle() {
+	public getTitle(_verbosity?: Verbosity) {
 		return this.getName();
 	}
 
-	public getDescription() {
+	public getDescription(): string | undefined {
 		return undefined;
 	}
 
@@ -111,13 +107,17 @@ export class WebviewEditorInput extends EditorInput {
 		return this._webview;
 	}
 
+	public get extension() {
+		return this._webview.extension;
+	}
+
 	public get iconPath() {
 		return this._iconPath;
 	}
 
 	public set iconPath(value: { light: URI, dark: URI } | undefined) {
 		this._iconPath = value;
-		WebviewEditorInput.iconsManager.setIcons(this.id, value);
+		WebviewInput.iconsManager.setIcons(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {
@@ -141,21 +141,17 @@ export class WebviewEditorInput extends EditorInput {
 	}
 }
 
-export class RevivedWebviewEditorInput extends WebviewEditorInput {
+export class RevivedWebviewEditorInput extends WebviewInput {
 	private _revived: boolean = false;
 
 	constructor(
 		id: string,
 		viewType: string,
 		name: string,
-		extension: undefined | {
-			readonly location: URI;
-			readonly id: ExtensionIdentifier
-		},
-		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
-		webview: Unowned<WebviewEditorOverlay>,
+		private readonly reviver: (input: WebviewInput) => Promise<void>,
+		webview: Unowned<WebviewEditorOverlay>
 	) {
-		super(id, viewType, name, extension, webview);
+		super(id, viewType, name, webview);
 	}
 
 	public async resolve(): Promise<IEditorModel> {

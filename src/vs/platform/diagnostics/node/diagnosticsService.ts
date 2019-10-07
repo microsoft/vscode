@@ -9,13 +9,12 @@ import { readdir, stat, exists, readFile } from 'fs';
 import { join, basename } from 'vs/base/common/path';
 import { parse, ParseError } from 'vs/base/common/json';
 import { listProcesses } from 'vs/base/node/ps';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/common/product';
 import { repeat, pad } from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
-import { IMainProcessInfo } from 'vs/platform/launch/common/launchService';
+import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -23,7 +22,7 @@ export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
 
 export interface IDiagnosticsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
 	getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
@@ -248,7 +247,7 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 
 export class DiagnosticsService implements IDiagnosticsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(@ITelemetryService private readonly telemetryService: ITelemetryService) { }
 
@@ -267,7 +266,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		const GB = 1024 * MB;
 
 		const output: string[] = [];
-		output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
+		output.push(`Version:          ${product.nameShort} ${product.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
 		output.push(`OS Version:       ${osLib.type()} ${osLib.arch()} ${osLib.release()}`);
 		const cpus = osLib.cpus();
 		if (cpus && cpus.length > 0) {
@@ -538,27 +537,48 @@ export class DiagnosticsService implements IDiagnosticsService {
 			if (folderUri.scheme === 'file') {
 				const folder = folderUri.fsPath;
 				collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
-					type WorkspaceStatItemClassification = {
-						name: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-					};
 					type WorkspaceStatsClassification = {
 						'workspace.id': { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						fileTypes: WorkspaceStatItemClassification;
-						configTypes: WorkspaceStatItemClassification;
-						launchConfigs: WorkspaceStatItemClassification;
+						rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 					};
 					type WorkspaceStatsEvent = {
 						'workspace.id': string | undefined;
-						fileTypes: WorkspaceStatItem[];
-						configTypes: WorkspaceStatItem[];
-						launchConfigs: WorkspaceStatItem[];
+						rendererSessionId: string;
 					};
 					this.telemetryService.publicLog2<WorkspaceStatsEvent, WorkspaceStatsClassification>('workspace.stats', {
 						'workspace.id': workspace.telemetryId,
-						fileTypes: stats.fileTypes,
-						configTypes: stats.configFiles,
-						launchConfigs: stats.launchConfigFiles
+						rendererSessionId: workspace.rendererSessionId
+					});
+					type WorkspaceStatsFileClassification = {
+						rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						type: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					};
+					type WorkspaceStatsFileEvent = {
+						rendererSessionId: string;
+						type: string;
+						count: number;
+					};
+					stats.fileTypes.forEach(e => {
+						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.file', {
+							rendererSessionId: workspace.rendererSessionId,
+							type: e.name,
+							count: e.count
+						});
+					});
+					stats.launchConfigFiles.forEach(e => {
+						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.launchConfigFile', {
+							rendererSessionId: workspace.rendererSessionId,
+							type: e.name,
+							count: e.count
+						});
+					});
+					stats.configFiles.forEach(e => {
+						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.configFiles', {
+							rendererSessionId: workspace.rendererSessionId,
+							type: e.name,
+							count: e.count
+						});
 					});
 				}).catch(_ => {
 					// Report nothing if collecting metadata fails.

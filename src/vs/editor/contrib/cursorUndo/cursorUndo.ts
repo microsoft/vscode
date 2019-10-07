@@ -14,9 +14,9 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class CursorState {
-	readonly selections: Selection[];
+	readonly selections: readonly Selection[];
 
-	constructor(selections: Selection[]) {
+	constructor(selections: readonly Selection[]) {
 		this.selections = selections;
 	}
 

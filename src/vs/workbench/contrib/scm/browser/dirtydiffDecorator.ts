@@ -33,7 +33,7 @@ import { rot } from 'vs/base/common/numbers';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -149,7 +149,7 @@ function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color | unde
 	}
 }
 
-function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor | null {
+function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor | undefined {
 	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
@@ -163,11 +163,11 @@ function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor |
 
 class DirtyDiffWidget extends PeekViewWidget {
 
-	private diffEditor: EmbeddedDiffEditorWidget;
+	private diffEditor!: EmbeddedDiffEditorWidget;
 	private title: string;
 	private menu: IMenu;
-	private index: number;
-	private change: IChange;
+	private index: number = 0;
+	private change: IChange | undefined;
 	private height: number | undefined = undefined;
 	private contextKeyService: IContextKeyService;
 
@@ -223,7 +223,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		const position = new Position(getModifiedEndLineNumber(change), 1);
 
-		const lineHeight = this.editor.getConfiguration().lineHeight;
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const editorHeight = this.editor.getLayoutInfo().height;
 		const editorHeightInLines = Math.floor(editorHeight / lineHeight);
 		const height = Math.min(getChangeHeight(change) + /* padding */ 8, Math.floor(editorHeightInLines / 3));
@@ -250,8 +250,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
-		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'show-previous-change chevron-up');
-		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'show-next-change chevron-down');
+		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'codicon-arrow-up');
+		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'codicon-arrow-down');
 
 		this._disposables.add(previous);
 		this._disposables.add(next);
@@ -320,7 +320,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		super._doLayoutBody(height, width);
 		this.diffEditor.layout({ height, width });
 
-		if (typeof this.height === 'undefined') {
+		if (typeof this.height === 'undefined' && this.change) {
 			this.revealChange(this.change);
 		}
 
@@ -567,7 +567,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 	private model: DirtyDiffModel | null = null;
 	private widget: DirtyDiffWidget | null = null;
 	private currentIndex: number = -1;
-	private readonly isDirtyDiffVisible: IContextKey<boolean>;
+	private readonly isDirtyDiffVisible!: IContextKey<boolean>;
 	private session: IDisposable = Disposable.None;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private enabled = false;
@@ -953,7 +953,7 @@ function compareChanges(a: IChange, b: IChange): number {
 
 export class DirtyDiffModel extends Disposable {
 
-	private _originalModel: ITextModel | null;
+	private _originalModel: ITextModel | null = null;
 	get original(): ITextModel | null { return this._originalModel; }
 	get modified(): ITextModel | null { return this._editorModel; }
 
@@ -962,7 +962,7 @@ export class DirtyDiffModel extends Disposable {
 	private repositoryDisposables = new Set<IDisposable>();
 	private readonly originalModelDisposables = this._register(new DisposableStore());
 
-	private _onDidChange = new Emitter<ISplice<IChange>[]>();
+	private readonly _onDidChange = new Emitter<ISplice<IChange>[]>();
 	readonly onDidChange: Event<ISplice<IChange>[]> = this._onDidChange.event;
 
 	private _changes: IChange[] = [];

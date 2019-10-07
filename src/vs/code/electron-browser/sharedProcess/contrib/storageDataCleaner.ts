@@ -8,7 +8,7 @@ import { join } from 'vs/base/common/path';
 import { readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
+import { IBackupWorkspacesFormat } from 'vs/platform/backup/node/backup';
 
 export class StorageDataCleaner extends Disposable {
 

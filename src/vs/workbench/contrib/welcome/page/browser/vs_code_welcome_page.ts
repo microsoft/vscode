@@ -6,9 +6,6 @@
 import { escape } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 
-export function used() {
-}
-
 export default () => `
 <div class="welcomePageContainer">
 	<div class="welcomePage">

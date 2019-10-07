@@ -145,12 +145,12 @@ suite.skip('TextSearch performance (integration)', () => {
 });
 
 class TestTelemetryService implements ITelemetryService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public isOptedIn = true;
 
 	public events: any[] = [];
 
-	private emitter = new Emitter<any>();
+	private readonly emitter = new Emitter<any>();
 
 	public get eventLogged(): Event<any> {
 		return this.emitter.event;

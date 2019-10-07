@@ -23,13 +23,12 @@ import { parseTree, Node } from 'vs/base/common/json';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { themeColorFromId, ThemeColor, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import Severity from 'vs/base/common/severity';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -82,7 +81,7 @@ export class DefineKeybindingController extends Disposable implements editorComm
 		this._createKeybindingDecorationRenderer();
 
 		// The button to define keybindings is shown only for the user keybindings.json
-		if (!this._editor.getConfiguration().readOnly) {
+		if (!this._editor.getOption(EditorOption.readOnly)) {
 			this._createKeybindingWidgetRenderer();
 		} else {
 			this._disposeKeybindingWidgetRenderer();
@@ -302,14 +301,12 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	private _createDecoration(isError: boolean, uiLabel: string | null, usLabel: string | null, model: ITextModel, keyNode: Node): IModelDeltaDecoration {
 		let msg: MarkdownString;
 		let className: string;
-		let beforeContentClassName: string;
 		let overviewRulerColor: ThemeColor;
 
 		if (isError) {
 			// this is the error case
 			msg = new MarkdownString().appendText(NLS_KB_LAYOUT_ERROR_MESSAGE);
 			className = 'keybindingError';
-			beforeContentClassName = 'inlineKeybindingError';
 			overviewRulerColor = themeColorFromId(overviewRulerError);
 		} else {
 			// this is the info case
@@ -335,7 +332,6 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				);
 			}
 			className = 'keybindingInfo';
-			beforeContentClassName = 'inlineKeybindingInfo';
 			overviewRulerColor = themeColorFromId(overviewRulerInfo);
 		}
 
@@ -352,7 +348,6 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			options: {
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: className,
-				beforeContentClassName: beforeContentClassName,
 				hoverMessage: msg,
 				overviewRuler: {
 					color: overviewRulerColor,
@@ -381,7 +376,7 @@ class DefineKeybindingCommand extends EditorCommand {
 	}
 
 	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!isInterestingEditorModel(editor) || editor.getConfiguration().readOnly) {
+		if (!isInterestingEditorModel(editor) || editor.getOption(EditorOption.readOnly)) {
 			return;
 		}
 		const controller = DefineKeybindingController.get(editor);
@@ -402,8 +397,3 @@ function isInterestingEditorModel(editor: ICodeEditor): boolean {
 
 registerEditorContribution(DefineKeybindingController);
 registerEditorCommand(new DefineKeybindingCommand());
-
-registerThemingParticipant((theme, collector) => {
-	collector.addRule(`.monaco-editor .inlineKeybindingInfo:before { background: url("data:image/svg+xml,${SeverityIcon.getSVGData(Severity.Info, theme)}") -0.1em -0.2em no-repeat; }`);
-	collector.addRule(`.monaco-editor .inlineKeybindingError:before { background: url("data:image/svg+xml,${SeverityIcon.getSVGData(Severity.Error, theme)}") -0.1em -0.2em no-repeat; }`);
-});

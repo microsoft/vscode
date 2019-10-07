@@ -33,6 +33,10 @@ export class ReactionActionViewItem extends ActionViewItem {
 		super(null, action, {});
 	}
 	updateLabel(): void {
+		if (!this.label) {
+			return;
+		}
+
 		let action = this.getAction() as ReactionAction;
 		if (action.class) {
 			this.label.classList.add(action.class);

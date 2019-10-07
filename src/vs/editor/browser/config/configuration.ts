@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -310,17 +310,17 @@ export class Configuration extends CommonEditorConfiguration {
 
 	constructor(
 		isSimpleWidget: boolean,
-		options: IEditorOptions,
+		options: IEditorConstructionOptions,
 		referenceDomElement: HTMLElement | null = null,
 		private readonly accessibilityService: IAccessibilityService
 	) {
 		super(isSimpleWidget, options);
 
-		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
+		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._onReferenceDomElementSizeChanged()));
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
 
-		if (this._validatedOptions.automaticLayout) {
+		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
 			this._elementSizeObserver.startObserving();
 		}
 
