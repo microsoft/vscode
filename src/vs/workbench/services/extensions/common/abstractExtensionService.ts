@@ -256,8 +256,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
-	public getInspectPort(): number {
-		return 0;
+	public getInspectPort(_tryEnableInspector: boolean): Promise<number> {
+		return Promise.resolve(0);
 	}
 
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {

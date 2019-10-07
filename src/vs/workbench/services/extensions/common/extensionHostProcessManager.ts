@@ -238,8 +238,11 @@ export class ExtensionHostProcessManager extends Disposable {
 		});
 	}
 
-	public getInspectPort(): number {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
 		if (this._extensionHostProcessWorker) {
+			if (tryEnableInspector) {
+				await this._extensionHostProcessWorker.enableInspectPort();
+			}
 			let port = this._extensionHostProcessWorker.getInspectPort();
 			if (port) {
 				return port;
