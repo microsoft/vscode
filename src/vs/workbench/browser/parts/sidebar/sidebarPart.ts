@@ -32,6 +32,7 @@ import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -173,7 +174,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
+		const container = assertIsDefined(this.getContainer());
 
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND);
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND);

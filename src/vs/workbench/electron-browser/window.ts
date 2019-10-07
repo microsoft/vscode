@@ -50,7 +50,7 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from '../services/preferences/common/preferences';
 import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/node/menubar';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { IElectronService } from 'vs/platform/electron/node/electron';
@@ -253,7 +253,7 @@ export class ElectronWindow extends Disposable {
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
 		if (isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
-			const titlePart = this.layoutService.getContainer(Parts.TITLEBAR_PART);
+			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
 
 			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
 				DOM.EventHelper.stop(e);

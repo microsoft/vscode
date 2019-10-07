@@ -15,6 +15,7 @@ import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progre
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -88,8 +89,9 @@ export class EditorControl extends Disposable {
 		this.doSetActiveControl(control);
 
 		// Show editor
-		this.parent.appendChild(control.getContainer());
-		show(control.getContainer());
+		const container = assertIsDefined(control.getContainer());
+		this.parent.appendChild(container);
+		show(container);
 
 		// Indicate to editor that it is now visible
 		control.setVisible(true, this.groupView);
@@ -203,8 +205,10 @@ export class EditorControl extends Disposable {
 
 		// Remove control from parent and hide
 		const controlInstanceContainer = this._activeControl.getContainer();
-		this.parent.removeChild(controlInstanceContainer);
-		hide(controlInstanceContainer);
+		if (controlInstanceContainer) {
+			this.parent.removeChild(controlInstanceContainer);
+			hide(controlInstanceContainer);
+		}
 
 		// Indicate to editor control
 		this._activeControl.clearInput();

@@ -120,7 +120,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private lastEditLocation: IStackEntry | undefined;
 
-	private history: Array<IEditorInput | IResourceInput>;
+	private history: Array<IEditorInput | IResourceInput> = [];
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;

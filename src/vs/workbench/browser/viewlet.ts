@@ -167,8 +167,9 @@ export class ShowViewletAction extends Action {
 	private sidebarHasFocus(): boolean {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const activeElement = document.activeElement;
+		const sidebarPart = this.layoutService.getContainer(Parts.SIDEBAR_PART);
 
-		return !!(activeViewlet && activeElement && DOM.isAncestor(activeElement, this.layoutService.getContainer(Parts.SIDEBAR_PART)));
+		return !!(activeViewlet && activeElement && sidebarPart && DOM.isAncestor(activeElement, sidebarPart));
 	}
 }
 

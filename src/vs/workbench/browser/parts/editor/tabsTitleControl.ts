@@ -40,7 +40,7 @@ import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorAc
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IFileService } from 'vs/platform/files/common/files';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 interface IEditorInputLabel {
@@ -53,19 +53,20 @@ type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
 
 export class TabsTitleControl extends TitleControl {
 
-	private titleContainer: HTMLElement;
-	private tabsContainer: HTMLElement;
-	private editorToolbarContainer: HTMLElement;
-	private tabsScrollbar: ScrollableElement;
+	private titleContainer: HTMLElement | undefined;
+	private tabsContainer: HTMLElement | undefined;
+	private editorToolbarContainer: HTMLElement | undefined;
+	private tabsScrollbar: ScrollableElement | undefined;
+
 	private closeOneEditorAction: CloseOneEditorAction;
 
 	private tabResourceLabels: ResourceLabels;
 	private tabLabels: IEditorInputLabel[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private dimension: Dimension;
+	private dimension: Dimension | undefined;
 	private readonly layoutScheduled = this._register(new MutableDisposable());
-	private blockRevealActiveTab: boolean;
+	private blockRevealActiveTab: boolean | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -87,6 +88,9 @@ export class TabsTitleControl extends TitleControl {
 		@ILabelService labelService: ILabelService
 	) {
 		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService, fileService, labelService);
+
+		this.tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -103,12 +107,12 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer.draggable = true;
 		addClass(this.tabsContainer, 'tabs-container');
 
-		// Tabs Container listeners
-		this.registerTabsContainerListeners();
-
 		// Tabs Scrollbar
 		this.tabsScrollbar = this._register(this.createTabsScrollbar(this.tabsContainer));
 		tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
+
+		// Tabs Container listeners
+		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
 
 		// Editor Toolbar Container
 		this.editorToolbarContainer = document.createElement('div');
@@ -118,17 +122,11 @@ export class TabsTitleControl extends TitleControl {
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
 
-		// Close Action
-		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
-
 		// Breadcrumbs (are on a separate row below tabs and actions)
 		const breadcrumbsContainer = document.createElement('div');
 		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
 		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: breadcrumbsBackground });
-
-		// Tab Labels
-		this.tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -160,23 +158,23 @@ export class TabsTitleControl extends TitleControl {
 		this.group.relayout();
 	}
 
-	private registerTabsContainerListeners(): void {
+	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
 
 		// Group dragging
-		this.enableGroupDragging(this.tabsContainer);
+		this.enableGroupDragging(tabsContainer);
 
 		// Forward scrolling inside the container to our custom scrollbar
-		this._register(addDisposableListener(this.tabsContainer, EventType.SCROLL, () => {
-			if (hasClass(this.tabsContainer, 'scroll')) {
-				this.tabsScrollbar.setScrollPosition({
-					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
+		this._register(addDisposableListener(tabsContainer, EventType.SCROLL, () => {
+			if (hasClass(tabsContainer, 'scroll')) {
+				tabsScrollbar.setScrollPosition({
+					scrollLeft: tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
 				});
 			}
 		}));
 
 		// New file when double clicking on tabs container (but not tabs)
-		this._register(addDisposableListener(this.tabsContainer, EventType.DBLCLICK, e => {
-			if (e.target === this.tabsContainer) {
+		this._register(addDisposableListener(tabsContainer, EventType.DBLCLICK, e => {
+			if (e.target === tabsContainer) {
 				EventHelper.stop(e);
 
 				this.group.openEditor(this.untitledEditorService.createOrGet(), { pinned: true /* untitled is always pinned */, index: this.group.count /* always at the end */ });
@@ -184,23 +182,22 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
-		this._register(addDisposableListener(this.tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 1) {
 				e.preventDefault();
 			}
 		}));
 
-
 		// Drop support
-		this._register(new DragAndDropObserver(this.tabsContainer, {
+		this._register(new DragAndDropObserver(tabsContainer, {
 			onDragEnter: e => {
 
 				// Always enable support to scroll while dragging
-				addClass(this.tabsContainer, 'scroll');
+				addClass(tabsContainer, 'scroll');
 
 				// Return if the target is not on the tabs container
-				if (e.target !== this.tabsContainer) {
-					this.updateDropFeedback(this.tabsContainer, false); // fixes https://github.com/Microsoft/vscode/issues/52093
+				if (e.target !== tabsContainer) {
+					this.updateDropFeedback(tabsContainer, false); // fixes https://github.com/Microsoft/vscode/issues/52093
 					return;
 				}
 
@@ -239,25 +236,25 @@ export class TabsTitleControl extends TitleControl {
 					}
 				}
 
-				this.updateDropFeedback(this.tabsContainer, true);
+				this.updateDropFeedback(tabsContainer, true);
 			},
 
 			onDragLeave: e => {
-				this.updateDropFeedback(this.tabsContainer, false);
-				removeClass(this.tabsContainer, 'scroll');
+				this.updateDropFeedback(tabsContainer, false);
+				removeClass(tabsContainer, 'scroll');
 			},
 
 			onDragEnd: e => {
-				this.updateDropFeedback(this.tabsContainer, false);
-				removeClass(this.tabsContainer, 'scroll');
+				this.updateDropFeedback(tabsContainer, false);
+				removeClass(tabsContainer, 'scroll');
 			},
 
 			onDrop: e => {
-				this.updateDropFeedback(this.tabsContainer, false);
-				removeClass(this.tabsContainer, 'scroll');
+				this.updateDropFeedback(tabsContainer, false);
+				removeClass(tabsContainer, 'scroll');
 
-				if (e.target === this.tabsContainer) {
-					this.onDrop(e, this.group.count);
+				if (e.target === tabsContainer) {
+					this.onDrop(e, this.group.count, tabsContainer);
 				}
 			}
 		}));
@@ -274,8 +271,9 @@ export class TabsTitleControl extends TitleControl {
 	openEditor(editor: IEditorInput): void {
 
 		// Create tabs as needed
-		for (let i = this.tabsContainer.children.length; i < this.group.count; i++) {
-			this.tabsContainer.appendChild(this.createTab(i));
+		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
+		for (let i = tabsContainer.children.length; i < this.group.count; i++) {
+			tabsContainer.appendChild(this.createTab(i, tabsContainer, tabsScrollbar));
 		}
 
 		// An add of a tab requires to recompute all labels
@@ -306,10 +304,11 @@ export class TabsTitleControl extends TitleControl {
 		if (this.group.activeEditor) {
 
 			// Remove tabs that got closed
-			while (this.tabsContainer.children.length > this.group.count) {
+			const tabsContainer = assertIsDefined(this.tabsContainer);
+			while (tabsContainer.children.length > this.group.count) {
 
 				// Remove one tab from container (must be the last to keep indexes in order!)
-				(this.tabsContainer.lastChild as HTMLElement).remove();
+				(tabsContainer.lastChild as HTMLElement).remove();
 
 				// Remove associated tab label and widget
 				this.tabDisposables.pop()!.dispose();
@@ -324,7 +323,9 @@ export class TabsTitleControl extends TitleControl {
 
 		// No tabs to show
 		else {
-			clearNode(this.tabsContainer);
+			if (this.tabsContainer) {
+				clearNode(this.tabsContainer);
+			}
 
 			this.tabDisposables = dispose(this.tabDisposables);
 			this.tabResourceLabels.clear();
@@ -420,13 +421,14 @@ export class TabsTitleControl extends TitleControl {
 	private withTab(editor: IEditorInput, fn: (tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
 		const editorIndex = this.group.getIndexOfEditor(editor);
 
-		const tabContainer = this.tabsContainer.children[editorIndex] as HTMLElement;
+		const tabsContainer = assertIsDefined(this.tabsContainer);
+		const tabContainer = tabsContainer.children[editorIndex] as HTMLElement;
 		if (tabContainer) {
 			fn(tabContainer, this.tabResourceLabels.get(editorIndex), this.tabLabels[editorIndex]);
 		}
 	}
 
-	private createTab(index: number): HTMLElement {
+	private createTab(index: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): HTMLElement {
 
 		// Tab Container
 		const tabContainer = document.createElement('div');
@@ -463,14 +465,14 @@ export class TabsTitleControl extends TitleControl {
 		tabActionBar.onDidBeforeRun(() => this.blockRevealActiveTabOnce());
 
 		// Eventing
-		const eventsDisposable = this.registerTabListeners(tabContainer, index);
+		const eventsDisposable = this.registerTabListeners(tabContainer, index, tabsContainer, tabsScrollbar);
 
 		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBar, tabActionRunner, editorLabel));
 
 		return tabContainer;
 	}
 
-	private registerTabListeners(tab: HTMLElement, index: number): IDisposable {
+	private registerTabListeners(tab: HTMLElement, index: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
 		const disposables = new DisposableStore();
 
 		const handleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
@@ -512,7 +514,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Touch Scroll Support
 		disposables.add(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
-			this.tabsScrollbar.setScrollPosition({ scrollLeft: this.tabsScrollbar.getScrollPosition().scrollLeft - e.translationX });
+			tabsScrollbar.setScrollPosition({ scrollLeft: tabsScrollbar.getScrollPosition().scrollLeft - e.translationX });
 		}));
 
 		// Close on mouse middle click
@@ -573,7 +575,7 @@ export class TabsTitleControl extends TitleControl {
 				if (target) {
 					handled = true;
 					this.group.openEditor(target, { preserveFocus: true });
-					(<HTMLElement>this.tabsContainer.childNodes[targetIndex]).focus();
+					(<HTMLElement>tabsContainer.childNodes[targetIndex]).focus();
 				}
 			}
 
@@ -582,8 +584,8 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			// moving in the tabs container can have an impact on scrolling position, so we need to update the custom scrollbar
-			this.tabsScrollbar.setScrollPosition({
-				scrollLeft: this.tabsContainer.scrollLeft
+			tabsScrollbar.setScrollPosition({
+				scrollLeft: tabsContainer.scrollLeft
 			});
 		}));
 
@@ -689,7 +691,7 @@ export class TabsTitleControl extends TitleControl {
 				removeClass(tab, 'dragged-over');
 				this.updateDropFeedback(tab, false, index);
 
-				this.onDrop(e, index);
+				this.onDrop(e, index, tabsContainer);
 			}
 		}));
 
@@ -862,7 +864,8 @@ export class TabsTitleControl extends TitleControl {
 
 	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
 		this.group.editors.forEach((editor, index) => {
-			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
+			const tabsContainer = assertIsDefined(this.tabsContainer);
+			const tabContainer = tabsContainer.children[index] as HTMLElement;
 			if (tabContainer) {
 				fn(editor, index, tabContainer, this.tabResourceLabels.get(index), this.tabLabels[index]);
 			}
@@ -1012,7 +1015,7 @@ export class TabsTitleControl extends TitleControl {
 		return hasModifiedBorderColor;
 	}
 
-	layout(dimension: Dimension): void {
+	layout(dimension: Dimension | undefined): void {
 		this.dimension = dimension;
 
 		const activeTab = this.group.activeEditor ? this.getTab(this.group.activeEditor) : undefined;
@@ -1025,7 +1028,9 @@ export class TabsTitleControl extends TitleControl {
 		// this a little bit we try at least to schedule this work on the next animation frame.
 		if (!this.layoutScheduled.value) {
 			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
-				this.doLayout(this.dimension);
+				const dimension = assertIsDefined(this.dimension);
+				this.doLayout(dimension);
+
 				this.layoutScheduled.clear();
 			});
 		}
@@ -1037,13 +1042,15 @@ export class TabsTitleControl extends TitleControl {
 			return;
 		}
 
+		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
+
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
-			this.tabsScrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
+			tabsScrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 
-		const visibleContainerWidth = this.tabsContainer.offsetWidth;
-		const totalContainerWidth = this.tabsContainer.scrollWidth;
+		const visibleContainerWidth = tabsContainer.offsetWidth;
+		const totalContainerWidth = tabsContainer.scrollWidth;
 
 		let activeTabPosX: number | undefined;
 		let activeTabWidth: number | undefined;
@@ -1054,7 +1061,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Update scrollbar
-		this.tabsScrollbar.setScrollDimensions({
+		tabsScrollbar.setScrollDimensions({
 			width: visibleContainerWidth,
 			scrollWidth: totalContainerWidth
 		});
@@ -1066,20 +1073,20 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Reveal the active one
-		const containerScrollPosX = this.tabsScrollbar.getScrollPosition().scrollLeft;
+		const containerScrollPosX = tabsScrollbar.getScrollPosition().scrollLeft;
 		const activeTabFits = activeTabWidth <= visibleContainerWidth;
 
 		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
 		// Note: only try to do this if we actually have enough width to give to show the tab fully!
 		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
-			this.tabsScrollbar.setScrollPosition({
+			tabsScrollbar.setScrollPosition({
 				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
 			});
 		}
 
 		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
 		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
-			this.tabsScrollbar.setScrollPosition({
+			tabsScrollbar.setScrollPosition({
 				scrollLeft: activeTabPosX
 			});
 		}
@@ -1088,7 +1095,9 @@ export class TabsTitleControl extends TitleControl {
 	private getTab(editor: IEditorInput): HTMLElement | undefined {
 		const editorIndex = this.group.getIndexOfEditor(editor);
 		if (editorIndex >= 0) {
-			return this.tabsContainer.children[editorIndex] as HTMLElement;
+			const tabsContainer = assertIsDefined(this.tabsContainer);
+
+			return tabsContainer.children[editorIndex] as HTMLElement;
 		}
 
 		return undefined;
@@ -1115,11 +1124,11 @@ export class TabsTitleControl extends TitleControl {
 		return !!findParentWithClass(element, 'action-item', 'tab');
 	}
 
-	private onDrop(e: DragEvent, targetIndex: number): void {
+	private onDrop(e: DragEvent, targetIndex: number, tabsContainer: HTMLElement): void {
 		EventHelper.stop(e, true);
 
-		this.updateDropFeedback(this.tabsContainer, false);
-		removeClass(this.tabsContainer, 'scroll');
+		this.updateDropFeedback(tabsContainer, false);
+		removeClass(tabsContainer, 'scroll');
 
 		// Local Editor DND
 		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {

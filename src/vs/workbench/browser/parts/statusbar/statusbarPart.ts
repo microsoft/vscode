@@ -575,7 +575,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = assertIsDefined(this.getContainer());
 
 		// Background colors
 		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);

@@ -48,7 +48,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	private dimension: Dimension | undefined;
 
-	private compositeSwitcherBar: ActionBar;
+	private compositeSwitcherBar: ActionBar | undefined;
 	private compositeOverflowAction: CompositeOverflowActivityAction | undefined;
 	private compositeOverflowActionViewItem: CompositeOverflowActivityActionViewItem | undefined;
 
@@ -92,6 +92,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
+
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
 			actionViewItemProvider: (action: Action) => {
 				if (action instanceof CompositeOverflowActivityAction) {
@@ -281,21 +282,23 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		if (size) {
 			items.forEach(composite => this.compositeSizeInBar.set(composite.id, size));
 		} else {
-			if (this.dimension && this.dimension.height !== 0 && this.dimension.width !== 0) {
+			const compositeSwitcherBar = this.compositeSwitcherBar;
+			if (compositeSwitcherBar && this.dimension && this.dimension.height !== 0 && this.dimension.width !== 0) {
 				// Compute sizes only if visible. Otherwise the size measurment would be computed wrongly.
-				const currentItemsLength = this.compositeSwitcherBar.viewItems.length;
-				this.compositeSwitcherBar.push(items.map(composite => composite.activityAction));
+				const currentItemsLength = compositeSwitcherBar.viewItems.length;
+				compositeSwitcherBar.push(items.map(composite => composite.activityAction));
 				items.map((composite, index) => this.compositeSizeInBar.set(composite.id, this.options.orientation === ActionsOrientation.VERTICAL
-					? this.compositeSwitcherBar.getHeight(currentItemsLength + index)
-					: this.compositeSwitcherBar.getWidth(currentItemsLength + index)
+					? compositeSwitcherBar.getHeight(currentItemsLength + index)
+					: compositeSwitcherBar.getWidth(currentItemsLength + index)
 				));
-				items.forEach(() => this.compositeSwitcherBar.pull(this.compositeSwitcherBar.viewItems.length - 1));
+				items.forEach(() => compositeSwitcherBar.pull(compositeSwitcherBar.viewItems.length - 1));
 			}
 		}
 	}
 
 	private updateCompositeSwitcher(): void {
-		if (!this.compositeSwitcherBar || !this.dimension) {
+		const compositeSwitcherBar = this.compositeSwitcherBar;
+		if (!compositeSwitcherBar || !this.dimension) {
 			return; // We have not been rendered yet so there is nothing to update.
 		}
 
@@ -343,7 +346,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Pull out overflow action if there is a composite change so that we can add it to the end later
 		if (this.compositeOverflowAction && visibleCompositesChange) {
-			this.compositeSwitcherBar.pull(this.compositeSwitcherBar.length() - 1);
+			compositeSwitcherBar.pull(compositeSwitcherBar.length() - 1);
 
 			this.compositeOverflowAction.dispose();
 			this.compositeOverflowAction = undefined;
@@ -362,8 +365,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			}
 		});
 		compositesToRemove.reverse().forEach(index => {
-			const actionViewItem = this.compositeSwitcherBar.viewItems[index];
-			this.compositeSwitcherBar.pull(index);
+			const actionViewItem = compositeSwitcherBar.viewItems[index];
+			compositeSwitcherBar.pull(index);
 			actionViewItem.dispose();
 			this.visibleComposites.splice(index, 1);
 		});
@@ -373,19 +376,19 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			const currentIndex = this.visibleComposites.indexOf(compositeId);
 			if (newIndex !== currentIndex) {
 				if (currentIndex !== -1) {
-					const actionViewItem = this.compositeSwitcherBar.viewItems[currentIndex];
-					this.compositeSwitcherBar.pull(currentIndex);
+					const actionViewItem = compositeSwitcherBar.viewItems[currentIndex];
+					compositeSwitcherBar.pull(currentIndex);
 					actionViewItem.dispose();
 					this.visibleComposites.splice(currentIndex, 1);
 				}
 
-				this.compositeSwitcherBar.push(this.model.findItem(compositeId).activityAction, { label: true, icon: this.options.icon, index: newIndex });
+				compositeSwitcherBar.push(this.model.findItem(compositeId).activityAction, { label: true, icon: this.options.icon, index: newIndex });
 				this.visibleComposites.splice(newIndex, 0, compositeId);
 			}
 		});
 
 		// Add overflow action as needed
-		if ((visibleCompositesChange && overflows) || this.compositeSwitcherBar.length() === 0) {
+		if ((visibleCompositesChange && overflows) || compositeSwitcherBar.length() === 0) {
 			this.compositeOverflowAction = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
 				if (this.compositeOverflowActionViewItem) {
 					this.compositeOverflowActionViewItem.showMenu();
@@ -404,7 +407,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				this.options.colors
 			);
 
-			this.compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
+			compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
 		}
 
 		this._onDidChange.fire();

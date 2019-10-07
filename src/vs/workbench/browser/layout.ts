@@ -36,6 +36,7 @@ import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/a
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
+import { assertIsDefined } from 'vs/base/common/types';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -340,10 +341,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.sideBar.position = position;
 
 		// Adjust CSS
-		removeClass(activityBar.getContainer(), oldPositionValue);
-		removeClass(sideBar.getContainer(), oldPositionValue);
-		addClass(activityBar.getContainer(), newPositionValue);
-		addClass(sideBar.getContainer(), newPositionValue);
+		const activityBarContainer = assertIsDefined(activityBar.getContainer());
+		const sideBarContainer = assertIsDefined(sideBar.getContainer());
+		removeClass(activityBarContainer, oldPositionValue);
+		removeClass(sideBarContainer, oldPositionValue);
+		addClass(activityBarContainer, newPositionValue);
+		addClass(sideBarContainer, newPositionValue);
 
 		// Update Styles
 		activityBar.updateStyles();
@@ -528,10 +531,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		const container = this.getContainer(part);
 
-		return isAncestor(activeElement, container);
+		return !!container && isAncestor(activeElement, container);
 	}
 
-	getContainer(part: Parts): HTMLElement {
+	getContainer(part: Parts): HTMLElement | undefined {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				return this.getPart(Parts.TITLEBAR_PART).getContainer();
@@ -579,7 +582,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return true; // any other part cannot be hidden
 	}
 
-	getDimension(part: Parts): Dimension {
+	getDimension(part: Parts): Dimension | undefined {
 		return this.getPart(part).dimension;
 	}
 
@@ -1121,8 +1124,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.storageService.store(Storage.PANEL_POSITION, positionToString(this.state.panel.position), StorageScope.WORKSPACE);
 
 		// Adjust CSS
-		removeClass(panelPart.getContainer(), oldPositionValue);
-		addClass(panelPart.getContainer(), newPositionValue);
+		const panelContainer = assertIsDefined(panelPart.getContainer());
+		removeClass(panelContainer, oldPositionValue);
+		addClass(panelContainer, newPositionValue);
 
 		// Update Styles
 		panelPart.updateStyles();

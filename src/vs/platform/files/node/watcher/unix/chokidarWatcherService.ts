@@ -32,8 +32,8 @@ export class ChokidarWatcherService implements IWatcherService {
 	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static readonly EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
 
-	private _watchers: { [watchPath: string]: IWatcher };
-	private _watcherCount: number;
+	private _watchers: { [watchPath: string]: IWatcher } = Object.create(null);
+	private _watcherCount = 0;
 
 	private _pollingInterval?: number;
 	private _usePolling?: boolean;

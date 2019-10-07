@@ -30,7 +30,7 @@ import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isUndefinedOrNull, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
+import { isUndefinedOrNull, withUndefinedAsNull, withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -60,13 +60,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	readonly snap = true;
 
 	get preferredHeight(): number | undefined {
-		const sidebarDimension = this.layoutService.getDimension(Parts.SIDEBAR_PART);
+		const sidebarDimension = assertIsDefined(this.layoutService.getDimension(Parts.SIDEBAR_PART));
 		return sidebarDimension.height * 0.4;
 	}
 
 	get preferredWidth(): number | undefined {
-		const statusbarPart = this.layoutService.getDimension(Parts.STATUSBAR_PART);
-		return statusbarPart.width * 0.4;
+		const statusbarDimension = assertIsDefined(this.layoutService.getDimension(Parts.STATUSBAR_PART));
+		return statusbarDimension.width * 0.4;
 	}
 
 	//#endregion
@@ -208,7 +208,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = assertIsDefined(this.getContainer());
 		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND);
 		container.style.borderLeftColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 
@@ -316,7 +316,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private layoutCompositeBar(): void {
-		if (this._contentDimension) {
+		if (this._contentDimension && this.dimension) {
 			let availableWidth = this._contentDimension.width - 40; // take padding into account
 			if (this.toolBar) {
 				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing

@@ -14,6 +14,7 @@ import { IConstructorSignature0, IInstantiationService } from 'vs/platform/insta
 import { trackFocus, Dimension } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { assertIsDefined } from 'vs/base/common/types';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -35,10 +36,10 @@ export abstract class Composite extends Component implements IComposite {
 	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
-	private _onDidFocus: Emitter<void>;
+	private _onDidFocus: Emitter<void> | undefined;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
-			this.registerFocusTrackEvents();
+			this._onDidFocus = this.registerFocusTrackEvents().onDidFocus;
 		}
 
 		return this._onDidFocus.event;
@@ -50,28 +51,32 @@ export abstract class Composite extends Component implements IComposite {
 		}
 	}
 
-	private _onDidBlur: Emitter<void>;
+	private _onDidBlur: Emitter<void> | undefined;
 	get onDidBlur(): Event<void> {
 		if (!this._onDidBlur) {
-			this.registerFocusTrackEvents();
+			this._onDidBlur = this.registerFocusTrackEvents().onDidBlur;
 		}
 
 		return this._onDidBlur.event;
 	}
 
-	private registerFocusTrackEvents(): void {
-		this._onDidFocus = this._register(new Emitter<void>());
-		this._onDidBlur = this._register(new Emitter<void>());
+	private registerFocusTrackEvents(): { onDidFocus: Emitter<void>, onDidBlur: Emitter<void> } {
+		const container = assertIsDefined(this.getContainer());
+		const focusTracker = this._register(trackFocus(container));
 
-		const focusTracker = this._register(trackFocus(this.getContainer()));
-		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
-		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
+		const onDidFocus = this._onDidFocus = this._register(new Emitter<void>());
+		this._register(focusTracker.onDidFocus(() => onDidFocus.fire()));
+
+		const onDidBlur = this._onDidBlur = this._register(new Emitter<void>());
+		this._register(focusTracker.onDidBlur(() => onDidBlur.fire()));
+
+		return { onDidFocus, onDidBlur };
 	}
 
 	protected actionRunner: IActionRunner | undefined;
 
 	private visible: boolean;
-	private parent: HTMLElement;
+	private parent: HTMLElement | undefined;
 
 	constructor(
 		id: string,
@@ -112,7 +117,7 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Returns the container this composite is being build in.
 	 */
-	getContainer(): HTMLElement {
+	getContainer(): HTMLElement | undefined {
 		return this.parent;
 	}
 
