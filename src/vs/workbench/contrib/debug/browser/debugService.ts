@@ -424,7 +424,7 @@ export class DebugService implements IDebugService {
 	/**
 	 * instantiates the new session, initializes the session, registers session listeners and reports telemetry
 	 */
-	private doCreateSession(root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig, unresolved: IConfig | undefined }, options?: IDebugSessionOptions): Promise<boolean> {
+	private async doCreateSession(root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig, unresolved: IConfig | undefined }, options?: IDebugSessionOptions): Promise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model, options);
 		this.model.addSession(session);
@@ -438,10 +438,11 @@ export class DebugService implements IDebugService {
 		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
 		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
 		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
-			this.viewletService.openViewlet(VIEWLET_ID).then(undefined, errors.onUnexpectedError);
+			await this.viewletService.openViewlet(VIEWLET_ID);
 		}
 
-		return this.launchOrAttachToSession(session).then(() => {
+		try {
+			await this.launchOrAttachToSession(session);
 
 			const internalConsoleOptions = session.configuration.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
 			if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
@@ -459,12 +460,14 @@ export class DebugService implements IDebugService {
 			// since the initialized response has arrived announce the new Session (including extensions)
 			this._onDidNewSession.fire(session);
 
-			return this.telemetryDebugSessionStart(root, session.configuration.type);
-		}).then(() => true, (error: Error | string) => {
+			await this.telemetryDebugSessionStart(root, session.configuration.type);
+
+			return true;
+		} catch (error) {
 
 			if (errors.isPromiseCanceledError(error)) {
 				// don't show 'canceled' error messages to the user #7906
-				return Promise.resolve(false);
+				return false;
 			}
 
 			// Show the repl if some error got logged there #5870
@@ -474,13 +477,15 @@ export class DebugService implements IDebugService {
 
 			if (session.configuration && session.configuration.request === 'attach' && session.configuration.__autoAttach) {
 				// ignore attach timeouts in auto attach mode
-				return Promise.resolve(false);
+				return false;
 			}
 
 			const errorMessage = error instanceof Error ? error.message : error;
 			this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
-			return this.showError(errorMessage, isErrorWithActions(error) ? error.actions : []).then(() => false);
-		});
+
+			await this.showError(errorMessage, isErrorWithActions(error) ? error.actions : []);
+			return false;
+		}
 	}
 
 	private async launchOrAttachToSession(session: IDebugSession, forceFocus = false): Promise<void> {
@@ -557,87 +562,93 @@ export class DebugService implements IDebugService {
 		}));
 	}
 
-	restartSession(session: IDebugSession, restartData?: any): Promise<any> {
-		return this.textFileService.saveAll().then(() => {
-			const isAutoRestart = !!restartData;
-			const runTasks: () => Promise<TaskRunResult> = () => {
-				if (isAutoRestart) {
-					// Do not run preLaunch and postDebug tasks for automatic restarts
-					return Promise.resolve(TaskRunResult.Success);
+	async restartSession(session: IDebugSession, restartData?: any): Promise<any> {
+		await this.textFileService.saveAll();
+		const isAutoRestart = !!restartData;
+
+		const runTasks: () => Promise<TaskRunResult> = async () => {
+			if (isAutoRestart) {
+				// Do not run preLaunch and postDebug tasks for automatic restarts
+				return Promise.resolve(TaskRunResult.Success);
+			}
+
+			await this.runTask(session.root, session.configuration.postDebugTask);
+			return this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask);
+		};
+
+		if (session.capabilities.supportsRestartRequest) {
+			const taskResult = await runTasks();
+			if (taskResult === TaskRunResult.Success) {
+				await session.restart();
+			}
+
+			return;
+		}
+
+		if (isExtensionHostDebugging(session.configuration)) {
+			const taskResult = await runTasks();
+			if (taskResult === TaskRunResult.Success) {
+				this.extensionHostDebugService.reload(session.getId());
+			}
+
+			return;
+		}
+
+		const shouldFocus = !!this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
+		// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
+		if (isAutoRestart) {
+			await session.disconnect(true);
+		} else {
+			await session.terminate(true);
+		}
+
+		return new Promise<void>((c, e) => {
+			setTimeout(async () => {
+				const taskResult = await runTasks();
+				if (taskResult !== TaskRunResult.Success) {
+					return;
 				}
 
-				return this.runTask(session.root, session.configuration.postDebugTask)
-					.then(() => this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask));
-			};
+				// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
+				let needsToSubstitute = false;
+				let unresolved: IConfig | undefined;
+				const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;
+				if (launch) {
+					unresolved = launch.getConfiguration(session.configuration.name);
+					if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
+						// Take the type from the session since the debug extension might overwrite it #21316
+						unresolved.type = session.configuration.type;
+						unresolved.noDebug = session.configuration.noDebug;
+						needsToSubstitute = true;
+					}
+				}
 
-			if (session.capabilities.supportsRestartRequest) {
-				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? session.restart() : undefined);
-			}
+				let resolved: IConfig | undefined | null = session.configuration;
+				if (launch && needsToSubstitute && unresolved) {
+					this.initCancellationToken = new CancellationTokenSource();
+					const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, this.initCancellationToken.token);
+					if (resolvedByProviders) {
+						resolved = await this.substituteVariables(launch, resolvedByProviders);
+					} else {
+						resolved = resolvedByProviders;
+					}
+				}
 
-			if (isExtensionHostDebugging(session.configuration)) {
-				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? this.extensionHostDebugService.reload(session.getId()) : undefined);
-			}
+				if (!resolved) {
+					return c(undefined);
+				}
 
-			const shouldFocus = !!this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
-			// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
-			return (isAutoRestart ? session.disconnect(true) : session.terminate(true)).then(() => {
+				session.setConfiguration({ resolved, unresolved });
+				session.configuration.__restart = restartData;
 
-				return new Promise<void>((c, e) => {
-					setTimeout(() => {
-						runTasks().then(taskResult => {
-							if (taskResult !== TaskRunResult.Success) {
-								return;
-							}
-
-							// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
-							let needsToSubstitute = false;
-							let unresolved: IConfig | undefined;
-							const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;
-							if (launch) {
-								unresolved = launch.getConfiguration(session.configuration.name);
-								if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
-									// Take the type from the session since the debug extension might overwrite it #21316
-									unresolved.type = session.configuration.type;
-									unresolved.noDebug = session.configuration.noDebug;
-									needsToSubstitute = true;
-								}
-							}
-
-							let substitutionThenable: Promise<IConfig | null | undefined> = Promise.resolve(session.configuration);
-							if (launch && needsToSubstitute && unresolved) {
-								this.initCancellationToken = new CancellationTokenSource();
-								substitutionThenable = this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, this.initCancellationToken.token)
-									.then(resolved => {
-										if (resolved) {
-											// start debugging
-											return this.substituteVariables(launch, resolved);
-										} else if (resolved === null) {
-											// abort debugging silently and open launch.json
-											return Promise.resolve(null);
-										} else {
-											// abort debugging silently
-											return Promise.resolve(undefined);
-										}
-									});
-							}
-							substitutionThenable.then(resolved => {
-
-								if (!resolved) {
-									return c(undefined);
-								}
-
-								session.setConfiguration({ resolved, unresolved });
-								session.configuration.__restart = restartData;
-
-								this.launchOrAttachToSession(session, shouldFocus).then(() => {
-									this._onDidNewSession.fire(session);
-									c(undefined);
-								}, err => e(err));
-							});
-						});
-					}, 300);
-				});
-			});
+				try {
+					await this.launchOrAttachToSession(session, shouldFocus);
+					this._onDidNewSession.fire(session);
+					c(undefined);
+				} catch (error) {
+					e(error);
+				}
+			}, 300);
 		});
 	}
 
