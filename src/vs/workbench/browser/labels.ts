@@ -434,7 +434,7 @@ class ResourceLabelWidget extends IconLabel {
 			return;
 		}
 
-		const iconLabelOptions: IIconLabelValueOptions = {
+		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[] } = {
 			title: '',
 			italic: this.options && this.options.italic,
 			matches: this.options && this.options.matches,
@@ -462,7 +462,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.options && this.options.extraClasses) {
-			iconLabelOptions.extraClasses!.push(...this.options.extraClasses);
+			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
 
 		if (this.options && this.options.fileDecorations && resource) {
@@ -477,11 +477,11 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (this.options.fileDecorations.colors) {
-					iconLabelOptions.extraClasses!.push(deco.labelClassName);
+					iconLabelOptions.extraClasses.push(deco.labelClassName);
 				}
 
 				if (this.options.fileDecorations.badges) {
-					iconLabelOptions.extraClasses!.push(deco.badgeClassName);
+					iconLabelOptions.extraClasses.push(deco.badgeClassName);
 				}
 			}
 		}

@@ -44,7 +44,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 interface IEditorInputLabel {
-	name: string;
+	name?: string;
 	description?: string;
 	title?: string;
 }
@@ -206,7 +206,10 @@ export class TabsTitleControl extends TitleControl {
 
 				// Return if transfer is unsupported
 				if (!this.isSupportedDropTransfer(e)) {
-					e.dataTransfer!.dropEffect = 'none';
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'none';
+					}
+
 					return;
 				}
 
@@ -215,17 +218,25 @@ export class TabsTitleControl extends TitleControl {
 				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 					isLocalDragAndDrop = true;
 
-					const localDraggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)![0].identifier;
-					if (this.group.id === localDraggedEditor.groupId && this.group.getIndexOfEditor(localDraggedEditor.editor) === this.group.count - 1) {
-						e.dataTransfer!.dropEffect = 'none';
-						return;
+					const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const localDraggedEditor = data[0].identifier;
+						if (this.group.id === localDraggedEditor.groupId && this.group.getIndexOfEditor(localDraggedEditor.editor) === this.group.count - 1) {
+							if (e.dataTransfer) {
+								e.dataTransfer.dropEffect = 'none';
+							}
+
+							return;
+						}
 					}
 				}
 
 				// Update the dropEffect to "copy" if there is no local data to be dragged because
 				// in that case we can only copy the data into and not move it from its source
 				if (!isLocalDragAndDrop) {
-					e.dataTransfer!.dropEffect = 'copy';
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'copy';
+					}
 				}
 
 				this.updateDropFeedback(this.tabsContainer, true);
@@ -602,7 +613,9 @@ export class TabsTitleControl extends TitleControl {
 
 			this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: this.group.id })], DraggedEditorIdentifier.prototype);
 
-			e.dataTransfer!.effectAllowed = 'copyMove';
+			if (e.dataTransfer) {
+				e.dataTransfer.effectAllowed = 'copyMove';
+			}
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
@@ -624,7 +637,10 @@ export class TabsTitleControl extends TitleControl {
 
 				// Return if transfer is unsupported
 				if (!this.isSupportedDropTransfer(e)) {
-					e.dataTransfer!.dropEffect = 'none';
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'none';
+					}
+
 					return;
 				}
 
@@ -633,17 +649,25 @@ export class TabsTitleControl extends TitleControl {
 				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 					isLocalDragAndDrop = true;
 
-					const localDraggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)![0].identifier;
-					if (localDraggedEditor.editor === this.group.getEditor(index) && localDraggedEditor.groupId === this.group.id) {
-						e.dataTransfer!.dropEffect = 'none';
-						return;
+					const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const localDraggedEditor = data[0].identifier;
+						if (localDraggedEditor.editor === this.group.getEditor(index) && localDraggedEditor.groupId === this.group.id) {
+							if (e.dataTransfer) {
+								e.dataTransfer.dropEffect = 'none';
+							}
+
+							return;
+						}
 					}
 				}
 
 				// Update the dropEffect to "copy" if there is no local data to be dragged because
 				// in that case we can only copy the data into and not move it from its source
 				if (!isLocalDragAndDrop) {
-					e.dataTransfer!.dropEffect = 'copy';
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'copy';
+					}
 				}
 
 				this.updateDropFeedback(tab, true, index);
@@ -674,9 +698,12 @@ export class TabsTitleControl extends TitleControl {
 
 	private isSupportedDropTransfer(e: DragEvent): boolean {
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
-			const group = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)![0];
-			if (group.identifier === this.group.id) {
-				return false; // groups cannot be dropped on title area it originates from
+			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
+			if (Array.isArray(data)) {
+				const group = data[0];
+				if (group.identifier === this.group.id) {
+					return false; // groups cannot be dropped on title area it originates from
+				}
 			}
 
 			return true;
@@ -724,7 +751,7 @@ export class TabsTitleControl extends TitleControl {
 		// Build labels and descriptions for each editor
 		const labels = this.group.editors.map(editor => ({
 			editor,
-			name: editor.getName()!,
+			name: editor.getName(),
 			description: editor.getDescription(verbosity),
 			title: withNullAsUndefined(editor.getTitle(Verbosity.LONG))
 		}));
@@ -1018,8 +1045,8 @@ export class TabsTitleControl extends TitleControl {
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 
-		let activeTabPosX: number;
-		let activeTabWidth: number;
+		let activeTabPosX: number | undefined;
+		let activeTabWidth: number | undefined;
 
 		if (!this.blockRevealActiveTab) {
 			activeTabPosX = activeTab.offsetLeft;
@@ -1033,27 +1060,27 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// Return now if we are blocked to reveal the active tab and clear flag
-		if (this.blockRevealActiveTab) {
+		if (this.blockRevealActiveTab || typeof activeTabPosX !== 'number' || typeof activeTabWidth !== 'number') {
 			this.blockRevealActiveTab = false;
 			return;
 		}
 
 		// Reveal the active one
 		const containerScrollPosX = this.tabsScrollbar.getScrollPosition().scrollLeft;
-		const activeTabFits = activeTabWidth! <= visibleContainerWidth;
+		const activeTabFits = activeTabWidth <= visibleContainerWidth;
 
 		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
 		// Note: only try to do this if we actually have enough width to give to show the tab fully!
-		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX! + activeTabWidth!) {
+		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
 			this.tabsScrollbar.setScrollPosition({
-				scrollLeft: containerScrollPosX + ((activeTabPosX! + activeTabWidth!) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
+				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
 			});
 		}
 
 		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
-		else if (containerScrollPosX > activeTabPosX! || !activeTabFits) {
+		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
 			this.tabsScrollbar.setScrollPosition({
-				scrollLeft: activeTabPosX!
+				scrollLeft: activeTabPosX
 			});
 		}
 	}
@@ -1096,41 +1123,47 @@ export class TabsTitleControl extends TitleControl {
 
 		// Local Editor DND
 		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-			const draggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)![0].identifier;
-			const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
+			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
+			if (Array.isArray(data)) {
+				const draggedEditor = data[0].identifier;
+				const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 
-			if (sourceGroup) {
+				if (sourceGroup) {
 
-				// Move editor to target position and index
-				if (this.isMoveOperation(e, draggedEditor.groupId)) {
-					sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
+					// Move editor to target position and index
+					if (this.isMoveOperation(e, draggedEditor.groupId)) {
+						sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
+					}
+
+					// Copy editor to target position and index
+					else {
+						sourceGroup.copyEditor(draggedEditor.editor, this.group, { index: targetIndex });
+					}
 				}
 
-				// Copy editor to target position and index
-				else {
-					sourceGroup.copyEditor(draggedEditor.editor, this.group, { index: targetIndex });
-				}
+				this.group.focus();
+				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 			}
-
-			this.group.focus();
-			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 		}
 
 		// Local Editor Group DND
 		else if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
-			const sourceGroup = this.accessor.getGroup(this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)![0].identifier);
+			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
+			if (data) {
+				const sourceGroup = this.accessor.getGroup(data[0].identifier);
 
-			if (sourceGroup) {
-				const mergeGroupOptions: IMergeGroupOptions = { index: targetIndex };
-				if (!this.isMoveOperation(e, sourceGroup.id)) {
-					mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
+				if (sourceGroup) {
+					const mergeGroupOptions: IMergeGroupOptions = { index: targetIndex };
+					if (!this.isMoveOperation(e, sourceGroup.id)) {
+						mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
+					}
+
+					this.accessor.mergeGroup(sourceGroup, this.group, mergeGroupOptions);
 				}
 
-				this.accessor.mergeGroup(sourceGroup, this.group, mergeGroupOptions);
+				this.group.focus();
+				this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 			}
-
-			this.group.focus();
-			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 		}
 
 		// External DND

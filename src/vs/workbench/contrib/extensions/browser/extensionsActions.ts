@@ -566,7 +566,7 @@ export class ExtensionActionViewItem extends ActionViewItem {
 	updateEnabled(): void {
 		super.updateEnabled();
 
-		if (this.options.tabOnlyOnFocus && this.getAction().enabled && !this._hasFocus) {
+		if (this.label && this.options.tabOnlyOnFocus && this.getAction().enabled && !this._hasFocus) {
 			DOM.removeTabIndexAndUpdateFocus(this.label);
 		}
 	}
@@ -577,7 +577,7 @@ export class ExtensionActionViewItem extends ActionViewItem {
 			return;
 		}
 		this._hasFocus = value;
-		if (this.getAction().enabled) {
+		if (this.label && this.getAction().enabled) {
 			if (this._hasFocus) {
 				this.label.tabIndex = 0;
 			} else {

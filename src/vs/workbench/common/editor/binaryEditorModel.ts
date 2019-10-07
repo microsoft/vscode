@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { DataUri, basename } from 'vs/base/common/resources';
+import { MIME_BINARY } from 'vs/base/common/mime';
 
 /**
  * An editor model that just represents a resource that can be loaded.
@@ -33,7 +34,7 @@ export class BinaryEditorModel extends EditorModel {
 				this.size = Number(metadata.get(DataUri.META_DATA_SIZE));
 			}
 
-			this.mime = metadata.get(DataUri.META_DATA_MIME)!;
+			this.mime = metadata.get(DataUri.META_DATA_MIME) || MIME_BINARY;
 		}
 	}
 

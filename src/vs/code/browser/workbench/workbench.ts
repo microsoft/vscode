@@ -22,7 +22,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
 
-	private _credentials!: ICredential[];
+	private _credentials: ICredential[] | undefined;
 	private get credentials(): ICredential[] {
 		if (!this._credentials) {
 			try {
@@ -250,7 +250,13 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 }
 
-const options: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(document.getElementById('vscode-workbench-web-configuration')!.getAttribute('data-settings')!);
+const configElement = document.getElementById('vscode-workbench-web-configuration');
+const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
+if (!configElement || !configElementAttribute) {
+	throw new Error('Missing web configuration element');
+}
+
+const options: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
 options.workspaceProvider = new WorkspaceProvider(options.folderUri ? { folderUri: URI.revive(options.folderUri) } : options.workspaceUri ? { workspaceUri: URI.revive(options.workspaceUri) } : undefined);
 options.urlCallbackProvider = new PollingURLCallbackProvider();
 options.credentialsProvider = new LocalStorageCredentialsProvider();

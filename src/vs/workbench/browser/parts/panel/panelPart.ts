@@ -303,9 +303,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
-			this._contentDimension = new Dimension(width - 1, height!); // Take into account the 1px border when layouting
+			this._contentDimension = new Dimension(width - 1, height); // Take into account the 1px border when layouting
 		} else {
-			this._contentDimension = new Dimension(width, height!);
+			this._contentDimension = new Dimension(width, height);
 		}
 
 		// Layout contents

@@ -213,14 +213,11 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	registerEmptyWindowBackupSync(backupFolder?: string, remoteAuthority?: string): string {
+	registerEmptyWindowBackupSync(backupFolderCandidate?: string, remoteAuthority?: string): string {
 
 		// Generate a new folder if this is a new empty workspace
-		if (!backupFolder) {
-			backupFolder = this.getRandomEmptyWindowId();
-		}
-
-		if (!this.emptyWorkspaces.some(window => !!window.backupFolder && isEqual(window.backupFolder, backupFolder!, !platform.isLinux))) {
+		const backupFolder = backupFolderCandidate || this.getRandomEmptyWindowId();
+		if (!this.emptyWorkspaces.some(window => !!window.backupFolder && isEqual(window.backupFolder, backupFolder, !platform.isLinux))) {
 			this.emptyWorkspaces.push({ backupFolder, remoteAuthority });
 			this.saveSync();
 		}

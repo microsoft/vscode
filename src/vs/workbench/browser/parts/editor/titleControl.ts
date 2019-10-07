@@ -257,7 +257,9 @@ export abstract class TitleControl extends Themable {
 
 			// Set editor group as transfer
 			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.group.id)], DraggedEditorGroupIdentifier.prototype);
-			e.dataTransfer!.effectAllowed = 'copyMove';
+			if (e.dataTransfer) {
+				e.dataTransfer.effectAllowed = 'copyMove';
+			}
 
 			// If tabs are disabled, treat dragging as if an editor tab was dragged
 			if (!this.accessor.partOptions.showTabs) {

@@ -48,7 +48,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	private dimension: Dimension | undefined;
 
-	private compositeSwitcherBar!: ActionBar;
+	private compositeSwitcherBar: ActionBar;
 	private compositeOverflowAction: CompositeOverflowActivityAction | undefined;
 	private compositeOverflowActionViewItem: CompositeOverflowActivityActionViewItem | undefined;
 
@@ -113,12 +113,15 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
 				EventHelper.stop(e, true);
 
-				const draggedCompositeId = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype)![0].id;
-				this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
+				const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
+				if (Array.isArray(data)) {
+					const draggedCompositeId = data[0].id;
+					this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
 
-				const targetItem = this.model.visibleItems[this.model.visibleItems.length - 1];
-				if (targetItem && targetItem.id !== draggedCompositeId) {
-					this.move(draggedCompositeId, targetItem.id);
+					const targetItem = this.model.visibleItems[this.model.visibleItems.length - 1];
+					if (targetItem && targetItem.id !== draggedCompositeId) {
+						this.move(draggedCompositeId, targetItem.id);
+					}
 				}
 			}
 		}));

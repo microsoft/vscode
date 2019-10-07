@@ -238,7 +238,10 @@ class StatusbarViewModel extends Disposable {
 					return entryB.priority - entryA.priority; // higher priority towards the left
 				}
 
-				return mapEntryToIndex.get(entryA)! - mapEntryToIndex.get(entryB)!; // otherwise maintain stable order
+				const indexA = mapEntryToIndex.get(entryA);
+				const indexB = mapEntryToIndex.get(entryB);
+
+				return indexA! - indexB!; // otherwise maintain stable order (both values known to be in map)
 			}
 
 			if (entryA.alignment === StatusbarAlignment.LEFT) {
@@ -334,14 +337,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	//#endregion
 
-	private styleElement!: HTMLStyleElement;
+	private styleElement: HTMLStyleElement;
 
 	private pendingEntries: IPendingStatusbarEntry[] = [];
 
 	private readonly viewModel: StatusbarViewModel;
 
-	private leftItemsContainer!: HTMLElement;
-	private rightItemsContainer!: HTMLElement;
+	private leftItemsContainer: HTMLElement;
+	private rightItemsContainer: HTMLElement;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -691,8 +694,9 @@ class StatusbarEntryItem extends Disposable {
 		if (!this.entry || entry.command !== this.entry.command) {
 			this.commandListener.clear();
 
-			if (entry.command) {
-				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(entry.command!, entry.arguments));
+			const command = entry.command;
+			if (command) {
+				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command, entry.arguments));
 
 				removeClass(this.labelContainer, 'disabled');
 			} else {

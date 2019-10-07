@@ -133,7 +133,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 		// Editor for Text
 		this._editorContainer = parent;
-		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getValue<IEditorConfiguration>(this.getResource()!))));
+		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 
 		// Model & Language changes
 		const codeEditor = getCodeEditor(this.editorControl);

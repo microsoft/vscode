@@ -44,8 +44,8 @@ export class Menubar {
 
 	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubarData';
 
-	private willShutdown: boolean;
-	private appMenuInstalled: boolean;
+	private willShutdown: boolean | undefined;
+	private appMenuInstalled: boolean | undefined;
 	private closedLastWindow: boolean;
 
 	private menuUpdater: RunOnceScheduler;
@@ -365,10 +365,11 @@ export class Menubar {
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
 		const quit = new MenuItem(this.likeAction('workbench.action.quit', {
 			label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => {
+				const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
 				if (
-					this.windowsMainService.getWindowCount() === 0 || 				// allow to quit when no more windows are open
-					!!BrowserWindow.getFocusedWindow() ||							// allow to quit when window has focus (fix for https://github.com/Microsoft/vscode/issues/39191)
-					this.windowsMainService.getLastActiveWindow()!.isMinimized()	// allow to quit when window has no focus but is minimized (https://github.com/Microsoft/vscode/issues/63000)
+					this.windowsMainService.getWindowCount() === 0 || 		// allow to quit when no more windows are open
+					!!BrowserWindow.getFocusedWindow() ||					// allow to quit when window has focus (fix for https://github.com/Microsoft/vscode/issues/39191)
+					(lastActiveWindow && lastActiveWindow.isMinimized())	// allow to quit when window has no focus but is minimized (https://github.com/Microsoft/vscode/issues/63000)
 				) {
 					this.electronMainService.quit(undefined);
 				}

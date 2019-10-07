@@ -730,20 +730,24 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				info.selections.forEach(selection => {
-					info.charactersSelected! += textModel.getValueLengthInRange(selection);
+					if (typeof info.charactersSelected !== 'number') {
+						info.charactersSelected = 0;
+					}
+
+					info.charactersSelected += textModel.getValueLengthInRange(selection);
 				});
 			}
 
 			// Compute the visible column for one selection. This will properly handle tabs and their configured widths
 			if (info.selections.length === 1) {
-				const visibleColumn = editorWidget.getVisibleColumnFromPosition(editorWidget.getPosition()!);
+				const editorPosition = editorWidget.getPosition();
 
 				let selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
 				selectionClone = new Selection(
 					selectionClone.selectionStartLineNumber,
 					selectionClone.selectionStartColumn,
 					selectionClone.positionLineNumber,
-					visibleColumn
+					editorPosition ? editorWidget.getVisibleColumnFromPosition(editorPosition) : selectionClone.positionColumn
 				);
 
 				info.selections[0] = selectionClone;

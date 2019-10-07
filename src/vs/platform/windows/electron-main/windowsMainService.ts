@@ -459,7 +459,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// 1.) focus last active window if we are not instructed to open any paths
 			if (focusLastActive) {
-				const lastActiveWindow = usedWindows.filter(window => window.backupPath === this.windowsState.lastActiveWindow!.backupPath);
+				const lastActiveWindow = usedWindows.filter(window => this.windowsState.lastActiveWindow && window.backupPath === this.windowsState.lastActiveWindow.backupPath);
 				if (lastActiveWindow.length) {
 					lastActiveWindow[0].focus();
 					focusLastOpened = false;
@@ -472,9 +472,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				for (let i = usedWindows.length - 1; i >= 0; i--) {
 					const usedWindow = usedWindows[i];
 					if (
-						(usedWindow.openedWorkspace && workspacesToRestore.some(workspace => workspace.workspace.id === usedWindow.openedWorkspace!.id)) ||	// skip over restored workspace
-						(usedWindow.openedFolderUri && foldersToRestore.some(uri => isEqual(uri, usedWindow.openedFolderUri))) ||			// skip over restored folder
-						(usedWindow.backupPath && emptyToRestore.some(empty => empty.backupFolder === basename(usedWindow.backupPath!)))				// skip over restored empty window
+						(usedWindow.openedWorkspace && workspacesToRestore.some(workspace => usedWindow.openedWorkspace && workspace.workspace.id === usedWindow.openedWorkspace.id)) ||	// skip over restored workspace
+						(usedWindow.openedFolderUri && foldersToRestore.some(uri => isEqual(uri, usedWindow.openedFolderUri))) ||															// skip over restored folder
+						(usedWindow.backupPath && emptyToRestore.some(empty => usedWindow.backupPath && empty.backupFolder === basename(usedWindow.backupPath)))							// skip over restored empty window
 					) {
 						continue;
 					}
@@ -559,7 +559,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const fileToCheck = fileInputs.filesToOpenOrCreate[0] || fileInputs.filesToDiff[0];
 
 			// only look at the windows with correct authority
-			const windows = WindowsMainService.WINDOWS.filter(window => window.remoteAuthority === fileInputs!.remoteAuthority);
+			const windows = WindowsMainService.WINDOWS.filter(window => fileInputs && window.remoteAuthority === fileInputs.remoteAuthority);
 
 			const bestWindowOrFolder = findBestWindowOrFolderForFile({
 				windows,
@@ -633,7 +633,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Open remaining ones
 			allWorkspacesToOpen.forEach(workspaceToOpen => {
-				if (windowsOnWorkspace.some(win => win.openedWorkspace!.id === workspaceToOpen.workspace.id)) {
+				if (windowsOnWorkspace.some(win => win.openedWorkspace && win.openedWorkspace.id === workspaceToOpen.workspace.id)) {
 					return; // ignore folders that are already open
 				}
 
@@ -1388,7 +1388,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 
 			// Create the window
-			window = this.instantiationService.createInstance(CodeWindow, {
+			const createdWindow = window = this.instantiationService.createInstance(CodeWindow, {
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath
@@ -1409,10 +1409,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length - 1, newCount: WindowsMainService.WINDOWS.length });
 
 			// Window Events
-			once(window.onClose)(() => this.onWindowClosed(window!));
-			once(window.onDestroy)(() => this.onBeforeWindowClose(window!)); // try to save state before destroy because close will not fire
+			once(window.onClose)(() => this.onWindowClosed(createdWindow));
+			once(window.onDestroy)(() => this.onBeforeWindowClose(createdWindow)); // try to save state before destroy because close will not fire
 			window.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
-			window.win.webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(window!));
+			window.win.webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
 
 			// Lifecycle
 			(this.lifecycleMainService as LifecycleMainService).registerWindow(window);

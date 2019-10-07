@@ -114,7 +114,9 @@ export class EmptyView extends ViewletPanel {
 				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragOver: e => {
-				e.dataTransfer!.dropEffect = 'copy';
+				if (e.dataTransfer) {
+					e.dataTransfer.dropEffect = 'copy';
+				}
 			}
 		}));
 

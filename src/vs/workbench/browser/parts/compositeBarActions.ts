@@ -57,7 +57,7 @@ export class ActivityAction extends Action {
 	private readonly _onDidChangeBadge = new Emitter<this>();
 	readonly onDidChangeBadge: Event<this> = this._onDidChangeBadge.event;
 
-	private badge?: IBadge;
+	private badge: IBadge | undefined;
 	private clazz: string | undefined;
 
 	constructor(private _activity: IActivity) {
@@ -124,10 +124,10 @@ export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptio
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
-	protected container!: HTMLElement;
-	protected label!: HTMLElement;
-	protected badge!: HTMLElement;
-	protected options!: IActivityActionViewItemOptions;
+	protected container: HTMLElement;
+	protected label: HTMLElement;
+	protected badge: HTMLElement;
+	protected options: IActivityActionViewItemOptions;
 
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -205,10 +205,10 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		}));
 
 		// Label
-		this.label = dom.append(this.element!, dom.$('a'));
+		this.label = dom.append(container, dom.$('a'));
 
 		// Badge
-		this.badge = dom.append(this.element!, dom.$('.badge'));
+		this.badge = dom.append(container, dom.$('.badge'));
 		this.badgeContent = dom.append(this.badge, dom.$('.badge-content'));
 
 		dom.hide(this.badge);
@@ -347,7 +347,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 }
 
 export class CompositeOverflowActivityActionViewItem extends ActivityActionViewItem {
-	private actions: Action[] | undefined;
+	private actions: Action[] = [];
 
 	constructor(
 		action: ActivityAction,
@@ -370,9 +370,9 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		this.actions = this.getActions();
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.element!,
-			getActions: () => this.actions!,
-			onHide: () => dispose(this.actions!)
+			getAnchor: () => this.container,
+			getActions: () => this.actions,
+			onHide: () => dispose(this.actions)
 		});
 	}
 
@@ -502,7 +502,9 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		// Allow to drag
 		this._register(dom.addDisposableListener(this.container, dom.EventType.DRAG_START, (e: DragEvent) => {
-			e.dataTransfer!.effectAllowed = 'move';
+			if (e.dataTransfer) {
+				e.dataTransfer.effectAllowed = 'move';
+			}
 
 			// Registe as dragged to local transfer
 			this.compositeTransfer.setData([new DraggedCompositeIdentifier(this.activity.id)], DraggedCompositeIdentifier.prototype);
@@ -515,8 +517,11 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		this._register(new DragAndDropObserver(this.container, {
 			onDragEnter: e => {
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) && this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype)![0].id !== this.activity.id) {
-					this.updateFromDragging(container, true);
+				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
+					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
+					if (Array.isArray(data) && data[0].id !== this.activity.id) {
+						this.updateFromDragging(container, true);
+					}
 				}
 			},
 
@@ -538,12 +543,15 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				dom.EventHelper.stop(e, true);
 
 				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-					const draggedCompositeId = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype)![0].id;
-					if (draggedCompositeId !== this.activity.id) {
-						this.updateFromDragging(container, false);
-						this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
+					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedCompositeId = data[0].id;
+						if (draggedCompositeId !== this.activity.id) {
+							this.updateFromDragging(container, false);
+							this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
 
-						this.compositeBar.move(draggedCompositeId, this.activity.id);
+							this.compositeBar.move(draggedCompositeId, this.activity.id);
+						}
 					}
 				}
 			}

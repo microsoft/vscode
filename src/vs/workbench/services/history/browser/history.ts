@@ -120,7 +120,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private lastEditLocation: IStackEntry | undefined;
 
-	private history!: Array<IEditorInput | IResourceInput>;
+	private history: Array<IEditorInput | IResourceInput>;
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
@@ -250,7 +250,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// Track the last edit location by tracking model content change events
 			// Use a debouncer to make sure to capture the correct cursor position
 			// after the model content has changed.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => this.rememberLastEditLocation(activeEditor!, activeTextEditorWidget))));
+			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
+				if (activeEditor) {
+					this.rememberLastEditLocation(activeEditor, activeTextEditorWidget);
+				}
+			})));
 		}
 	}
 

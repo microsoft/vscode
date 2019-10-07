@@ -14,8 +14,8 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
  */
 export class TextDiffEditorModel extends DiffEditorModel {
 
-	protected readonly _originalModel!: BaseTextEditorModel | null;
-	protected readonly _modifiedModel!: BaseTextEditorModel | null;
+	protected readonly _originalModel: BaseTextEditorModel | null;
+	protected readonly _modifiedModel: BaseTextEditorModel | null;
 
 	private _textDiffEditorModel: IDiffEditorModel | null = null;
 

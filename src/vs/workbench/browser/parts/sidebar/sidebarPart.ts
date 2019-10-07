@@ -225,8 +225,17 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	}
 
 	getViewlets(): ViewletDescriptor[] {
-		return this.viewletRegistry.getViewlets()
-			.sort((v1, v2) => v1.order! - v2.order!);
+		return this.viewletRegistry.getViewlets().sort((v1, v2) => {
+			if (typeof v1.order !== 'number') {
+				return -1;
+			}
+
+			if (typeof v2.order !== 'number') {
+				return 1;
+			}
+
+			return v1.order - v2.order;
+		});
 	}
 
 	getDefaultViewletId(): string {
