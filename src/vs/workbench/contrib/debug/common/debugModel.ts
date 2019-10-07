@@ -27,7 +27,7 @@ import { mixin } from 'vs/base/common/objects';
 
 export class ExpressionContainer implements IExpressionContainer {
 
-	public static allValues = new Map<string, string>();
+	public static readonly allValues = new Map<string, string>();
 	// Use chunks to support variable paging #9537
 	private static readonly BASE_CHUNK_SIZE = 100;
 
@@ -172,7 +172,7 @@ export class ExpressionContainer implements IExpressionContainer {
 }
 
 export class Expression extends ExpressionContainer implements IExpression {
-	static DEFAULT_VALUE = nls.localize('notAvailable', "not available");
+	static readonly DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
 	public available: boolean;
 

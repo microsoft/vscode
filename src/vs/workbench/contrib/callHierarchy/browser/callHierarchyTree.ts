@@ -122,7 +122,7 @@ class CallRenderingTemplate {
 
 export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderingTemplate> {
 
-	static id = 'CallRenderer';
+	static readonly id = 'CallRenderer';
 
 	templateId: string = CallRenderer.id;
 

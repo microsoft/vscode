@@ -113,7 +113,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
 
-	private static ProcessVarName = '__process__';
+	private static readonly ProcessVarName = '__process__';
 
 	private static shellQuotes: IStringDictionary<ShellQuotingOptions> = {
 		'cmd': {

@@ -124,7 +124,7 @@ export class NotificationHandle implements INotificationHandle {
 
 export class NotificationsModel extends Disposable implements INotificationsModel {
 
-	private static NO_OP_NOTIFICATION = new NoOpNotification();
+	private static readonly NO_OP_NOTIFICATION = new NoOpNotification();
 
 	private readonly _onDidNotificationChange: Emitter<INotificationChangeEvent> = this._register(new Emitter<INotificationChangeEvent>());
 	readonly onDidNotificationChange: Event<INotificationChangeEvent> = this._onDidNotificationChange.event;
@@ -380,11 +380,11 @@ export interface INotificationMessage {
 
 export class NotificationViewItem extends Disposable implements INotificationViewItem {
 
-	private static MAX_MESSAGE_LENGTH = 1000;
+	private static readonly MAX_MESSAGE_LENGTH = 1000;
 
 	// Example link: "Some message with [link text](http://link.href)."
 	// RegEx: [, anything not ], ], (, http://|https://|command:, no whitespace)
-	private static LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: "([^"]+)")?\)/gi;
+	private static readonly LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: "([^"]+)")?\)/gi;
 
 	private _expanded: boolean | undefined;
 

@@ -11,7 +11,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 export class ToggleDevToolsAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleDevTools';
-	static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
+	static readonly LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
 	constructor(id: string, label: string, @IElectronService private readonly electronService: IElectronService) {
 		super(id, label);
@@ -25,7 +25,7 @@ export class ToggleDevToolsAction extends Action {
 export class ToggleSharedProcessAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleSharedProcess';
-	static LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
+	static readonly LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
 
 	constructor(id: string, label: string, @ISharedProcessService private readonly sharedProcessService: ISharedProcessService) {
 		super(id, label);

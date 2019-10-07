@@ -141,7 +141,7 @@ class AutoClosedAction {
 
 export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
-	public static MAX_CURSOR_COUNT = 10000;
+	public static readonly MAX_CURSOR_COUNT = 10000;
 
 	private readonly _onDidReachMaxCursorCount: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidReachMaxCursorCount: Event<void> = this._onDidReachMaxCursorCount.event;

@@ -982,7 +982,7 @@ class SelectReplActionViewItem extends FocusSessionActionViewItem {
 class SelectReplAction extends Action {
 
 	static readonly ID = 'workbench.action.debug.selectRepl';
-	static LABEL = nls.localize('selectRepl', "Select Debug Console");
+	static readonly LABEL = nls.localize('selectRepl', "Select Debug Console");
 
 	constructor(id: string, label: string,
 		@IDebugService private readonly debugService: IDebugService,
@@ -1005,7 +1005,7 @@ class SelectReplAction extends Action {
 
 export class ClearReplAction extends Action {
 	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
-	static LABEL = nls.localize('clearRepl', "Clear Console");
+	static readonly LABEL = nls.localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
 		@IPanelService private readonly panelService: IPanelService

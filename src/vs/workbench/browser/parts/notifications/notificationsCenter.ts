@@ -26,7 +26,7 @@ import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 
 export class NotificationsCenter extends Themable {
 
-	private static MAX_DIMENSIONS = new Dimension(450, 400);
+	private static readonly MAX_DIMENSIONS = new Dimension(450, 400);
 
 	private readonly _onDidChangeVisibility: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeVisibility: Event<void> = this._onDidChangeVisibility.event;

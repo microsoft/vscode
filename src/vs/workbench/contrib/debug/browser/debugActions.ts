@@ -56,7 +56,7 @@ export abstract class AbstractDebugAction extends Action {
 
 export class ConfigureAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.action.debug.configure';
-	static LABEL = nls.localize('openLaunchJson', "Open {0}", 'launch.json');
+	static readonly LABEL = nls.localize('openLaunchJson', "Open {0}", 'launch.json');
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
@@ -156,7 +156,7 @@ export class RunAction extends StartAction {
 
 export class SelectAndStartAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.action.debug.selectandstart';
-	static LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
+	static readonly LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
@@ -173,7 +173,7 @@ export class SelectAndStartAction extends AbstractDebugAction {
 
 export class RemoveBreakpointAction extends Action {
 	static readonly ID = 'workbench.debug.viewlet.action.removeBreakpoint';
-	static LABEL = nls.localize('removeBreakpoint', "Remove Breakpoint");
+	static readonly LABEL = nls.localize('removeBreakpoint', "Remove Breakpoint");
 
 	constructor(id: string, label: string, @IDebugService private readonly debugService: IDebugService) {
 		super(id, label, 'debug-action remove');
@@ -187,7 +187,7 @@ export class RemoveBreakpointAction extends Action {
 
 export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.removeAllBreakpoints';
-	static LABEL = nls.localize('removeAllBreakpoints', "Remove All Breakpoints");
+	static readonly LABEL = nls.localize('removeAllBreakpoints', "Remove All Breakpoints");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action remove-all', debugService, keybindingService);
@@ -206,7 +206,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 
 export class EnableAllBreakpointsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.enableAllBreakpoints';
-	static LABEL = nls.localize('enableAllBreakpoints', "Enable All Breakpoints");
+	static readonly LABEL = nls.localize('enableAllBreakpoints', "Enable All Breakpoints");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action enable-all-breakpoints', debugService, keybindingService);
@@ -225,7 +225,7 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 
 export class DisableAllBreakpointsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.disableAllBreakpoints';
-	static LABEL = nls.localize('disableAllBreakpoints', "Disable All Breakpoints");
+	static readonly LABEL = nls.localize('disableAllBreakpoints', "Disable All Breakpoints");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action disable-all-breakpoints', debugService, keybindingService);
@@ -244,8 +244,8 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 
 export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.toggleBreakpointsActivatedAction';
-	static ACTIVATE_LABEL = nls.localize('activateBreakpoints', "Activate Breakpoints");
-	static DEACTIVATE_LABEL = nls.localize('deactivateBreakpoints', "Deactivate Breakpoints");
+	static readonly ACTIVATE_LABEL = nls.localize('activateBreakpoints', "Activate Breakpoints");
+	static readonly DEACTIVATE_LABEL = nls.localize('deactivateBreakpoints', "Deactivate Breakpoints");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action breakpoints-activate', debugService, keybindingService);
@@ -268,7 +268,7 @@ export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 
 export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.reapplyBreakpointsAction';
-	static LABEL = nls.localize('reapplyAllBreakpoints', "Reapply All Breakpoints");
+	static readonly LABEL = nls.localize('reapplyAllBreakpoints', "Reapply All Breakpoints");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, '', debugService, keybindingService);
@@ -288,7 +288,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 
 export class AddFunctionBreakpointAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.addFunctionBreakpointAction';
-	static LABEL = nls.localize('addFunctionBreakpoint', "Add Function Breakpoint");
+	static readonly LABEL = nls.localize('addFunctionBreakpoint', "Add Function Breakpoint");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-function-breakpoint', debugService, keybindingService);
@@ -308,7 +308,7 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 
 export class AddWatchExpressionAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.addWatchExpression';
-	static LABEL = nls.localize('addWatchExpression', "Add Expression");
+	static readonly LABEL = nls.localize('addWatchExpression', "Add Expression");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-watch-expression', debugService, keybindingService);
@@ -329,7 +329,7 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 
 export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.removeAllWatchExpressions';
-	static LABEL = nls.localize('removeAllWatchExpressions', "Remove All Expressions");
+	static readonly LABEL = nls.localize('removeAllWatchExpressions', "Remove All Expressions");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action remove-all', debugService, keybindingService);
@@ -348,7 +348,7 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 
 export class FocusSessionAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.action.debug.focusProcess';
-	static LABEL = nls.localize('focusSession', "Focus Session");
+	static readonly LABEL = nls.localize('focusSession', "Focus Session");
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
@@ -371,7 +371,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 
 export class CopyValueAction extends Action {
 	static readonly ID = 'workbench.debug.viewlet.action.copyValue';
-	static LABEL = nls.localize('copyValue', "Copy Value");
+	static readonly LABEL = nls.localize('copyValue', "Copy Value");
 
 	constructor(
 		id: string, label: string, private value: any, private context: string,

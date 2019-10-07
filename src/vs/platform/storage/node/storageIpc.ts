@@ -29,7 +29,7 @@ interface ISerializableItemsChangeEvent {
 
 export class GlobalStorageDatabaseChannel extends Disposable implements IServerChannel {
 
-	private static STORAGE_CHANGE_DEBOUNCE_TIME = 100;
+	private static readonly STORAGE_CHANGE_DEBOUNCE_TIME = 100;
 
 	private readonly _onDidChangeItems: Emitter<ISerializableItemsChangeEvent> = this._register(new Emitter<ISerializableItemsChangeEvent>());
 	readonly onDidChangeItems: Event<ISerializableItemsChangeEvent> = this._onDidChangeItems.event;

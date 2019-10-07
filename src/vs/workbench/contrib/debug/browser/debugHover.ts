@@ -174,7 +174,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.doShow(pos, expression, focus);
 	}
 
-	private static _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'hoverHighlight'
 	});
 

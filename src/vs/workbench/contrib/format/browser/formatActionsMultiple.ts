@@ -33,7 +33,7 @@ type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeForm
 
 class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
-	static configName = 'editor.defaultFormatter';
+	static readonly configName = 'editor.defaultFormatter';
 
 	static extensionIds: (string | null)[] = [];
 	static extensionDescriptions: string[] = [];

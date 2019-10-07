@@ -46,7 +46,7 @@ export interface IViewletPanelOptions extends IPanelOptions {
 
 export abstract class ViewletPanel extends Panel implements IView {
 
-	private static AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
+	private static readonly AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
 
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;

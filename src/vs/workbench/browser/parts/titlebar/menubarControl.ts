@@ -81,7 +81,7 @@ export abstract class MenubarControl extends Disposable {
 
 	protected menuUpdater: RunOnceScheduler;
 
-	protected static MAX_MENU_RECENT_ENTRIES = 10;
+	protected static readonly MAX_MENU_RECENT_ENTRIES = 10;
 
 	constructor(
 		protected readonly menuService: IMenuService,

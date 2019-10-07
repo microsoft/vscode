@@ -90,7 +90,7 @@ export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
 }
 
 export class SettingsTreeSettingElement extends SettingsTreeElement {
-	private static MAX_DESC_LINES = 20;
+	private static readonly MAX_DESC_LINES = 20;
 
 	setting: ISetting;
 

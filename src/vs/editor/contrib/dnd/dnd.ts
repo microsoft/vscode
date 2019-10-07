@@ -38,7 +38,7 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 	private _dndDecorationIds: string[];
 	private _mouseDown: boolean;
 	private _modifierPressed: boolean;
-	static TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
+	static readonly TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
 	static get(editor: ICodeEditor): DragAndDropController {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
