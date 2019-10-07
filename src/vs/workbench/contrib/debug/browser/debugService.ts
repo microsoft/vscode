@@ -344,7 +344,7 @@ export class DebugService implements IDebugService {
 	/**
 	 * gets the debugger for the type, resolves configurations by providers, substitutes variables and runs prelaunch tasks
 	 */
-	private createSession(launch: ILaunch | undefined, config: IConfig | undefined, options?: IDebugSessionOptions): Promise<boolean> {
+	private async createSession(launch: ILaunch | undefined, config: IConfig | undefined, options?: IDebugSessionOptions): Promise<boolean> {
 		// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
 		// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
 		let type: string | undefined;
@@ -360,60 +360,65 @@ export class DebugService implements IDebugService {
 			config!.noDebug = true;
 		}
 
-		const debuggerThenable: Promise<void> = type ? Promise.resolve() : this.configurationManager.guessDebugger().then(dbgr => { type = dbgr && dbgr.type; });
-		return debuggerThenable.then(() => {
-			this.initCancellationToken = new CancellationTokenSource();
-			return this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, this.initCancellationToken.token).then(config => {
-				// a falsy config indicates an aborted launch
-				if (config && config.type) {
-					return this.substituteVariables(launch, config).then(resolvedConfig => {
+		if (!type) {
+			const guess = await this.configurationManager.guessDebugger();
+			if (guess) {
+				type = guess.type;
+			}
+		}
 
-						if (!resolvedConfig) {
-							// User canceled resolving of interactive variables, silently return
-							return false;
-						}
+		this.initCancellationToken = new CancellationTokenSource();
+		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, this.initCancellationToken.token);
+		// a falsy config indicates an aborted launch
+		if (configByProviders && configByProviders.type) {
+			try {
+				const resolvedConfig = await this.substituteVariables(launch, configByProviders);
 
-						if (!this.configurationManager.getDebugger(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
-							let message: string;
-							if (config.request !== 'attach' && config.request !== 'launch') {
-								message = config.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', config.request)
-									: nls.localize('debugRequesMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
-
-							} else {
-								message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
-									nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
-							}
-
-							return this.showError(message).then(() => false);
-						}
-
-						const workspace = launch ? launch.workspace : undefined;
-						return this.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask).then(result => {
-							if (result === TaskRunResult.Success) {
-								return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
-							}
-							return false;
-						});
-					}, err => {
-						if (err && err.message) {
-							return this.showError(err.message).then(() => false);
-						}
-						if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-							return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."))
-								.then(() => false);
-						}
-
-						return !!launch && launch.openConfigFile(false, true, undefined, this.initCancellationToken ? this.initCancellationToken.token : undefined).then(() => false);
-					});
+				if (!resolvedConfig) {
+					// User canceled resolving of interactive variables, silently return
+					return false;
 				}
 
-				if (launch && type && config === null) {	// show launch.json only for "config" being "null".
-					return launch.openConfigFile(false, true, type, this.initCancellationToken ? this.initCancellationToken.token : undefined).then(() => false);
+				if (!this.configurationManager.getDebugger(resolvedConfig.type) || (configByProviders.request !== 'attach' && configByProviders.request !== 'launch')) {
+					let message: string;
+					if (configByProviders.request !== 'attach' && configByProviders.request !== 'launch') {
+						message = configByProviders.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', configByProviders.request)
+							: nls.localize('debugRequesMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
+
+					} else {
+						message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
+							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+					}
+
+					await this.showError(message);
+					return false;
+				}
+
+				const workspace = launch ? launch.workspace : undefined;
+				const taskResult = await this.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask);
+				if (taskResult === TaskRunResult.Success) {
+					return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
+				}
+				return false;
+			} catch (err) {
+				if (err && err.message) {
+					await this.showError(err.message);
+				} else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+					await this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."));
+				}
+				if (launch) {
+					await launch.openConfigFile(false, true, undefined, this.initCancellationToken ? this.initCancellationToken.token : undefined);
 				}
 
 				return false;
-			});
-		});
+			}
+		}
+
+		if (launch && type && configByProviders === null) {	// show launch.json only for "config" being "null".
+			await launch.openConfigFile(false, true, type, this.initCancellationToken ? this.initCancellationToken.token : undefined);
+		}
+
+		return false;
 	}
 
 	/**
@@ -650,7 +655,7 @@ export class DebugService implements IDebugService {
 		return Promise.all(sessions.map(s => s.terminate()));
 	}
 
-	private substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
+	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
 		const dbg = this.configurationManager.getDebugger(config.type);
 		if (dbg) {
 			let folder: IWorkspaceFolder | undefined = undefined;
@@ -662,12 +667,12 @@ export class DebugService implements IDebugService {
 					folder = folders[0];
 				}
 			}
-			return dbg.substituteVariables(folder, config).then(config => {
-				return config;
-			}, (err: Error) => {
+			try {
+				return await dbg.substituteVariables(folder, config);
+			} catch (err) {
 				this.showError(err.message);
 				return undefined;	// bail out
-			});
+			}
 		}
 		return Promise.resolve(config);
 	}
