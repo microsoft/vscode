@@ -248,10 +248,6 @@ export class ExtensionHostProcessManager extends Disposable {
 		return 0;
 	}
 
-	public canProfileExtensionHost(): boolean {
-		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
-	}
-
 	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
