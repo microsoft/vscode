@@ -28,7 +28,6 @@
     "update-distro": "node build/npm/update-distro.js"
   },
   "dependencies": {
-    "@microsoft/applicationinsights-web": "^2.1.1",
     "applicationinsights": "1.0.8",
     "chokidar": "3.1.0",
     "graceful-fs": "4.1.11",

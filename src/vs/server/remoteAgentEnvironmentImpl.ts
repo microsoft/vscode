@@ -27,6 +27,7 @@ import { basename, join, normalize } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILog, Translations } from 'vs/workbench/services/extensions/common/extensionPoints';
+import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {
@@ -52,7 +53,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		private readonly _connectionToken: string,
 		private readonly environmentService: IEnvironmentService,
 		private readonly logService: ILogService,
-		private readonly telemetryService: ITelemetryService
+		private readonly telemetryService: ITelemetryService,
+		private readonly telemetryAppender: ITelemetryAppender | null
 	) {
 		this._logger = new class implements ILog {
 			public error(source: string, message: string): void {
@@ -119,6 +121,26 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 					diagnosticInfo.workspaceMetadata = options.folders ? workspaceMetadata : undefined;
 					return diagnosticInfo;
 				});
+			}
+
+			case 'logTelemetry': {
+				const { eventName, data } = arg;
+				// Logging is done directly to the appender instead of through the telemetry service
+				// as the data sent from the client has already had common properties added to it and
+				// has already been sent to the telemetry output channel
+				if (this.telemetryAppender) {
+					return this.telemetryAppender.log(eventName, data);
+				}
+
+				return Promise.resolve();
+			}
+
+			case 'flushTelemetry': {
+				if (this.telemetryAppender) {
+					return this.telemetryAppender.flush();
+				}
+
+				return Promise.resolve();
 			}
 		}
 

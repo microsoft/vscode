@@ -2,7 +2,6 @@
   "name": "vscode-reh",
   "version": "0.0.0",
   "dependencies": {
-    "@microsoft/applicationinsights-web": "^2.1.1",
     "applicationinsights": "1.0.8",
     "chokidar": "3.1.0",
     "cookie": "^0.4.0",

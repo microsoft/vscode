@@ -236,7 +236,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
-		if (!this._environmentService.args['disable-telemetry'] && product.enableTelemetry && this._environmentService.isBuilt) {
+		if (!this._environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			if (product.aiConfig && product.aiConfig.asimovKey) {
 				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, this._logService);
 				this._register(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
@@ -265,7 +265,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
 
 		instantiationService.invokeFunction(accessor => {
-			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._connectionToken, this._environmentService, this._logService, accessor.get(ITelemetryService));
+			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._connectionToken, this._environmentService, this._logService, accessor.get(ITelemetryService), appInsightsAppender);
 			this._socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(this._logService, this._environmentService);
