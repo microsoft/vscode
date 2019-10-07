@@ -149,7 +149,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const defaultUri = options.defaultUri;
 
-		const newOptions: OpenDialogOptions = {
+		const newOptions: OpenDialogOptions & { properties: string[] } = {
 			title: options.title,
 			defaultPath: defaultUri && defaultUri.fsPath,
 			buttonLabel: options.openLabel,
@@ -157,18 +157,18 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			properties: []
 		};
 
-		newOptions.properties!.push('createDirectory');
+		newOptions.properties.push('createDirectory');
 
 		if (options.canSelectFiles) {
-			newOptions.properties!.push('openFile');
+			newOptions.properties.push('openFile');
 		}
 
 		if (options.canSelectFolders) {
-			newOptions.properties!.push('openDirectory');
+			newOptions.properties.push('openDirectory');
 		}
 
 		if (options.canSelectMany) {
-			newOptions.properties!.push('multiSelections');
+			newOptions.properties.push('multiSelections');
 		}
 
 		const result = await this.electronService.showOpenDialog(newOptions);

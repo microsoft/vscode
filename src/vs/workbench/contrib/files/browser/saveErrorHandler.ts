@@ -141,7 +141,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			// Save Elevated
 			if (canHandlePermissionOrReadonlyErrors && (isPermissionDenied || triedToMakeWriteable)) {
-				primaryActions.push(this.instantiationService.createInstance(SaveElevatedAction, model, triedToMakeWriteable));
+				primaryActions.push(this.instantiationService.createInstance(SaveElevatedAction, model, !!triedToMakeWriteable));
 			}
 
 			// Overwrite

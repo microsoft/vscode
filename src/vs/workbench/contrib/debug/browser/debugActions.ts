@@ -367,8 +367,8 @@ export class FocusSessionAction extends AbstractDebugAction {
 		super(id, label, '', debugService, keybindingService);
 	}
 
-	run(session: IDebugSession): Promise<any> {
-		this.debugService.focusStackFrame(undefined, undefined, session, true);
+	async run(session: IDebugSession): Promise<any> {
+		await this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {
 			return stackFrame.openInEditor(this.editorService, true);

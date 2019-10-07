@@ -82,16 +82,18 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		}
 
 		return this.transaction(connection, () => {
+			const toInsert = request.insert;
+			const toDelete = request.delete;
 
 			// INSERT
-			if (request.insert && request.insert.size > 0) {
+			if (toInsert && toInsert.size > 0) {
 				const keysValuesChunks: (string[])[] = [];
 				keysValuesChunks.push([]); // seed with initial empty chunk
 
 				// Split key/values into chunks of SQLiteStorageDatabase.MAX_HOST_PARAMETERS
 				// so that we can efficiently run the INSERT with as many HOST parameters as possible
 				let currentChunkIndex = 0;
-				request.insert.forEach((value, key) => {
+				toInsert.forEach((value, key) => {
 					let keyValueChunk = keysValuesChunks[currentChunkIndex];
 
 					if (keyValueChunk.length > SQLiteStorageDatabase.MAX_HOST_PARAMETERS) {
@@ -107,7 +109,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 					this.prepare(connection, `INSERT INTO ItemTable VALUES ${fill(keysValuesChunk.length / 2, '(?,?)').join(',')}`, stmt => stmt.run(keysValuesChunk), () => {
 						const keys: string[] = [];
 						let length = 0;
-						request.insert!.forEach((value, key) => {
+						toInsert.forEach((value, key) => {
 							keys.push(key);
 							length += value.length;
 						});
@@ -118,7 +120,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			}
 
 			// DELETE
-			if (request.delete && request.delete.size) {
+			if (toDelete && toDelete.size) {
 				const keysChunks: (string[])[] = [];
 				keysChunks.push([]); // seed with initial empty chunk
 
@@ -126,7 +128,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				// so that we can efficiently run the DELETE with as many HOST parameters
 				// as possible
 				let currentChunkIndex = 0;
-				request.delete.forEach(key => {
+				toDelete.forEach(key => {
 					let keyChunk = keysChunks[currentChunkIndex];
 
 					if (keyChunk.length > SQLiteStorageDatabase.MAX_HOST_PARAMETERS) {
@@ -141,7 +143,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				keysChunks.forEach(keysChunk => {
 					this.prepare(connection, `DELETE FROM ItemTable WHERE key IN (${fill(keysChunk.length, '?').join(',')})`, stmt => stmt.run(keysChunk), () => {
 						const keys: string[] = [];
-						request.delete!.forEach(key => {
+						toDelete.forEach(key => {
 							keys.push(key);
 						});
 

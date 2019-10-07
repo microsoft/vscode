@@ -8,7 +8,7 @@ import { IDisposable, toDisposable, UnownedDisposable } from 'vs/base/common/lif
 import { values } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IWebviewService, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -131,7 +131,6 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
@@ -150,7 +149,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	): WebviewInput {
 		const webview = this.createWebiew(id, extension, options);
 
-		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, new UnownedDisposable(webview), undefined);
+		const webviewInput = new WebviewInput(id, viewType, title, new UnownedDisposable(webview));
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,

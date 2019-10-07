@@ -5,7 +5,7 @@
 
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, Event as IpcMainEvent, BrowserWindow } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
-import { WindowsManager } from 'vs/code/electron-main/windows';
+import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { ActiveWindowManager } from 'vs/code/node/activeWindowTracker';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -74,8 +74,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-import { IElectronService } from 'vs/platform/electron/node/electron';
-import { ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
+import { IElectronMainService, ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { assign } from 'vs/base/common/objects';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
@@ -377,7 +376,7 @@ export class CodeApplication extends Disposable {
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
-			const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle!, this.environmentService, appInstantiationService);
+			const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService);
 
 			this.logService.info('Driver started at:', this.environmentService.driverHandle);
 			this._register(server);
@@ -450,7 +449,7 @@ export class CodeApplication extends Disposable {
 				break;
 		}
 
-		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
+		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
 		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
 		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
@@ -459,7 +458,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
 
 		services.set(IIssueService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
-		services.set(IElectronService, new SyncDescriptor(ElectronMainService));
+		services.set(IElectronMainService, new SyncDescriptor(ElectronMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarService, new SyncDescriptor(MenubarMainService));
 
@@ -546,8 +545,8 @@ export class CodeApplication extends Disposable {
 		const issueChannel = createChannelReceiver(issueService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
-		const electronService = accessor.get(IElectronService);
-		const electronChannel = createChannelReceiver(electronService);
+		const electronMainService = accessor.get(IElectronMainService);
+		const electronChannel = createChannelReceiver(electronMainService);
 		electronIpcServer.registerChannel('electron', electronChannel);
 		sharedProcessClient.then(client => client.registerChannel('electron', electronChannel));
 
@@ -605,7 +604,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = new ActiveWindowManager(electronService);
+		const activeWindowManager = new ActiveWindowManager(electronMainService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);

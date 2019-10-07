@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./progressbar';
-import * as assert from 'vs/base/common/assert';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -154,9 +153,7 @@ export class ProgressBar extends Disposable {
 	 * Tells the progress bar that an increment of work has been completed.
 	 */
 	worked(value: number): ProgressBar {
-		value = Number(value);
-		assert.ok(!isNaN(value), 'Value is not a number');
-		value = Math.max(1, value);
+		value = Math.max(1, Number(value));
 
 		return this.doSetWorked(this.workedVal + value);
 	}
@@ -165,16 +162,13 @@ export class ProgressBar extends Disposable {
 	 * Tells the progress bar the total amount of work that has been completed.
 	 */
 	setWorked(value: number): ProgressBar {
-		value = Number(value);
-		assert.ok(!isNaN(value), 'Value is not a number');
-		value = Math.max(1, value);
+		value = Math.max(1, Number(value));
 
 		return this.doSetWorked(value);
 	}
 
 	private doSetWorked(value: number): ProgressBar {
-		assert.ok(isNumber(this.totalWork), 'Total work not set');
-		const totalWork = this.totalWork!;
+		const totalWork = this.totalWork || 100;
 
 		this.workedVal = value;
 		this.workedVal = Math.min(totalWork, this.workedVal);

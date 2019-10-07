@@ -463,7 +463,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	hasState(state: ModelState): boolean;
 
-	updatePreferredEncoding(encoding: string): void;
+	updatePreferredEncoding(encoding: string | undefined): void;
 
 	save(options?: ISaveOptions): Promise<void>;
 

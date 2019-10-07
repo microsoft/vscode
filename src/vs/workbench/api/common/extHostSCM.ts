@@ -174,9 +174,9 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this._placeholder = placeholder;
 	}
 
-	private _validateInput: IValidateInput;
+	private _validateInput: IValidateInput | undefined;
 
-	get validateInput(): IValidateInput {
+	get validateInput(): IValidateInput | undefined {
 		if (!this._extension.enableProposedApi) {
 			throw new Error(`[${this._extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
 		}
@@ -184,7 +184,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		return this._validateInput;
 	}
 
-	set validateInput(fn: IValidateInput) {
+	set validateInput(fn: IValidateInput | undefined) {
 		if (!this._extension.enableProposedApi) {
 			throw new Error(`[${this._extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
 		}
@@ -667,7 +667,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return Promise.resolve(undefined);
 		}
 
-		return asPromise(() => sourceControl.inputBox.validateInput(value, cursorPosition)).then(result => {
+		return asPromise(() => sourceControl.inputBox.validateInput!(value, cursorPosition)).then(result => {
 			if (!result) {
 				return Promise.resolve(undefined);
 			}
