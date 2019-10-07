@@ -89,6 +89,7 @@ export interface IExtensionHostStarter {
 
 	start(): Promise<IMessagePassingProtocol> | null;
 	getInspectPort(): number | undefined;
+	enableInspectPort(): Promise<boolean>;
 	dispose(): void;
 }
 
