@@ -45,6 +45,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onExit: Event<[number, string]> = this._onExit.event;
 
+	private readonly _onDidSetInspectPort = new Emitter<void>();
+
 	private readonly _toDispose = new DisposableStore();
 
 	private readonly _isExtensionDevHost: boolean;
@@ -198,6 +200,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						}
 						if (!this._inspectPort) {
 							this._inspectPort = Number(inspectorUrlMatch[2]);
+							this._onDidSetInspectPort.fire();
 						}
 					} else {
 						console.group('Extension Host');
@@ -223,6 +226,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portData.actual);
 					}
 					this._inspectPort = portData.actual;
+					this._onDidSetInspectPort.fire();
 				}
 
 				// Help in case we fail to start it
@@ -464,6 +468,37 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 
 		this._onExit.fire([code, signal]);
+	}
+
+	public async enableInspectPort(): Promise<boolean> {
+		if (typeof this._inspectPort === 'number') {
+			return true;
+		}
+
+		if (!this._extensionHostProcess) {
+			return false;
+		}
+
+		interface ProcessExt {
+			_debugProcess?(n: number): any;
+		}
+
+		if (typeof (<ProcessExt>process)._debugProcess === 'function') {
+			// use (undocumented) _debugProcess feature of node
+			(<ProcessExt>process)._debugProcess!(this._extensionHostProcess.pid);
+			await Promise.race([Event.toPromise(this._onDidSetInspectPort.event), timeout(1000)]);
+			return typeof this._inspectPort === 'number';
+
+		} else if (!platform.isWindows) {
+			// use KILL USR1 on non-windows platforms (fallback)
+			this._extensionHostProcess.kill('SIGUSR1');
+			await Promise.race([Event.toPromise(this._onDidSetInspectPort.event), timeout(1000)]);
+			return typeof this._inspectPort === 'number';
+
+		} else {
+			// not supported...
+			return false;
+		}
 	}
 
 	public getInspectPort(): number | undefined {
