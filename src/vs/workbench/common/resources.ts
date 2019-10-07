@@ -180,24 +180,24 @@ export class ResourceGlobMatcher extends Disposable {
 	matches(resource: URI): boolean {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 
-		let expressionForRoot: ParsedExpression;
+		let expressionForRoot: ParsedExpression | undefined;
 		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
-			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString())!;
+			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
 		} else {
-			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT)!;
+			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
 		}
 
 		// If the resource if from a workspace, convert its absolute path to a relative
 		// path so that glob patterns have a higher probability to match. For example
 		// a glob pattern of "src/**" will not match on an absolute path "/folder/src/file.txt"
 		// but can match on "src/file.txt"
-		let resourcePathToMatch: string;
+		let resourcePathToMatch: string | undefined;
 		if (folder) {
-			resourcePathToMatch = relativePath(folder.uri, resource)!; // always uses forward slashes
+			resourcePathToMatch = relativePath(folder.uri, resource); // always uses forward slashes
 		} else {
 			resourcePathToMatch = resource.fsPath; // TODO@isidor: support non-file URIs
 		}
 
-		return !!expressionForRoot(resourcePathToMatch);
+		return !!expressionForRoot && typeof resourcePathToMatch === 'string' && !!expressionForRoot(resourcePathToMatch);
 	}
 }

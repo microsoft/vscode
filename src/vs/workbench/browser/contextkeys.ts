@@ -88,41 +88,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	) {
 		super();
 
-		this.initContextKeys();
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.editorGroupService.whenRestored.then(() => this.updateEditorContextKeys());
-
-		this._register(this.editorService.onDidActiveEditorChange(() => this.updateEditorContextKeys()));
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.updateEditorContextKeys()));
-
-		this._register(this.editorGroupService.onDidAddGroup(() => this.updateEditorContextKeys()));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => this.updateEditorContextKeys()));
-		this._register(this.editorGroupService.onDidGroupIndexChange(() => this.updateEditorContextKeys()));
-
-		this._register(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), true));
-
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.updateWorkspaceFolderCountContextKey()));
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.openSideBySideDirection')) {
-				this.updateSplitEditorsVerticallyContext();
-			}
-		}));
-
-		this._register(this.layoutService.onZenModeChange(enabled => this.inZenModeContext.set(enabled)));
-		this._register(this.layoutService.onFullscreenChange(fullscreen => this.isFullscreenContext.set(fullscreen)));
-		this._register(this.layoutService.onCenteredLayoutChange(centered => this.isCenteredLayoutContext.set(centered)));
-		this._register(this.layoutService.onPanelPositionChange(position => this.panelPositionContext.set(position)));
-
-		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
-		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
-	}
-
-	private initContextKeys(): void {
 
 		// Platform
 		IsMacContext.bindTo(this.contextKeyService);
@@ -187,6 +152,38 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Panel Position
 		this.panelPositionContext = PanelPositionContext.bindTo(this.contextKeyService);
 		this.panelPositionContext.set(this.layoutService.getPanelPosition() === Position.RIGHT ? 'right' : 'bottom');
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.editorGroupService.whenRestored.then(() => this.updateEditorContextKeys());
+
+		this._register(this.editorService.onDidActiveEditorChange(() => this.updateEditorContextKeys()));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.updateEditorContextKeys()));
+
+		this._register(this.editorGroupService.onDidAddGroup(() => this.updateEditorContextKeys()));
+		this._register(this.editorGroupService.onDidRemoveGroup(() => this.updateEditorContextKeys()));
+		this._register(this.editorGroupService.onDidGroupIndexChange(() => this.updateEditorContextKeys()));
+
+		this._register(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), true));
+
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.updateWorkspaceFolderCountContextKey()));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.editor.openSideBySideDirection')) {
+				this.updateSplitEditorsVerticallyContext();
+			}
+		}));
+
+		this._register(this.layoutService.onZenModeChange(enabled => this.inZenModeContext.set(enabled)));
+		this._register(this.layoutService.onFullscreenChange(fullscreen => this.isFullscreenContext.set(fullscreen)));
+		this._register(this.layoutService.onCenteredLayoutChange(centered => this.isCenteredLayoutContext.set(centered)));
+		this._register(this.layoutService.onPanelPositionChange(position => this.panelPositionContext.set(position)));
+
+		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
+		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
 	}
 
 	private updateEditorContextKeys(): void {

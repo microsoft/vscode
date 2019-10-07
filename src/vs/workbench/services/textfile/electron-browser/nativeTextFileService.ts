@@ -67,7 +67,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		super(contextService, fileService, untitledEditorService, lifecycleService, instantiationService, configurationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, contextKeyService, dialogService, fileDialogService, editorService, textResourceConfigurationService);
 	}
 
-	private _encoding!: EncodingOracle;
+	private _encoding: EncodingOracle | undefined;
 	get encoding(): EncodingOracle {
 		if (!this._encoding) {
 			this._encoding = this._register(this.instantiationService.createInstance(EncodingOracle));

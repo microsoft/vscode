@@ -32,6 +32,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { values } from 'vs/base/common/map';
+import { assertIsDefined } from 'vs/base/common/types';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -238,7 +239,10 @@ class StatusbarViewModel extends Disposable {
 					return entryB.priority - entryA.priority; // higher priority towards the left
 				}
 
-				return mapEntryToIndex.get(entryA)! - mapEntryToIndex.get(entryB)!; // otherwise maintain stable order
+				const indexA = mapEntryToIndex.get(entryA);
+				const indexB = mapEntryToIndex.get(entryB);
+
+				return indexA! - indexB!; // otherwise maintain stable order (both values known to be in map)
 			}
 
 			if (entryA.alignment === StatusbarAlignment.LEFT) {
@@ -334,14 +338,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	//#endregion
 
-	private styleElement!: HTMLStyleElement;
+	private styleElement: HTMLStyleElement | undefined;
 
 	private pendingEntries: IPendingStatusbarEntry[] = [];
 
 	private readonly viewModel: StatusbarViewModel;
 
-	private leftItemsContainer!: HTMLElement;
-	private rightItemsContainer!: HTMLElement;
+	private leftItemsContainer: HTMLElement | undefined;
+	private rightItemsContainer: HTMLElement | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -475,7 +479,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			...this.viewModel.getEntries(StatusbarAlignment.LEFT),
 			...this.viewModel.getEntries(StatusbarAlignment.RIGHT).reverse() // reversing due to flex: row-reverse
 		].forEach(entry => {
-			const target = entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer;
+			const target = assertIsDefined(entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
 
 			target.appendChild(entry.container);
 		});
@@ -488,7 +492,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			entries.reverse(); // reversing due to flex: row-reverse
 		}
 
-		const target = alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer;
+		const target = assertIsDefined(alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
 
 		// find an entry that has lower priority than the new one
 		// and then insert the item before that one
@@ -571,7 +575,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = assertIsDefined(this.getContainer());
 
 		// Background colors
 		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);
@@ -691,8 +695,9 @@ class StatusbarEntryItem extends Disposable {
 		if (!this.entry || entry.command !== this.entry.command) {
 			this.commandListener.clear();
 
-			if (entry.command) {
-				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(entry.command!, entry.arguments));
+			const command = entry.command;
+			if (command) {
+				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command, entry.arguments));
 
 				removeClass(this.labelContainer, 'disabled');
 			} else {

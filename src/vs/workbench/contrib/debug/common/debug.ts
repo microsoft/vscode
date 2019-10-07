@@ -160,7 +160,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly configuration: IConfig;
 	readonly unresolvedConfiguration: IConfig | undefined;
 	readonly state: State;
-	readonly root: IWorkspaceFolder;
+	readonly root: IWorkspaceFolder | undefined;
 	readonly parentSession: IDebugSession | undefined;
 	readonly subId: string | undefined;
 

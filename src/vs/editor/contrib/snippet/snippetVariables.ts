@@ -12,8 +12,10 @@ import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snip
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { URI } from 'vs/base/common/uri';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -43,6 +45,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
 	'WORKSPACE_NAME': true,
+	'WORKSPACE_FOLDER': true,
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -272,7 +275,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 	}
 
 	resolve(variable: Variable): string | undefined {
-		if (variable.name !== 'WORKSPACE_NAME' || !this._workspaceService) {
+		if (!this._workspaceService) {
 			return undefined;
 		}
 
@@ -281,6 +284,15 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			return undefined;
 		}
 
+		if (variable.name === 'WORKSPACE_NAME') {
+			return this._resolveWorkspaceName(workspaceIdentifier);
+		} else if (variable.name === 'WORKSPACE_FOLDER') {
+			return this._resoveWorkspacePath(workspaceIdentifier);
+		}
+
+		return undefined;
+	}
+	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
 			return path.basename(workspaceIdentifier.path);
 		}
@@ -290,5 +302,17 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
 		return filename;
+	}
+	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return normalizeDriveLetter(workspaceIdentifier.fsPath);
+		}
+
+		let filename = path.basename(workspaceIdentifier.configPath.path);
+		let folderpath = workspaceIdentifier.configPath.fsPath;
+		if (endsWith(folderpath, filename)) {
+			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
+		}
+		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
 	}
 }

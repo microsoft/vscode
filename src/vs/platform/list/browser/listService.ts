@@ -430,7 +430,7 @@ export class WorkbenchTree extends Tree {
 	constructor(
 		container: HTMLElement,
 		configuration: ITreeConfiguration,
-		options: ITreeOptions,
+		options: ITreeOptions | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,

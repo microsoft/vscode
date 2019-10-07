@@ -19,6 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
@@ -38,8 +39,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	private callbacks: IOpenCallbacks;
 	private metadata: string | undefined;
-	private binaryContainer: HTMLElement;
-	private scrollbar: DomScrollableElement;
+	private binaryContainer: HTMLElement | undefined;
+	private scrollbar: DomScrollableElement | undefined;
 	private resourceViewerContext: ResourceViewerContext | undefined;
 
 	constructor(
@@ -91,7 +92,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 			this.resourceViewerContext.dispose();
 		}
 
-		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, this.binaryContainer, this.scrollbar, {
+		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
+		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, binaryContainer, scrollbar, {
 			openInternalClb: () => this.handleOpenInternalCallback(input, options),
 			openExternalClb: this.environmentService.configuration.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
 			metadataClb: meta => this.handleMetadataChanged(meta)
@@ -120,8 +122,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		// Clear Meta
 		this.handleMetadataChanged(undefined);
 
-		// Clear Resource Viewer
-		clearNode(this.binaryContainer);
+		// Clear the rest
+		if (this.binaryContainer) {
+			clearNode(this.binaryContainer);
+		}
 		dispose(this.resourceViewerContext);
 		this.resourceViewerContext = undefined;
 
@@ -131,19 +135,24 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	layout(dimension: Dimension): void {
 
 		// Pass on to Binary Container
-		size(this.binaryContainer, dimension.width, dimension.height);
-		this.scrollbar.scanDomNode();
+		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
+		size(binaryContainer, dimension.width, dimension.height);
+		scrollbar.scanDomNode();
 		if (this.resourceViewerContext && this.resourceViewerContext.layout) {
 			this.resourceViewerContext.layout(dimension);
 		}
 	}
 
 	focus(): void {
-		this.binaryContainer.focus();
+		const binaryContainer = assertIsDefined(this.binaryContainer);
+
+		binaryContainer.focus();
 	}
 
 	dispose(): void {
-		this.binaryContainer.remove();
+		if (this.binaryContainer) {
+			this.binaryContainer.remove();
+		}
 
 		dispose(this.resourceViewerContext);
 		this.resourceViewerContext = undefined;

@@ -630,7 +630,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				const options = uriOrFileNameOrOptions as { language?: string; content?: string; };
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
-				} else if (uriOrFileNameOrOptions instanceof URI) {
+				} else if (URI.isUri(uriOrFileNameOrOptions)) {
 					uriPromise = Promise.resolve(uriOrFileNameOrOptions);
 				} else if (!options || typeof options === 'object') {
 					uriPromise = extHostDocuments.createDocumentData(options);

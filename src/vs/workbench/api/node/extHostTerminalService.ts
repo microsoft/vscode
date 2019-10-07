@@ -123,7 +123,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
 	}
 
-	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
+	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
 			executable: shellLaunchConfigDto.executable,
@@ -155,17 +155,23 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			}
 		}
 
-		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
-		// Get the environment
-		const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
-		const lastActiveWorkspace = apiLastActiveWorkspace ? {
-			uri: apiLastActiveWorkspace.uri,
-			name: apiLastActiveWorkspace.name,
-			index: apiLastActiveWorkspace.index,
-			toResource: () => {
-				throw new Error('Not implemented');
+		let lastActiveWorkspace: IWorkspaceFolder | null = null;
+		let activeWorkspaceRootUri: URI | undefined;
+		if (activeWorkspaceRootUriComponents) {
+			let activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
+			// Get the environment
+			const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
+			if (apiLastActiveWorkspace) {
+				lastActiveWorkspace = {
+					uri: apiLastActiveWorkspace.uri,
+					name: apiLastActiveWorkspace.name,
+					index: apiLastActiveWorkspace.index,
+					toResource: () => {
+						throw new Error('Not implemented');
+					}
+				};
 			}
-		} as IWorkspaceFolder : null;
+		}
 
 		// Get the initial cwd
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');

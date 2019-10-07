@@ -462,7 +462,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): Promise<ITaskSummary> {
-		const workspaceFolder = this.currentTask.workspaceFolder = task.getWorkspaceFolder();
+		const taskWorkspaceFolder = task.getWorkspaceFolder();
+		let workspaceFolder: IWorkspaceFolder | undefined;
+		if (taskWorkspaceFolder) {
+			workspaceFolder = this.currentTask.workspaceFolder = taskWorkspaceFolder;
+		} else {
+			const folders = this.contextService.getWorkspace().folders;
+			workspaceFolder = folders.length > 0 ? folders[0] : undefined;
+		}
 		const systemInfo: TaskSystemInfo | undefined = this.currentTask.systemInfo = workspaceFolder ? this.taskSystemInfoResolver(workspaceFolder) : undefined;
 
 		let variables = new Set<string>();

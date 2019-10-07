@@ -185,15 +185,15 @@ export class OpenEditorsView extends ViewletPanel {
 		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
 
 		this._register((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
 			this.dirtyCountElement.style.backgroundColor = background;
 			this.dirtyCountElement.style.color = foreground;
 
-			this.dirtyCountElement.style.borderWidth = border ? '1px' : null;
-			this.dirtyCountElement.style.borderStyle = border ? 'solid' : null;
+			this.dirtyCountElement.style.borderWidth = border ? '1px' : '';
+			this.dirtyCountElement.style.borderStyle = border ? 'solid' : '';
 			this.dirtyCountElement.style.borderColor = border;
 		})));
 

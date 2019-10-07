@@ -64,7 +64,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this._checkDisposed();
 		let toSync: vscode.Uri[] = [];
 
-		if (first instanceof URI) {
+		if (URI.isUri(first)) {
 
 			if (!diagnostics) {
 				// remove this entry

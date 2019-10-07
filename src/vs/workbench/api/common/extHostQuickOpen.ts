@@ -455,7 +455,7 @@ function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light
 function getLightIconUri(iconPath: QuickInputButton['iconPath']) {
 	if (iconPath && !(iconPath instanceof ThemeIcon)) {
 		if (typeof iconPath === 'string'
-			|| iconPath instanceof URI) {
+			|| URI.isUri(iconPath)) {
 			return getIconUri(iconPath);
 		}
 		return getIconUri((iconPath as any).light);
@@ -471,7 +471,7 @@ function getDarkIconUri(iconPath: QuickInputButton['iconPath']) {
 }
 
 function getIconUri(iconPath: string | URI) {
-	if (iconPath instanceof URI) {
+	if (URI.isUri(iconPath)) {
 		return iconPath;
 	}
 	return URI.file(iconPath);

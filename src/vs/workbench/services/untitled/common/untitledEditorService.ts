@@ -243,7 +243,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 			}
 		}
 
-		const input = this.instantiationService.createInstance(UntitledEditorInput, untitledResource, hasAssociatedFilePath, mode, initialValue, encoding);
+		const input = this.instantiationService.createInstance(UntitledEditorInput, untitledResource, !!hasAssociatedFilePath, mode, initialValue, encoding);
 
 		const contentListener = input.onDidModelChangeContent(() => this._onDidChangeContent.fire(untitledResource));
 		const dirtyListener = input.onDidChangeDirty(() => this._onDidChangeDirty.fire(untitledResource));

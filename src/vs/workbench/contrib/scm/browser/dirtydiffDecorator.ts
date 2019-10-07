@@ -163,11 +163,11 @@ function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor |
 
 class DirtyDiffWidget extends PeekViewWidget {
 
-	private diffEditor: EmbeddedDiffEditorWidget;
+	private diffEditor!: EmbeddedDiffEditorWidget;
 	private title: string;
 	private menu: IMenu;
-	private index: number;
-	private change: IChange;
+	private index: number = 0;
+	private change: IChange | undefined;
 	private height: number | undefined = undefined;
 	private contextKeyService: IContextKeyService;
 
@@ -320,7 +320,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		super._doLayoutBody(height, width);
 		this.diffEditor.layout({ height, width });
 
-		if (typeof this.height === 'undefined') {
+		if (typeof this.height === 'undefined' && this.change) {
 			this.revealChange(this.change);
 		}
 
@@ -567,7 +567,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 	private model: DirtyDiffModel | null = null;
 	private widget: DirtyDiffWidget | null = null;
 	private currentIndex: number = -1;
-	private readonly isDirtyDiffVisible: IContextKey<boolean>;
+	private readonly isDirtyDiffVisible!: IContextKey<boolean>;
 	private session: IDisposable = Disposable.None;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private enabled = false;
@@ -953,7 +953,7 @@ function compareChanges(a: IChange, b: IChange): number {
 
 export class DirtyDiffModel extends Disposable {
 
-	private _originalModel: ITextModel | null;
+	private _originalModel: ITextModel | null = null;
 	get original(): ITextModel | null { return this._originalModel; }
 	get modified(): ITextModel | null { return this._editorModel; }
 

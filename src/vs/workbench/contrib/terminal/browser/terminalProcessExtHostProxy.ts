@@ -48,7 +48,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	constructor(
 		public terminalId: number,
 		shellLaunchConfig: IShellLaunchConfig,
-		activeWorkspaceRootUri: URI,
+		activeWorkspaceRootUri: URI | undefined,
 		cols: number,
 		rows: number,
 		configHelper: ITerminalConfigHelper,

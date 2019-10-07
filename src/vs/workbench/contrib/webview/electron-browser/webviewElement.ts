@@ -11,18 +11,17 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
-import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
@@ -39,7 +38,7 @@ interface IKeydownEvent {
 }
 
 type OnBeforeRequestDelegate = (details: OnBeforeRequestDetails) => Promise<Response | undefined>;
-type OnHeadersReceivedDelegate = (details: OnHeadersReceivedDetails) => { cancel: boolean } | undefined;
+type OnHeadersReceivedDelegate = (details: OnHeadersReceivedDetails) => { cancel: boolean; } | undefined;
 
 class WebviewSession extends Disposable {
 
@@ -242,11 +241,11 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 	constructor(
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
 		@ITunnelService tunnelService: ITunnelService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environementService: IEnvironmentService,
 	) {
@@ -397,8 +396,8 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			}));
 		}
 
-		this.style(themeService.getTheme());
-		this._register(themeService.onThemeChange(this.style, this));
+		this.style();
+		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
 
 	public mountTo(parent: HTMLElement) {
@@ -430,7 +429,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 	private readonly _onDidClickLink = this._register(new Emitter<URI>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
 
-	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number }>());
+	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number; }>());
 	public readonly onDidScroll = this._onDidScroll.event;
 
 	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
@@ -542,7 +541,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			}
 
 			type TelemetryClassification = {
-				extension?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
+				extension?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 			};
 			type TelemetryData = {
 				extension?: string,
@@ -558,12 +557,12 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 		this._send('message', data);
 	}
 
-	private style(theme: ITheme): void {
-		const { styles, activeTheme } = getWebviewThemeData(theme, this._configurationService);
+	private style(): void {
+		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
 		this._send('styles', { styles, activeTheme });
 
 		if (this._webviewFindWidget) {
-			this._webviewFindWidget.updateTheme(theme);
+			this._webviewFindWidget.updateTheme(this.webviewThemeDataProvider.getTheme());
 		}
 	}
 

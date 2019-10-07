@@ -12,12 +12,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
-import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface WebviewContent {
@@ -45,7 +44,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		private readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		@IThemeService themeService: IThemeService,
+		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@ITunnelService tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
@@ -146,8 +145,8 @@ export class IFrameWebview extends Disposable implements Webview {
 			}));
 		});
 
-		this.style(themeService.getTheme());
-		this._register(themeService.onThemeChange(this.style, this));
+		this.style();
+		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
 
 	private get externalEndpoint(): string {
@@ -307,8 +306,8 @@ export class IFrameWebview extends Disposable implements Webview {
 			.catch(err => console.error(err));
 	}
 
-	private style(theme: ITheme): void {
-		const { styles, activeTheme } = getWebviewThemeData(theme, this._configurationService);
+	private style(): void {
+		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
 		this._send('styles', { styles, activeTheme });
 	}
 
