@@ -567,24 +567,8 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 	}
 
 	public layout(): void {
-		if (!this._webview || this._webview.style.width === '0px') {
-			return;
-		}
-		const contents = this._webview.getWebContents();
-		if (!contents || contents.isDestroyed()) {
-			return;
-		}
-		const window = (contents as any).getOwnerBrowserWindow();
-		if (!window || !window.webContents || window.webContents.isDestroyed()) {
-			return;
-		}
-		window.webContents.getZoomFactor((factor: number) => {
-			if (contents.isDestroyed()) {
-				return;
-			}
+		// noop
 
-			contents.setZoomFactor(factor);
-		});
 	}
 
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
