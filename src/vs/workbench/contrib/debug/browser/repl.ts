@@ -991,10 +991,10 @@ class SelectReplAction extends Action {
 		super(id, label);
 	}
 
-	run(session: IDebugSession): Promise<any> {
+	async run(session: IDebugSession): Promise<any> {
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
-			this.debugService.focusStackFrame(undefined, undefined, session, true);
+			await this.debugService.focusStackFrame(undefined, undefined, session, true);
 		} else {
 			this.replService.selectSession(session);
 		}
