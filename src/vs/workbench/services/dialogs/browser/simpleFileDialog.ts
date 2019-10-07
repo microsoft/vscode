@@ -477,7 +477,7 @@ export class SimpleFileDialog {
 					const newPath = this.pathFromUri(item.uri);
 					if (startsWithIgnoreCase(newPath, this.filePickBox.value) && (equalsIgnoreCase(item.label, resources.basename(item.uri)))) {
 						this.filePickBox.valueSelection = [this.pathFromUri(this.currentFolder).length, this.filePickBox.value.length];
-						this.insertText(newPath, item.label);
+						this.insertText(newPath, this.basenameWithTrailingSlash(item.uri));
 					} else if ((item.label === '..') && startsWithIgnoreCase(this.filePickBox.value, newPath)) {
 						this.filePickBox.valueSelection = [newPath.length, this.filePickBox.value.length];
 						this.insertText(newPath, '');
@@ -593,7 +593,7 @@ export class SimpleFileDialog {
 			this.autoCompletePathSegment = '';
 			return false;
 		}
-		const itemBasename = this.trimTrailingSlash(quickPickItem.label);
+		const itemBasename = quickPickItem.label;
 		// Either force the autocomplete, or the old value should be one smaller than the new value and match the new value.
 		if (itemBasename === '..') {
 			// Don't match on the up directory item ever.
@@ -612,7 +612,7 @@ export class SimpleFileDialog {
 			this.autoCompletePathSegment = '';
 			this.filePickBox.activeItems = [quickPickItem];
 			return true;
-		} else if (force && (!equalsIgnoreCase(quickPickItem.label, (this.userEnteredPathSegment + this.autoCompletePathSegment)))) {
+		} else if (force && (!equalsIgnoreCase(this.basenameWithTrailingSlash(quickPickItem.uri), (this.userEnteredPathSegment + this.autoCompletePathSegment)))) {
 			this.userEnteredPathSegment = '';
 			this.autoCompletePathSegment = this.trimTrailingSlash(itemBasename);
 			this.activeItem = quickPickItem;
@@ -904,7 +904,7 @@ export class SimpleFileDialog {
 		try {
 			const stat = await this.fileService.resolve(fullPath);
 			if (stat.isDirectory) {
-				filename = this.basenameWithTrailingSlash(fullPath);
+				filename = resources.basename(fullPath);
 				fullPath = resources.addTrailingPathSeparator(fullPath, this.separator);
 				return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
 			} else if (!stat.isDirectory && this.allowFileSelection && this.filterFile(fullPath)) {
