@@ -123,7 +123,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			openComposite: (compositeId: string) => Promise.resolve(this.openPanel(compositeId, true)),
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
-			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
+			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPanel(compositeId))),
 			getContextMenuActions: () => [
 				this.instantiationService.createInstance(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL),
 				this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
@@ -330,7 +330,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			compositeActions = {
-				activityAction: this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
+				activityAction: this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPanel(compositeId))),
 				pinnedAction: new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar)
 			};
 

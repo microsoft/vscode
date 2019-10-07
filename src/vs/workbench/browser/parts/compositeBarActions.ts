@@ -439,7 +439,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	constructor(
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
-		private contextMenuActionsProvider: () => Action[],
+		private contextMenuActionsProvider: () => ReadonlyArray<Action>,
 		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
 		private compositeBar: ICompositeBar,

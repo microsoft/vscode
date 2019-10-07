@@ -10,7 +10,6 @@ import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
-import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -173,7 +172,7 @@ export class MainPanel extends ViewletPanel {
 	static readonly ID = 'scm.mainPanel';
 	static readonly TITLE = localize('scm providers', "Source Control Providers");
 
-	private list!: List<ISCMRepository>;
+	private list!: WorkbenchList<ISCMRepository>;
 
 	constructor(
 		protected viewModel: IViewModel,
