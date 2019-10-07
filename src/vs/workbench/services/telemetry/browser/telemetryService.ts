@@ -15,52 +15,24 @@ import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/pla
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/browser/workbenchCommonProperties';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ApplicationInsights } from '@microsoft/applicationinsights-web';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class WebTelemetryAppender implements ITelemetryAppender {
-	private _aiClient?: ApplicationInsights;
 
-	constructor(aiKey: string, private _logService: ILogService) {
-		const initConfig = {
-			config: {
-				instrumentationKey: aiKey,
-				endpointUrl: 'https://vortex.data.microsoft.com/collect/v1',
-				emitLineDelimitedJson: true,
-				autoTrackPageVisitTime: false,
-				disableExceptionTracking: true,
-				disableAjaxTracking: true
-			}
-		};
-
-		this._aiClient = new ApplicationInsights(initConfig);
-		this._aiClient.loadAppInsights();
-	}
+	constructor(private _logService: ILogService, private _appender: ITelemetryAppender) { }
 
 	log(eventName: string, data: any): void {
-		if (!this._aiClient) {
-			return;
-		}
-
 		data = validateTelemetryData(data);
 		this._logService.trace(`telemetry/${eventName}`, data);
 
-		this._aiClient.trackEvent({
-			name: 'monacoworkbench/' + eventName,
+		this._appender.log('/monacoworkbench/' + eventName, {
 			properties: data.properties,
 			measurements: data.measurements
 		});
 	}
 
 	flush(): Promise<void> {
-		if (this._aiClient) {
-			return new Promise(resolve => {
-				this._aiClient!.flush();
-				this._aiClient = undefined;
-				resolve(undefined);
-			});
-		}
-
-		return Promise.resolve();
+		return this._appender.flush();
 	}
 }
 
@@ -75,15 +47,16 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
-		const aiKey = productService.aiConfig && productService.aiConfig.asimovKey;
-		if (!environmentService.isExtensionDevelopment && !environmentService.args['disable-telemetry'] && !!productService.enableTelemetry && !!aiKey) {
+		if (!environmentService.args['disable-telemetry'] && !!productService.enableTelemetry) {
+			const telemetryProvider = environmentService.options && environmentService.options.telemetryAppender || { log: remoteAgentService.logTelemetry, flush: remoteAgentService.flushTelemetry };
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(new WebTelemetryAppender(aiKey, logService), new LogAppender(logService)),
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.configuration.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				appender: combinedAppender(new WebTelemetryAppender(logService, telemetryProvider), new LogAppender(logService)),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.configuration.remoteAuthority),
 				piiPaths: [environmentService.appRoot]
 			};
 

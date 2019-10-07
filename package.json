@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.40.0",
-  "distro": "fd32ba99f225d591cb667f0bdf23dbb481743eab",
+  "distro": "4553fb95f2fbb4382c38983f9b29ea2076ed1865",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -28,7 +28,6 @@
     "update-distro": "node build/npm/update-distro.js"
   },
   "dependencies": {
-    "@microsoft/applicationinsights-web": "^2.1.1",
     "applicationinsights": "1.0.8",
     "chokidar": "3.1.0",
     "graceful-fs": "4.2.2",

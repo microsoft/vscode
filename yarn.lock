@@ -95,69 +95,6 @@
     lodash "^4.17.11"
     to-fast-properties "^2.0.0"
 
-"@microsoft/applicationinsights-analytics-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-analytics-js/-/applicationinsights-analytics-js-2.1.1.tgz#6d09c1915f808026e2d45165d04802f09affed59"
-  integrity sha512-VKIutoFKY99CyKwxLUuj6Vnq14/QwXo9/QSQDpYnHEjo+uKn7QmLsHqWw0K9uYNfNAXt4BZimX/zDg6jZtzeXg==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-channel-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-channel-js/-/applicationinsights-channel-js-2.1.1.tgz#e205eddd93e49d17d9e0711a612b4bfc9810888f"
-  integrity sha512-fYr9IAqtaEr9AmaPaL3SLQVT3t3GQzl+n74gpNKyAVakDIm0nYQ/bimjdcAhJMDf1VGNSPg/xICneyuZg7Wxlg==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-common@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-common/-/applicationinsights-common-2.1.1.tgz#27e6074584a7a3a8ca3f11f7ff2b7ff0f395bf2d"
-  integrity sha512-2hkS1Ia1FmAjCuYZ5JlG20/WgObqdsKtmK5YALAFGHIB4KSQ/Za1qazS+7GsG+E0F9UJivNWL1geUIcNqg5Qjg==
-  dependencies:
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-core-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.1.1.tgz#30fb6a519cc1c6119c419c4811ce72c260217d9e"
-  integrity sha512-4t4wf6SKqIcWEQDPg/uOhm+BxtHhu/AFreyEoYZmMfcxzAu33h1FtTQRtxBNbYH1+thiNZCh80yUpnT7d9Hrlw==
-  dependencies:
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-dependencies-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-dependencies-js/-/applicationinsights-dependencies-js-2.1.1.tgz#8154c3efcb24617d015d0bce7c2cc47797a8d3c4"
-  integrity sha512-yhb4EToBp+aI+qLo0h5NDNtoo3sDFV60uyIOK843YjzXqVotcXX/lRShlghTkJtYH09QhrdzDjViUHnD4sMFSQ==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-properties-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-properties-js/-/applicationinsights-properties-js-2.1.1.tgz#ca34232766eb16167b5d87693e2ae5d94f2a1559"
-  integrity sha512-8l+/ppw6xKTam2RL4EHZ52Lcf217olw81j6kyBNKtIcGwSnLNHrFwEeF3vBWIteG2JKzlg1GhGjrkB3oxXsV2g==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-web@^2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-web/-/applicationinsights-web-2.1.1.tgz#1a44eddda7c244b88d9eb052dab6c855682e4f05"
-  integrity sha512-crvhCkNsNxkFuPWmttyWNSAA96D5FxBtKS6UA9MV9f9XHevTfchf/E3AuU9JZcsXufWMQLwLrUQ9ZiA1QJ0EWA==
-  dependencies:
-    "@microsoft/applicationinsights-analytics-js" "2.1.1"
-    "@microsoft/applicationinsights-channel-js" "2.1.1"
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    "@microsoft/applicationinsights-dependencies-js" "2.1.1"
-    "@microsoft/applicationinsights-properties-js" "2.1.1"
-
 "@types/commander@^2.11.0":
   version "2.12.2"
   resolved "https://registry.yarnpkg.com/@types/commander/-/commander-2.12.2.tgz#183041a23842d4281478fa5d23c5ca78e6fd08ae"
@@ -8456,11 +8393,6 @@ tslib@^1.8.1, tslib@^1.9.0:
   version "1.9.3"
   resolved "https://registry.yarnpkg.com/tslib/-/tslib-1.9.3.tgz#d7e4dd79245d85428c4d7e4822a79917954ca286"
   integrity sha512-4krF8scpejhaOgqzBEcGM7yDIEfi0/8+8zDRZhNZZ2kjmHJ4hv3zCbQWxoJGz1iw5U0Jl0nma13xzHXcncMavQ==
-
-tslib@^1.9.3:
-  version "1.10.0"
-  resolved "https://registry.yarnpkg.com/tslib/-/tslib-1.10.0.tgz#c3c19f95973fb0a62973fb09d90d961ee43e5c8a"
-  integrity sha512-qOebF53frne81cf0S9B41ByenJ3/IuH8yJKngAX35CmiZySA0khhkovshKK+jGCaMnVomla7gVlIcc3EvKPbTQ==
 
 tslint@^5.16.0:
   version "5.16.0"
