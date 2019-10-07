@@ -258,7 +258,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	private composites: CompositeDescriptor<T>[] = [];
 
 	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
-		if (this.compositeById(descriptor.id) !== null) {
+		if (this.compositeById(descriptor.id)) {
 			return;
 		}
 
@@ -276,7 +276,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 		this._onDidDeregister.fire(descriptor);
 	}
 
-	getComposite(id: string): CompositeDescriptor<T> | null {
+	getComposite(id: string): CompositeDescriptor<T> | undefined {
 		return this.compositeById(id);
 	}
 
@@ -284,13 +284,13 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 		return this.composites.slice(0);
 	}
 
-	private compositeById(id: string): CompositeDescriptor<T> | null {
+	private compositeById(id: string): CompositeDescriptor<T> | undefined {
 		for (const composite of this.composites) {
 			if (composite.id === id) {
 				return composite;
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 }
