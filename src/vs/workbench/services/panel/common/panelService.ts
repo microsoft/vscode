@@ -22,7 +22,7 @@ export interface IPanelService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidPanelOpen: Event<{ panel: IPanel, focus: boolean }>;
+	readonly onDidPanelOpen: Event<{ readonly panel: IPanel, readonly focus: boolean }>;
 	readonly onDidPanelClose: Event<IPanel>;
 
 	/**
@@ -43,12 +43,12 @@ export interface IPanelService {
 	/**
 	 * Returns all built-in panels following the default order
 	 */
-	getPanels(): IPanelIdentifier[];
+	getPanels(): readonly IPanelIdentifier[];
 
 	/**
 	 * Returns pinned panels following the visual order
 	 */
-	getPinnedPanels(): IPanelIdentifier[];
+	getPinnedPanels(): readonly IPanelIdentifier[];
 
 	/**
 	 * Returns the progress indicator for the panel bar.

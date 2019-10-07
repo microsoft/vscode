@@ -244,12 +244,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanel(panelId);
 	}
 
-	getPanels(): PanelDescriptor[] {
+	getPanels(): readonly PanelDescriptor[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
 			.sort((v1, v2) => typeof v1.order === 'number' && typeof v2.order === 'number' ? v1.order - v2.order : NaN);
 	}
 
-	getPinnedPanels(): PanelDescriptor[] {
+	getPinnedPanels(): readonly PanelDescriptor[] {
 		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(c => c.id);
 		return this.getPanels()
 			.filter(p => pinnedCompositeIds.indexOf(p.id) !== -1)

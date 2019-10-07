@@ -634,11 +634,11 @@ export class TestPanelService implements IPanelService {
 		return activeViewlet;
 	}
 
-	public getPanels(): any[] {
+	public getPanels() {
 		return [];
 	}
 
-	public getPinnedPanels(): any[] {
+	public getPinnedPanels() {
 		return [];
 	}
 
