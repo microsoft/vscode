@@ -18,7 +18,7 @@ import { Disposable } from './extHostTypes';
 type IconPath = URI | { light: URI, dark: URI };
 
 export class ExtHostWebview implements vscode.Webview {
-	private _html: string;
+	private _html: string = '';
 	private _isDisposed: boolean = false;
 	private _hasCalledAsWebviewUri = false;
 
