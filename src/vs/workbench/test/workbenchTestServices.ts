@@ -186,11 +186,11 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestTextFileService extends NativeTextFileService {
-	public cleanupBackupsBeforeShutdownCalled: boolean;
+	public cleanupBackupsBeforeShutdownCalled!: boolean;
 
-	private promptPath: URI;
-	private confirmResult: ConfirmResult;
-	private resolveTextContentError: FileOperationError | null;
+	private promptPath!: URI;
+	private confirmResult!: ConfirmResult;
+	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -762,7 +762,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		return false;
 	}
 
-	partOptions: IEditorPartOptions;
+	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable {
 		return Disposable.None;
 	}
@@ -773,20 +773,20 @@ export class TestEditorGroup implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	get group(): EditorGroup { throw new Error('not implemented'); }
-	activeControl: IVisibleEditor;
-	activeEditor: IEditorInput;
-	previewEditor: IEditorInput;
-	count: number;
-	disposed: boolean;
+	activeControl!: IVisibleEditor;
+	activeEditor!: IEditorInput;
+	previewEditor!: IEditorInput;
+	count!: number;
+	disposed!: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
-	label: string;
-	index: number;
+	label!: string;
+	index!: number;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
-	element: HTMLElement;
-	minimumWidth: number;
-	maximumWidth: number;
-	minimumHeight: number;
-	maximumHeight: number;
+	element!: HTMLElement;
+	minimumWidth!: number;
+	maximumWidth!: number;
+	minimumHeight!: number;
+	maximumHeight!: number;
 
 	isEmpty = true;
 	isMinimized = false;
@@ -877,9 +877,9 @@ export class TestEditorService implements EditorServiceImpl {
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 
-	activeControl: IVisibleEditor;
+	activeControl!: IVisibleEditor;
 	activeTextEditorWidget: any;
-	activeEditor: IEditorInput;
+	activeEditor!: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
 	visibleControls: ReadonlyArray<IVisibleEditor> = [];
 	visibleTextEditorWidgets = [];
@@ -929,7 +929,7 @@ export class TestFileService implements IFileService {
 	readonly onError: Event<Error> = Event.None;
 
 	private content = 'Hello Html';
-	private lastReadFileUri: URI;
+	private lastReadFileUri!: URI;
 
 	constructor() {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
@@ -1184,8 +1184,8 @@ export class TestLifecycleService implements ILifecycleService {
 
 	public _serviceBrand: undefined;
 
-	public phase: LifecyclePhase;
-	public startupKind: StartupKind;
+	public phase!: LifecyclePhase;
+	public startupKind!: StartupKind;
 
 	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
 	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();

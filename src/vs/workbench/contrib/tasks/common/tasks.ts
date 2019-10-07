@@ -380,7 +380,7 @@ export namespace TaskSourceKind {
 }
 
 export interface TaskSourceConfigElement {
-	workspaceFolder: IWorkspaceFolder;
+	workspaceFolder?: IWorkspaceFolder;
 	workspace?: IWorkspace;
 	file: string;
 	index: number;
@@ -728,7 +728,7 @@ export class CustomTask extends CommonTask {
 		return JSON.stringify(key);
 	}
 
-	public getWorkspaceFolder(): IWorkspaceFolder {
+	public getWorkspaceFolder(): IWorkspaceFolder | undefined {
 		return this._source.config.workspaceFolder;
 	}
 

@@ -351,7 +351,7 @@ export class InputBox extends Widget {
 	}
 
 	private updateScrollDimensions(): void {
-		if (typeof this.cachedContentHeight !== 'number' || typeof this.cachedHeight !== 'number') {
+		if (typeof this.cachedContentHeight !== 'number' || typeof this.cachedHeight !== 'number' || !this.scrollableElement) {
 			return;
 		}
 
@@ -359,8 +359,8 @@ export class InputBox extends Widget {
 		const height = this.cachedHeight;
 		const scrollTop = this.input.scrollTop;
 
-		this.scrollableElement!.setScrollDimensions({ scrollHeight, height });
-		this.scrollableElement!.setScrollPosition({ scrollTop });
+		this.scrollableElement.setScrollDimensions({ scrollHeight, height });
+		this.scrollableElement.setScrollPosition({ scrollTop });
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {

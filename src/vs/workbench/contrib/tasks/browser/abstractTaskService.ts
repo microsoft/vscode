@@ -983,7 +983,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private getResourceForTask(task: CustomTask): URI {
 		let uri = this.getResourceForKind(task._source.kind);
 		if (!uri) {
-			uri = task.getWorkspaceFolder().toResource(task._source.config.file);
+			const taskFolder = task.getWorkspaceFolder();
+			if (taskFolder) {
+				uri = taskFolder.toResource(task._source.config.file);
+			} else {
+				uri = this.workspaceFolders[0].uri;
+			}
 		}
 		return uri;
 	}

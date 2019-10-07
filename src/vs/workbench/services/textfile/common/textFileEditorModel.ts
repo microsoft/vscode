@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -75,40 +75,34 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private readonly _onDidStateChange: Emitter<StateChange> = this._register(new Emitter<StateChange>());
 	readonly onDidStateChange: Event<StateChange> = this._onDidStateChange.event;
 
-	private resource: URI;
+	private contentEncoding: string | undefined; // encoding as reported from disk
 
-	private contentEncoding: string; // encoding as reported from disk
-	private preferredEncoding: string | undefined; // encoding as chosen by the user
+	private versionId = 0;
+	private bufferSavedVersionId: number | undefined;
+	private blockModelContentChange = false;
 
-	private preferredMode: string | undefined; // mode as chosen by the user
+	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
-	private versionId: number;
-	private bufferSavedVersionId: number;
-	private blockModelContentChange: boolean;
-
-	private lastResolvedFileStat: IFileStatWithMetadata;
-
-	private autoSaveAfterMillies?: number;
-	private autoSaveAfterMilliesEnabled: boolean;
+	private autoSaveAfterMillies: number | undefined;
+	private autoSaveAfterMilliesEnabled: boolean | undefined;
 	private readonly autoSaveDisposable = this._register(new MutableDisposable());
 
-	private saveSequentializer: SaveSequentializer;
-	private lastSaveAttemptTime: number;
+	private readonly saveSequentializer = new SaveSequentializer();
+	private lastSaveAttemptTime = 0;
 
-	private contentChangeEventScheduler: RunOnceScheduler;
-	private orphanedChangeEventScheduler: RunOnceScheduler;
+	private readonly contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
+	private readonly orphanedChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.ORPHANED_CHANGE), TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY));
 
-	private dirty: boolean;
-	private inConflictMode: boolean;
-	private inOrphanMode: boolean;
-	private inErrorMode: boolean;
-
-	private disposed: boolean;
+	private dirty = false;
+	private inConflictMode = false;
+	private inOrphanMode = false;
+	private inErrorMode = false;
+	private disposed = false;
 
 	constructor(
-		resource: URI,
-		preferredEncoding: string | undefined,
-		preferredMode: string | undefined,
+		private resource: URI,
+		private preferredEncoding: string | undefined,	// encoding as chosen by the user
+		private preferredMode: string | undefined,		// mode as chosen by the user
 		@INotificationService private readonly notificationService: INotificationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
@@ -122,18 +116,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILogService private readonly logService: ILogService
 	) {
 		super(modelService, modeService);
-
-		this.resource = resource;
-		this.preferredEncoding = preferredEncoding;
-		this.preferredMode = preferredMode;
-		this.inOrphanMode = false;
-		this.dirty = false;
-		this.versionId = 0;
-		this.lastSaveAttemptTime = 0;
-		this.saveSequentializer = new SaveSequentializer();
-
-		this.contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
-		this.orphanedChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.ORPHANED_CHANGE), TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY));
 
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
 
@@ -727,12 +709,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			this.logService.trace(`doSave(${versionId}) - before write()`, this.resource);
-			return this.saveSequentializer.setPending(newVersionId, this.textFileService.write(this.lastResolvedFileStat.resource, this.createSnapshot(), {
+			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
+			return this.saveSequentializer.setPending(newVersionId, this.textFileService.write(lastResolvedFileStat.resource, this.createSnapshot(), {
 				overwriteReadonly: options.overwriteReadonly,
 				overwriteEncoding: options.overwriteEncoding,
-				mtime: this.lastResolvedFileStat.mtime,
+				mtime: lastResolvedFileStat.mtime,
 				encoding: this.getEncoding(),
-				etag: this.lastResolvedFileStat.etag,
+				etag: lastResolvedFileStat.etag,
 				writeElevated: options.writeElevated
 			}).then(stat => {
 				this.logService.trace(`doSave(${versionId}) - after write()`, this.resource);
@@ -848,10 +831,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return Promise.resolve();
 		}
 
-		return this.saveSequentializer.setPending(versionId, this.textFileService.write(this.lastResolvedFileStat.resource, this.createSnapshot(), {
-			mtime: this.lastResolvedFileStat.mtime,
+		const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
+		return this.saveSequentializer.setPending(versionId, this.textFileService.write(lastResolvedFileStat.resource, this.createSnapshot(), {
+			mtime: lastResolvedFileStat.mtime,
 			encoding: this.getEncoding(),
-			etag: this.lastResolvedFileStat.etag
+			etag: lastResolvedFileStat.etag
 		}).then(stat => {
 
 			// Updated resolved stat with updated stat since touching it might have changed mtime
@@ -951,7 +935,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		return this.preferredEncoding || this.contentEncoding;
 	}
 
@@ -1031,7 +1015,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.resource;
 	}
 
-	getStat(): IFileStatWithMetadata {
+	getStat(): IFileStatWithMetadata | undefined {
 		return this.lastResolvedFileStat;
 	}
 

@@ -11,6 +11,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Dimension } from 'vs/base/browser/dom';
+import { assertIsDefined } from 'vs/base/common/types';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
@@ -48,7 +49,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		const container = document.createElement('div');
 		container.id = `webview-${this.id}`;
 		container.style.visibility = 'hidden';
-		this._layoutService.getContainer(Parts.EDITOR_PART).appendChild(container);
+
+		const editorPart = assertIsDefined(this._layoutService.getContainer(Parts.EDITOR_PART));
+		editorPart.appendChild(container);
+
 		return container;
 	}
 

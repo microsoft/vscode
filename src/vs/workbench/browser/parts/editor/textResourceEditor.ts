@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
+import { assertIsDefined, isFunction } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Event } from 'vs/base/common/event';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -74,36 +74,37 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		}
 
 		// Set Editor Model
-		const textEditor = this.getControl();
+		const textEditor = assertIsDefined(this.getControl());
 		const textEditorModel = resolvedModel.textEditorModel;
 		textEditor.setModel(textEditorModel);
 
 		// Apply Options from TextOptions
 		let optionsGotApplied = false;
 		const textOptions = <TextEditorOptions>options;
-		if (textOptions && types.isFunction(textOptions.apply)) {
+		if (textOptions && isFunction(textOptions.apply)) {
 			optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
 		}
 
 		// Otherwise restore View State
 		if (!optionsGotApplied) {
-			this.restoreTextResourceEditorViewState(input);
+			this.restoreTextResourceEditorViewState(input, textEditor);
 		}
 	}
 
-	private restoreTextResourceEditorViewState(input: EditorInput) {
-		if (input instanceof UntitledEditorInput || input instanceof ResourceEditorInput) {
-			const viewState = this.loadTextEditorViewState(input.getResource());
+	private restoreTextResourceEditorViewState(editor: EditorInput, control: IEditor) {
+		if (editor instanceof UntitledEditorInput || editor instanceof ResourceEditorInput) {
+			const viewState = this.loadTextEditorViewState(editor.getResource());
 			if (viewState) {
-				this.getControl().restoreViewState(viewState);
+				control.restoreViewState(viewState);
 			}
 		}
 	}
 
 	setOptions(options: EditorOptions | undefined): void {
 		const textOptions = <TextEditorOptions>options;
-		if (textOptions && types.isFunction(textOptions.apply)) {
-			textOptions.apply(this.getControl(), ScrollType.Smooth);
+		if (textOptions && isFunction(textOptions.apply)) {
+			const textEditor = assertIsDefined(this.getControl());
+			textOptions.apply(textEditor, ScrollType.Smooth);
 		}
 	}
 
@@ -149,7 +150,10 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Clear Model
-		this.getControl().setModel(null);
+		const textEditor = this.getControl();
+		if (textEditor) {
+			textEditor.setModel(null);
+		}
 
 		super.clearInput();
 	}

@@ -152,8 +152,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		for (const handler of this.openEditorHandlers) {
 			const result = handler(event.editor, event.options, group);
-			if (result && result.override) {
-				event.prevent((() => result.override!.then(editor => withNullAsUndefined(editor))));
+			const override = result ? result.override : undefined;
+			if (override) {
+				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
 				break;
 			}
 		}

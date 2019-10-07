@@ -234,7 +234,8 @@ export class LaunchMainService implements ILaunchMainService {
 		const windows = this.windowsMainService.getWindows();
 		const promises: Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>[] = windows.map(window => {
 			return new Promise((resolve, reject) => {
-				if (window.remoteAuthority) {
+				const remoteAuthority = window.remoteAuthority;
+				if (remoteAuthority) {
 					const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
 					const args: IDiagnosticInfoOptions = {
 						includeProcesses: options.includeProcesses,
@@ -246,14 +247,14 @@ export class LaunchMainService implements ILaunchMainService {
 					ipcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
 						// No data is returned if getting the connection fails.
 						if (!data) {
-							resolve({ hostName: window.remoteAuthority!, errorMessage: `Unable to resolve connection to '${window.remoteAuthority}'.` });
+							resolve({ hostName: remoteAuthority, errorMessage: `Unable to resolve connection to '${remoteAuthority}'.` });
 						}
 
 						resolve(data);
 					});
 
 					setTimeout(() => {
-						resolve({ hostName: window.remoteAuthority!, errorMessage: `Fetching remote diagnostics for '${window.remoteAuthority}' timed out.` });
+						resolve({ hostName: remoteAuthority, errorMessage: `Fetching remote diagnostics for '${remoteAuthority}' timed out.` });
 					}, 5000);
 				} else {
 					resolve();

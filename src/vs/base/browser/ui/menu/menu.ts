@@ -818,7 +818,9 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 class MenuSeparatorActionViewItem extends ActionViewItem {
 	style(style: IMenuStyles): void {
-		this.label.style.borderBottomColor = style.separatorColor ? `${style.separatorColor}` : null;
+		if (this.label) {
+			this.label.style.borderBottomColor = style.separatorColor ? `${style.separatorColor}` : null;
+		}
 	}
 }
 

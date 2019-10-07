@@ -82,7 +82,7 @@ class StatusBarActionViewItem extends ActionViewItem {
 	}
 
 	updateLabel(): void {
-		if (this.options.label) {
+		if (this.options.label && this.label) {
 			this.label.innerHTML = renderOcticons(this.getAction().label);
 		}
 	}
@@ -173,7 +173,7 @@ export class MainPanel extends ViewletPanel {
 	static readonly ID = 'scm.mainPanel';
 	static readonly TITLE = localize('scm providers', "Source Control Providers");
 
-	private list: List<ISCMRepository>;
+	private list!: List<ISCMRepository>;
 
 	constructor(
 		protected viewModel: IViewModel,

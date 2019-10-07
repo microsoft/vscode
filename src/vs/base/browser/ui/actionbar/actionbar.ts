@@ -33,11 +33,12 @@ export interface IBaseActionViewItemOptions {
 
 export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
-	element?: HTMLElement;
+	element: HTMLElement | undefined;
+
 	_context: any;
 	_action: IAction;
 
-	private _actionRunner!: IActionRunner;
+	private _actionRunner: IActionRunner | undefined;
 
 	constructor(context: any, action: IAction, protected options?: IBaseActionViewItemOptions) {
 		super();
@@ -81,12 +82,16 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		}
 	}
 
-	set actionRunner(actionRunner: IActionRunner) {
-		this._actionRunner = actionRunner;
+	get actionRunner(): IActionRunner {
+		if (!this._actionRunner) {
+			this._actionRunner = this._register(new ActionRunner());
+		}
+
+		return this._actionRunner;
 	}
 
-	get actionRunner(): IActionRunner {
-		return this._actionRunner;
+	set actionRunner(actionRunner: IActionRunner) {
+		this._actionRunner = actionRunner;
 	}
 
 	getAction(): IAction {
@@ -102,7 +107,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	}
 
 	render(container: HTMLElement): void {
-		this.element = container;
+		const element = this.element = container;
 		this._register(Gesture.addTarget(container));
 
 		const enableDragging = this.options && this.options.draggable;
@@ -110,19 +115,19 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			container.draggable = true;
 		}
 
-		this._register(DOM.addDisposableListener(this.element, EventType.Tap, e => this.onClick(e)));
+		this._register(DOM.addDisposableListener(element, EventType.Tap, e => this.onClick(e)));
 
-		this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_DOWN, e => {
+		this._register(DOM.addDisposableListener(element, DOM.EventType.MOUSE_DOWN, e => {
 			if (!enableDragging) {
 				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
 
-			if (this._action.enabled && e.button === 0 && this.element) {
-				DOM.addClass(this.element, 'active');
+			if (this._action.enabled && e.button === 0) {
+				DOM.addClass(element, 'active');
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(this.element, DOM.EventType.CLICK, e => {
+		this._register(DOM.addDisposableListener(element, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e, true);
 			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
 			// > Writing to the clipboard
@@ -139,14 +144,14 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(this.element, DOM.EventType.DBLCLICK, e => {
+		this._register(DOM.addDisposableListener(element, DOM.EventType.DBLCLICK, e => {
 			DOM.EventHelper.stop(e, true);
 		}));
 
 		[DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT].forEach(event => {
-			this._register(DOM.addDisposableListener(this.element!, event, e => {
+			this._register(DOM.addDisposableListener(element, event, e => {
 				DOM.EventHelper.stop(e);
-				DOM.removeClass(this.element!, 'active');
+				DOM.removeClass(element, 'active');
 			}));
 		});
 	}
@@ -165,7 +170,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			}
 		}
 
-		this._actionRunner.run(this._action, context);
+		this.actionRunner.run(this._action, context);
 	}
 
 	focus(): void {
@@ -232,7 +237,7 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 
 export class ActionViewItem extends BaseActionViewItem {
 
-	protected label!: HTMLElement;
+	protected label: HTMLElement | undefined;
 	protected options: IActionViewItemOptions;
 
 	private cssClass?: string;
@@ -252,13 +257,17 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.element) {
 			this.label = DOM.append(this.element, DOM.$('a.action-label'));
 		}
-		if (this._action.id === Separator.ID) {
-			this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
-		} else {
-			if (this.options.isMenu) {
-				this.label.setAttribute('role', 'menuitem');
+
+
+		if (this.label) {
+			if (this._action.id === Separator.ID) {
+				this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
 			} else {
-				this.label.setAttribute('role', 'button');
+				if (this.options.isMenu) {
+					this.label.setAttribute('role', 'menuitem');
+				} else {
+					this.label.setAttribute('role', 'button');
+				}
 			}
 		}
 
@@ -276,11 +285,13 @@ export class ActionViewItem extends BaseActionViewItem {
 	focus(): void {
 		super.focus();
 
-		this.label.focus();
+		if (this.label) {
+			this.label.focus();
+		}
 	}
 
 	updateLabel(): void {
-		if (this.options.label) {
+		if (this.options.label && this.label) {
 			this.label.textContent = this.getAction().label;
 		}
 	}
@@ -299,52 +310,65 @@ export class ActionViewItem extends BaseActionViewItem {
 			}
 		}
 
-		if (title) {
+		if (title && this.label) {
 			this.label.title = title;
 		}
 	}
 
 	updateClass(): void {
-		if (this.cssClass) {
+		if (this.cssClass && this.label) {
 			DOM.removeClasses(this.label, this.cssClass);
 		}
 
 		if (this.options.icon) {
 			this.cssClass = this.getAction().class;
-			DOM.addClass(this.label, 'codicon');
-			if (this.cssClass) {
-				DOM.addClasses(this.label, this.cssClass);
+
+			if (this.label) {
+				DOM.addClass(this.label, 'codicon');
+				if (this.cssClass) {
+					DOM.addClasses(this.label, this.cssClass);
+				}
 			}
 
 			this.updateEnabled();
 		} else {
-			DOM.removeClass(this.label, 'codicon');
+			if (this.label) {
+				DOM.removeClass(this.label, 'codicon');
+			}
 		}
 	}
 
 	updateEnabled(): void {
 		if (this.getAction().enabled) {
-			this.label.removeAttribute('aria-disabled');
+			if (this.label) {
+				this.label.removeAttribute('aria-disabled');
+				DOM.removeClass(this.label, 'disabled');
+				this.label.tabIndex = 0;
+			}
+
 			if (this.element) {
 				DOM.removeClass(this.element, 'disabled');
 			}
-			DOM.removeClass(this.label, 'disabled');
-			this.label.tabIndex = 0;
 		} else {
-			this.label.setAttribute('aria-disabled', 'true');
+			if (this.label) {
+				this.label.setAttribute('aria-disabled', 'true');
+				DOM.addClass(this.label, 'disabled');
+				DOM.removeTabIndexAndUpdateFocus(this.label);
+			}
+
 			if (this.element) {
 				DOM.addClass(this.element, 'disabled');
 			}
-			DOM.addClass(this.label, 'disabled');
-			DOM.removeTabIndexAndUpdateFocus(this.label);
 		}
 	}
 
 	updateChecked(): void {
-		if (this.getAction().checked) {
-			DOM.addClass(this.label, 'checked');
-		} else {
-			DOM.removeClass(this.label, 'checked');
+		if (this.label) {
+			if (this.getAction().checked) {
+				DOM.addClass(this.label, 'checked');
+			} else {
+				DOM.removeClass(this.label, 'checked');
+			}
 		}
 	}
 }

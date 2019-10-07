@@ -50,7 +50,7 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from '../services/preferences/common/preferences';
 import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/node/menubar';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { IElectronService } from 'vs/platform/electron/node/electron';
@@ -253,7 +253,7 @@ export class ElectronWindow extends Disposable {
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
 		if (isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
-			const titlePart = this.layoutService.getContainer(Parts.TITLEBAR_PART);
+			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
 
 			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
 				DOM.EventHelper.stop(e);
@@ -632,8 +632,8 @@ export class ElectronWindow extends Disposable {
 		await this.lifecycleService.when(LifecyclePhase.Ready);
 
 		// In diffMode we open 2 resources as diff
-		if (diffMode && resources.length === 2) {
-			return this.editorService.openEditor({ leftResource: resources[0].resource!, rightResource: resources[1].resource!, options: { pinned: true } });
+		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
+			return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
 		}
 
 		// For one file, just put it into the current active editor
@@ -742,8 +742,8 @@ class NativeMenubarControl extends MenubarControl {
 					const submenu = { items: [] };
 
 					if (!this.menus[menuItem.item.submenu]) {
-						this.menus[menuItem.item.submenu] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
-						this._register(this.menus[menuItem.item.submenu]!.onDidChange(() => this.updateMenubar()));
+						const menu = this.menus[menuItem.item.submenu] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+						this._register(menu.onDidChange(() => this.updateMenubar()));
 					}
 
 					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);

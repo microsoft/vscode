@@ -65,7 +65,7 @@ export class DebugSession implements IDebugSession {
 
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
-		public root: IWorkspaceFolder,
+		public root: IWorkspaceFolder | undefined,
 		private model: DebugModel,
 		options: IDebugSessionOptions | undefined,
 		@IDebugService private readonly debugService: IDebugService,

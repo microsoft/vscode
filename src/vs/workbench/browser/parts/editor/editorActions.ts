@@ -495,7 +495,7 @@ export class CloseOneEditorAction extends Action {
 			group = this.editorGroupService.getGroup(context.groupId);
 
 			if (group) {
-				editorIndex = context.editorIndex!; // only allow editor at index if group is valid
+				editorIndex = context.editorIndex; // only allow editor at index if group is valid
 			}
 		}
 

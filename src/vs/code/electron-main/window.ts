@@ -73,19 +73,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private readonly _onLoad = this._register(new Emitter<void>());
 	readonly onLoad: CommonEvent<void> = this._onLoad.event;
 
-	private hiddenTitleBarStyle: boolean;
-	private showTimeoutHandle: NodeJS.Timeout;
-	private _id: number;
-	private _win: BrowserWindow;
+	private hiddenTitleBarStyle: boolean | undefined;
+	private showTimeoutHandle: NodeJS.Timeout | undefined;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
 	private windowState: IWindowState;
-	private currentMenuBarVisibility: MenuBarVisibility;
-	private representedFilename: string;
+	private currentMenuBarVisibility: MenuBarVisibility | undefined;
+	private representedFilename: string | undefined;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
-	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig?: IWindowConfiguration;
 
 	private marketplaceHeadersPromise: Promise<object>;
@@ -111,8 +108,111 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
 
-		// create browser window
-		this.createBrowserWindow(config);
+		//#region create browser window
+		{
+			// Load window state
+			const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
+			this.windowState = state;
+
+			// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
+			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
+
+			const options: BrowserWindowConstructorOptions = {
+				width: this.windowState.width,
+				height: this.windowState.height,
+				x: this.windowState.x,
+				y: this.windowState.y,
+				backgroundColor: this.themeMainService.getBackgroundColor(),
+				minWidth: CodeWindow.MIN_WIDTH,
+				minHeight: CodeWindow.MIN_HEIGHT,
+				show: !isFullscreenOrMaximized,
+				title: product.nameLong,
+				webPreferences: {
+					// By default if Code is in the background, intervals and timeouts get throttled, so we
+					// want to enforce that Code stays in the foreground. This triggers a disable_hidden_
+					// flag that Electron provides via patch:
+					// https://github.com/electron/libchromiumcontent/blob/master/patches/common/chromium/disable_hidden.patch
+					backgroundThrottling: false,
+					nodeIntegration: true,
+					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
+					webviewTag: true
+				}
+			};
+
+			if (isLinux) {
+				options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
+			}
+
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+
+			if (isMacintosh && !this.useNativeFullScreen()) {
+				options.fullscreenable = false; // enables simple fullscreen mode
+			}
+
+			if (isMacintosh) {
+				options.acceptFirstMouse = true; // enabled by default
+
+				if (windowConfig && windowConfig.clickThroughInactive === false) {
+					options.acceptFirstMouse = false;
+				}
+			}
+
+			const useNativeTabs = isMacintosh && windowConfig && windowConfig.nativeTabs === true;
+			if (useNativeTabs) {
+				options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
+			}
+
+			const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService, !!config.extensionDevelopmentPath) === 'custom';
+			if (useCustomTitleStyle) {
+				options.titleBarStyle = 'hidden';
+				this.hiddenTitleBarStyle = true;
+				if (!isMacintosh) {
+					options.frame = false;
+				}
+			}
+
+			// Create the browser window.
+			this._win = new BrowserWindow(options);
+			this._id = this._win.id;
+
+			if (isMacintosh && useCustomTitleStyle) {
+				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+			}
+
+			// TODO@Ben (Electron 4 regression): when running on multiple displays where the target display
+			// to open the window has a larger resolution than the primary display, the window will not size
+			// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
+			//
+			// However, when running with native tabs with multiple windows we cannot use this workaround
+			// because there is a potential that the new window will be added as native tab instead of being
+			// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
+			if (isMacintosh && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
+				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
+					const ensuredWindowState = this.windowState as Required<IWindowState>;
+					this._win.setBounds({
+						width: ensuredWindowState.width,
+						height: ensuredWindowState.height,
+						x: ensuredWindowState.x,
+						y: ensuredWindowState.y
+					});
+				}
+			}
+
+			if (isFullscreenOrMaximized) {
+				this._win.maximize();
+
+				if (this.windowState.mode === WindowMode.Fullscreen) {
+					this.setFullScreen(true);
+				}
+
+				if (!this._win.isVisible()) {
+					this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
+				}
+			}
+
+			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
+		}
+		//#endregion
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
@@ -121,139 +221,26 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.createTouchBar();
 
 		// Request handling
-		this.handleMarketplaceRequests();
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentService, this.fileService);
 
 		// Eventing
 		this.registerListeners();
 	}
 
-	private createBrowserWindow(config: IWindowCreationOptions): void {
+	private currentConfig: IWindowConfiguration | undefined;
+	get config(): IWindowConfiguration | undefined { return this.currentConfig; }
 
-		// Load window state
-		const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
-		this.windowState = state;
+	private _id: number;
+	get id(): number { return this._id; }
 
-		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
-		const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
+	private _win: BrowserWindow;
+	get win(): BrowserWindow { return this._win; }
 
-		const options: BrowserWindowConstructorOptions = {
-			width: this.windowState.width,
-			height: this.windowState.height,
-			x: this.windowState.x,
-			y: this.windowState.y,
-			backgroundColor: this.themeMainService.getBackgroundColor(),
-			minWidth: CodeWindow.MIN_WIDTH,
-			minHeight: CodeWindow.MIN_HEIGHT,
-			show: !isFullscreenOrMaximized,
-			title: product.nameLong,
-			webPreferences: {
-				// By default if Code is in the background, intervals and timeouts get throttled, so we
-				// want to enforce that Code stays in the foreground. This triggers a disable_hidden_
-				// flag that Electron provides via patch:
-				// https://github.com/electron/libchromiumcontent/blob/master/patches/common/chromium/disable_hidden.patch
-				backgroundThrottling: false,
-				nodeIntegration: true,
-				nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
-				webviewTag: true
-			}
-		};
+	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
 
-		if (isLinux) {
-			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
-		}
+	get isExtensionDevelopmentHost(): boolean { return !!(this.config && this.config.extensionDevelopmentPath); }
 
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-
-		if (isMacintosh && !this.useNativeFullScreen()) {
-			options.fullscreenable = false; // enables simple fullscreen mode
-		}
-
-		if (isMacintosh) {
-			options.acceptFirstMouse = true; // enabled by default
-
-			if (windowConfig && windowConfig.clickThroughInactive === false) {
-				options.acceptFirstMouse = false;
-			}
-		}
-
-		const useNativeTabs = isMacintosh && windowConfig && windowConfig.nativeTabs === true;
-		if (useNativeTabs) {
-			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
-		}
-
-		const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService, !!config.extensionDevelopmentPath) === 'custom';
-		if (useCustomTitleStyle) {
-			options.titleBarStyle = 'hidden';
-			this.hiddenTitleBarStyle = true;
-			if (!isMacintosh) {
-				options.frame = false;
-			}
-		}
-
-		// Create the browser window.
-		this._win = new BrowserWindow(options);
-		this._id = this._win.id;
-
-		if (isMacintosh && useCustomTitleStyle) {
-			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
-		}
-
-		// TODO@Ben (Electron 4 regression): when running on multiple displays where the target display
-		// to open the window has a larger resolution than the primary display, the window will not size
-		// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
-		//
-		// However, when running with native tabs with multiple windows we cannot use this workaround
-		// because there is a potential that the new window will be added as native tab instead of being
-		// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
-		if (isMacintosh && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
-			if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
-				this._win.setBounds({
-					width: this.windowState.width!,
-					height: this.windowState.height!,
-					x: this.windowState.x!,
-					y: this.windowState.y!
-				});
-			}
-		}
-
-		if (isFullscreenOrMaximized) {
-			this._win.maximize();
-
-			if (this.windowState.mode === WindowMode.Fullscreen) {
-				this.setFullScreen(true);
-			}
-
-			if (!this._win.isVisible()) {
-				this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
-			}
-		}
-
-		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
-	}
-
-	hasHiddenTitleBarStyle(): boolean {
-		return this.hiddenTitleBarStyle;
-	}
-
-	get isExtensionDevelopmentHost(): boolean {
-		return !!this.config.extensionDevelopmentPath;
-	}
-
-	get isExtensionTestHost(): boolean {
-		return !!this.config.extensionTestsPath;
-	}
-
-	get config(): IWindowConfiguration {
-		return this.currentConfig;
-	}
-
-	get id(): number {
-		return this._id;
-	}
-
-	get win(): BrowserWindow {
-		return this._win;
-	}
+	get isExtensionTestHost(): boolean { return !!(this.config && this.config.extensionTestsPath); }
 
 	setRepresentedFilename(filename: string): void {
 		if (isMacintosh) {
@@ -263,7 +250,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	getRepresentedFilename(): string {
+	getRepresentedFilename(): string | undefined {
 		if (isMacintosh) {
 			return this.win.getRepresentedFilename();
 		}
@@ -283,25 +270,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.focus();
 	}
 
-	get lastFocusTime(): number {
-		return this._lastFocusTime;
-	}
+	get lastFocusTime(): number { return this._lastFocusTime; }
 
-	get backupPath(): string | undefined {
-		return this.currentConfig ? this.currentConfig.backupPath : undefined;
-	}
+	get backupPath(): string | undefined { return this.currentConfig ? this.currentConfig.backupPath : undefined; }
 
-	get openedWorkspace(): IWorkspaceIdentifier | undefined {
-		return this.currentConfig ? this.currentConfig.workspace : undefined;
-	}
+	get openedWorkspace(): IWorkspaceIdentifier | undefined { return this.currentConfig ? this.currentConfig.workspace : undefined; }
 
-	get openedFolderUri(): URI | undefined {
-		return this.currentConfig ? this.currentConfig.folderUri : undefined;
-	}
+	get openedFolderUri(): URI | undefined { return this.currentConfig ? this.currentConfig.folderUri : undefined; }
 
-	get remoteAuthority(): string | undefined {
-		return this.currentConfig ? this.currentConfig.remoteAuthority : undefined;
-	}
+	get remoteAuthority(): string | undefined { return this.currentConfig ? this.currentConfig.remoteAuthority : undefined; }
 
 	setReady(): void {
 		this._readyState = ReadyState.READY;
@@ -339,24 +316,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const closeListener = this.onClose(() => handle());
 			const loadListener = this.onLoad(() => handle());
-		});
-	}
-
-	private handleMarketplaceRequests(): void {
-
-		// Resolve marketplace headers
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentService, this.fileService);
-
-		// Inject headers when requests are incoming
-		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
-		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
-			this.marketplaceHeadersPromise.then(headers => {
-				const requestHeaders = objects.assign(details.requestHeaders, headers) as { [key: string]: string | undefined };
-				if (!this.configurationService.getValue('extensions.disableExperimentalAzureSearch')) {
-					requestHeaders['Cookie'] = `${requestHeaders['Cookie'] ? requestHeaders['Cookie'] + ';' : ''}EnableExternalSearchForVSCode=true`;
-				}
-				cb({ cancel: false, requestHeaders });
-			});
 		});
 	}
 
@@ -422,7 +381,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					return; // disposed
 				}
 
-				if (!this.useNativeFullScreen() && this.isFullScreen()) {
+				if (!this.useNativeFullScreen() && this.isFullScreen) {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
@@ -476,6 +435,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Handle Workspace events
 		this._register(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+
+		// Inject headers when requests are incoming
+		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+			this.marketplaceHeadersPromise.then(headers => {
+				const requestHeaders = objects.assign(details.requestHeaders, headers) as { [key: string]: string | undefined };
+				if (!this.configurationService.getValue('extensions.disableExperimentalAzureSearch')) {
+					requestHeaders['Cookie'] = `${requestHeaders['Cookie'] ? requestHeaders['Cookie'] + ';' : ''}EnableExternalSearchForVSCode=true`;
+				}
+				cb({ cancel: false, requestHeaders });
+			});
+		});
 	}
 
 	private onWindowError(error: WindowError): void {
@@ -554,7 +525,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
-		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id) {
+		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id && this.currentConfig) {
 			this.currentConfig.workspace = undefined;
 		}
 	}
@@ -674,7 +645,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Set fullscreen state
-		windowConfiguration.fullscreen = this.isFullScreen();
+		windowConfiguration.fullscreen = this.isFullScreen;
 
 		// Set Accessibility Config
 		let autoDetectHighContrast = true;
@@ -686,7 +657,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Title style related
 		windowConfiguration.maximized = this._win.isMaximized();
-		windowConfiguration.frameless = this.hasHiddenTitleBarStyle() && !isMacintosh;
+		windowConfiguration.frameless = this.hasHiddenTitleBarStyle && !isMacintosh;
 
 		// Dump Perf Counters
 		windowConfiguration.perfEntries = perf.exportEntries();
@@ -732,7 +703,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// fullscreen gets special treatment
-		if (this.isFullScreen()) {
+		if (this.isFullScreen) {
 			const display = screen.getDisplayMatching(this.getBounds());
 
 			const defaultState = defaultWindowState();
@@ -907,7 +878,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	toggleFullScreen(): void {
-		this.setFullScreen(!this.isFullScreen());
+		this.setFullScreen(!this.isFullScreen);
 	}
 
 	private setFullScreen(fullscreen: boolean): void {
@@ -923,12 +894,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.sendWhenReady(fullscreen ? 'vscode:enterFullScreen' : 'vscode:leaveFullScreen');
 
 		// Respect configured menu bar visibility or default to toggle if not set
-		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
+		if (this.currentMenuBarVisibility) {
+			this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
+		}
 	}
 
-	isFullScreen(): boolean {
-		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
-	}
+	get isFullScreen(): boolean { return this._win.isFullScreen() || this._win.isSimpleFullScreen(); }
 
 	private setNativeFullScreen(fullscreen: boolean): void {
 		if (this._win.isSimpleFullScreen()) {
@@ -1004,7 +975,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private doSetMenuBarVisibility(visibility: MenuBarVisibility): void {
-		const isFullscreen = this.isFullScreen();
+		const isFullscreen = this.isFullScreen;
 
 		switch (visibility) {
 			case ('default'):
