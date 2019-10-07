@@ -663,13 +663,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 			configurationModelsToSearch.push(...this._changedConfigurationByResource.values());
 		}
 
-		for (const configuration of configurationModelsToSearch) {
-			if (this.doesConfigurationContains(configuration, config)) {
-				return true;
-			}
-		}
-
-		return false;
+		return configurationModelsToSearch.some(configuration => this.doesConfigurationContains(configuration, config));
 	}
 
 	private changeWithKeys(keys: string[], resource?: URI): void {

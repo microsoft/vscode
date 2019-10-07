@@ -81,17 +81,11 @@ export async function resolveCommonProperties(
 	return result;
 }
 
-function verifyMicrosoftInternalDomain(domainList: string[]): boolean {
+function verifyMicrosoftInternalDomain(domainList: readonly string[]): boolean {
 	if (!process || !process.env || !process.env['USERDNSDOMAIN']) {
 		return false;
 	}
 
 	const domain = process.env['USERDNSDOMAIN']!.toLowerCase();
-	for (let msftDomain of domainList) {
-		if (domain === msftDomain) {
-			return true;
-		}
-	}
-
-	return false;
+	return domainList.some(msftDomain => domain === msftDomain);
 }

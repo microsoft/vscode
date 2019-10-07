@@ -203,24 +203,14 @@ class SimpleContextKeyChangeEvent implements IContextKeyChangeEvent {
 class ArrayContextKeyChangeEvent implements IContextKeyChangeEvent {
 	constructor(readonly keys: string[]) { }
 	affectsSome(keys: IReadableSet<string>): boolean {
-		for (const key of this.keys) {
-			if (keys.has(key)) {
-				return true;
-			}
-		}
-		return false;
+		return this.keys.some(key => keys.has(key));
 	}
 }
 
 class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 	constructor(readonly events: IContextKeyChangeEvent[]) { }
 	affectsSome(keys: IReadableSet<string>): boolean {
-		for (const e of this.events) {
-			if (e.affectsSome(keys)) {
-				return true;
-			}
-		}
-		return false;
+		return this.events.some(e => e.affectsSome(keys));
 	}
 }
 
