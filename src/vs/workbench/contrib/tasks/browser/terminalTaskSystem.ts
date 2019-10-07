@@ -527,6 +527,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (task.configurationProperties.isBackground) {
 			const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
+			if (!watchingProblemMatcher.isWatching()) {
+				this.appendOutput(nls.localize('TerminalTaskSystem.nonWatchingMatcher', 'Task {0} is a background task but uses a problem matcher without a background pattern', task._label));
+				this.showOutput();
+			}
 			const toDispose = new DisposableStore();
 			let eventCounter: number = 0;
 			toDispose.add(watchingProblemMatcher.onDidStateChange((event) => {
