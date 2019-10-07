@@ -525,12 +525,12 @@ export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
-	private inputBoxContainer: HTMLElement;
-	private inputBox: InputBox;
-	private listContainer: HTMLElement;
-	private tree: ObjectTree<TreeElement, FuzzyScore>;
-	private viewModel: ViewModel;
-	private listLabels: ResourceLabels;
+	private inputBoxContainer!: HTMLElement;
+	private inputBox!: InputBox;
+	private listContainer!: HTMLElement;
+	private tree!: ObjectTree<TreeElement, FuzzyScore>;
+	private viewModel!: ViewModel;
+	private listLabels!: ResourceLabels;
 	private menus: SCMMenus;
 	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 	protected contextKeyService: IContextKeyService;
