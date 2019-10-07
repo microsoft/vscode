@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, Event as IpcMainEvent, BrowserWindow } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
-import { WindowsManager } from 'vs/code/electron-main/windows';
+import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { ActiveWindowManager } from 'vs/code/node/activeWindowTracker';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -24,7 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IURLService } from 'vs/platform/url/common/url';
+import { IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -74,10 +74,11 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-import { IElectronService } from 'vs/platform/electron/node/electron';
-import { ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
+import { IElectronMainService, ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { assign } from 'vs/base/common/objects';
+import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class CodeApplication extends Disposable {
 
@@ -85,6 +86,7 @@ export class CodeApplication extends Disposable {
 	private static readonly TRUE_MACHINE_ID_KEY = 'telemetry.trueMachineId';
 
 	private windowsMainService: IWindowsMainService | undefined;
+	private dialogMainService: IDialogMainService | undefined;
 
 	constructor(
 		private readonly mainIpcServer: Server,
@@ -374,15 +376,14 @@ export class CodeApplication extends Disposable {
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
-			const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle!, this.environmentService, appInstantiationService);
+			const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService);
 
 			this.logService.info('Driver started at:', this.environmentService.driverHandle);
 			this._register(server);
 		}
 
 		// Setup Auth Handler
-		const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-		this._register(authHandler);
+		this._register(new ProxyAuthHandler());
 
 		// Open Windows
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
@@ -448,7 +449,8 @@ export class CodeApplication extends Disposable {
 				break;
 		}
 
-		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
+		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
+		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
 		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
@@ -456,7 +458,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
 
 		services.set(IIssueService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
-		services.set(IElectronService, new SyncDescriptor(ElectronMainService));
+		services.set(IElectronMainService, new SyncDescriptor(ElectronMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarService, new SyncDescriptor(MenubarMainService));
 
@@ -503,13 +505,13 @@ export class CodeApplication extends Disposable {
 
 			contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
 				if (!timeout) {
-					if (this.windowsMainService) {
-						this.windowsMainService.showMessageBox({
+					if (this.dialogMainService) {
+						this.dialogMainService.showMessageBox({
 							type: 'info',
 							message: localize('trace.message', "Successfully created trace."),
 							detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
 							buttons: [localize('trace.ok', "Ok")]
-						}, this.windowsMainService.getLastActiveWindow());
+						}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 					}
 				} else {
 					this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
@@ -543,8 +545,8 @@ export class CodeApplication extends Disposable {
 		const issueChannel = createChannelReceiver(issueService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
-		const electronService = accessor.get(IElectronService);
-		const electronChannel = createChannelReceiver(electronService);
+		const electronMainService = accessor.get(IElectronMainService);
+		const electronChannel = createChannelReceiver(electronMainService);
 		electronIpcServer.registerChannel('electron', electronChannel);
 		sharedProcessClient.then(client => client.registerChannel('electron', electronChannel));
 
@@ -580,11 +582,12 @@ export class CodeApplication extends Disposable {
 
 		// Propagate to clients
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		this.dialogMainService = accessor.get(IDialogMainService);
 
 		// Create a URL handler to open file URIs in the active window
 		const environmentService = accessor.get(IEnvironmentService);
 		urlService.registerHandler({
-			async handleURL(uri: URI): Promise<boolean> {
+			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 
 				// Catch file URLs
 				if (uri.authority === Schemas.file && !!uri.path) {
@@ -601,7 +604,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = new ActiveWindowManager(electronService);
+		const activeWindowManager = new ActiveWindowManager(electronMainService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);
@@ -611,7 +614,7 @@ export class CodeApplication extends Disposable {
 		// if there is none
 		if (isMacintosh) {
 			urlService.registerHandler({
-				async handleURL(uri: URI): Promise<boolean> {
+				async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
 						const cli = { ...environmentService.args };
 						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true, gotoLineMode: true });

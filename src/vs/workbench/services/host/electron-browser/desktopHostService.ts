@@ -9,23 +9,13 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowOpenable, IOpenInWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 export class DesktopHostService extends Disposable implements IHostService {
 
 	_serviceBrand: undefined;
-
-	//#region Events
-
-	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
-	private _onDidChangeFocus: Event<boolean> = Event.any(
-		Event.map(Event.filter(this.electronService.onWindowFocus, id => id === this.electronEnvironmentService.windowId), _ => true),
-		Event.map(Event.filter(this.electronService.onWindowBlur, id => id === this.electronEnvironmentService.windowId), _ => false)
-	);
-
-	//#endregion
 
 	constructor(
 		@IElectronService private readonly electronService: IElectronService,
@@ -46,19 +36,31 @@ export class DesktopHostService extends Disposable implements IHostService {
 		this._register(this.onDidChangeFocus(focus => this._hasFocus = focus));
 	}
 
-	//#region Window
+	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
+	private _onDidChangeFocus: Event<boolean> = Event.any(
+		Event.map(Event.filter(this.electronService.onWindowFocus, id => id === this.electronEnvironmentService.windowId), _ => true),
+		Event.map(Event.filter(this.electronService.onWindowBlur, id => id === this.electronEnvironmentService.windowId), _ => false)
+	);
 
 	private _hasFocus: boolean;
 	get hasFocus(): boolean { return this._hasFocus; }
 
-	get windowCount(): Promise<number> { return this.electronService.getWindowCount(); }
+	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
+	openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
+		if (Array.isArray(arg1)) {
+			return this.doOpenWindow(arg1, arg2);
+		}
 
-	openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void> {
+		return this.doOpenEmptyWindow(arg1);
+	}
+
+	private doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 		if (!!this.environmentService.configuration.remoteAuthority) {
 			toOpen.forEach(openable => openable.label = openable.label || this.getRecentLabel(openable));
 		}
 
-		return this.electronService.openInWindow(toOpen, options);
+		return this.electronService.openWindow(toOpen, options);
 	}
 
 	private getRecentLabel(openable: IWindowOpenable): string {
@@ -73,8 +75,8 @@ export class DesktopHostService extends Disposable implements IHostService {
 		return this.labelService.getUriLabel(openable.fileUri);
 	}
 
-	openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		return this.electronService.openEmptyWindow(options);
+	private doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
+		return this.electronService.openWindow(options);
 	}
 
 	toggleFullScreen(): Promise<void> {
@@ -85,18 +87,12 @@ export class DesktopHostService extends Disposable implements IHostService {
 		return this.electronService.focusWindow();
 	}
 
-	//#endregion
-
 	restart(): Promise<void> {
 		return this.electronService.relaunch();
 	}
 
 	reload(): Promise<void> {
 		return this.electronService.reload();
-	}
-
-	closeWorkspace(): Promise<void> {
-		return this.electronService.closeWorkpsace();
 	}
 }
 

@@ -96,6 +96,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		this._register(_webviewEditorService.registerResolver({
 			canResolve: (webview: WebviewInput) => {
 				if (webview.getTypeId() === CustomFileEditorInput.typeId) {
+					extensionService.activateByEvent(`onWebviewEditor:${(webview as CustomFileEditorInput).viewType}`);
 					return false;
 				}
 
@@ -339,8 +340,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			const handle = this._webviewEditorInputs.getHandleForInput(editorInput);
 			if (handle) {
 				viewStates[handle] = {
-					visible: topLevelInput.matches(group.activeEditor),
-					active: topLevelInput.matches(activeInput),
+					visible: topLevelInput === group.activeEditor,
+					active: topLevelInput === activeInput,
 					position: editorGroupToViewColumn(this._editorGroupService, group.id),
 				};
 			}

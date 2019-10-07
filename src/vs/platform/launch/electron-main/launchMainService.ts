@@ -141,6 +141,7 @@ export class LaunchMainService implements ILaunchMainService {
 				}
 			}
 
+			// Open new Window
 			if (openNewWindow) {
 				usedWindows = this.windowsMainService.open({
 					context,
@@ -150,8 +151,18 @@ export class LaunchMainService implements ILaunchMainService {
 					forceEmpty: true,
 					waitMarkerFileURI
 				});
-			} else {
-				usedWindows = [this.windowsMainService.focusLastActive(args, context)];
+			}
+
+			// Focus existing window or open if none opened
+			else {
+				const lastActive = this.windowsMainService.getLastActiveWindow();
+				if (lastActive) {
+					lastActive.focus();
+
+					usedWindows = [lastActive];
+				} else {
+					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true });
+				}
 			}
 		}
 
@@ -177,7 +188,7 @@ export class LaunchMainService implements ILaunchMainService {
 		// In addition, we poll for the wait marker file to be deleted to return.
 		if (waitMarkerFileURI && usedWindows.length === 1 && usedWindows[0]) {
 			return Promise.race([
-				this.windowsMainService.waitForWindowCloseOrLoad(usedWindows[0].id),
+				usedWindows[0].whenClosedOrLoaded,
 				whenDeleted(waitMarkerFileURI.fsPath)
 			]).then(() => undefined, () => undefined);
 		}
@@ -208,7 +219,7 @@ export class LaunchMainService implements ILaunchMainService {
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows,
-			screenReader: !!app.accessibilitySupportEnabled,
+			screenReader: !!app.isAccessibilitySupportEnabled(),
 			gpuFeatureStatus: app.getGPUFeatureStatus()
 		});
 	}
@@ -223,7 +234,8 @@ export class LaunchMainService implements ILaunchMainService {
 		const windows = this.windowsMainService.getWindows();
 		const promises: Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>[] = windows.map(window => {
 			return new Promise((resolve, reject) => {
-				if (window.remoteAuthority) {
+				const remoteAuthority = window.remoteAuthority;
+				if (remoteAuthority) {
 					const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
 					const args: IDiagnosticInfoOptions = {
 						includeProcesses: options.includeProcesses,
@@ -235,14 +247,14 @@ export class LaunchMainService implements ILaunchMainService {
 					ipcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
 						// No data is returned if getting the connection fails.
 						if (!data) {
-							resolve({ hostName: window.remoteAuthority!, errorMessage: `Unable to resolve connection to '${window.remoteAuthority}'.` });
+							resolve({ hostName: remoteAuthority, errorMessage: `Unable to resolve connection to '${remoteAuthority}'.` });
 						}
 
 						resolve(data);
 					});
 
 					setTimeout(() => {
-						resolve({ hostName: window.remoteAuthority!, errorMessage: `Fetching remote diagnostics for '${window.remoteAuthority}' timed out.` });
+						resolve({ hostName: remoteAuthority, errorMessage: `Fetching remote diagnostics for '${remoteAuthority}' timed out.` });
 					}, 5000);
 				} else {
 					resolve();

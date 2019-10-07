@@ -53,6 +53,62 @@
       {
         "fileMatch": "package.json",
         "url": "./schemas/package.schema.json"
+      },
+      {
+        "fileMatch": "tsconfig.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+      },
+      {
+        "fileMatch": "tsconfig.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
+        "fileMatch": "tsconfig.*.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+      },
+      {
+        "fileMatch": "tsconfig-*.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
+        "fileMatch": "tsconfig-*.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+      },
+      {
+        "fileMatch": "tsconfig.*.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
+        "fileMatch": "typings.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
+      },
+      {
+        "fileMatch": ".bowerrc",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/bowerrc.json"
+      },
+      {
+        "fileMatch": ".babelrc",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+      },
+      {
+        "fileMatch": ".babelrc.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+      },
+      {
+        "fileMatch": "jsconfig.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
+      },
+      {
+        "fileMatch": "jsconfig.json",
+        "url": "./schemas/jsconfig.schema.json"
+      },
+      {
+        "fileMatch": "jsconfig.*.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
+      },
+      {
+        "fileMatch": "jsconfig.*.json",
+        "url": "./schemas/jsconfig.schema.json"
       }
     ],
     "configuration": {

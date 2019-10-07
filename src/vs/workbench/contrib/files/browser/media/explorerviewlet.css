@@ -163,3 +163,16 @@
 .hc-black .monaco-workbench .explorer-viewlet .editor-group {
 	line-height: 20px;
 }
+
+/* TODO @misolori convert these to use icon font, for the debug viewlet */
+.monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-light.svg") 50% no-repeat;
+}
+
+.vs-dark .monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-dark.svg") 50% no-repeat;
+}
+
+.hc-black .monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-hc.svg") 50% no-repeat;
+}

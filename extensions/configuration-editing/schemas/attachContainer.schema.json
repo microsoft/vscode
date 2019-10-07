@@ -1,0 +1,36 @@
+{
+	"$schema": "http://json-schema.org/schema#",
+	"description": "Configures an attached to container",
+	"allowComments": true,
+	"type": "object",
+	"definitions": {
+		"attachContainer": {
+			"type": "object",
+			"properties": {
+				"workspaceFolder": {
+					"type": "string",
+					"description": "The path of the workspace folder inside the container."
+				},
+				"forwardPorts": {
+					"type": "array",
+					"description": "Ports that are forwarded from the container to the local machine.",
+					"items": {
+						"type": "integer"
+					}
+				},
+				"extensions": {
+					"type": "array",
+					"description": "An array of extensions that should be installed into the container.",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		}
+	},
+	"allOf": [
+		{
+			"$ref": "#/definitions/attachContainer"
+		}
+	]
+}

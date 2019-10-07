@@ -236,7 +236,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
-		Gesture.addTarget(this.rowsContainer);
+		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
 		this.scrollableElement = this.disposables.add(new ScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: true,

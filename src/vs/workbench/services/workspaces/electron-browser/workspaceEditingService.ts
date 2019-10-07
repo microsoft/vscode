@@ -78,8 +78,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return false; // only care about untitled workspaces to ask for saving
 		}
 
-		const windowCount = await this.hostService.windowCount;
-
+		const windowCount = await this.electronService.getWindowCount();
 		if (reason === ShutdownReason.CLOSE && !isMacintosh && windowCount === 1) {
 			return false; // Windows/Linux: quits when last window is closed, so do not ask then
 		}

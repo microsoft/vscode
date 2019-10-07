@@ -9,7 +9,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IResourceEditor, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenInWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -46,13 +46,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	_serviceBrand: undefined;
 
-	//#region Events
-
-	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
-	private _onDidChangeFocus: Event<boolean>;
-
-	//#endregion
-
 	private workspaceProvider: IWorkspaceProvider;
 
 	constructor(
@@ -73,25 +66,40 @@ export class BrowserHostService extends Disposable implements IHostService {
 				async open() { }
 			};
 		}
-
-		this.registerListeners();
 	}
 
-	private registerListeners(): void {
+	private _onDidChangeFocus: Event<boolean> | undefined;
+	get onDidChangeFocus(): Event<boolean> {
+		if (!this._onDidChangeFocus) {
+			const focusTracker = this._register(trackFocus(window));
+			this._onDidChangeFocus = Event.any(
+				Event.map(focusTracker.onDidFocus, () => this.hasFocus),
+				Event.map(focusTracker.onDidBlur, () => this.hasFocus)
+			);
+		}
 
-		// Track Focus on Window
-		const focusTracker = this._register(trackFocus(window));
-		this._onDidChangeFocus = Event.any(
-			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
-			Event.map(focusTracker.onDidBlur, () => this.hasFocus)
-		);
+		return this._onDidChangeFocus;
 	}
 
-	//#region Window
+	get hasFocus(): boolean {
+		return document.hasFocus();
+	}
 
-	readonly windowCount = Promise.resolve(1);
+	async focus(): Promise<void> {
+		window.focus();
+	}
 
-	async openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void> {
+	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
+	openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
+		if (Array.isArray(arg1)) {
+			return this.doOpenWindow(arg1, arg2);
+		}
+
+		return this.doOpenEmptyWindow(arg1);
+	}
+
+	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 		for (let i = 0; i < toOpen.length; i++) {
 			const openable = toOpen[i];
 			openable.label = openable.label || this.getRecentLabel(openable);
@@ -126,7 +134,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return this.labelService.getUriLabel(openable.fileUri);
 	}
 
-	private shouldReuse(options: IOpenInWindowOptions = {}): boolean {
+	private shouldReuse(options: IOpenWindowOptions = {}): boolean {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
 
@@ -138,8 +146,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return !openFolderInNewWindow;
 	}
 
-	async openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.workspaceProvider.open(undefined, { reuse: options && options.reuse });
+	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
+		this.workspaceProvider.open(undefined, { reuse: options && options.forceReuseWindow });
 	}
 
 	async toggleFullScreen(): Promise<void> {
@@ -176,26 +184,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
-	get hasFocus(): boolean {
-		return document.hasFocus();
-	}
-
-	async focus(): Promise<void> {
-		window.focus();
-	}
-
-	//#endregion
-
 	async restart(): Promise<void> {
 		this.reload();
 	}
 
 	async reload(): Promise<void> {
 		window.location.reload();
-	}
-
-	async closeWorkspace(): Promise<void> {
-		return this.openEmptyWindow({ reuse: true });
 	}
 }
 

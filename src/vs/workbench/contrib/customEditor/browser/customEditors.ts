@@ -22,7 +22,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
-import { CustomEditorDiscretion, CustomEditorInfo, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorPriority, CustomEditorInfo, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -33,11 +33,11 @@ const defaultEditorId = 'default';
 
 const defaultEditorInfo: CustomEditorInfo = {
 	id: defaultEditorId,
-	displayName: nls.localize('promptOpenWith.defaultEditor', "Default built-in editor"),
+	displayName: nls.localize('promptOpenWith.defaultEditor', "VS Code's standard text editor"),
 	selector: [
 		{ filenamePattern: '*' }
 	],
-	discretion: CustomEditorDiscretion.default,
+	priority: CustomEditorPriority.default,
 };
 
 export class CustomEditorStore {
@@ -88,7 +88,7 @@ export class CustomEditorService implements ICustomEditorService {
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
 						selector: webviewEditorContribution.selector || [],
-						discretion: webviewEditorContribution.discretion || CustomEditorDiscretion.default,
+						priority: webviewEditorContribution.priority || CustomEditorPriority.default,
 					});
 				}
 			}
@@ -160,7 +160,7 @@ export class CustomEditorService implements ICustomEditorService {
 		const webview = this.webviewService.createWebviewEditorOverlay(id, { customClasses: options ? options.customClasses : undefined }, {});
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, new UnownedDisposable(webview));
 		if (group) {
-			input.updateGroup(group!.id);
+			input.updateGroup(group.id);
 		}
 		return input;
 	}
@@ -174,11 +174,18 @@ export class CustomEditorService implements ICustomEditorService {
 		if (group) {
 			const existingEditors = group.editors.filter(editor => editor.getResource() && isEqual(editor.getResource()!, resource));
 			if (existingEditors.length) {
-				await this.editorService.replaceEditors([{
-					editor: existingEditors[0],
-					replacement: input,
-					options: options ? EditorOptions.create(options) : undefined,
-				}], group);
+				const existing = existingEditors[0];
+				if (!input.matches(existing)) {
+					await this.editorService.replaceEditors([{
+						editor: existing,
+						replacement: input,
+						options: options ? EditorOptions.create(options) : undefined,
+					}], group);
+
+					if (existing instanceof CustomFileEditorInput) {
+						existing.dispose();
+					}
+				}
 			}
 		}
 		return this.editorService.openEditor(input, options, group);
@@ -203,7 +210,9 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
 		if (editor instanceof CustomFileEditorInput) {
-			return undefined;
+			if (editor.group === group.id) {
+				return undefined;
+			}
 		}
 
 		if (editor instanceof DiffEditorInput) {
@@ -231,7 +240,7 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 				return;
 			}
 
-			const defaultEditors = contributedEditors.filter(editor => editor.discretion === CustomEditorDiscretion.default);
+			const defaultEditors = contributedEditors.filter(editor => editor.priority === CustomEditorPriority.default);
 			if (defaultEditors.length === 1) {
 				return {
 					override: this.customEditorService.openWith(resource, defaultEditors[0].id, options, group),

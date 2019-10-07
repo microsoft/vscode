@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
+import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
@@ -13,6 +13,12 @@ import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+
+export interface IRelayOpenURLOptions extends IOpenURLOptions {
+	openToSide?: boolean;
+	openExternal?: boolean;
+}
 
 export class RelayURLService extends URLService implements IURLHandler {
 
@@ -21,7 +27,8 @@ export class RelayURLService extends URLService implements IURLHandler {
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
-		@IElectronEnvironmentService private electronEnvironmentService: IElectronEnvironmentService
+		@IElectronEnvironmentService private electronEnvironmentService: IElectronEnvironmentService,
+		@IElectronService private electronService: IElectronService
 	) {
 		super();
 
@@ -44,16 +51,22 @@ export class RelayURLService extends URLService implements IURLHandler {
 		return uri.with({ query });
 	}
 
-	async open(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
+	async open(resource: URI, options?: IRelayOpenURLOptions): Promise<boolean> {
 		if (resource.scheme !== product.urlProtocol) {
 			return false;
 		}
 
-		return await this.urlService.open(resource);
+		return await this.urlService.open(resource, options);
 	}
 
-	handleURL(uri: URI): Promise<boolean> {
-		return super.open(uri);
+	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+		const result = await super.open(uri, options);
+
+		if (result) {
+			await this.electronService.focusWindow();
+		}
+
+		return result;
 	}
 }
 

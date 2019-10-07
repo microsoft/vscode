@@ -92,7 +92,10 @@ class RemoteAuthoritiesImpl {
 			return this._delegate(uri);
 		}
 		const authority = uri.authority;
-		const host = this._hosts[authority];
+		let host = this._hosts[authority];
+		if (host.indexOf(':') !== -1) {
+			host = `[${host}]`;
+		}
 		const port = this._ports[authority];
 		const connectionToken = this._connectionTokens[authority];
 		return URI.from({

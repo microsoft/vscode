@@ -10,7 +10,7 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions, IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
@@ -79,7 +79,7 @@ export interface IActionDescriptor {
 /**
  * The options to create an editor.
  */
-export interface IEditorConstructionOptions extends IEditorOptions {
+export interface IStandaloneEditorConstructionOptions extends IEditorConstructionOptions {
 	/**
 	 * The initial model associated with this code editor.
 	 */
@@ -158,7 +158,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IEditorConstructionOptions,
+		options: IStandaloneEditorConstructionOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
@@ -287,7 +287,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IEditorConstructionOptions | undefined,
+		options: IStandaloneEditorConstructionOptions | undefined,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,

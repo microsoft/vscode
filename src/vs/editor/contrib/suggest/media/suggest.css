@@ -53,7 +53,7 @@
 	padding-left: 20px;
 }
 
-.monaco-editor .suggest-widget > .details p > code {
+.monaco-editor .suggest-widget > .details p code {
 	font-family: var(--monaco-monospace-font);
 }
 

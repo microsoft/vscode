@@ -46,11 +46,11 @@ import 'vs/workbench/services/extensionManagement/node/extensionManagementServic
 import 'vs/workbench/services/accessibility/node/accessibilityService';
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
-import 'vs/workbench/services/credentials/node/credentialsService';
 import 'vs/workbench/services/url/electron-browser/urlService';
 import 'vs/workbench/services/workspaces/electron-browser/workspacesService';
 import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
+import 'vs/workbench/services/authToken/electron-browser/authTokenService';
 import 'vs/workbench/services/host/electron-browser/desktopHostService';
 import 'vs/workbench/services/request/electron-browser/requestService';
 import 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
@@ -61,6 +61,12 @@ import 'vs/workbench/services/clipboard/electron-browser/clipboardService';
 import 'vs/workbench/services/update/electron-browser/updateService';
 import 'vs/workbench/services/issue/electron-browser/issueService';
 import 'vs/workbench/services/menubar/electron-browser/menubarService';
+
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
+
+registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 
 //#endregion
 
@@ -106,9 +112,6 @@ import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 // Execution
 import 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 
-// Update
-import 'vs/workbench/contrib/update/electron-browser/update.contribution';
-
 // Performance
 import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
 
@@ -127,8 +130,8 @@ import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
 
-// Welcome
-import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/openWebsite.contribution';
+// Telemetry Opt Out
+import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-browser/telemetryOptOut.contribution';
 
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/node/configurationExportHelper.contribution';

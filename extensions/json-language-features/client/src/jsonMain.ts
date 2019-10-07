@@ -10,8 +10,8 @@ import { xhr, XHRResponse, getErrorStatusDescription } from 'request-light';
 
 const localize = nls.loadMessageBundle();
 
-import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError } from 'vscode-languageclient';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, ProviderResult, TextEdit, Range, Disposable } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -65,6 +65,8 @@ export function activate(context: ExtensionContext) {
 
 	let toDispose = context.subscriptions;
 
+	let rangeFormatting: Disposable | undefined = undefined;
+
 	let packageInfo = getPackageInfo(context);
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
@@ -101,7 +103,8 @@ export function activate(context: ExtensionContext) {
 		// Register the server for json documents
 		documentSelector,
 		initializationOptions: {
-			handledSchemaProtocols: ['file'] // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
+			handledSchemaProtocols: ['file'], // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
+			provideFormatter: false // tell the server to not provide formatting capability and ignore the `json.format.enable` setting.
 		},
 		synchronize: {
 			// Synchronize the setting section 'json' to the server
@@ -224,9 +227,12 @@ export function activate(context: ExtensionContext) {
 		extensions.onDidChange(_ => {
 			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 		});
+
+		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
+		updateFormatterRegistration();
+		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
+		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
 	});
-
-
 
 	let languageConfiguration: LanguageConfiguration = {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
@@ -237,7 +243,34 @@ export function activate(context: ExtensionContext) {
 	};
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
+
+	function updateFormatterRegistration() {
+		const formatEnabled = workspace.getConfiguration().get('json.format.enable');
+		if (!formatEnabled && rangeFormatting) {
+			rangeFormatting.dispose();
+			rangeFormatting = undefined;
+		} else if (formatEnabled && !rangeFormatting) {
+			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
+				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+					let params: DocumentRangeFormattingParams = {
+						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+						range: client.code2ProtocolConverter.asRange(range),
+						options: client.code2ProtocolConverter.asFormattingOptions(options)
+					};
+					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
+						client.protocol2CodeConverter.asTextEdits,
+						(error) => {
+							client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
+							return Promise.resolve([]);
+						}
+					);
+				}
+			});
+		}
+	}
 }
+
+
 
 export function deactivate(): Promise<any> {
 	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
@@ -286,7 +319,6 @@ function getSettings(): Settings {
 			proxyStrictSSL: httpSettings.get('proxyStrictSSL')
 		},
 		json: {
-			format: workspace.getConfiguration('json').get('format'),
 			schemas: [],
 		}
 	};

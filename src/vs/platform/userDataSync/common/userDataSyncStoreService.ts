@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { Emitter, Event } from 'vs/base/common/event';
 import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
+import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -19,23 +19,12 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 	get enabled(): boolean { return !!this.productService.settingsSyncStoreUrl; }
 
-	private _loggedIn: boolean = false;
-	get loggedIn(): boolean { return this._loggedIn; }
-	private readonly _onDidChangeLoggedIn: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onDidChangeLoggedIn: Event<boolean> = this._onDidChangeLoggedIn.event;
-
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
 	) {
 		super();
-	}
-
-	async login(): Promise<void> {
-	}
-
-	async logout(): Promise<void> {
 	}
 
 	async read(key: string, oldValue: IUserData | null): Promise<IUserData> {
@@ -98,12 +87,23 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	private async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		if (this.authTokenService.status !== AuthTokenStatus.Disabled) {
+			const authToken = await this.authTokenService.getToken();
+			if (!authToken) {
+				return Promise.reject(new Error('No Auth Token Available.'));
+			}
+			options.headers = options.headers || {};
+			options.headers['authorization'] = `Bearer ${authToken}`;
+		}
+
 		const context = await this.requestService.request(options, token);
 
 		if (context.res.statusCode === 401) {
-			// Not Authorized
-			this.logService.info('Authroization Failed.');
-			Promise.reject('Authroization Failed.');
+			if (this.authTokenService.status !== AuthTokenStatus.Disabled) {
+				this.authTokenService.refreshToken();
+			}
+			// Throw Unauthorized Error
+			throw new UserDataSyncStoreError('Unauthorized', UserDataSyncStoreErrorCode.Unauthroized);
 		}
 
 		return context;

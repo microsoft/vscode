@@ -58,6 +58,11 @@ import { SettingsMergeChannelClient } from 'vs/platform/userDataSync/common/sett
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
+import { IAuthTokenService } from 'vs/platform/auth/common/auth';
+import { AuthTokenService } from 'vs/platform/auth/common/authTokenService';
+import { AuthTokenChannel } from 'vs/platform/auth/common/authTokenIpc';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -176,6 +181,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
+		services.set(ICredentialsService, new SyncDescriptor(KeytarCredentialsService));
+		services.set(IAuthTokenService, new SyncDescriptor(AuthTokenService));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
 		const settingsMergeChannel = server.getChannel('settingsMerge', activeWindowRouter);
 		services.set(ISettingsMergeService, new SettingsMergeChannelClient(settingsMergeChannel));
@@ -198,6 +205,10 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			const diagnosticsService = accessor.get(IDiagnosticsService);
 			const diagnosticsChannel = new DiagnosticsChannel(diagnosticsService);
 			server.registerChannel('diagnostics', diagnosticsChannel);
+
+			const authTokenService = accessor.get(IAuthTokenService);
+			const authTokenChannel = new AuthTokenChannel(authTokenService);
+			server.registerChannel('authToken', authTokenChannel);
 
 			const userDataSyncService = accessor.get(IUserDataSyncService);
 			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService);

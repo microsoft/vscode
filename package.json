@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.39.0",
-  "distro": "13ad3edfae7fc8e54c16b95b7ed4f5b6e41571ab",
+  "version": "1.40.0",
+  "distro": "fd32ba99f225d591cb667f0bdf23dbb481743eab",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -97,7 +97,7 @@
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
-    "gulp-tsb": "4.0.4",
+    "gulp-tsb": "4.0.5",
     "gulp-tslint": "^8.1.3",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",

@@ -11,7 +11,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenInWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspacesService, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 
@@ -49,7 +49,7 @@ export class OpenFolderAPICommand {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', { forceNewWindow: arg.forceNewWindow });
 		}
-		const options: IOpenInWindowOptions = { forceNewWindow: arg.forceNewWindow, forceReuseWindow: arg.forceReuseWindow, noRecentEntry: arg.noRecentEntry };
+		const options: IOpenWindowOptions = { forceNewWindow: arg.forceNewWindow, forceReuseWindow: arg.forceReuseWindow, noRecentEntry: arg.noRecentEntry };
 		uri = URI.revive(uri);
 		const uriToOpen: IWindowOpenable = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
 		return executor.executeCommand('_files.windowOpen', [uriToOpen], options);
@@ -75,10 +75,12 @@ interface INewWindowAPICommandOptions {
 export class NewWindowAPICommand {
 	public static ID = 'vscode.newWindow';
 	public static execute(executor: ICommandsExecutor, options?: INewWindowAPICommandOptions): Promise<any> {
-		return executor.executeCommand('_files.newWindow', {
-			reuse: options && options.reuseWindow,
+		const commandOptions: IOpenEmptyWindowOptions = {
+			forceReuseWindow: options && options.reuseWindow,
 			remoteAuthority: options && options.remoteAuthority
-		});
+		};
+
+		return executor.executeCommand('_files.newWindow', commandOptions);
 	}
 }
 CommandsRegistry.registerCommand({

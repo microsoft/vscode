@@ -291,7 +291,7 @@ export namespace MarkdownString {
 			return part;
 		}
 		data = cloneAndChange(data, value => {
-			if (value instanceof URI) {
+			if (URI.isUri(value)) {
 				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
 				bucket[key] = value;
 				return key;
@@ -859,7 +859,7 @@ export namespace SignatureInformation {
 		return {
 			label: info.label,
 			documentation: info.documentation ? MarkdownString.fromStrict(info.documentation) : undefined,
-			parameters: info.parameters && info.parameters.map(ParameterInformation.from)
+			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.from) : []
 		};
 	}
 
@@ -867,7 +867,7 @@ export namespace SignatureInformation {
 		return {
 			label: info.label,
 			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation,
-			parameters: info.parameters && info.parameters.map(ParameterInformation.to)
+			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.to) : []
 		};
 	}
 }
@@ -878,7 +878,7 @@ export namespace SignatureHelp {
 		return {
 			activeSignature: help.activeSignature,
 			activeParameter: help.activeParameter,
-			signatures: help.signatures && help.signatures.map(SignatureInformation.from)
+			signatures: Array.isArray(help.signatures) ? help.signatures.map(SignatureInformation.from) : [],
 		};
 	}
 
@@ -886,7 +886,7 @@ export namespace SignatureHelp {
 		return {
 			activeSignature: help.activeSignature,
 			activeParameter: help.activeParameter,
-			signatures: help.signatures && help.signatures.map(SignatureInformation.to)
+			signatures: Array.isArray(help.signatures) ? help.signatures.map(SignatureInformation.to) : [],
 		};
 	}
 }
@@ -1161,15 +1161,5 @@ export namespace LogLevel {
 		}
 
 		return types.LogLevel.Info;
-	}
-}
-export namespace WebviewContentState {
-	export function from(state: vscode.WebviewContentState): modes.WebviewContentState {
-		switch (state) {
-			case types.WebviewContentState.Readonly: return modes.WebviewContentState.Readonly;
-			case types.WebviewContentState.Unchanged: return modes.WebviewContentState.Unchanged;
-			case types.WebviewContentState.Dirty: return modes.WebviewContentState.Dirty;
-			default: throw new Error('Unknown vscode.WebviewContentState');
-		}
 	}
 }

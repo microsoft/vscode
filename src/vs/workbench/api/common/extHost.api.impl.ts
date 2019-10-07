@@ -247,9 +247,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
-			resolveExternalUri(uri: URI) {
+			asExternalUri(uri: URI) {
 				checkProposedApiEnabled(extension);
-				return extHostWindow.resolveExternalUri(uri, { allowTunneling: !!initData.remote.isRemote });
+				return extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
@@ -630,7 +630,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				const options = uriOrFileNameOrOptions as { language?: string; content?: string; };
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
-				} else if (uriOrFileNameOrOptions instanceof URI) {
+				} else if (URI.isUri(uriOrFileNameOrOptions)) {
 					uriPromise = Promise.resolve(uriOrFileNameOrOptions);
 				} else if (!options || typeof options === 'object') {
 					uriPromise = extHostDocuments.createDocumentData(options);

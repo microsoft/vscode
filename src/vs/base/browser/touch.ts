@@ -86,15 +86,21 @@ export class Gesture extends Disposable {
 		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e)));
 	}
 
-	public static addTarget(element: HTMLElement): void {
+	public static addTarget(element: HTMLElement): IDisposable {
 		if (!Gesture.isTouchDevice()) {
-			return;
+			return Disposable.None;
 		}
 		if (!Gesture.INSTANCE) {
 			Gesture.INSTANCE = new Gesture();
 		}
 
 		Gesture.INSTANCE.targets.push(element);
+
+		return {
+			dispose: () => {
+				Gesture.INSTANCE.targets = Gesture.INSTANCE.targets.filter(t => t !== element);
+			}
+		};
 	}
 
 	@memoize

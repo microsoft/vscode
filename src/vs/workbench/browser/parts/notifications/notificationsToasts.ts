@@ -23,6 +23,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { timeout } from 'vs/base/common/async';
+import { assertIsDefined } from 'vs/base/common/types';
 
 interface INotificationToast {
 	item: INotificationViewItem;
@@ -52,8 +53,8 @@ export class NotificationsToasts extends Themable {
 		return intervals;
 	})();
 
-	private notificationsToastsContainer: HTMLElement;
-	private workbenchDimensions: Dimension;
+	private notificationsToastsContainer: HTMLElement | undefined;
+	private workbenchDimensions: Dimension | undefined;
 	private isNotificationsCenterVisible: boolean | undefined;
 	private mapNotificationToToast: Map<INotificationViewItem, INotificationToast>;
 	private notificationsToastsVisibleContextKey: IContextKey<boolean>;
@@ -125,15 +126,16 @@ export class NotificationsToasts extends Themable {
 		}
 
 		// Lazily create toasts containers
-		if (!this.notificationsToastsContainer) {
-			this.notificationsToastsContainer = document.createElement('div');
-			addClass(this.notificationsToastsContainer, 'notifications-toasts');
+		let notificationsToastsContainer = this.notificationsToastsContainer;
+		if (!notificationsToastsContainer) {
+			notificationsToastsContainer = this.notificationsToastsContainer = document.createElement('div');
+			addClass(notificationsToastsContainer, 'notifications-toasts');
 
-			this.container.appendChild(this.notificationsToastsContainer);
+			this.container.appendChild(notificationsToastsContainer);
 		}
 
 		// Make Visible
-		addClass(this.notificationsToastsContainer, 'visible');
+		addClass(notificationsToastsContainer, 'visible');
 
 		const itemDisposables = new DisposableStore();
 
@@ -141,11 +143,11 @@ export class NotificationsToasts extends Themable {
 		const notificationToastContainer = document.createElement('div');
 		addClass(notificationToastContainer, 'notification-toast-container');
 
-		const firstToast = this.notificationsToastsContainer.firstChild;
+		const firstToast = notificationsToastsContainer.firstChild;
 		if (firstToast) {
-			this.notificationsToastsContainer.insertBefore(notificationToastContainer, firstToast); // always first
+			notificationsToastsContainer.insertBefore(notificationToastContainer, firstToast); // always first
 		} else {
-			this.notificationsToastsContainer.appendChild(notificationToastContainer);
+			notificationsToastsContainer.appendChild(notificationToastContainer);
 		}
 
 		// Toast
@@ -164,8 +166,8 @@ export class NotificationsToasts extends Themable {
 		this.mapNotificationToToast.set(item, toast);
 
 		itemDisposables.add(toDisposable(() => {
-			if (this.isVisible(toast)) {
-				this.notificationsToastsContainer.removeChild(toast.container);
+			if (this.isVisible(toast) && notificationsToastsContainer) {
+				notificationsToastsContainer.removeChild(toast.container);
 			}
 		}));
 
@@ -318,7 +320,7 @@ export class NotificationsToasts extends Themable {
 	}
 
 	hide(): void {
-		const focusGroup = isAncestor(document.activeElement, this.notificationsToastsContainer);
+		const focusGroup = this.notificationsToastsContainer ? isAncestor(document.activeElement, this.notificationsToastsContainer) : false;
 
 		this.removeToasts();
 
@@ -443,7 +445,7 @@ export class NotificationsToasts extends Themable {
 		return notificationToasts.reverse(); // from newest to oldest
 	}
 
-	layout(dimension: Dimension): void {
+	layout(dimension: Dimension | undefined): void {
 		this.workbenchDimensions = dimension;
 
 		const maxDimensions = this.computeMaxDimensions();
@@ -525,10 +527,11 @@ export class NotificationsToasts extends Themable {
 			return;
 		}
 
+		const notificationsToastsContainer = assertIsDefined(this.notificationsToastsContainer);
 		if (visible) {
-			this.notificationsToastsContainer.appendChild(toast.container);
+			notificationsToastsContainer.appendChild(toast.container);
 		} else {
-			this.notificationsToastsContainer.removeChild(toast.container);
+			notificationsToastsContainer.removeChild(toast.container);
 		}
 	}
 

@@ -164,7 +164,7 @@ function asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider: () => I
 
 export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
 
-	protected model: CompressibleObjectTreeModel<T, TFilterData>;
+	protected model!: CompressibleObjectTreeModel<T, TFilterData>;
 
 	constructor(
 		user: string,

@@ -99,25 +99,40 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 	private isDisposed: boolean;
 	private options: IQuickOpenOptions;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private element: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private tree: ITree;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private inputBox: InputBox;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private inputContainer: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private helpText: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private resultCount: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private treeContainer: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private progressBar: ProgressBar;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private visible: boolean;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private isLoosingFocus: boolean;
 	private callbacks: IQuickOpenCallbacks;
 	private quickNavigateConfiguration: IQuickNavigateConfiguration | undefined;
 	private container: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private treeElement: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private inputElement: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private layoutDimensions: DOM.Dimension;
 	private model: IModel<any> | null;
 	private inputChangingTimeoutHandle: any;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private styles: IQuickOpenStyles;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private renderer: Renderer;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions) {

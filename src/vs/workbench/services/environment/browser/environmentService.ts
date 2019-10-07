@@ -170,7 +170,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	log?: string;
 	logsPath: string;
 	verbose: boolean;
-	skipGettingStarted: boolean;
 	skipReleaseNotes: boolean;
 	mainIPCHandle: string;
 	sharedIPCHandle: string;

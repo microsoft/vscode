@@ -433,8 +433,10 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 				}
 
 				const descriptorAuthority = descriptor.viewDescriptor.remoteAuthority;
-				if (typeof descriptorAuthority === 'undefined' || descriptor.viewDescriptor.id === HelpPanel.ID) {
+				if (typeof descriptorAuthority === 'undefined') {
 					panel.setExpanded(true);
+				} else if (descriptor.viewDescriptor.id === HelpPanel.ID) {
+					// Do nothing, keep the default behavior for Help
 				} else {
 					const descriptorAuthorityArr = Array.isArray(descriptorAuthority) ? descriptorAuthority : [descriptorAuthority];
 					if (descriptorAuthorityArr.indexOf(actualRemoteAuthority) >= 0) {

@@ -724,18 +724,18 @@ class SuggestAdapter {
 			//
 			x: id,
 			//
-			a: item.label,
-			b: typeConvert.CompletionItemKind.from(item.kind),
-			n: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
-			c: item.detail,
-			d: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
-			e: item.sortText,
-			f: item.filterText,
-			g: item.preselect,
-			i: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
-			k: item.commitCharacters,
-			l: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
-			m: this._commands.toInternal(item.command, disposables),
+			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
+			[extHostProtocol.ISuggestDataDtoField.kind]: typeConvert.CompletionItemKind.from(item.kind),
+			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
+			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
+			[extHostProtocol.ISuggestDataDtoField.documentation]: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
+			[extHostProtocol.ISuggestDataDtoField.sortText]: item.sortText,
+			[extHostProtocol.ISuggestDataDtoField.filterText]: item.filterText,
+			[extHostProtocol.ISuggestDataDtoField.preselect]: item.preselect,
+			[extHostProtocol.ISuggestDataDtoField.insertTextRules]: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
+			[extHostProtocol.ISuggestDataDtoField.commitCharacters]: item.commitCharacters,
+			[extHostProtocol.ISuggestDataDtoField.additionalTextEdits]: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
+			[extHostProtocol.ISuggestDataDtoField.command]: this._commands.toInternal(item.command, disposables),
 		};
 
 		// 'insertText'-logic

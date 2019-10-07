@@ -222,7 +222,7 @@ export abstract class MenubarControl extends Disposable {
 		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
-			return this.hostService.openInWindow([openable], {
+			return this.hostService.openWindow([openable], {
 				forceNewWindow: openInNewWindow
 			});
 		});
@@ -570,10 +570,10 @@ export class CustomMenubarControl extends MenubarControl {
 				for (let action of actions) {
 					this.insertActionsBefore(action, target);
 					if (action instanceof SubmenuItemAction) {
-						if (!this.menus[action.item.submenu]) {
-							this.menus[action.item.submenu] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
-							const submenu = this.menus[action.item.submenu];
-							this._register(submenu!.onDidChange(() => {
+						let submenu = this.menus[action.item.submenu];
+						if (!submenu) {
+							submenu = this.menus[action.item.submenu] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
+							this._register(submenu.onDidChange(() => {
 								if (!this.focusInsideMenubar) {
 									const actions: IAction[] = [];
 									updateActions(menu, actions, topLevelTitle);
@@ -582,7 +582,6 @@ export class CustomMenubarControl extends MenubarControl {
 							}, this));
 						}
 
-						const submenu = this.menus[action.item.submenu]!;
 						const submenuActions: SubmenuAction[] = [];
 						updateActions(submenu, submenuActions, topLevelTitle);
 						target.push(new SubmenuAction(mnemonicMenuLabel(action.label), submenuActions));

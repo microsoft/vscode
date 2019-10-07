@@ -94,7 +94,7 @@ export class WebviewInput extends EditorInput {
 		return this.getName();
 	}
 
-	public getDescription() {
+	public getDescription(): string | undefined {
 		return undefined;
 	}
 

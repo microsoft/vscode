@@ -7016,6 +7016,7 @@ declare module 'vscode' {
 
 		/**
 		 * An optional human-readable message that will be rendered in the view.
+		 * Setting the message to null, undefined, or empty string will remove the message from the view.
 		 */
 		message?: string;
 

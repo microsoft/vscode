@@ -62,6 +62,8 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
+import { IAuthTokenService } from 'vs/platform/auth/common/auth';
+import { AuthTokenService } from 'vs/platform/auth/common/authTokenService';
 import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
@@ -73,6 +75,7 @@ registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ITunnelService, NoOpTunnelService, true);
 registerSingleton(ILoggerService, FileLoggerService);
+registerSingleton(IAuthTokenService, AuthTokenService);
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
@@ -101,5 +104,8 @@ import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Tasks
 import 'vs/workbench/contrib/tasks/browser/taskService';
+
+// Telemetry Opt Out
+import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.contribution';
 
 //#endregion

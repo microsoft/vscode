@@ -163,15 +163,19 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 	constructor(
-		id: string, name: string, iconUrl: URI,
+		id: string,
+		name: string,
+		iconUrl: URI | undefined,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, layoutService, telemetryService);
 
-		const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
-		DOM.createCSSRule(iconClass, `-webkit-mask: ${DOM.asCSSUrl(iconUrl)} no-repeat 50% 50%; -webkit-mask-size: 24px;`);
+		if (iconUrl) {
+			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
+			DOM.createCSSRule(iconClass, `-webkit-mask: ${DOM.asCSSUrl(iconUrl)} no-repeat 50% 50%; -webkit-mask-size: 24px;`);
+		}
 	}
 
 	setActivity(activity: IActivity): void {

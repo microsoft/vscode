@@ -195,7 +195,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.deprecated ? { extraClasses: ['deprecated'] } : undefined;
 	}
 
-	getHighlights(): [IHighlight[], IHighlight[] | undefined, IHighlight[] | undefined] {
+	getHighlights(): [IHighlight[] | undefined, IHighlight[] | undefined, IHighlight[] | undefined] {
 		return [
 			this.deprecated ? [] : filters.createMatches(this.score),
 			undefined,

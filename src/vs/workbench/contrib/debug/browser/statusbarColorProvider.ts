@@ -12,6 +12,7 @@ import { IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
 import { addClass, removeClass, createStyleSheet } from 'vs/base/browser/dom';
+import { assertIsDefined } from 'vs/base/common/types';
 
 // colors for theming
 
@@ -56,7 +57,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 	protected updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.layoutService.getContainer(Parts.STATUSBAR_PART);
+		const container = assertIsDefined(this.layoutService.getContainer(Parts.STATUSBAR_PART));
 		if (isStatusbarInDebugMode(this.debugService)) {
 			addClass(container, 'debugging');
 		} else {

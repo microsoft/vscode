@@ -50,6 +50,7 @@ import { localize } from 'vs/nls';
 import { flatten } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 type TreeElement = ISCMResourceGroup | IBranchNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -389,8 +390,8 @@ function asTreeElement(node: INode<ISCMResource, ISCMResourceGroup>, incompressi
 }
 
 const enum ViewModelMode {
-	List,
-	Tree
+	List = 'list',
+	Tree = 'tree'
 }
 
 class ViewModel {
@@ -524,12 +525,12 @@ export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
-	private inputBoxContainer: HTMLElement;
-	private inputBox: InputBox;
-	private listContainer: HTMLElement;
-	private tree: ObjectTree<TreeElement, FuzzyScore>;
-	private viewModel: ViewModel;
-	private listLabels: ResourceLabels;
+	private inputBoxContainer!: HTMLElement;
+	private inputBox!: InputBox;
+	private listContainer!: HTMLElement;
+	private tree!: ObjectTree<TreeElement, FuzzyScore>;
+	private viewModel!: ViewModel;
+	private listLabels!: ResourceLabels;
 	private menus: SCMMenus;
 	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 	protected contextKeyService: IContextKeyService;
@@ -547,7 +548,8 @@ export class RepositoryPanel extends ViewletPanel {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService protected menuService: IMenuService
+		@IMenuService protected menuService: IMenuService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 
@@ -694,22 +696,27 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
-		const mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+
+		const rootUri = this.repository.provider.rootUri;
+
+		if (typeof rootUri !== 'undefined') {
+			const storageMode = this.storageService.get(`scm.repository.viewMode:${rootUri.toString()}`, StorageScope.WORKSPACE) as ViewModelMode;
+
+			if (typeof storageMode === 'string') {
+				mode = storageMode;
+			}
+		}
+
 		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree, mode);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
 		addClass(this.listContainer, 'show-file-icons');
 
-		const updateIndentStyles = (theme: IFileIconTheme) => {
-			toggleClass(this.listContainer, 'list-view-mode', this.viewModel.mode === ViewModelMode.List);
-			toggleClass(this.listContainer, 'align-icons-and-twisties', this.viewModel.mode === ViewModelMode.Tree && theme.hasFileIcons && !theme.hasFolderIcons);
-			toggleClass(this.listContainer, 'hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
-		};
-
-		updateIndentStyles(this.themeService.getFileIconTheme());
-		this._register(this.themeService.onDidFileIconThemeChange(updateIndentStyles));
-		this._register(this.viewModel.onDidChangeMode(() => updateIndentStyles(this.themeService.getFileIconTheme())));
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
+		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
 
 		this.toggleViewModelModeAction = new ToggleViewModeAction(this.viewModel);
 		this._register(this.toggleViewModelModeAction);
@@ -717,6 +724,25 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.onDidChangeBodyVisibility(this._onDidChangeVisibility, this));
 
 		this.updateActions();
+	}
+
+	private updateIndentStyles(theme: IFileIconTheme): void {
+		toggleClass(this.listContainer, 'list-view-mode', this.viewModel.mode === ViewModelMode.List);
+		toggleClass(this.listContainer, 'tree-view-mode', this.viewModel.mode === ViewModelMode.Tree);
+		toggleClass(this.listContainer, 'align-icons-and-twisties', this.viewModel.mode === ViewModelMode.Tree && theme.hasFileIcons && !theme.hasFolderIcons);
+		toggleClass(this.listContainer, 'hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
+	}
+
+	private onDidChangeMode(): void {
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+
+		const rootUri = this.repository.provider.rootUri;
+
+		if (typeof rootUri === 'undefined') {
+			return;
+		}
+
+		this.storageService.store(`scm.repository.viewMode:${rootUri.toString()}`, this.viewModel.mode, StorageScope.WORKSPACE);
 	}
 
 	layoutBody(height: number | undefined = this.cachedHeight, width: number | undefined = this.cachedWidth): void {
