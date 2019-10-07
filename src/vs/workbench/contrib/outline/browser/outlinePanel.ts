@@ -313,7 +313,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._treeRenderer = this._instantiationService.createInstance(OutlineElementRenderer);
 		this._treeDataSource = new OutlineDataSource();
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
-		this._tree = this._instantiationService.createInstance(
+		this._tree = this._instantiationService.createInstance<typeof WorkbenchDataTree, WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>>(
 			WorkbenchDataTree,
 			'OutlinePanel',
 			treeContainer,
