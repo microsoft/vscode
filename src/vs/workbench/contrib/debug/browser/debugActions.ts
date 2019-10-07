@@ -15,11 +15,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { startDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export abstract class AbstractDebugAction extends Action {
-
-	protected toDispose: IDisposable[];
 
 	constructor(
 		id: string, label: string, cssClass: string,
@@ -27,8 +24,7 @@ export abstract class AbstractDebugAction extends Action {
 		@IKeybindingService protected keybindingService: IKeybindingService,
 	) {
 		super(id, label, cssClass, false);
-		this.toDispose = [];
-		this.toDispose.push(this.debugService.onDidChangeState(state => this.updateEnablement(state)));
+		this._register(this.debugService.onDidChangeState(state => this.updateEnablement(state)));
 
 		this.updateLabel(label);
 		this.updateEnablement();
@@ -56,11 +52,6 @@ export abstract class AbstractDebugAction extends Action {
 	protected isEnabled(_: State): boolean {
 		return true;
 	}
-
-	dispose(): void {
-		super.dispose();
-		this.toDispose = dispose(this.toDispose);
-	}
 }
 
 export class ConfigureAction extends AbstractDebugAction {
@@ -74,7 +65,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
-		this.toDispose.push(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
+		this._register(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
 		this.updateClass();
 	}
 
@@ -120,10 +111,10 @@ export class StartAction extends AbstractDebugAction {
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 
-		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement()));
-		this.toDispose.push(this.debugService.onDidNewSession(() => this.updateEnablement()));
-		this.toDispose.push(this.debugService.onDidEndSession(() => this.updateEnablement()));
-		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
+		this._register(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement()));
+		this._register(this.debugService.onDidNewSession(() => this.updateEnablement()));
+		this._register(this.debugService.onDidEndSession(() => this.updateEnablement()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
 	run(): Promise<boolean> {
@@ -200,7 +191,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action remove-all', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
+		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
 	run(): Promise<any> {
@@ -219,7 +210,7 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action enable-all-breakpoints', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
+		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
 	run(): Promise<any> {
@@ -238,7 +229,7 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action disable-all-breakpoints', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
+		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
 	run(): Promise<any> {
@@ -260,7 +251,7 @@ export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 		super(id, label, 'debug-action breakpoints-activate', debugService, keybindingService);
 		this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
 
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => {
+		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => {
 			this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
 			this.updateEnablement();
 		}));
@@ -281,7 +272,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, '', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
+		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
 	run(): Promise<any> {
@@ -301,7 +292,7 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-function-breakpoint', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
+		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
 	run(): Promise<any> {
@@ -321,8 +312,8 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-watch-expression', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(() => this.updateEnablement()));
+		this._register(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
+		this._register(this.debugService.getViewModel().onDidSelectExpression(() => this.updateEnablement()));
 	}
 
 	run(): Promise<any> {
@@ -342,7 +333,7 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action remove-all', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
+		this._register(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
 	}
 
 	run(): Promise<any> {
