@@ -129,7 +129,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
 				this._tryListenOnPipe(),
-				!this._environmentService.args['disable-inspect'] ? this._tryFindDebugPort() : 0
+				this._tryFindDebugPort()
 			]).then(data => {
 				const pipeName = data[0];
 				const portNumber = data[1];
