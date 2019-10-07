@@ -9,6 +9,7 @@ import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { equals } from 'vs/base/common/arrays';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -131,17 +132,7 @@ export class RenderLineInput {
 			return false;
 		}
 
-		if (otherSelections.length !== this.selectionsOnLine.length) {
-			return false;
-		}
-
-		for (let i = 0; i < this.selectionsOnLine.length; i++) {
-			if (!this.selectionsOnLine[i].equals(otherSelections[i])) {
-				return false;
-			}
-		}
-
-		return true;
+		return equals(this.selectionsOnLine, otherSelections, (a, b) => a.equals(b));
 	}
 
 	public equals(other: RenderLineInput): boolean {

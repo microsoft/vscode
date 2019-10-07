@@ -10,7 +10,7 @@ import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto } from './extHost.protocol';
-import { sortedDiff } from 'vs/base/common/arrays';
+import { sortedDiff, equals } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
@@ -126,18 +126,8 @@ function commandEquals(a: vscode.Command, b: vscode.Command): boolean {
 		&& (a.arguments && b.arguments ? compareArgs(a.arguments, b.arguments) : a.arguments === b.arguments);
 }
 
-function commandListEquals(a: vscode.Command[], b: vscode.Command[]): boolean {
-	if (a.length !== b.length) {
-		return false;
-	}
-
-	for (let i = 0; i < a.length; i++) {
-		if (!commandEquals(a[i], b[i])) {
-			return false;
-		}
-	}
-
-	return true;
+function commandListEquals(a: readonly vscode.Command[], b: readonly vscode.Command[]): boolean {
+	return equals(a, b, commandEquals);
 }
 
 export interface IValidateInput {
