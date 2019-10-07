@@ -314,13 +314,18 @@ function match(themeSelector: TokenStylingRule | TokenStylingDefaultRule, classi
 const tokenClassificationRegistry = new TokenClassificationRegistry();
 platform.Registry.add(Extensions.TokenClassificationContribution, tokenClassificationRegistry);
 
-export function registerTokenType(id: string, defaults: TokenStyleDefaults | null, description: string, deprecationMessage?: string): string {
+export function registerTokenType(id: string, description: string, scopesToProbe: ProbeScope[] = [], extendsTC: string | null = null, deprecationMessage?: string): string {
 	tokenClassificationRegistry.registerTokenType(id, description, deprecationMessage);
 
-	if (defaults) {
+	if (scopesToProbe || extendsTC) {
 		const classification = tokenClassificationRegistry.getTokenClassification(id, []);
-		tokenClassificationRegistry.registerTokenStyleDefault(classification!, defaults);
+		tokenClassificationRegistry.registerTokenStyleDefault(classification!, { scopesToProbe, light: extendsTC, dark: extendsTC, hc: extendsTC });
 	}
+	return id;
+}
+
+export function registerTokenModifier(id: string, description: string, deprecationMessage?: string): string {
+	tokenClassificationRegistry.registerTokenModifier(id, description, deprecationMessage);
 	return id;
 }
 
@@ -328,15 +333,40 @@ export function getTokenClassificationRegistry(): ITokenClassificationRegistry {
 	return tokenClassificationRegistry;
 }
 
-export const comments = registerTokenType('comments', { scopesToProbe: [['comment']], dark: null, light: null, hc: null }, nls.localize('comments', "Token style for comments."));
-export const strings = registerTokenType('strings', { scopesToProbe: [['string']], dark: null, light: null, hc: null }, nls.localize('strings', "Token style for strings."));
-export const keywords = registerTokenType('keywords', { scopesToProbe: [['keyword.control'], ['storage'], ['storage.type']], dark: null, light: null, hc: null }, nls.localize('keywords', "Token style for keywords."));
-export const numbers = registerTokenType('numbers', { scopesToProbe: [['constant.numeric']], dark: null, light: null, hc: null }, nls.localize('numbers', "Token style for numbers."));
-export const types = registerTokenType('types', { scopesToProbe: [['entity.name.type'], ['entity.name.class'], ['support.type'], ['support.class']], dark: null, light: null, hc: null }, nls.localize('types', "Token style for types."));
-export const functions = registerTokenType('functions', { scopesToProbe: [['entity.name.function'], ['support.function']], dark: null, light: null, hc: null }, nls.localize('functions', "Token style for functions."));
-export const variables = registerTokenType('variables', { scopesToProbe: [['variable'], ['entity.name.variable']], dark: null, light: null, hc: null }, nls.localize('variables', "Token style for variables."));
+export const comments = registerTokenType('comments', nls.localize('comments', "Token style for comments."), [['comment']]);
+export const strings = registerTokenType('strings', nls.localize('strings', "Token style for strings."), [['string']]);
+export const keywords = registerTokenType('keywords', nls.localize('keywords', "Token style for keywords."), [['keyword.control']]);
+export const numbers = registerTokenType('numbers', nls.localize('numbers', "Token style for numbers."), [['constant.numeric']]);
+export const regexp = registerTokenType('regexp', nls.localize('regexp', "Token style for regular expressions."), [['constant.regexp']]);
+export const operators = registerTokenType('operators', nls.localize('operator', "Token style for operators."), [['keyword.operator']]);
 
+export const namespaces = registerTokenType('namespaces', nls.localize('namespace', "Token style for namespaces."), [['entity.name.namespace']]);
 
+export const types = registerTokenType('types', nls.localize('types', "Token style for types."), [['entity.name.type'], ['entity.name.class'], ['support.type'], ['support.class']]);
+export const structs = registerTokenType('structs', nls.localize('struct', "Token style for struct."), [['storage.type.struct']], types);
+export const classes = registerTokenType('classes', nls.localize('class', "Token style for classes."), [['ntity.name.class']], types);
+export const interfaces = registerTokenType('interfaces', nls.localize('interface', "Token style for interfaces."), undefined, types);
+export const enums = registerTokenType('enums', nls.localize('enum', "Token style for enums."), undefined, types);
+export const parameterTypes = registerTokenType('parameterTypes', nls.localize('parameterType', "Token style for parameterTypes."), undefined, types);
+
+export const functions = registerTokenType('functions', nls.localize('functions', "Token style for functions."), [['entity.name.function'], ['support.function']]);
+export const macros = registerTokenType('macros', nls.localize('macro', "Token style for macros."), undefined, functions);
+
+export const variables = registerTokenType('variables', nls.localize('variables', "Token style for variables."), [['variable'], ['entity.name.variable']]);
+export const constants = registerTokenType('constants', nls.localize('constants', "Token style for constants."), undefined, variables);
+export const parameters = registerTokenType('parameters', nls.localize('parameters', "Token style for parameters."), undefined, variables);
+export const property = registerTokenType('properties', nls.localize('properties', "Token style for properties."), undefined, variables);
+
+export const labels = registerTokenType('labels', nls.localize('labels', "Token style for labels."), undefined);
+
+export const m_declaration = registerTokenModifier('declaration', nls.localize('declaration', "Token modifier for declarations."), undefined);
+export const m_documentation = registerTokenModifier('documentation', nls.localize('documentation', "Token modifier for documentation."), undefined);
+export const m_member = registerTokenModifier('member', nls.localize('member', "Token modifier for member."), undefined);
+export const m_static = registerTokenModifier('static', nls.localize('static', "Token modifier for statics."), undefined);
+export const m_abstract = registerTokenModifier('abstract', nls.localize('abstract', "Token modifier for abstracts."), undefined);
+export const m_deprecated = registerTokenModifier('deprecated', nls.localize('deprecated', "Token modifier for deprecated."), undefined);
+export const m_modification = registerTokenModifier('modification', nls.localize('modification', "Token modifier for modification."), undefined);
+export const m_async = registerTokenModifier('async', nls.localize('async', "Token modifier for async."), undefined);
 
 function bitCount(u: number) {
 	// https://blogs.msdn.microsoft.com/jeuge/2005/06/08/bit-fiddling-3/
