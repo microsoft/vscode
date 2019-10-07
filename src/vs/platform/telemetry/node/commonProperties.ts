@@ -7,7 +7,6 @@ import * as Platform from 'vs/base/common/platform';
 import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
 import { readFile } from 'vs/base/node/pfs';
-import { mixin } from 'vs/base/common/objects';
 
 export async function resolveCommonProperties(
 	commit: string | undefined,
@@ -15,8 +14,7 @@ export async function resolveCommonProperties(
 	machineId: string | undefined,
 	msftInternalDomains: string[] | undefined,
 	installSourcePath: string,
-	product?: string,
-	resolveAdditionalProperties?: () => { [key: string]: any }
+	product?: string
 ): Promise<{ [name: string]: string | boolean | undefined; }> {
 	const result: { [name: string]: string | boolean | undefined; } = Object.create(null);
 
@@ -78,10 +76,6 @@ export async function resolveCommonProperties(
 		result['common.source'] = contents.slice(0, 30);
 	} catch (error) {
 		// ignore error
-	}
-
-	if (resolveAdditionalProperties) {
-		mixin(result, resolveAdditionalProperties());
 	}
 
 	return result;
