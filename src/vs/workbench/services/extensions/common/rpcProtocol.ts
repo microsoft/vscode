@@ -588,12 +588,7 @@ class MessageBuffer {
 class MessageIO {
 
 	private static _arrayContainsBuffer(arr: any[]): boolean {
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (arr[i] instanceof VSBuffer) {
-				return true;
-			}
-		}
-		return false;
+		return arr.some(value => value instanceof VSBuffer);
 	}
 
 	public static serializeRequest(req: number, rpcId: number, method: string, args: any[], usesCancellationToken: boolean, replacer: JSONStringifyReplacer | null): VSBuffer {
