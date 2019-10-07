@@ -22,6 +22,9 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);
 
+		this._originalModel = originalModel;
+		this._modifiedModel = modifiedModel;
+
 		this.updateTextDiffEditorModel();
 	}
 

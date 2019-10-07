@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as objects from 'vs/base/common/objects';
-import * as types from 'vs/base/common/types';
-import * as DOM from 'vs/base/browser/dom';
+import { distinct, deepClone, assign } from 'vs/base/common/objects';
+import { isObject, assertIsDefined } from 'vs/base/common/types';
+import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorInput, EditorOptions, IEditorMemento, ITextEditor } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -37,8 +37,8 @@ export interface IEditorConfiguration {
  * be subclassed and not instantiated.
  */
 export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
-	private editorControl: IEditor;
-	private _editorContainer: HTMLElement;
+	private editorControl: IEditor | undefined;
+	private _editorContainer: HTMLElement | undefined;
 	private hasPendingConfigurationChange: boolean | undefined;
 	private lastAppliedEditorOptions?: IEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
@@ -96,8 +96,8 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
 
 		// Specific editor options always overwrite user configuration
-		const editorConfiguration: IEditorOptions = types.isObject(configuration.editor) ? objects.deepClone(configuration.editor) : Object.create(null);
-		objects.assign(editorConfiguration, this.getConfigurationOverrides());
+		const editorConfiguration: IEditorOptions = isObject(configuration.editor) ? deepClone(configuration.editor) : Object.create(null);
+		assign(editorConfiguration, this.getConfigurationOverrides());
 
 		// ARIA label
 		editorConfiguration.ariaLabel = this.computeAriaLabel();
@@ -111,7 +111,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		// Apply group information to help identify in which group we are
 		if (ariaLabel) {
 			if (this.group) {
-				ariaLabel = nls.localize('editorLabelWithGroup', "{0}, {1}.", ariaLabel, this.group.label);
+				ariaLabel = localize('editorLabelWithGroup', "{0}, {1}.", ariaLabel, this.group.label);
 			}
 		}
 
@@ -120,7 +120,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 	protected getConfigurationOverrides(): IEditorOptions {
 		const overrides = {};
-		objects.assign(overrides, {
+		assign(overrides, {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true
@@ -197,33 +197,40 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		// Update editor options after having set the input. We do this because there can be
 		// editor input specific options (e.g. an ARIA label depending on the input showing)
 		this.updateEditorConfiguration();
-		this._editorContainer.setAttribute('aria-label', this.computeAriaLabel());
+
+		const editorContainer = assertIsDefined(this._editorContainer);
+		editorContainer.setAttribute('aria-label', this.computeAriaLabel());
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 
 		// Pass on to Editor
+		const editorControl = assertIsDefined(this.editorControl);
 		if (visible) {
 			this.consumePendingConfigurationChangeEvent();
-			this.editorControl.onVisible();
+			editorControl.onVisible();
 		} else {
-			this.editorControl.onHide();
+			editorControl.onHide();
 		}
 
 		super.setEditorVisible(visible, group);
 	}
 
 	focus(): void {
-		this.editorControl.focus();
-	}
-
-	layout(dimension: DOM.Dimension): void {
 
 		// Pass on to Editor
-		this.editorControl.layout(dimension);
+		const editorControl = assertIsDefined(this.editorControl);
+		editorControl.focus();
 	}
 
-	getControl(): IEditor {
+	layout(dimension: Dimension): void {
+
+		// Pass on to Editor
+		const editorControl = assertIsDefined(this.editorControl);
+		editorControl.layout(dimension);
+	}
+
+	getControl(): IEditor | undefined {
 		return this.editorControl;
 	}
 
@@ -296,7 +303,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		// have been applied to the editor directly.
 		let editorSettingsToApply = editorConfiguration;
 		if (this.lastAppliedEditorOptions) {
-			editorSettingsToApply = objects.distinct(this.lastAppliedEditorOptions, editorSettingsToApply);
+			editorSettingsToApply = distinct(this.lastAppliedEditorOptions, editorSettingsToApply);
 		}
 
 		if (Object.keys(editorSettingsToApply).length > 0) {

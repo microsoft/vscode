@@ -16,10 +16,11 @@ import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/br
 import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
 export class NotificationsList extends Themable {
-	private listContainer: HTMLElement;
-	private list: WorkbenchList<INotificationViewItem>;
+	private listContainer: HTMLElement | undefined;
+	private list: WorkbenchList<INotificationViewItem> | undefined;
 	private viewModel: INotificationViewItem[];
 	private isVisible: boolean | undefined;
 
@@ -38,7 +39,8 @@ export class NotificationsList extends Themable {
 	show(focus?: boolean): void {
 		if (this.isVisible) {
 			if (focus) {
-				this.list.domFocus();
+				const list = assertIsDefined(this.list);
+				list.domFocus();
 			}
 
 			return; // already visible
@@ -54,7 +56,8 @@ export class NotificationsList extends Themable {
 
 		// Focus
 		if (focus) {
-			this.list.domFocus();
+			const list = assertIsDefined(this.list);
+			list.domFocus();
 		}
 	}
 
@@ -70,7 +73,7 @@ export class NotificationsList extends Themable {
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
 
 		// List
-		this.list = this._register(this.instantiationService.createInstance(
+		const list = this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList,
 			'NotificationsList',
 			this.listContainer,
@@ -85,7 +88,7 @@ export class NotificationsList extends Themable {
 
 		// Context menu to copy message
 		const copyAction = this._register(this.instantiationService.createInstance(CopyNotificationMessageAction, CopyNotificationMessageAction.ID, CopyNotificationMessageAction.LABEL));
-		this._register((this.list.onContextMenu(e => {
+		this._register((list.onContextMenu(e => {
 			if (!e.element) {
 				return;
 			}
@@ -99,27 +102,27 @@ export class NotificationsList extends Themable {
 		})));
 
 		// Toggle on double click
-		this._register((this.list.onMouseDblClick(event => (event.element as INotificationViewItem).toggle())));
+		this._register((list.onMouseDblClick(event => (event.element as INotificationViewItem).toggle())));
 
 		// Clear focus when DOM focus moves out
 		// Use document.hasFocus() to not clear the focus when the entire window lost focus
 		// This ensures that when the focus comes back, the notification is still focused
-		const listFocusTracker = this._register(trackFocus(this.list.getHTMLElement()));
+		const listFocusTracker = this._register(trackFocus(list.getHTMLElement()));
 		this._register(listFocusTracker.onDidBlur(() => {
 			if (document.hasFocus()) {
-				this.list.setFocus([]);
+				list.setFocus([]);
 			}
 		}));
 
 		// Context key
-		NotificationFocusedContext.bindTo(this.list.contextKeyService);
+		NotificationFocusedContext.bindTo(list.contextKeyService);
 
 		// Only allow for focus in notifications, as the
 		// selection is too strong over the contents of
 		// the notification
-		this._register(this.list.onSelectionChange(e => {
+		this._register(list.onSelectionChange(e => {
 			if (e.indexes.length > 0) {
-				this.list.setSelection([]);
+				list.setSelection([]);
 			}
 		}));
 
@@ -129,23 +132,24 @@ export class NotificationsList extends Themable {
 	}
 
 	updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
-		const listHasDOMFocus = isAncestor(document.activeElement, this.listContainer);
+		const [list, listContainer] = assertAllDefined(this.list, this.listContainer);
+		const listHasDOMFocus = isAncestor(document.activeElement, listContainer);
 
 		// Remember focus and relative top of that item
-		const focusedIndex = this.list.getFocus()[0];
+		const focusedIndex = list.getFocus()[0];
 		const focusedItem = this.viewModel[focusedIndex];
 
 		let focusRelativeTop: number | null = null;
 		if (typeof focusedIndex === 'number') {
-			focusRelativeTop = this.list.getRelativeTop(focusedIndex);
+			focusRelativeTop = list.getRelativeTop(focusedIndex);
 		}
 
 		// Update view model
 		this.viewModel.splice(start, deleteCount, ...items);
 
 		// Update list
-		this.list.splice(start, deleteCount, items);
-		this.list.layout();
+		list.splice(start, deleteCount, items);
+		list.layout();
 
 		// Hide if no more notifications to show
 		if (this.viewModel.length === 0) {
@@ -167,15 +171,15 @@ export class NotificationsList extends Themable {
 			}
 
 			if (typeof focusRelativeTop === 'number') {
-				this.list.reveal(indexToFocus, focusRelativeTop);
+				list.reveal(indexToFocus, focusRelativeTop);
 			}
 
-			this.list.setFocus([indexToFocus]);
+			list.setFocus([indexToFocus]);
 		}
 
 		// Restore DOM focus if we had focus before
 		if (listHasDOMFocus) {
-			this.list.domFocus();
+			list.domFocus();
 		}
 	}
 
@@ -204,7 +208,7 @@ export class NotificationsList extends Themable {
 	}
 
 	hasFocus(): boolean {
-		if (!this.isVisible || !this.list) {
+		if (!this.isVisible || !this.listContainer) {
 			return false; // hidden
 		}
 
@@ -225,7 +229,7 @@ export class NotificationsList extends Themable {
 	}
 
 	layout(width: number, maxHeight?: number): void {
-		if (this.list) {
+		if (this.listContainer && this.list) {
 			this.listContainer.style.width = `${width}px`;
 
 			if (typeof maxHeight === 'number') {

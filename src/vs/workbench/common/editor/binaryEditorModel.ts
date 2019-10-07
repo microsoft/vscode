@@ -14,7 +14,7 @@ import { MIME_BINARY } from 'vs/base/common/mime';
  * An editor model that just represents a resource that can be loaded.
  */
 export class BinaryEditorModel extends EditorModel {
-	private size: number;
+	private size: number | undefined;
 	private etag: string | undefined;
 	private readonly mime: string;
 
@@ -27,6 +27,7 @@ export class BinaryEditorModel extends EditorModel {
 
 		this.resource = resource;
 		this.name = name;
+		this.mime = MIME_BINARY;
 
 		if (resource.scheme === Schemas.data) {
 			const metadata = DataUri.parseMetaData(resource);
@@ -34,7 +35,10 @@ export class BinaryEditorModel extends EditorModel {
 				this.size = Number(metadata.get(DataUri.META_DATA_SIZE));
 			}
 
-			this.mime = metadata.get(DataUri.META_DATA_MIME) || MIME_BINARY;
+			const metadataMime = metadata.get(DataUri.META_DATA_MIME);
+			if (metadataMime) {
+				this.mime = metadataMime;
+			}
 		}
 	}
 
@@ -55,7 +59,7 @@ export class BinaryEditorModel extends EditorModel {
 	/**
 	 * The size of the binary resource if known.
 	 */
-	getSize(): number {
+	getSize(): number | undefined {
 		return this.size;
 	}
 

@@ -54,7 +54,7 @@ import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbe
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -1049,20 +1049,25 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 						return;
 					}
 
-					this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel);
+					const editor = assertIsDefined(this.getControl());
+					editor.setModel((<ResourceEditorModel>editorModel).textEditorModel);
 				}));
 	}
 
 	clearInput(): void {
 		// Clear Model
-		this.getControl().setModel(null);
+		const editor = this.getControl();
+		if (editor) {
+			editor.setModel(null);
+		}
 
 		// Pass to super
 		super.clearInput();
 	}
 
 	layout(dimension: DOM.Dimension) {
-		this.getControl().layout(dimension);
+		const editor = assertIsDefined(this.getControl());
+		editor.layout(dimension);
 	}
 
 	protected getAriaLabel(): string {

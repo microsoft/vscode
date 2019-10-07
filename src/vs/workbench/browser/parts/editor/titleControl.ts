@@ -39,7 +39,7 @@ import { Themable } from 'vs/workbench/common/theme';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
-import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IToolbarActions {
@@ -57,7 +57,7 @@ export abstract class TitleControl extends Themable {
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
 
-	private editorActionsToolbar: ToolBar;
+	private editorActionsToolbar: ToolBar | undefined;
 
 	private resourceContext: ResourceContextKey;
 	private editorPinnedContext: IContextKey<boolean>;
@@ -188,7 +188,8 @@ export abstract class TitleControl extends Themable {
 			primaryEditorActions.some(action => action instanceof ExecuteCommandAction) || // execute command actions can have the same ID but different arguments
 			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/Microsoft/vscode/issues/16298
 		) {
-			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
+			const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+			editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
 
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
 			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
@@ -241,7 +242,9 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected clearEditorActionsToolbar(): void {
-		this.editorActionsToolbar.setActions([], [])();
+		if (this.editorActionsToolbar) {
+			this.editorActionsToolbar.setActions([], [])();
+		}
 
 		this.currentPrimaryEditorActionIds = [];
 		this.currentSecondaryEditorActionIds = [];

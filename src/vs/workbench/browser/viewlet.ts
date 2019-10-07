@@ -21,6 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { AbstractTree } from 'vs/base/browser/ui/tree/abstractTree';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -76,7 +77,7 @@ export const Extensions = {
 };
 
 export class ViewletRegistry extends CompositeRegistry<Viewlet> {
-	private defaultViewletId!: string;
+	private defaultViewletId: string | undefined;
 
 	/**
 	 * Registers a viewlet to the platform.
@@ -120,7 +121,7 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	 * Gets the id of the viewlet that should open on startup by default.
 	 */
 	getDefaultViewletId(): string {
-		return this.defaultViewletId;
+		return assertIsDefined(this.defaultViewletId);
 	}
 }
 

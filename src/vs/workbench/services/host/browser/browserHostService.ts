@@ -66,22 +66,20 @@ export class BrowserHostService extends Disposable implements IHostService {
 				async open() { }
 			};
 		}
-
-		this.registerListeners();
 	}
 
-	private registerListeners(): void {
+	private _onDidChangeFocus: Event<boolean> | undefined;
+	get onDidChangeFocus(): Event<boolean> {
+		if (!this._onDidChangeFocus) {
+			const focusTracker = this._register(trackFocus(window));
+			this._onDidChangeFocus = Event.any(
+				Event.map(focusTracker.onDidFocus, () => this.hasFocus),
+				Event.map(focusTracker.onDidBlur, () => this.hasFocus)
+			);
+		}
 
-		// Track Focus on Window
-		const focusTracker = this._register(trackFocus(window));
-		this._onDidChangeFocus = Event.any(
-			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
-			Event.map(focusTracker.onDidBlur, () => this.hasFocus)
-		);
+		return this._onDidChangeFocus;
 	}
-
-	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
-	private _onDidChangeFocus: Event<boolean>;
 
 	get hasFocus(): boolean {
 		return document.hasFocus();

@@ -32,6 +32,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { values } from 'vs/base/common/map';
+import { assertIsDefined } from 'vs/base/common/types';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -337,14 +338,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	//#endregion
 
-	private styleElement: HTMLStyleElement;
+	private styleElement: HTMLStyleElement | undefined;
 
 	private pendingEntries: IPendingStatusbarEntry[] = [];
 
 	private readonly viewModel: StatusbarViewModel;
 
-	private leftItemsContainer: HTMLElement;
-	private rightItemsContainer: HTMLElement;
+	private leftItemsContainer: HTMLElement | undefined;
+	private rightItemsContainer: HTMLElement | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -478,7 +479,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			...this.viewModel.getEntries(StatusbarAlignment.LEFT),
 			...this.viewModel.getEntries(StatusbarAlignment.RIGHT).reverse() // reversing due to flex: row-reverse
 		].forEach(entry => {
-			const target = entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer;
+			const target = assertIsDefined(entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
 
 			target.appendChild(entry.container);
 		});
@@ -491,7 +492,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			entries.reverse(); // reversing due to flex: row-reverse
 		}
 
-		const target = alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer;
+		const target = assertIsDefined(alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
 
 		// find an entry that has lower priority than the new one
 		// and then insert the item before that one
