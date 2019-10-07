@@ -255,16 +255,6 @@ export class SimpleFileDialog {
 				homedir = resources.dirname(this.options.defaultUri);
 				this.trailing = resources.basename(this.options.defaultUri);
 			}
-			// append extension
-			if (isSave && !ext && this.options.filters) {
-				for (let i = 0; i < this.options.filters.length; i++) {
-					if (this.options.filters[i].extensions[0] !== '*') {
-						ext = '.' + this.options.filters[i].extensions[0];
-						this.trailing = this.trailing ? this.trailing + ext : ext;
-						break;
-					}
-				}
-			}
 		}
 
 		return new Promise<URI | undefined>(async (resolve) => {
