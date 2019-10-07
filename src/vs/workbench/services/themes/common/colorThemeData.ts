@@ -20,12 +20,12 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { startsWith } from 'vs/base/common/strings';
-import { Extensions as TokenStyleRegistryExtensions, TokenStyle, TokenClassification, ITokenClassificationRegistry, ProbeScope, TokenStylingRule } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TokenStyle, TokenClassification, ProbeScope, TokenStylingRule, getTokenClassificationRegistry } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 
 let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
-let tokenClassificationRegistry = Registry.as<ITokenClassificationRegistry>(TokenStyleRegistryExtensions.TokenClassificationContribution);
+let tokenClassificationRegistry = getTokenClassificationRegistry();
 
 const tokenGroupToScopesMap = {
 	comments: ['comment'],
@@ -115,7 +115,7 @@ export class ColorThemeData implements IColorTheme {
 
 	public getTokenStyle(tokenClassification: TokenClassification, useDefault?: boolean): TokenStyle | undefined {
 		// todo: cache results
-		return tokenClassificationRegistry.resolveTokenStyle(tokenClassification, this.tokenStylingRules, !!useDefault, this);
+		return tokenClassificationRegistry.resolveTokenStyle(tokenClassification, this.tokenStylingRules, useDefault !== false, this);
 	}
 
 	public getDefault(colorId: ColorIdentifier): Color | undefined {
@@ -198,6 +198,10 @@ export class ColorThemeData implements IColorTheme {
 		if (types.isObject(themeSpecificTokenColors)) {
 			this.addCustomTokenColors(themeSpecificTokenColors);
 		}
+	}
+
+	public setTokenStyleRules(tokenStylingRules: TokenStylingRule[]) {
+		this.tokenStylingRules = tokenStylingRules;
 	}
 
 	private addCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
@@ -489,9 +493,14 @@ function getScopeMatcher(rule: ITokenColorizationRule): Matcher<ProbeScope> {
 		return noMatch;
 	}
 	const matchers: MatcherWithPriority<ProbeScope>[] = [];
-	for (let rs of ruleScope) {
-		matchers.push(...createMatchers(rs, nameMatcher));
+	if (Array.isArray(ruleScope)) {
+		for (let rs of ruleScope) {
+			createMatchers(rs, nameMatcher, matchers);
+		}
+	} else {
+		createMatchers(ruleScope, nameMatcher, matchers);
 	}
+
 	if (matchers.length === 0) {
 		return noMatch;
 	}

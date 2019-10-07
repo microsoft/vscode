@@ -14,8 +14,7 @@ export interface Matcher<T> {
 	(matcherInput: T): number;
 }
 
-export function createMatchers<T>(selector: string, matchesName: (names: string[], matcherInput: T) => number): MatcherWithPriority<T>[] {
-	const results = <MatcherWithPriority<T>[]>[];
+export function createMatchers<T>(selector: string, matchesName: (names: string[], matcherInput: T) => number, results: MatcherWithPriority<T>[]): void {
 	const tokenizer = newTokenizer(selector);
 	let token = tokenizer.next();
 	while (token !== null) {
@@ -38,7 +37,6 @@ export function createMatchers<T>(selector: string, matchesName: (names: string[
 		}
 		token = tokenizer.next();
 	}
-	return results;
 
 	function parseOperand(): Matcher<T> | null {
 		if (token === '-') {

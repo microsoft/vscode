@@ -108,6 +108,8 @@ export interface ITokenClassificationRegistry {
 	getTokenClassificationFromString(str: TokenClassificationString): TokenClassification | undefined;
 	getTokenClassification(type: string, modifiers: string[]): TokenClassification | undefined;
 
+	getTokenStylingRule(classification: TokenClassification | string | undefined, value: TokenStyle): TokenStylingRule | undefined;
+
 	/**
 	 * Register a TokenStyle default to the registry.
 	 * @param selector The rule selector
@@ -197,9 +199,18 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		return undefined;
 	}
 
+	public getTokenStylingRule(classification: TokenClassification | string | undefined, value: TokenStyle): TokenStylingRule | undefined {
+		if (typeof classification === 'string') {
+			classification = this.getTokenClassificationFromString(classification);
+		}
+		if (classification) {
+			return { classification, matchScore: getTokenStylingScore(classification), value };
+		}
+		return undefined;
+	}
+
 	public registerTokenStyleDefault(classification: TokenClassification, defaults: TokenStyleDefaults): void {
-		const matchScore = bitCount(classification.modifiers) + ((classification.type !== TOKEN_TYPE_WILDCARD_NUM) ? 1 : 0);
-		this.tokenStylingDefaultRules.push({ classification, matchScore, defaults });
+		this.tokenStylingDefaultRules.push({ classification, matchScore: getTokenStylingScore(classification), defaults });
 	}
 
 	public deregisterTokenType(id: string): void {
@@ -233,12 +244,20 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		};
 
 		function _processStyle(matchScore: number, style: TokenStyle) {
-			for (let p in result) {
+			if (style.foreground && score.foreground <= matchScore) {
+				score.foreground = matchScore;
+				result.foreground = style.foreground;
+			}
+			for (let p of ['bold', 'underline', 'italic']) {
 				const property = p as keyof TokenStyle;
 				const info = style[property];
-				if (info !== undefined && score[property] <= matchScore) {
-					score[property] = matchScore;
-					result[property] = info;
+				if (info !== undefined) {
+					if (score[property] < matchScore) {
+						score[property] = matchScore;
+						result[property] = info;
+					} else if (score[property] === matchScore) {
+						result[property] = result[property] || info;
+					}
 				}
 			}
 		}
@@ -300,7 +319,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 function match(themeSelector: TokenStylingRule | TokenStylingDefaultRule, classification: TokenClassification): number {
 	const selectorType = themeSelector.classification.type;
-	if (selectorType !== TOKEN_TYPE_WILDCARD_NUM && selectorType === classification.type) {
+	if (selectorType !== TOKEN_TYPE_WILDCARD_NUM && selectorType !== classification.type) {
 		return -1;
 	}
 	const selectorModifier = themeSelector.classification.modifiers;
@@ -372,4 +391,8 @@ function bitCount(u: number) {
 	// https://blogs.msdn.microsoft.com/jeuge/2005/06/08/bit-fiddling-3/
 	const uCount = u - ((u >> 1) & 0o33333333333) - ((u >> 2) & 0o11111111111);
 	return ((uCount + (uCount >> 3)) & 0o30707070707) % 63;
+}
+
+function getTokenStylingScore(classification: TokenClassification) {
+	return bitCount(classification.modifiers) + ((classification.type !== TOKEN_TYPE_WILDCARD_NUM) ? 1 : 0);
 }
