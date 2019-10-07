@@ -37,6 +37,43 @@ interface IKeydownEvent {
 	repeat: boolean;
 }
 
+class WebviewTagHandle extends Disposable {
+
+	private _webContents: undefined | WebContents | 'destroyed';
+
+	public constructor(
+		public readonly webview: WebviewTag,
+	) {
+		super();
+
+		this._register(addDisposableListener(this.webview, 'destroyed', () => {
+			this._webContents = 'destroyed';
+		}));
+
+		this._register(addDisposableListener(this.webview, 'did-start-loading', once(() => {
+			const contents = this.webContents;
+			if (contents) {
+				this._onFirstLoad.fire(contents);
+			}
+		})));
+	}
+
+	private readonly _onFirstLoad = this._register(new Emitter<WebContents>());
+	public readonly onFirstLoad = this._onFirstLoad.event;
+
+	public get webContents(): WebContents | undefined {
+		if (this._webContents === 'destroyed') {
+			return undefined;
+		}
+		if (this._webContents) {
+			return this._webContents;
+		}
+		this._webContents = this.webview.getWebContents();
+		return this._webContents;
+	}
+
+}
+
 type OnBeforeRequestDelegate = (details: OnBeforeRequestDetails) => Promise<Response | undefined>;
 type OnHeadersReceivedDelegate = (details: OnHeadersReceivedDetails) => { cancel: boolean; } | undefined;
 
@@ -46,16 +83,11 @@ class WebviewSession extends Disposable {
 	private readonly _onHeadersReceivedDelegates: Array<OnHeadersReceivedDelegate> = [];
 
 	public constructor(
-		webview: WebviewTag,
+		webviewHandle: WebviewTagHandle,
 	) {
 		super();
 
-		this._register(addDisposableListener(webview, 'did-start-loading', once(() => {
-			const contents = webview.getWebContents();
-			if (!contents) {
-				return;
-			}
-
+		this._register(webviewHandle.onFirstLoad(contents => {
 			contents.session.webRequest.onBeforeRequest(async (details, callback) => {
 				for (const delegate of this._onBeforeRequestDelegates) {
 					const result = await delegate(details);
@@ -77,7 +109,7 @@ class WebviewSession extends Disposable {
 				}
 				callback({ cancel: false, responseHeaders: details.responseHeaders });
 			});
-		})));
+		}));
 	}
 
 	public onBeforeRequest(delegate: OnBeforeRequestDelegate) {
@@ -91,26 +123,19 @@ class WebviewSession extends Disposable {
 
 class WebviewProtocolProvider extends Disposable {
 	constructor(
-		webview: WebviewTag,
+		handle: WebviewTagHandle,
 		private readonly _getExtensionLocation: () => URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
 		private readonly _fileService: IFileService,
 	) {
 		super();
 
-		this._register(addDisposableListener(webview, 'did-start-loading', once(() => {
-			const contents = webview.getWebContents();
-			if (contents) {
-				this.registerProtocols(contents);
-			}
-		})));
+		this._register(handle.onFirstLoad(contents => {
+			this.registerProtocols(contents);
+		}));
 	}
 
 	private registerProtocols(contents: WebContents) {
-		if (contents.isDestroyed()) {
-			return;
-		}
-
 		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._getExtensionLocation(), () =>
 			this._getLocalResourceRoots()
 		);
@@ -142,25 +167,22 @@ class WebviewKeyboardHandler extends Disposable {
 	private _ignoreMenuShortcut = false;
 
 	constructor(
-		private readonly _webview: WebviewTag
+		private readonly _webviewHandle: WebviewTagHandle
 	) {
 		super();
 
 		if (this.shouldToggleMenuShortcutsEnablement) {
-			this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
-				const contents = this.getWebContents();
-				if (contents) {
-					contents.on('before-input-event', (_event, input) => {
-						if (input.type === 'keyDown' && document.activeElement === this._webview) {
-							this._ignoreMenuShortcut = input.control || input.meta;
-							this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
-						}
-					});
-				}
+			this._register(_webviewHandle.onFirstLoad(contents => {
+				contents.on('before-input-event', (_event, input) => {
+					if (input.type === 'keyDown' && document.activeElement === this._webviewHandle.webview) {
+						this._ignoreMenuShortcut = input.control || input.meta;
+						this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
+					}
+				});
 			}));
 		}
 
-		this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
+		this._register(addDisposableListener(this._webviewHandle.webview, 'ipc-message', (event) => {
 			switch (event.channel) {
 				case 'did-keydown':
 					// Electron: workaround for https://github.com/electron/electron/issues/14258
@@ -188,18 +210,10 @@ class WebviewKeyboardHandler extends Disposable {
 		if (!this.shouldToggleMenuShortcutsEnablement) {
 			return;
 		}
-		const contents = this.getWebContents();
+		const contents = this._webviewHandle.webContents;
 		if (contents) {
 			contents.setIgnoreMenuShortcuts(value);
 		}
-	}
-
-	private getWebContents(): WebContents | undefined {
-		const contents = this._webview.getWebContents();
-		if (contents && !contents.isDestroyed()) {
-			return contents;
-		}
-		return undefined;
 	}
 
 	private handleKeydown(event: IKeydownEvent): void {
@@ -207,7 +221,7 @@ class WebviewKeyboardHandler extends Disposable {
 		const emulatedKeyboardEvent = new KeyboardEvent('keydown', event);
 		// Force override the target
 		Object.defineProperty(emulatedKeyboardEvent, 'target', {
-			get: () => this._webview
+			get: () => this._webviewHandle.webview
 		});
 		// And re-dispatch
 		window.dispatchEvent(emulatedKeyboardEvent);
@@ -281,10 +295,12 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			}));
 		});
 
-		const session = this._register(new WebviewSession(this._webview));
+		const webviewAndContents = new WebviewTagHandle(this._webview);
+
+		const session = this._register(new WebviewSession(webviewAndContents));
 
 		this._register(new WebviewProtocolProvider(
-			this._webview,
+			webviewAndContents,
 			() => this.extension ? this.extension.location : undefined,
 			() => (this.content.options.localResourceRoots || []),
 			fileService));
@@ -296,7 +312,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			tunnelService,
 		));
 
-		this._register(new WebviewKeyboardHandler(this._webview));
+		this._register(new WebviewKeyboardHandler(webviewAndContents));
 
 		this._register(addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
