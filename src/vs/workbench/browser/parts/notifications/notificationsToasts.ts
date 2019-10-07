@@ -41,8 +41,8 @@ enum ToastVisibility {
 
 export class NotificationsToasts extends Themable {
 
-	private static MAX_WIDTH = 450;
-	private static MAX_NOTIFICATIONS = 3;
+	private static readonly MAX_WIDTH = 450;
+	private static readonly MAX_NOTIFICATIONS = 3;
 
 	private static PURGE_TIMEOUT: { [severity: number]: number } = (() => {
 		const intervals = Object.create(null);

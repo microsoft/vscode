@@ -176,17 +176,17 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		// Part container
 		const container = assertIsDefined(this.getContainer());
 
-		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND);
+		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND);
 
 		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
-		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
-		container.style.borderRightColor = isPositionLeft ? borderColor : null;
-		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : null;
-		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : null;
-		container.style.borderLeftColor = !isPositionLeft ? borderColor : null;
+		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '';
+		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : '';
+		container.style.borderRightColor = isPositionLeft ? borderColor || '' : '';
+		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
+		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
+		container.style.borderLeftColor = !isPositionLeft ? borderColor || '' : '';
 	}
 
 	layout(width: number, height: number): void {

@@ -106,7 +106,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		return editor.getContribution<LinkDetector>(LinkDetector.ID);
 	}
 
-	static RECOMPUTE_TIME = 1000; // ms
+	static readonly RECOMPUTE_TIME = 1000; // ms
 
 	private readonly editor: ICodeEditor;
 	private enabled: boolean;

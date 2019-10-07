@@ -398,8 +398,8 @@ function reactionEquals(one: _.IDragOverReaction, other: _.IDragOverReaction | n
 
 export class TreeView extends HeightMap {
 
-	static BINDING = 'monaco-tree-row';
-	static LOADING_DECORATION_DELAY = 800;
+	static readonly BINDING = 'monaco-tree-row';
+	static readonly LOADING_DECORATION_DELAY = 800;
 
 	private static counter: number = 0;
 	private instance: number;

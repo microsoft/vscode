@@ -304,18 +304,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return EditorConfiguration2.computeOptions(this._validatedOptions, env);
 	}
 
-	private static _primitiveArrayEquals(a: any[], b: any[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 	private static _subsetEquals(base: { [key: string]: any }, subset: { [key: string]: any }): boolean {
 		for (const key in subset) {
 			if (hasOwnProperty.call(subset, key)) {
@@ -326,7 +314,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 					continue;
 				}
 				if (Array.isArray(baseValue) && Array.isArray(subsetValue)) {
-					if (!this._primitiveArrayEquals(baseValue, subsetValue)) {
+					if (!arrays.equals(baseValue, subsetValue)) {
 						return false;
 					}
 					continue;

@@ -44,7 +44,7 @@ export class OutlineIdentityProvider implements IIdentityProvider<OutlineItem> {
 }
 
 export class OutlineGroupTemplate {
-	static id = 'OutlineGroupTemplate';
+	static readonly id = 'OutlineGroupTemplate';
 	constructor(
 		readonly labelContainer: HTMLElement,
 		readonly label: HighlightedLabel,
@@ -52,7 +52,7 @@ export class OutlineGroupTemplate {
 }
 
 export class OutlineElementTemplate {
-	static id = 'OutlineElementTemplate';
+	static readonly id = 'OutlineElementTemplate';
 	constructor(
 		readonly container: HTMLElement,
 		readonly iconLabel: IconLabel,

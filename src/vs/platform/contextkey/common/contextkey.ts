@@ -6,6 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { equals } from 'vs/base/common/arrays';
 
 export const enum ContextKeyExprType {
 	Defined = 1,
@@ -574,15 +575,7 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 
 	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof ContextKeyAndExpr) {
-			if (this.expr.length !== other.expr.length) {
-				return false;
-			}
-			for (let i = 0, len = this.expr.length; i < len; i++) {
-				if (!this.expr[i].equals(other.expr[i])) {
-					return false;
-				}
-			}
-			return true;
+			return equals(this.expr, other.expr, (a, b) => a.equals(b));
 		}
 		return false;
 	}
@@ -674,15 +667,7 @@ export class ContextKeyOrExpr implements ContextKeyExpr {
 
 	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof ContextKeyOrExpr) {
-			if (this.expr.length !== other.expr.length) {
-				return false;
-			}
-			for (let i = 0, len = this.expr.length; i < len; i++) {
-				if (!this.expr[i].equals(other.expr[i])) {
-					return false;
-				}
-			}
-			return true;
+			return equals(this.expr, other.expr, (a, b) => a.equals(b));
 		}
 		return false;
 	}

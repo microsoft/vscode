@@ -20,7 +20,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MarkerNavigationWidget } from './gotoErrorWidget';
 import { compare } from 'vs/base/common/strings';
-import { binarySearch } from 'vs/base/common/arrays';
+import { binarySearch, find } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -173,12 +173,7 @@ class MarkerModel {
 	}
 
 	public findMarkerAtPosition(pos: Position): IMarker | undefined {
-		for (const marker of this._markers) {
-			if (Range.containsPosition(marker, pos)) {
-				return marker;
-			}
-		}
-		return undefined;
+		return find(this._markers, marker => Range.containsPosition(marker, pos));
 	}
 
 	public get total() {

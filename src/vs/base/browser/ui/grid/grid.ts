@@ -9,7 +9,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
 import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize, IGridViewOptions } from './gridview';
 import { Event } from 'vs/base/common/event';
-import { InvisibleSizing } from 'vs/base/browser/ui/splitview/splitview';
 
 export { Orientation, Sizing as GridViewSizing, IViewSize, orthogonal, LayoutPriority } from './gridview';
 

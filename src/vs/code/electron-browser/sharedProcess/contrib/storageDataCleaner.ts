@@ -13,7 +13,7 @@ import { IBackupWorkspacesFormat } from 'vs/platform/backup/node/backup';
 export class StorageDataCleaner extends Disposable {
 
 	// Workspace/Folder storage names are MD5 hashes (128bits / 4 due to hex presentation)
-	private static NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
+	private static readonly NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService

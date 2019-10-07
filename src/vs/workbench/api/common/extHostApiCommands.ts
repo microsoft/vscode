@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
@@ -27,7 +27,7 @@ export class ExtHostApiCommands {
 	}
 
 	private _commands: ExtHostCommands;
-	private _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
 	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
@@ -288,7 +288,7 @@ export class ExtHostApiCommands {
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
 		const disposable = this._commands.registerCommand(false, id, handler, this, description);
-		this._disposables.push(disposable);
+		this._disposables.add(disposable);
 	}
 
 	/**

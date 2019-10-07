@@ -708,10 +708,10 @@ export class ExtensionsListView extends ViewletPanel {
 				if (count === 0 && this.isBodyVisible()) {
 					if (error) {
 						if (error instanceof ExtensionListViewWarning) {
-							this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
+							this.bodyTemplate.messageSeverityIcon.className = `codicon ${SeverityIcon.className(Severity.Warning)}`;
 							this.bodyTemplate.messageBox.textContent = getErrorMessage(error);
 						} else {
-							this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
+							this.bodyTemplate.messageSeverityIcon.className = `codicon ${SeverityIcon.className(Severity.Error)}`;
 							this.bodyTemplate.messageBox.textContent = localize('error', "Error while loading extensions. {0}", getErrorMessage(error));
 						}
 					} else {

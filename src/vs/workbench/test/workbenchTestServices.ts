@@ -91,6 +91,7 @@ import { INativeOpenDialogOptions, MessageBoxReturnValue, SaveDialogReturnValue,
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { find } from 'vs/base/common/arrays';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -626,19 +627,19 @@ export class TestPanelService implements IPanelService {
 	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	public openPanel(id: string, focus?: boolean): IPanel {
-		return null!;
+	public openPanel(id: string, focus?: boolean): undefined {
+		return undefined;
 	}
 
 	public getPanel(id: string): any {
 		return activeViewlet;
 	}
 
-	public getPanels(): any[] {
+	public getPanels() {
 		return [];
 	}
 
-	public getPinnedPanels(): any[] {
+	public getPinnedPanels() {
 		return [];
 	}
 
@@ -700,14 +701,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		return this.groups;
 	}
 
-	getGroup(identifier: number): IEditorGroup {
-		for (const group of this.groups) {
-			if (group.id === identifier) {
-				return group;
-			}
-		}
-
-		return undefined!;
+	getGroup(identifier: number): IEditorGroup | undefined {
+		return find(this.groups, group => group.id === identifier);
 	}
 
 	getLabel(_identifier: number): string {

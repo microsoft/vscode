@@ -551,7 +551,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: undefined;
 
-	private static SCHEME = 'inmemory';
+	private static readonly SCHEME = 'inmemory';
 
 	private readonly _onDidChangeWorkspaceName = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;

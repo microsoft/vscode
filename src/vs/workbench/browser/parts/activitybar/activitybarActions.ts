@@ -226,7 +226,7 @@ class SwitchSideBarViewAction extends Action {
 export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 
 	static readonly ID = 'workbench.action.previousSideBarView';
-	static LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
+	static readonly LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
 
 	constructor(
 		id: string,
@@ -245,7 +245,7 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 export class NextSideBarViewAction extends SwitchSideBarViewAction {
 
 	static readonly ID = 'workbench.action.nextSideBarView';
-	static LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
+	static readonly LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
 
 	constructor(
 		id: string,

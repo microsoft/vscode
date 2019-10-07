@@ -18,13 +18,13 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
-	static Scheme = new RawContextKey<string>('resourceScheme', undefined);
-	static Filename = new RawContextKey<string>('resourceFilename', undefined);
-	static LangId = new RawContextKey<string>('resourceLangId', undefined);
-	static Resource = new RawContextKey<URI>('resource', undefined);
-	static Extension = new RawContextKey<string>('resourceExtname', undefined);
-	static HasResource = new RawContextKey<boolean>('resourceSet', false);
-	static IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', false);
+	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined);
+	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined);
+	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined);
+	static readonly Resource = new RawContextKey<URI>('resource', undefined);
+	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined);
+	static readonly HasResource = new RawContextKey<boolean>('resourceSet', false);
+	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', false);
 
 	private readonly _resourceKey: IContextKey<URI | null>;
 	private readonly _schemeKey: IContextKey<string | null>;

@@ -27,8 +27,8 @@ export interface IVariableResolveContext {
 
 export class AbstractVariableResolverService implements IConfigurationResolverService {
 
-	static VARIABLE_REGEXP = /\$\{(.*?)\}/g;
-	static VARIABLE_REGEXP_SINGLE = /\$\{(.*?)\}/;
+	static readonly VARIABLE_REGEXP = /\$\{(.*?)\}/g;
+	static readonly VARIABLE_REGEXP_SINGLE = /\$\{(.*?)\}/;
 
 	_serviceBrand: undefined;
 

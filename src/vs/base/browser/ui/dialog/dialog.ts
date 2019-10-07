@@ -241,10 +241,10 @@ export class Dialog extends Disposable {
 		if (this.styles) {
 			const style = this.styles;
 
-			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : null;
-			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : null;
-			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : null;
-			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : null;
+			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : '';
+			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : '';
+			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
+			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
 
 			if (this.element) {
 				this.element.style.color = fgColor;

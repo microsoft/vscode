@@ -881,9 +881,9 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
-		this.disposables.push(disposable);
+		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.push(this.internals);
+		this.disposables.add(this.internals);
 	}
 }
 
@@ -910,9 +910,9 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
 		super(user, container, virtualDelegate, compressionDelegate, renderers, dataSource, treeOptions);
-		this.disposables.push(disposable);
+		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.push(this.internals);
+		this.disposables.add(this.internals);
 	}
 }
 

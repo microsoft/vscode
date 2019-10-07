@@ -30,7 +30,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
-	static MAX_SOURCE_PREVIEW_LINES = 8;
+	static readonly MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private readonly editor: ICodeEditor;
 	private readonly toUnhook = new DisposableStore();
