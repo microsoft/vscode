@@ -1474,7 +1474,7 @@ export class DocumentLink {
 	tooltip?: string;
 
 	constructor(range: Range, target: URI | undefined) {
-		if (target && !(target instanceof URI)) {
+		if (target && !(URI.isUri(target))) {
 			throw illegalArgument('target');
 		}
 		if (!Range.isRange(range) || range.isEmpty) {
@@ -2061,7 +2061,7 @@ export class TreeItem {
 	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState)
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState)
 	constructor(arg1: string | vscode.TreeItemLabel | URI, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
-		if (arg1 instanceof URI) {
+		if (URI.isUri(arg1)) {
 			this.resourceUri = arg1;
 		} else {
 			this.label = arg1;
