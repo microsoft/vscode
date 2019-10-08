@@ -18,15 +18,18 @@ function computeDiff(originalSequence: ISequence, modifiedSequence: ISequence, c
 class LineSequence implements ISequence {
 
 	private readonly _lines: string[];
+	private readonly _trimmedLines: string[];
 	private readonly _startColumns: number[];
 	private readonly _endColumns: number[];
 
 	constructor(lines: string[]) {
 		let startColumns: number[] = [];
 		let endColumns: number[] = [];
+		this._trimmedLines = [];
 		for (let i = 0, length = lines.length; i < length; i++) {
 			startColumns[i] = getFirstNonBlankColumn(lines[i], 1);
 			endColumns[i] = getLastNonBlankColumn(lines[i], 1);
+			this._trimmedLines[i] = lines[i].substring(startColumns[i] - 1, endColumns[i] - 1);
 		}
 		this._lines = lines;
 		this._startColumns = startColumns;
@@ -38,7 +41,7 @@ class LineSequence implements ISequence {
 	}
 
 	public getElementAtIndex(i: number): string {
-		return this._lines[i].substring(this._startColumns[i] - 1, this._endColumns[i] - 1);
+		return this._trimmedLines[i];
 	}
 
 	public getStartLineNumber(i: number): number {
