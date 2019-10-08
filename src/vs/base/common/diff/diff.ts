@@ -4,21 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DiffChange } from 'vs/base/common/diff/diffChange';
+import { stringHash } from 'vs/base/common/hash';
 
 export class StringDiffSequence implements ISequence {
 
 	constructor(private source: string) { }
 
-	public getLength() {
-		return this.source.length;
-	}
-
-	public getElementAtIndex(i: number) {
-		return this.source.charCodeAt(i);
-	}
-
-	public elementsAreEqual(seq1: StringDiffSequence, index1: number, seq2: StringDiffSequence, index2: number) {
-		return (seq1.source.charCodeAt(index1) === seq2.source.charCodeAt(index2));
+	getElements(): Int32Array | number[] | string[] {
+		const source = this.source;
+		const characters = new Int32Array(source.length);
+		for (let i = 0, len = source.length; i < len; i++) {
+			characters[i] = source.charCodeAt(i);
+		}
+		return characters;
 	}
 }
 
@@ -27,9 +25,7 @@ export function stringDiff(original: string, modified: string, pretty: boolean):
 }
 
 export interface ISequence {
-	getLength(): number;
-	getElementAtIndex(index: number): number | string;
-	elementsAreEqual(seq1: ISequence, index1: number, seq2: ISequence, index2: number): boolean;
+	getElements(): Int32Array | number[] | string[];
 }
 
 export interface IDiffChange {
@@ -59,7 +55,7 @@ export interface IDiffChange {
 }
 
 export interface IContinueProcessingPredicate {
-	(furthestOriginalIndex: number, originalSequence: ISequence, matchLengthOfLongest: number): boolean;
+	(furthestOriginalIndex: number, matchLengthOfLongest: number): boolean;
 }
 
 //
@@ -229,9 +225,13 @@ class DiffChangeHelper {
  */
 export class LcsDiff {
 
-	private OriginalSequence: ISequence;
-	private ModifiedSequence: ISequence;
-	private ContinueProcessingPredicate: IContinueProcessingPredicate | null;
+	private readonly ContinueProcessingPredicate: IContinueProcessingPredicate | null;
+
+	private readonly _hasStrings: boolean;
+	private readonly _originalStringElements: string[];
+	private readonly _originalElementsOrHash: Int32Array;
+	private readonly _modifiedStringElements: string[];
+	private readonly _modifiedElementsOrHash: Int32Array;
 
 	private m_forwardHistory: Int32Array[];
 	private m_reverseHistory: Int32Array[];
@@ -239,29 +239,67 @@ export class LcsDiff {
 	/**
 	 * Constructs the DiffFinder
 	 */
-	constructor(originalSequence: ISequence, newSequence: ISequence, continueProcessingPredicate: IContinueProcessingPredicate | null = null) {
-		this.OriginalSequence = originalSequence;
-		this.ModifiedSequence = newSequence;
+	constructor(originalSequence: ISequence, modifiedSequence: ISequence, continueProcessingPredicate: IContinueProcessingPredicate | null = null) {
 		this.ContinueProcessingPredicate = continueProcessingPredicate;
+
+		const [originalStringElements, originalElementsOrHash, originalHasStrings] = LcsDiff._getElements(originalSequence);
+		const [modifiedStringElements, modifiedElementsOrHash, modifiedHasStrings] = LcsDiff._getElements(modifiedSequence);
+
+		this._hasStrings = (originalHasStrings && modifiedHasStrings);
+		this._originalStringElements = originalStringElements;
+		this._originalElementsOrHash = originalElementsOrHash;
+		this._modifiedStringElements = modifiedStringElements;
+		this._modifiedElementsOrHash = modifiedElementsOrHash;
 
 		this.m_forwardHistory = [];
 		this.m_reverseHistory = [];
 	}
 
+	private static _isStringArray(arr: Int32Array | number[] | string[]): arr is string[] {
+		return (arr.length > 0 && typeof arr[0] === 'string');
+	}
+
+	private static _getElements(sequence: ISequence): [string[], Int32Array, boolean] {
+		const elements = sequence.getElements();
+
+		if (LcsDiff._isStringArray(elements)) {
+			const hashes = new Int32Array(elements.length);
+			for (let i = 0, len = elements.length; i < len; i++) {
+				hashes[i] = stringHash(elements[i], 0);
+			}
+			return [elements, hashes, true];
+		}
+
+		if (elements instanceof Int32Array) {
+			return [[], elements, false];
+		}
+
+		return [[], new Int32Array(elements), false];
+	}
+
 	private ElementsAreEqual(originalIndex: number, newIndex: number): boolean {
-		return this.OriginalSequence.elementsAreEqual(this.OriginalSequence, originalIndex, this.ModifiedSequence, newIndex);
+		if (this._originalElementsOrHash[originalIndex] !== this._modifiedElementsOrHash[newIndex]) {
+			return false;
+		}
+		return (this._hasStrings ? this._originalStringElements[originalIndex] === this._modifiedStringElements[newIndex] : true);
 	}
 
 	private OriginalElementsAreEqual(index1: number, index2: number): boolean {
-		return this.OriginalSequence.elementsAreEqual(this.OriginalSequence, index1, this.OriginalSequence, index2);
+		if (this._originalElementsOrHash[index1] !== this._originalElementsOrHash[index2]) {
+			return false;
+		}
+		return (this._hasStrings ? this._originalStringElements[index1] === this._originalStringElements[index2] : true);
 	}
 
 	private ModifiedElementsAreEqual(index1: number, index2: number): boolean {
-		return this.ModifiedSequence.elementsAreEqual(this.ModifiedSequence, index1, this.ModifiedSequence, index2);
+		if (this._modifiedElementsOrHash[index1] !== this._modifiedElementsOrHash[index2]) {
+			return false;
+		}
+		return (this._hasStrings ? this._modifiedStringElements[index1] === this._modifiedStringElements[index2] : true);
 	}
 
 	public ComputeDiff(pretty: boolean): IDiffChange[] {
-		return this._ComputeDiff(0, this.OriginalSequence.getLength() - 1, 0, this.ModifiedSequence.getLength() - 1, pretty);
+		return this._ComputeDiff(0, this._originalElementsOrHash.length - 1, 0, this._modifiedElementsOrHash.length - 1, pretty);
 	}
 
 	/**
@@ -639,7 +677,7 @@ export class LcsDiff {
 			// Check to see if we should be quitting early, before moving on to the next iteration.
 			let matchLengthOfLongest = ((furthestOriginalIndex - originalStart) + (furthestModifiedIndex - modifiedStart) - numDifferences) / 2;
 
-			if (this.ContinueProcessingPredicate !== null && !this.ContinueProcessingPredicate(furthestOriginalIndex, this.OriginalSequence, matchLengthOfLongest)) {
+			if (this.ContinueProcessingPredicate !== null && !this.ContinueProcessingPredicate(furthestOriginalIndex, matchLengthOfLongest)) {
 				// We can't finish, so skip ahead to generating a result from what we have.
 				quitEarlyArr[0] = true;
 
@@ -765,8 +803,8 @@ export class LcsDiff {
 		// Shift all the changes down first
 		for (let i = 0; i < changes.length; i++) {
 			const change = changes[i];
-			const originalStop = (i < changes.length - 1) ? changes[i + 1].originalStart : this.OriginalSequence.getLength();
-			const modifiedStop = (i < changes.length - 1) ? changes[i + 1].modifiedStart : this.ModifiedSequence.getLength();
+			const originalStop = (i < changes.length - 1) ? changes[i + 1].originalStart : this._originalElementsOrHash.length;
+			const modifiedStop = (i < changes.length - 1) ? changes[i + 1].modifiedStart : this._modifiedElementsOrHash.length;
 			const checkOriginal = change.originalLength > 0;
 			const checkModified = change.modifiedLength > 0;
 
@@ -841,11 +879,10 @@ export class LcsDiff {
 	}
 
 	private _OriginalIsBoundary(index: number): boolean {
-		if (index <= 0 || index >= this.OriginalSequence.getLength() - 1) {
+		if (index <= 0 || index >= this._originalElementsOrHash.length - 1) {
 			return true;
 		}
-		const element = this.OriginalSequence.getElementAtIndex(index);
-		return (typeof element === 'string' && /^\s*$/.test(element));
+		return (this._hasStrings && /^\s*$/.test(this._originalStringElements[index]));
 	}
 
 	private _OriginalRegionIsBoundary(originalStart: number, originalLength: number): boolean {
@@ -862,11 +899,10 @@ export class LcsDiff {
 	}
 
 	private _ModifiedIsBoundary(index: number): boolean {
-		if (index <= 0 || index >= this.ModifiedSequence.getLength() - 1) {
+		if (index <= 0 || index >= this._modifiedElementsOrHash.length - 1) {
 			return true;
 		}
-		const element = this.ModifiedSequence.getElementAtIndex(index);
-		return (typeof element === 'string' && /^\s*$/.test(element));
+		return (this._hasStrings && /^\s*$/.test(this._modifiedStringElements[index]));
 	}
 
 	private _ModifiedRegionIsBoundary(modifiedStart: number, modifiedLength: number): boolean {

@@ -109,12 +109,11 @@ suite('Diff - Ported from VS', () => {
 		// doesn't get there first.
 		let predicateCallCount = 0;
 
-		let diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, leftSequence, longestMatchSoFar) {
+		let diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
 			assert.equal(predicateCallCount, 0);
 
 			predicateCallCount++;
 
-			assert.equal(leftSequence.getLength(), left.length);
 			assert.equal(leftIndex, 1);
 
 			// cancel processing
@@ -130,7 +129,7 @@ suite('Diff - Ported from VS', () => {
 
 
 		// Cancel after the first match ('c')
-		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, leftSequence, longestMatchSoFar) {
+		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
 			assert(longestMatchSoFar <= 1); // We never see a match of length > 1
 
 			// Continue processing as long as there hasn't been a match made.
@@ -143,7 +142,7 @@ suite('Diff - Ported from VS', () => {
 
 
 		// Cancel after the second match ('d')
-		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, leftSequence, longestMatchSoFar) {
+		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
 			assert(longestMatchSoFar <= 2); // We never see a match of length > 2
 
 			// Continue processing as long as there hasn't been a match made.
@@ -157,7 +156,7 @@ suite('Diff - Ported from VS', () => {
 
 		// Cancel *one iteration* after the second match ('d')
 		let hitSecondMatch = false;
-		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, leftSequence, longestMatchSoFar) {
+		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
 			assert(longestMatchSoFar <= 2); // We never see a match of length > 2
 
 			let hitYet = hitSecondMatch;
@@ -172,7 +171,7 @@ suite('Diff - Ported from VS', () => {
 
 
 		// Cancel after the third and final match ('e')
-		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, leftSequence, longestMatchSoFar) {
+		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
 			assert(longestMatchSoFar <= 3); // We never see a match of length > 3
 
 			// Continue processing as long as there hasn't been a match made.
