@@ -551,32 +551,32 @@ export class DiagnosticsService implements IDiagnosticsService {
 					});
 					type WorkspaceStatsFileClassification = {
 						rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						name: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						type: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 						count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 					};
 					type WorkspaceStatsFileEvent = {
 						rendererSessionId: string;
-						name: string;
+						type: string;
 						count: number;
 					};
 					stats.fileTypes.forEach(e => {
 						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.file', {
 							rendererSessionId: workspace.rendererSessionId,
-							name: e.name,
+							type: e.name,
 							count: e.count
 						});
 					});
 					stats.launchConfigFiles.forEach(e => {
 						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.launchConfigFile', {
 							rendererSessionId: workspace.rendererSessionId,
-							name: e.name,
+							type: e.name,
 							count: e.count
 						});
 					});
 					stats.configFiles.forEach(e => {
 						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.configFiles', {
 							rendererSessionId: workspace.rendererSessionId,
-							name: e.name,
+							type: e.name,
 							count: e.count
 						});
 					});

@@ -50,7 +50,7 @@ interface FoldingStateMemento {
 
 export class FoldingController extends Disposable implements IEditorContribution {
 
-	static MAX_FOLDING_REGIONS = 5000;
+	static readonly MAX_FOLDING_REGIONS = 5000;
 
 
 	public static get(editor: ICodeEditor): FoldingController {
@@ -667,7 +667,7 @@ class ToggleFoldAction extends FoldingAction<void> {
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_L),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

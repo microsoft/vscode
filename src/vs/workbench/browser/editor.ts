@@ -8,6 +8,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { find } from 'vs/base/common/arrays';
 
 export interface IEditorDescriptor {
 	instantiate(instantiationService: IInstantiationService): BaseEditor;
@@ -140,13 +141,7 @@ class EditorRegistry implements IEditorRegistry {
 	}
 
 	getEditorById(editorId: string): EditorDescriptor | undefined {
-		for (const editor of this.editors) {
-			if (editor.getId() === editorId) {
-				return editor;
-			}
-		}
-
-		return undefined;
+		return find(this.editors, editor => editor.getId() === editorId);
 	}
 
 	getEditors(): readonly EditorDescriptor[] {

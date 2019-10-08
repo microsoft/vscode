@@ -614,12 +614,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	has(uri: URI): boolean {
-		for (const edit of this._edits) {
-			if (edit._type === 2 && edit.uri.toString() === uri.toString()) {
-				return true;
-			}
-		}
-		return false;
+		return this._edits.some(edit => edit._type === 2 && edit.uri.toString() === uri.toString());
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
@@ -1166,22 +1161,22 @@ export class CallHierarchyItem {
 
 export class CallHierarchyIncomingCall {
 
-	source: vscode.CallHierarchyItem;
-	sourceRanges: vscode.Range[];
+	from: vscode.CallHierarchyItem;
+	fromRanges: vscode.Range[];
 
-	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
-		this.sourceRanges = sourceRanges;
-		this.source = item;
+	constructor(item: vscode.CallHierarchyItem, fromRanges: vscode.Range[]) {
+		this.fromRanges = fromRanges;
+		this.from = item;
 	}
 }
 export class CallHierarchyOutgoingCall {
 
-	target: vscode.CallHierarchyItem;
-	sourceRanges: vscode.Range[];
+	to: vscode.CallHierarchyItem;
+	fromRanges: vscode.Range[];
 
-	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
-		this.sourceRanges = sourceRanges;
-		this.target = item;
+	constructor(item: vscode.CallHierarchyItem, fromRanges: vscode.Range[]) {
+		this.fromRanges = fromRanges;
+		this.to = item;
 	}
 }
 
@@ -1227,7 +1222,9 @@ export class MarkdownString {
 
 	appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
+		this.value += value
+			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
+			.replace('\n', '\n\n');
 		return this;
 	}
 
@@ -1472,7 +1469,7 @@ export class DocumentLink {
 	tooltip?: string;
 
 	constructor(range: Range, target: URI | undefined) {
-		if (target && !(target instanceof URI)) {
+		if (target && !(URI.isUri(target))) {
 			throw illegalArgument('target');
 		}
 		if (!Range.isRange(range) || range.isEmpty) {
@@ -1624,6 +1621,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 		if (typeof process !== 'string') {
 			throw illegalArgument('process');
 		}
+		this._args = [];
 		this._process = process;
 		if (varg1 !== undefined) {
 			if (Array.isArray(varg1)) {
@@ -1632,9 +1630,6 @@ export class ProcessExecution implements vscode.ProcessExecution {
 			} else {
 				this._options = varg1;
 			}
-		}
-		if (this._args === undefined) {
-			this._args = [];
 		}
 	}
 
@@ -1687,9 +1682,9 @@ export class ProcessExecution implements vscode.ProcessExecution {
 @es5ClassCompat
 export class ShellExecution implements vscode.ShellExecution {
 
-	private _commandLine: string;
-	private _command: string | vscode.ShellQuotedString;
-	private _args: (string | vscode.ShellQuotedString)[];
+	private _commandLine: string | undefined;
+	private _command: string | vscode.ShellQuotedString | undefined;
+	private _args: (string | vscode.ShellQuotedString)[] = [];
 	private _options: vscode.ShellExecutionOptions | undefined;
 
 	constructor(commandLine: string, options?: vscode.ShellExecutionOptions);
@@ -1715,7 +1710,7 @@ export class ShellExecution implements vscode.ShellExecution {
 	}
 
 	get commandLine(): string {
-		return this._commandLine;
+		return this._commandLine ? this._commandLine : '';
 	}
 
 	set commandLine(value: string) {
@@ -1726,7 +1721,7 @@ export class ShellExecution implements vscode.ShellExecution {
 	}
 
 	get command(): string | vscode.ShellQuotedString {
-		return this._command;
+		return this._command ? this._command : '';
 	}
 
 	set command(value: string | vscode.ShellQuotedString) {
@@ -1824,23 +1819,23 @@ export class Task implements vscode.Task2 {
 	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
-		this.definition = definition;
+		this._definition = this.definition = definition;
 		let problemMatchers: string | string[];
 		if (typeof arg2 === 'string') {
-			this.name = arg2;
-			this.source = arg3;
+			this._name = this.name = arg2;
+			this._source = this.source = arg3;
 			this.execution = arg4;
 			problemMatchers = arg5;
 		} else if (arg2 === TaskScope.Global || arg2 === TaskScope.Workspace) {
 			this.target = arg2;
-			this.name = arg3;
-			this.source = arg4;
+			this._name = this.name = arg3;
+			this._source = this.source = arg4;
 			this.execution = arg5;
 			problemMatchers = arg6;
 		} else {
 			this.target = arg2;
-			this.name = arg3;
-			this.source = arg4;
+			this._name = this.name = arg3;
+			this._source = this.source = arg4;
 			this.execution = arg5;
 			problemMatchers = arg6;
 		}
@@ -2059,7 +2054,7 @@ export class TreeItem {
 	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState)
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState)
 	constructor(arg1: string | vscode.TreeItemLabel | URI, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
-		if (arg1 instanceof URI) {
+		if (URI.isUri(arg1)) {
 			this.resourceUri = arg1;
 		} else {
 			this.label = arg1;

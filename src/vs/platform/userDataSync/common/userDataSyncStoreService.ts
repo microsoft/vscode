@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
@@ -22,7 +22,6 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
 	) {
 		super();
@@ -100,10 +99,11 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		const context = await this.requestService.request(options, token);
 
 		if (context.res.statusCode === 401) {
-			// Not Authorized
-			this.logService.info('Authroization Failed.');
-			this.authTokenService.refreshToken();
-			Promise.reject('Authroization Failed.');
+			if (this.authTokenService.status !== AuthTokenStatus.Disabled) {
+				this.authTokenService.refreshToken();
+			}
+			// Throw Unauthorized Error
+			throw new UserDataSyncStoreError('Unauthorized', UserDataSyncStoreErrorCode.Unauthroized);
 		}
 
 		return context;

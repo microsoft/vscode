@@ -91,6 +91,7 @@ import { INativeOpenDialogOptions, MessageBoxReturnValue, SaveDialogReturnValue,
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { find } from 'vs/base/common/arrays';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -186,11 +187,11 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestTextFileService extends NativeTextFileService {
-	public cleanupBackupsBeforeShutdownCalled: boolean;
+	public cleanupBackupsBeforeShutdownCalled!: boolean;
 
-	private promptPath: URI;
-	private confirmResult: ConfirmResult;
-	private resolveTextContentError: FileOperationError | null;
+	private promptPath!: URI;
+	private confirmResult!: ConfirmResult;
+	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -582,8 +583,8 @@ export class TestViewletService implements IViewletService {
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 
-	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
-		return Promise.resolve(null!);
+	public openViewlet(id: string, focus?: boolean): Promise<IViewlet | undefined> {
+		return Promise.resolve(undefined);
 	}
 
 	public getViewlets(): ViewletDescriptor[] {
@@ -610,7 +611,7 @@ export class TestViewletService implements IViewletService {
 	}
 
 	public getProgressIndicator(id: string) {
-		return null!;
+		return undefined;
 	}
 
 	public hideActiveViewlet(): void { }
@@ -626,19 +627,19 @@ export class TestPanelService implements IPanelService {
 	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	public openPanel(id: string, focus?: boolean): IPanel {
-		return null!;
+	public openPanel(id: string, focus?: boolean): undefined {
+		return undefined;
 	}
 
 	public getPanel(id: string): any {
 		return activeViewlet;
 	}
 
-	public getPanels(): any[] {
+	public getPanels() {
 		return [];
 	}
 
-	public getPinnedPanels(): any[] {
+	public getPinnedPanels() {
 		return [];
 	}
 
@@ -700,14 +701,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		return this.groups;
 	}
 
-	getGroup(identifier: number): IEditorGroup {
-		for (const group of this.groups) {
-			if (group.id === identifier) {
-				return group;
-			}
-		}
-
-		return undefined!;
+	getGroup(identifier: number): IEditorGroup | undefined {
+		return find(this.groups, group => group.id === identifier);
 	}
 
 	getLabel(_identifier: number): string {
@@ -762,7 +757,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		return false;
 	}
 
-	partOptions: IEditorPartOptions;
+	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable {
 		return Disposable.None;
 	}
@@ -773,20 +768,20 @@ export class TestEditorGroup implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	get group(): EditorGroup { throw new Error('not implemented'); }
-	activeControl: IVisibleEditor;
-	activeEditor: IEditorInput;
-	previewEditor: IEditorInput;
-	count: number;
-	disposed: boolean;
+	activeControl!: IVisibleEditor;
+	activeEditor!: IEditorInput;
+	previewEditor!: IEditorInput;
+	count!: number;
+	disposed!: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
-	label: string;
-	index: number;
+	label!: string;
+	index!: number;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
-	element: HTMLElement;
-	minimumWidth: number;
-	maximumWidth: number;
-	minimumHeight: number;
-	maximumHeight: number;
+	element!: HTMLElement;
+	minimumWidth!: number;
+	maximumWidth!: number;
+	minimumHeight!: number;
+	maximumHeight!: number;
 
 	isEmpty = true;
 	isMinimized = false;
@@ -877,9 +872,9 @@ export class TestEditorService implements EditorServiceImpl {
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 
-	activeControl: IVisibleEditor;
+	activeControl!: IVisibleEditor;
 	activeTextEditorWidget: any;
-	activeEditor: IEditorInput;
+	activeEditor!: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
 	visibleControls: ReadonlyArray<IVisibleEditor> = [];
 	visibleTextEditorWidgets = [];
@@ -929,7 +924,7 @@ export class TestFileService implements IFileService {
 	readonly onError: Event<Error> = Event.None;
 
 	private content = 'Hello Html';
-	private lastReadFileUri: URI;
+	private lastReadFileUri!: URI;
 
 	constructor() {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
@@ -1184,8 +1179,8 @@ export class TestLifecycleService implements ILifecycleService {
 
 	public _serviceBrand: undefined;
 
-	public phase: LifecyclePhase;
-	public startupKind: StartupKind;
+	public phase!: LifecyclePhase;
+	public startupKind!: StartupKind;
 
 	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
 	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
@@ -1317,7 +1312,6 @@ export class TestHostService implements IHostService {
 
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
-	async closeWorkspace(): Promise<void> { }
 
 	async focus(): Promise<void> { }
 
@@ -1375,7 +1369,6 @@ export class TestElectronService implements IElectronService {
 	async toggleWindowTabsBar(): Promise<void> { }
 	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }
-	async closeWorkspace(): Promise<void> { }
 	async closeWindow(): Promise<void> { }
 	async quit(): Promise<void> { }
 	async openDevTools(options?: Electron.OpenDevToolsOptions | undefined): Promise<void> { }

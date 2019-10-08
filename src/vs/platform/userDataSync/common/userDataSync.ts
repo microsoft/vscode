@@ -91,6 +91,7 @@ export interface IUserData {
 }
 
 export enum UserDataSyncStoreErrorCode {
+	Unauthroized = 'Unauthroized',
 	Rejected = 'Rejected',
 	Unknown = 'Unknown'
 }

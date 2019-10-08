@@ -35,7 +35,7 @@ function code() {
 	node build/lib/builtInExtensions.js
 
 	# Build
-	test -d out || ./node_modules/.bin/gulp compile
+	test -d out || yarn compile
 
 	ELECTRON_RUN_AS_NODE=1 \
 	NODE_ENV=development \

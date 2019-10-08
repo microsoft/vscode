@@ -267,7 +267,7 @@ class MarkerWidget extends Disposable {
 		this.disposables.clear();
 		dom.clearNode(this.messageAndDetailsContainer);
 
-		this.icon.className = `marker-icon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
+		this.icon.className = `marker-icon codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
 		this.renderQuickfixActionbar(element);
 		this.renderMultilineActionbar(element);
 

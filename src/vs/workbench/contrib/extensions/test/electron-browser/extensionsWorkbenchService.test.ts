@@ -942,6 +942,46 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			});
 	});
 
+	test('test installing an extension re-eanbles it when disabled globally', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.EnabledGlobally);
+	});
+
+	test('test updating an extension does not re-eanbles it when disabled globally', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.DisabledGlobally);
+	});
+
+	test('test installing an extension re-eanbles it when workspace disabled', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.EnabledGlobally);
+	});
+
+	test('test updating an extension does not re-eanbles it when workspace disabled', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.DisabledWorkspace);
+	});
+
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {
 		const workbenchService: ExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
 		await workbenchService.queryLocal();

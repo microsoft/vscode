@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.39.0",
-  "distro": "dc014344371646422438f73f01ea6709c5ad19e7",
+  "version": "1.40.0",
+  "distro": "7d62db65536347b7a7c21ae355071b55920c4d84",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -30,7 +30,7 @@
   "dependencies": {
     "applicationinsights": "1.0.8",
     "chokidar": "3.1.0",
-    "graceful-fs": "4.1.11",
+    "graceful-fs": "4.2.2",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.1",
     "iconv-lite": "0.5.0",
@@ -52,8 +52,8 @@
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
     "vsda": "https://github.com/microsoft/vsda.git#45edd3db96a5e308a5cfc817d1ee42f6d96e1659",
-    "xterm": "4.1.0-beta8",
-    "xterm-addon-search": "0.2.0",
+    "xterm": "4.2.0-beta4",
+    "xterm-addon-search": "0.3.0-beta5",
     "xterm-addon-web-links": "0.2.0",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
@@ -97,10 +97,11 @@
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
-    "gulp-tsb": "4.0.4",
+    "gulp-tsb": "4.0.5",
     "gulp-tslint": "^8.1.3",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
+    "husky": "^0.13.1",
     "innosetup": "5.6.1",
     "is": "^3.1.0",
     "istanbul-lib-coverage": "^2.0.5",

@@ -984,7 +984,7 @@ class SelectReplActionViewItem extends FocusSessionActionViewItem {
 class SelectReplAction extends Action {
 
 	static readonly ID = 'workbench.action.debug.selectRepl';
-	static LABEL = nls.localize('selectRepl', "Select Debug Console");
+	static readonly LABEL = nls.localize('selectRepl', "Select Debug Console");
 
 	constructor(id: string, label: string,
 		@IDebugService private readonly debugService: IDebugService,
@@ -993,10 +993,10 @@ class SelectReplAction extends Action {
 		super(id, label);
 	}
 
-	run(session: IDebugSession): Promise<any> {
+	async run(session: IDebugSession): Promise<any> {
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
-			this.debugService.focusStackFrame(undefined, undefined, session, true);
+			await this.debugService.focusStackFrame(undefined, undefined, session, true);
 		} else {
 			this.replService.selectSession(session);
 		}
@@ -1007,7 +1007,7 @@ class SelectReplAction extends Action {
 
 export class ClearReplAction extends Action {
 	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
-	static LABEL = nls.localize('clearRepl', "Clear Console");
+	static readonly LABEL = nls.localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
 		@IPanelService private readonly panelService: IPanelService

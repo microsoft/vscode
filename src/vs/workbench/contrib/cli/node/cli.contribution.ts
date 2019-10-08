@@ -41,7 +41,7 @@ function isAvailable(): Promise<boolean> {
 class InstallAction extends Action {
 
 	static readonly ID = 'workbench.action.installCommandLine';
-	static LABEL = nls.localize('install', "Install '{0}' command in PATH", product.applicationName);
+	static readonly LABEL = nls.localize('install', "Install '{0}' command in PATH", product.applicationName);
 
 	constructor(
 		id: string,
@@ -122,7 +122,7 @@ class InstallAction extends Action {
 class UninstallAction extends Action {
 
 	static readonly ID = 'workbench.action.uninstallCommandLine';
-	static LABEL = nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName);
+	static readonly LABEL = nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName);
 
 	constructor(
 		id: string,

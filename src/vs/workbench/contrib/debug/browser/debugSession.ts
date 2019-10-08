@@ -65,7 +65,7 @@ export class DebugSession implements IDebugSession {
 
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
-		public root: IWorkspaceFolder,
+		public root: IWorkspaceFolder | undefined,
 		private model: DebugModel,
 		options: IDebugSessionOptions | undefined,
 		@IDebugService private readonly debugService: IDebugService,
@@ -381,6 +381,10 @@ export class DebugSession implements IDebugSession {
 		if (this.raw) {
 			const source = this.getRawSource(uri);
 			const response = await this.raw.breakpointLocations({ source, line: lineNumber });
+			if (!response.body || !response.body.breakpoints) {
+				return [];
+			}
+
 			const positions = response.body.breakpoints.map(bp => ({ lineNumber: bp.line, column: bp.column || 1 }));
 
 			return distinct(positions, p => `${p.lineNumber}:${p.column}`);
@@ -723,9 +727,9 @@ export class DebugSession implements IDebugSession {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					const promises = this.model.fetchCallStack(<Thread>thread);
-					const focus = () => {
+					const focus = async () => {
 						if (!event.body.preserveFocusHint && thread.getCallStack().length) {
-							this.debugService.focusStackFrame(undefined, thread);
+							await this.debugService.focusStackFrame(undefined, thread);
 							if (thread.stoppedDetails) {
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
 									this.viewletService.openViewlet(VIEWLET_ID);

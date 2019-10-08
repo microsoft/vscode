@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -560,21 +560,21 @@ export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
 }, nls.localize('notificationsBorder', "Notifications border color separating from other notifications in the notifications center. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_ERROR_ICON_FOREGROUND = registerColor('notificationsErrorIcon.foreground', {
-	dark: '#F48771',
-	light: '#A1260D',
-	hc: '#F48771'
+	dark: editorErrorForeground,
+	light: editorErrorForeground,
+	hc: editorErrorForeground
 }, nls.localize('notificationsErrorIconForeground', "The color used for the notification error icon."));
 
 export const NOTIFICATIONS_WARNING_ICON_FOREGROUND = registerColor('notificationsWarningIcon.foreground', {
-	dark: '#FFCC00',
-	light: '#DDB100',
-	hc: '#FFCC00'
+	dark: editorWarningForeground,
+	light: editorWarningForeground,
+	hc: editorWarningForeground
 }, nls.localize('notificationsWarningIconForeground', "The color used for the notification warning icon."));
 
 export const NOTIFICATIONS_INFO_ICON_FOREGROUND = registerColor('notificationsInfoIcon.foreground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
+	dark: editorInfoForeground,
+	light: editorInfoForeground,
+	hc: editorInfoForeground
 }, nls.localize('notificationsInfoIconForeground', "The color used for the notification info icon."));
 
 /**

@@ -56,8 +56,8 @@ interface ICommentThreadTemplateData {
 }
 
 export class CommentsModelVirualDelegate implements IListVirtualDelegate<any> {
-	private static RESOURCE_ID = 'resource-with-comments';
-	private static COMMENT_ID = 'comment-node';
+	private static readonly RESOURCE_ID = 'resource-with-comments';
+	private static readonly COMMENT_ID = 'comment-node';
 
 
 	getHeight(element: any): number {

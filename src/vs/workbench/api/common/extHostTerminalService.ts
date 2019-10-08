@@ -299,7 +299,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
 	public abstract createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal;
 	public abstract getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
-	public abstract $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void>;
+	public abstract $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void>;
 	public abstract $requestAvailableShells(): Promise<IShellDefinitionDto[]>;
 	public abstract $requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	public abstract $acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
@@ -577,7 +577,7 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 		throw new Error('Not implemented');
 	}
 
-	public $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
+	public $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
 		throw new Error('Not implemented');
 	}
 

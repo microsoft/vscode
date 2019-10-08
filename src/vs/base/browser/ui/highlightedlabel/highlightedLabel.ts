@@ -15,15 +15,15 @@ export interface IHighlight {
 export class HighlightedLabel {
 
 	private domNode: HTMLElement;
-	private text: string;
-	private title: string;
-	private highlights: IHighlight[];
-	private didEverRender: boolean;
+	private text: string = '';
+	private title: string = '';
+	private highlights: IHighlight[] = [];
+	private didEverRender: boolean = false;
 
 	constructor(container: HTMLElement, private supportOcticons: boolean) {
 		this.domNode = document.createElement('span');
 		this.domNode.className = 'monaco-highlighted-label';
-		this.didEverRender = false;
+
 		container.appendChild(this.domNode);
 	}
 

@@ -77,6 +77,7 @@ import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ITextEditor } from 'vs/workbench/common/editor';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { find } from 'vs/base/common/arrays';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -290,7 +291,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			let entry: TaskQuickPickEntry | null | undefined;
 			if (tasks && tasks.length > 0) {
-				entry = await this.showQuickPick(tasks, nls.localize('TaskService.pickBuildTaskForLabel', 'Select the build task'));
+				entry = await this.showQuickPick(tasks, nls.localize('TaskService.pickBuildTaskForLabel', 'Select the build task (there is no default build task defined)'));
 			}
 
 			let task: Task | undefined | null = entry ? entry.task : undefined;
@@ -515,12 +516,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (!values) {
 				return undefined;
 			}
-			for (const task of values) {
-				if (task.matches(key, compareId)) {
-					return task;
-				}
-			}
-			return undefined;
+			return find(values, task => task.matches(key, compareId));
 		});
 	}
 
@@ -983,7 +979,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private getResourceForTask(task: CustomTask): URI {
 		let uri = this.getResourceForKind(task._source.kind);
 		if (!uri) {
-			uri = task.getWorkspaceFolder().toResource(task._source.config.file);
+			const taskFolder = task.getWorkspaceFolder();
+			if (taskFolder) {
+				uri = taskFolder.toResource(task._source.config.file);
+			} else {
+				uri = this.workspaceFolders[0].uri;
+			}
 		}
 		return uri;
 	}

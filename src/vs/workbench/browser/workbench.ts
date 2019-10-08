@@ -19,7 +19,7 @@ import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, WillSaveStateReason, StorageScope, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -227,6 +227,20 @@ export class Workbench extends Layout {
 		configurationService: IConfigurationService
 	): void {
 
+		// Configuration changes
+		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
+
+		// Font Info
+		if (isNative) {
+			this._register(storageService.onWillSaveState(e => {
+				if (e.reason === WillSaveStateReason.SHUTDOWN) {
+					this.storeFontInfo(storageService);
+				}
+			}));
+		} else {
+			this._register(lifecycleService.onWillShutdown(() => this.storeFontInfo(storageService)));
+		}
+
 		// Lifecycle
 		this._register(lifecycleService.onBeforeShutdown(event => this._onBeforeShutdown.fire(event)));
 		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
@@ -234,12 +248,6 @@ export class Workbench extends Layout {
 			this._onShutdown.fire();
 			this.dispose();
 		}));
-
-		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
-
-		// Storage
-		this._register(storageService.onWillSaveState(e => this.storeFontInfo(e, storageService)));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
@@ -279,13 +287,19 @@ export class Workbench extends Layout {
 		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
 	}
 
-	private storeFontInfo(e: IWillSaveStateEvent, storageService: IStorageService): void {
-		if (e.reason === WillSaveStateReason.SHUTDOWN) {
-			const serializedFontInfo = serializeFontInfo();
-			if (serializedFontInfo) {
-				const serializedFontInfoRaw = JSON.stringify(serializedFontInfo);
+	private storeFontInfo(storageService: IStorageService): void {
+		const serializedFontInfo = serializeFontInfo();
+		if (serializedFontInfo) {
+			const serializedFontInfoRaw = JSON.stringify(serializedFontInfo);
 
-				isNative ? storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL) : window.localStorage.setItem('editorFontInfo', serializedFontInfoRaw);
+			// Font info is very specific to the machine the workbench runs
+			// on. As such, in the web, we prefer to store this info in
+			// local storage and not global storage because it would not make
+			// much sense to synchronize to other machines.
+			if (isNative) {
+				storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL);
+			} else {
+				window.localStorage.setItem('editorFontInfo', serializedFontInfoRaw);
 			}
 		}
 	}

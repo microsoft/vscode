@@ -66,14 +66,14 @@ export abstract class BreadcrumbsConfig<T> {
 		// internal
 	}
 
-	static IsEnabled = BreadcrumbsConfig._stub<boolean>('breadcrumbs.enabled');
-	static UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
-	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
-	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
-	static SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
-	static Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
+	static readonly IsEnabled = BreadcrumbsConfig._stub<boolean>('breadcrumbs.enabled');
+	static readonly UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
+	static readonly FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
+	static readonly SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
+	static readonly SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
+	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
 
-	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
+	static readonly FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
 	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
 		return {

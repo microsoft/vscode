@@ -59,15 +59,15 @@ declare module 'vscode' {
 	}
 
 	export class CallHierarchyIncomingCall {
-		source: CallHierarchyItem;
-		sourceRanges: Range[];
-		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
+		from: CallHierarchyItem;
+		fromRanges: Range[];
+		constructor(item: CallHierarchyItem, fromRanges: Range[]);
 	}
 
 	export class CallHierarchyOutgoingCall {
-		sourceRanges: Range[];
-		target: CallHierarchyItem;
-		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
+		fromRanges: Range[];
+		to: CallHierarchyItem;
+		constructor(item: CallHierarchyItem, fromRanges: Range[]);
 	}
 
 	export interface CallHierarchyItemProvider {

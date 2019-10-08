@@ -105,6 +105,10 @@
       {
         "fileMatch": "/.devcontainer.json",
         "url": "./schemas/devContainer.schema.json"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/imageConfigs/*.json",
+        "url": "./schemas/attachContainer.schema.json"
       }
     ]
   },

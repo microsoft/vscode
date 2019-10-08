@@ -31,8 +31,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private static readonly MEMOIZER = createMemoizer();
 
-	private preferredEncoding: string;
-	private preferredMode: string;
+	private preferredEncoding: string | undefined;
+	private preferredMode: string | undefined;
 
 	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
 
@@ -82,6 +82,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private onModelOrphanedChanged(e: TextFileModelChangeEvent): void {
 		if (e.resource.toString() === this.resource.toString()) {
+			FileEditorInput.MEMOIZER.clear();
 			this._onDidChangeLabel.fire();
 		}
 	}
@@ -90,7 +91,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.resource;
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		const textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			return textModel.getEncoding();
@@ -99,7 +100,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.preferredEncoding;
 	}
 
-	getPreferredEncoding(): string {
+	getPreferredEncoding(): string | undefined {
 		return this.preferredEncoding;
 	}
 
@@ -209,6 +210,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private decorateLabel(label: string): string {
 		const model = this.textFileService.models.get(this.resource);
+
 		if (model && model.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted)", label);
 		}

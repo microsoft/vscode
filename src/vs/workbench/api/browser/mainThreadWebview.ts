@@ -340,8 +340,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			const handle = this._webviewEditorInputs.getHandleForInput(editorInput);
 			if (handle) {
 				viewStates[handle] = {
-					visible: topLevelInput.matches(group.activeEditor),
-					active: topLevelInput.matches(activeInput),
+					visible: topLevelInput === group.activeEditor,
+					active: topLevelInput === activeInput,
 					position: editorGroupToViewColumn(this._editorGroupService, group.id),
 				};
 			}

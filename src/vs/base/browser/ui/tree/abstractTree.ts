@@ -238,7 +238,7 @@ class EventCollection<T> implements Collection<T> {
 
 class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
-	private static DefaultIndent = 8;
+	private static readonly DefaultIndent = 8;
 
 	readonly templateId: string;
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
@@ -855,7 +855,13 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	dispose() {
-		this.disable();
+		if (this._enabled) {
+			this.domNode.remove();
+			this.enabledDisposables = dispose(this.enabledDisposables);
+			this._enabled = false;
+			this.triggered = false;
+		}
+
 		this._onDidChangePattern.dispose();
 		this.disposables = dispose(this.disposables);
 	}

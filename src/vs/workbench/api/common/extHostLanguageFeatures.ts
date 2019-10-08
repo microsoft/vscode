@@ -1021,7 +1021,7 @@ class CallHierarchyAdapter {
 		if (!calls) {
 			return undefined;
 		}
-		return calls.map(call => (<[extHostProtocol.ICallHierarchyItemDto, IRange[]]>[typeConvert.CallHierarchyItem.from(call.source), call.sourceRanges.map(typeConvert.Range.from)]));
+		return calls.map(call => (<[extHostProtocol.ICallHierarchyItemDto, IRange[]]>[typeConvert.CallHierarchyItem.from(call.from), call.fromRanges.map(typeConvert.Range.from)]));
 	}
 
 	async provideCallsFrom(uri: URI, position: IPosition, token: CancellationToken): Promise<[extHostProtocol.ICallHierarchyItemDto, IRange[]][] | undefined> {
@@ -1031,7 +1031,7 @@ class CallHierarchyAdapter {
 		if (!calls) {
 			return undefined;
 		}
-		return calls.map(call => (<[extHostProtocol.ICallHierarchyItemDto, IRange[]]>[typeConvert.CallHierarchyItem.from(call.target), call.sourceRanges.map(typeConvert.Range.from)]));
+		return calls.map(call => (<[extHostProtocol.ICallHierarchyItemDto, IRange[]]>[typeConvert.CallHierarchyItem.from(call.to), call.fromRanges.map(typeConvert.Range.from)]));
 	}
 }
 

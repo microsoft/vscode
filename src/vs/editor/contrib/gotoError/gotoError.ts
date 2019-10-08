@@ -20,12 +20,13 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MarkerNavigationWidget } from './gotoErrorWidget';
 import { compare } from 'vs/base/common/strings';
-import { binarySearch } from 'vs/base/common/arrays';
+import { binarySearch, find } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { isEqual } from 'vs/base/common/resources';
 
 class MarkerModel {
 
@@ -172,12 +173,7 @@ class MarkerModel {
 	}
 
 	public findMarkerAtPosition(pos: Position): IMarker | undefined {
-		for (const marker of this._markers) {
-			if (Range.containsPosition(marker, pos)) {
-				return marker;
-			}
-		}
-		return undefined;
+		return find(this._markers, marker => Range.containsPosition(marker, pos));
 	}
 
 	public get total() {
@@ -248,8 +244,8 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		const prevMarkerKeybinding = this._keybindingService.lookupKeybinding(PrevMarkerAction.ID);
 		const nextMarkerKeybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
 		const actions = [
-			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } }),
-			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } })
+			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem codicon-chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } }),
+			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem codicon-chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } })
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
@@ -310,7 +306,7 @@ export class MarkerController implements editorCommon.IEditorContribution {
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {
-		let editorModel = this._editor.getModel();
+		const editorModel = this._editor.getModel();
 		if (!editorModel) {
 			return;
 		}
@@ -319,7 +315,7 @@ export class MarkerController implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		if (!changedResources.some(r => editorModel!.uri.toString() === r.toString())) {
+		if (!changedResources.some(r => isEqual(editorModel.uri, r))) {
 			return;
 		}
 		this._model.setMarkers(this._getMarkers());
@@ -371,7 +367,7 @@ class MarkerNavigationAction extends EditorAction {
 			return Promise.resolve(undefined);
 		}
 
-		let editorModel = editor.getModel();
+		const editorModel = editor.getModel();
 		if (!editorModel) {
 			return Promise.resolve(undefined);
 		}
@@ -389,7 +385,7 @@ class MarkerNavigationAction extends EditorAction {
 		}
 
 		let newMarker = markers[idx];
-		if (newMarker.resource.toString() === editorModel!.uri.toString()) {
+		if (isEqual(newMarker.resource, editorModel.uri)) {
 			// the next `resource` is this resource which
 			// means we cycle within this file
 			model.move(this._isNext, true);

@@ -31,17 +31,17 @@ vscode-textmate@^4.2.2:
   dependencies:
     oniguruma "^7.2.0"
 
-xterm-addon-search@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.2.0.tgz#46659c7c33f9fc268ad3e7e6c5824bb2fdb65852"
-  integrity sha512-C/v2VvFn3hb1qUgjJPo7LxzxNCLBgNJv8n6v/bH2NqPz32/PNUF+IHu0SFf1TaIH+pydUpKXCtob5a/UyZg/+Q==
+xterm-addon-search@0.3.0-beta5:
+  version "0.3.0-beta5"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.3.0-beta5.tgz#fd53d33a77a0235018479c712be8c12f7c0d083a"
+  integrity sha512-3GkGc4hST35/4hzgnQPLLvQ29WH7MkZ0mUrBE/Vm1IQum7TnMvWPTkGemwM+wAl4tdBmynNccHJlFeQzaQtVUg==
 
 xterm-addon-web-links@0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.0.tgz#b408a0be46211d8d4a0bb5e701d8f3c2bd07d473"
   integrity sha512-dq81c4Pzli2PgKVBgY2REte9sCVibR3df8AP3SEvCTM9uYFnUFxtxzMTplPnc7+rXabVhFdbU6x+rstIk8HNQg==
 
-xterm@4.1.0-beta8:
-  version "4.1.0-beta8"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.1.0-beta8.tgz#c1ef323ba336d92f5b52302b66f672dfff75b3ef"
-  integrity sha512-6lf+XVv0qT285w49P92tSYoUB406jdbgdhnPKNzxCIGtGX8kcwK+pHZ8HncDwcEhmTmI4LZ/WXPGtOQJg+onwg==
+xterm@4.2.0-beta4:
+  version "4.2.0-beta4"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.2.0-beta4.tgz#596577f94a1da372119d192363ea2b19d1f8b50c"
+  integrity sha512-BmkpxCpqdOJoNdIcddkRT8S65sGjgBbWI0uIJNSnzZvj81OKcraMSTmF/ODw0TF/MDLc33Fx9cpDx/D6lQgl8Q==

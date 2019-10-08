@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IWindowState as IWindowUIState } from 'vs/platform/windows/electron-main/windows';
-import { IWindowState, IWindowsState } from 'vs/code/electron-main/windows';
+import { IWindowState, IWindowsState } from 'vs/platform/windows/electron-main/windowsMainService';
 
 export type WindowsStateStorageData = object;
 

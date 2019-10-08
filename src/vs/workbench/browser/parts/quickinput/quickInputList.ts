@@ -159,7 +159,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		// Separator
 		if (element.separator && element.separator.label) {
 			data.separator.textContent = element.separator.label;
-			data.separator.style.display = null;
+			data.separator.style.display = '';
 		} else {
 			data.separator.style.display = 'none';
 		}

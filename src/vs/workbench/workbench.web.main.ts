@@ -105,7 +105,7 @@ import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 // Tasks
 import 'vs/workbench/contrib/tasks/browser/taskService';
 
-// Welcome
-import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
+// Telemetry Opt Out
+import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.contribution';
 
 //#endregion

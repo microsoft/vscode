@@ -664,27 +664,23 @@ export class SnippetParser {
 	}
 
 	private _until(type: TokenType): false | string {
-		if (this._token.type === TokenType.EOF) {
-			return false;
-		}
-		let res = '';
-		let pos = this._token.pos;
-		let prevToken = <Token>{ type: TokenType.EOF, pos: 0, len: 0 };
-
-		while (this._token.type !== type || prevToken.type === TokenType.Backslash) {
-			if (this._token.type === type) {
-				res += this._scanner.value.substring(pos, prevToken.pos);
-				pos = this._token.pos;
-			}
-			prevToken = this._token;
-			this._token = this._scanner.next();
+		const start = this._token;
+		while (this._token.type !== type) {
 			if (this._token.type === TokenType.EOF) {
 				return false;
+			} else if (this._token.type === TokenType.Backslash) {
+				const nextToken = this._scanner.next();
+				if (nextToken.type !== TokenType.Dollar
+					&& nextToken.type !== TokenType.CurlyClose
+					&& nextToken.type !== TokenType.Backslash) {
+					return false;
+				}
 			}
+			this._token = this._scanner.next();
 		}
-		res += this._scanner.value.substring(pos, this._token.pos);
+		const value = this._scanner.value.substring(start.pos, this._token.pos).replace(/\\(\$|}|\\)/g, '$1');
 		this._token = this._scanner.next();
-		return res;
+		return value;
 	}
 
 	private _parse(marker: Marker): boolean {

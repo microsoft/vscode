@@ -27,7 +27,7 @@ import { mixin } from 'vs/base/common/objects';
 
 export class ExpressionContainer implements IExpressionContainer {
 
-	public static allValues = new Map<string, string>();
+	public static readonly allValues = new Map<string, string>();
 	// Use chunks to support variable paging #9537
 	private static readonly BASE_CHUNK_SIZE = 100;
 
@@ -172,7 +172,7 @@ export class ExpressionContainer implements IExpressionContainer {
 }
 
 export class Expression extends ExpressionContainer implements IExpression {
-	static DEFAULT_VALUE = nls.localize('notAvailable', "not available");
+	static readonly DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
 	public available: boolean;
 
@@ -617,8 +617,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get column(): number | undefined {
-		// Only respect the column if the user explictly set the column to have an inline breakpoint
-		return this.verified && this.data && typeof this.data.column === 'number' && typeof this._column === 'number' ? this.data.column : this._column;
+		return this.verified && this.data && typeof this.data.column === 'number' ? this.data.column : this._column;
 	}
 
 	get message(): string | undefined {

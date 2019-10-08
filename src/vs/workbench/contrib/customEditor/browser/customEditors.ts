@@ -160,7 +160,7 @@ export class CustomEditorService implements ICustomEditorService {
 		const webview = this.webviewService.createWebviewEditorOverlay(id, { customClasses: options ? options.customClasses : undefined }, {});
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, new UnownedDisposable(webview));
 		if (group) {
-			input.updateGroup(group!.id);
+			input.updateGroup(group.id);
 		}
 		return input;
 	}
@@ -174,11 +174,18 @@ export class CustomEditorService implements ICustomEditorService {
 		if (group) {
 			const existingEditors = group.editors.filter(editor => editor.getResource() && isEqual(editor.getResource()!, resource));
 			if (existingEditors.length) {
-				await this.editorService.replaceEditors([{
-					editor: existingEditors[0],
-					replacement: input,
-					options: options ? EditorOptions.create(options) : undefined,
-				}], group);
+				const existing = existingEditors[0];
+				if (!input.matches(existing)) {
+					await this.editorService.replaceEditors([{
+						editor: existing,
+						replacement: input,
+						options: options ? EditorOptions.create(options) : undefined,
+					}], group);
+
+					if (existing instanceof CustomFileEditorInput) {
+						existing.dispose();
+					}
+				}
 			}
 		}
 		return this.editorService.openEditor(input, options, group);
@@ -203,7 +210,9 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
 		if (editor instanceof CustomFileEditorInput) {
-			return undefined;
+			if (editor.group === group.id) {
+				return undefined;
+			}
 		}
 
 		if (editor instanceof DiffEditorInput) {

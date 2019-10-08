@@ -24,7 +24,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 export class TabCompletionController implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.tabCompletionController';
-	static ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
+	static readonly ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
 	public static get(editor: ICodeEditor): TabCompletionController {
 		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
