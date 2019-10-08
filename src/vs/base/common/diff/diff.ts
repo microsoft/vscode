@@ -86,6 +86,11 @@ export class MyArray {
 			destinationArray[destinationIndex + i] = sourceArray[sourceIndex + i];
 		}
 	}
+	public static Copy2(sourceArray: Int32Array, sourceIndex: number, destinationArray: Int32Array, destinationIndex: number, length: number) {
+		for (let i = 0; i < length; i++) {
+			destinationArray[destinationIndex + i] = sourceArray[sourceIndex + i];
+		}
+	}
 }
 
 //*****************************************************************************
@@ -218,8 +223,8 @@ export class LcsDiff {
 	private ModifiedSequence: ISequence;
 	private ContinueProcessingPredicate: IContinueProcessingPredicate | null;
 
-	private m_forwardHistory: number[][];
-	private m_reverseHistory: number[][];
+	private m_forwardHistory: Int32Array[];
+	private m_reverseHistory: Int32Array[];
 
 	/**
 	 * Constructs the DiffFinder
@@ -358,7 +363,7 @@ export class LcsDiff {
 
 	private WALKTRACE(diagonalForwardBase: number, diagonalForwardStart: number, diagonalForwardEnd: number, diagonalForwardOffset: number,
 		diagonalReverseBase: number, diagonalReverseStart: number, diagonalReverseEnd: number, diagonalReverseOffset: number,
-		forwardPoints: number[], reversePoints: number[],
+		forwardPoints: Int32Array, reversePoints: Int32Array,
 		originalIndex: number, originalEnd: number, midOriginalArr: number[],
 		modifiedIndex: number, modifiedEnd: number, midModifiedArr: number[],
 		deltaIsEven: boolean, quitEarlyArr: boolean[]): DiffChange[] {
@@ -523,8 +528,8 @@ export class LcsDiff {
 		// The modifiedIndex can be computed mathematically from the originalIndex and the diagonal number.
 		let maxDifferences = (originalEnd - originalStart) + (modifiedEnd - modifiedStart);
 		let numDiagonals = maxDifferences + 1;
-		let forwardPoints: number[] = new Array<number>(numDiagonals);
-		let reversePoints: number[] = new Array<number>(numDiagonals);
+		let forwardPoints = new Int32Array(numDiagonals);
+		let reversePoints = new Int32Array(numDiagonals);
 		// diagonalForwardBase: Index into forwardPoints of the diagonal which passes through (originalStart, modifiedStart)
 		// diagonalReverseBase: Index into reversePoints of the diagonal which passes through (originalEnd, modifiedEnd)
 		let diagonalForwardBase = (modifiedEnd - modifiedStart);
@@ -711,14 +716,14 @@ export class LcsDiff {
 			if (numDifferences <= MaxDifferencesHistory) {
 				// We are allocating space for one extra int, which we fill with
 				// the index of the diagonal base index
-				let temp: number[] = new Array<number>(diagonalForwardEnd - diagonalForwardStart + 2);
+				let temp = new Int32Array(diagonalForwardEnd - diagonalForwardStart + 2);
 				temp[0] = diagonalForwardBase - diagonalForwardStart + 1;
-				MyArray.Copy(forwardPoints, diagonalForwardStart, temp, 1, diagonalForwardEnd - diagonalForwardStart + 1);
+				MyArray.Copy2(forwardPoints, diagonalForwardStart, temp, 1, diagonalForwardEnd - diagonalForwardStart + 1);
 				this.m_forwardHistory.push(temp);
 
-				temp = new Array<number>(diagonalReverseEnd - diagonalReverseStart + 2);
+				temp = new Int32Array(diagonalReverseEnd - diagonalReverseStart + 2);
 				temp[0] = diagonalReverseBase - diagonalReverseStart + 1;
-				MyArray.Copy(reversePoints, diagonalReverseStart, temp, 1, diagonalReverseEnd - diagonalReverseStart + 1);
+				MyArray.Copy2(reversePoints, diagonalReverseStart, temp, 1, diagonalReverseEnd - diagonalReverseStart + 1);
 				this.m_reverseHistory.push(temp);
 			}
 
