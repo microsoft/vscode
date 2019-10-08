@@ -561,7 +561,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Attach the xterm object to the DOM, exposing it to the smoke tests
 			this._wrapperElement.xterm = this._xterm;
 
+			this._wrapperElement.appendChild(this._xtermElement);
+			this._container.appendChild(this._wrapperElement);
 			xterm.open(this._xtermElement);
+
 			xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 			xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 				// Disable all input if the terminal is exiting
@@ -637,9 +640,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
-
-			this._wrapperElement.appendChild(this._xtermElement);
-			this._container.appendChild(this._wrapperElement);
 
 			const widgetManager = new TerminalWidgetManager(this._wrapperElement);
 			this._widgetManager = widgetManager;
