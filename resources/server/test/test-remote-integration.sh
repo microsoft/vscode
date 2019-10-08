@@ -43,7 +43,7 @@ else
 	yarn gulp compile-extensions
 
 	# Running from a build, we need to enable the vscode-test-resolver extension
-	EXTRA_INTEGRATION_TEST_ARGUMENTS="--extensions-dir=$EXT_PATH --enable-proposed-api=vscode.vscode-test-resolver"
+	EXTRA_INTEGRATION_TEST_ARGUMENTS="--extensions-dir=$EXT_PATH  --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests --enable-proposed-api=vscode.image-preview"
 fi
 
 # Figure out which remote server to use for running tests
@@ -55,8 +55,8 @@ else
 fi
 
 # Tests in the extension host
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX --folder-uri=$REMOTE_VSCODE/vscode-api-tests/testWorkspace --enable-proposed-api --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR $EXTRA_INTEGRATION_TEST_ARGUMENTS
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX --file-uri=$REMOTE_VSCODE/vscode-api-tests/testworkspace.code-workspace --enable-proposed-api --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/workspace-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR $EXTRA_INTEGRATION_TEST_ARGUMENTS
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX --folder-uri=$REMOTE_VSCODE/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR $EXTRA_INTEGRATION_TEST_ARGUMENTS
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX --file-uri=$REMOTE_VSCODE/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/workspace-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR $EXTRA_INTEGRATION_TEST_ARGUMENTS
 
 # Clean up
 if [[ "$3" == "" ]]; then
