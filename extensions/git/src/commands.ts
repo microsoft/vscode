@@ -2069,6 +2069,19 @@ export class CommandCenter {
 		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
 	}
 
+	@command('git.revealInExplorer')
+	async revealInExplorer(resourceState: SourceControlResourceState): Promise<void> {
+		if (!resourceState) {
+			return;
+		}
+
+		if (!(resourceState.resourceUri instanceof Uri)) {
+			return;
+		}
+
+		await commands.executeCommand('revealInExplorer', resourceState.resourceUri);
+	}
+
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;

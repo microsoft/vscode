@@ -163,15 +163,19 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 	constructor(
-		id: string, name: string, iconUrl: URI,
+		id: string,
+		name: string,
+		iconUrl: URI | undefined,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, layoutService, telemetryService);
 
-		const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
-		DOM.createCSSRule(iconClass, `-webkit-mask: ${DOM.asCSSUrl(iconUrl)} no-repeat 50% 50%; -webkit-mask-size: 24px;`);
+		if (iconUrl) {
+			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
+			DOM.createCSSRule(iconClass, `-webkit-mask: ${DOM.asCSSUrl(iconUrl)} no-repeat 50% 50%; -webkit-mask-size: 24px;`);
+		}
 	}
 
 	setActivity(activity: IActivity): void {
@@ -222,7 +226,7 @@ class SwitchSideBarViewAction extends Action {
 export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 
 	static readonly ID = 'workbench.action.previousSideBarView';
-	static LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
+	static readonly LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
 
 	constructor(
 		id: string,
@@ -241,7 +245,7 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 export class NextSideBarViewAction extends SwitchSideBarViewAction {
 
 	static readonly ID = 'workbench.action.nextSideBarView';
-	static LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
+	static readonly LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
 
 	constructor(
 		id: string,

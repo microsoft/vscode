@@ -303,7 +303,7 @@ class BrowserMain extends Disposable {
 		return { id: 'empty-window' };
 	}
 
-	private getRemoteUserDataUri(): URI | null {
+	private getRemoteUserDataUri(): URI | undefined {
 		const element = document.getElementById('vscode-remote-user-data-uri');
 		if (element) {
 			const remoteUserDataPath = element.getAttribute('data-settings');
@@ -312,7 +312,7 @@ class BrowserMain extends Disposable {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 }
 

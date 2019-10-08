@@ -614,12 +614,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	has(uri: URI): boolean {
-		for (const edit of this._edits) {
-			if (edit._type === 2 && edit.uri.toString() === uri.toString()) {
-				return true;
-			}
-		}
-		return false;
+		return this._edits.some(edit => edit._type === 2 && edit.uri.toString() === uri.toString());
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
@@ -1166,22 +1161,22 @@ export class CallHierarchyItem {
 
 export class CallHierarchyIncomingCall {
 
-	source: vscode.CallHierarchyItem;
-	sourceRanges: vscode.Range[];
+	from: vscode.CallHierarchyItem;
+	fromRanges: vscode.Range[];
 
-	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
-		this.sourceRanges = sourceRanges;
-		this.source = item;
+	constructor(item: vscode.CallHierarchyItem, fromRanges: vscode.Range[]) {
+		this.fromRanges = fromRanges;
+		this.from = item;
 	}
 }
 export class CallHierarchyOutgoingCall {
 
-	target: vscode.CallHierarchyItem;
-	sourceRanges: vscode.Range[];
+	to: vscode.CallHierarchyItem;
+	fromRanges: vscode.Range[];
 
-	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
-		this.sourceRanges = sourceRanges;
-		this.target = item;
+	constructor(item: vscode.CallHierarchyItem, fromRanges: vscode.Range[]) {
+		this.fromRanges = fromRanges;
+		this.to = item;
 	}
 }
 

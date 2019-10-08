@@ -459,7 +459,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 export class ShowRuntimeExtensionsAction extends Action {
 	static readonly ID = 'workbench.action.showRuntimeExtensions';
-	static LABEL = nls.localize('showRuntimeExtensions', "Show Running Extensions");
+	static readonly LABEL = nls.localize('showRuntimeExtensions', "Show Running Extensions");
 
 	constructor(
 		id: string, label: string,
@@ -477,7 +477,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 export class ReportExtensionIssueAction extends Action {
 
 	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
-	private static _label = nls.localize('reportExtensionIssue', "Report Issue");
+	private static readonly _label = nls.localize('reportExtensionIssue', "Report Issue");
 
 	private readonly _url: string;
 
@@ -533,8 +533,8 @@ export class ReportExtensionIssueAction extends Action {
 
 export class DebugExtensionHostAction extends Action {
 	static readonly ID = 'workbench.extensions.action.debugExtensionHost';
-	static LABEL = nls.localize('debugExtensionHost', "Start Debugging Extension Host");
-	static CSS_CLASS = 'debug-extension-host';
+	static readonly LABEL = nls.localize('debugExtensionHost', "Start Debugging Extension Host");
+	static readonly CSS_CLASS = 'debug-extension-host';
 
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
@@ -572,7 +572,7 @@ export class DebugExtensionHostAction extends Action {
 
 export class StartExtensionHostProfileAction extends Action {
 	static readonly ID = 'workbench.extensions.action.extensionHostProfile';
-	static LABEL = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
+	static readonly LABEL = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
 
 	constructor(
 		id: string = StartExtensionHostProfileAction.ID, label: string = StartExtensionHostProfileAction.LABEL,
@@ -589,7 +589,7 @@ export class StartExtensionHostProfileAction extends Action {
 
 export class StopExtensionHostProfileAction extends Action {
 	static readonly ID = 'workbench.extensions.action.stopExtensionHostProfile';
-	static LABEL = nls.localize('stopExtensionHostProfileStart', "Stop Extension Host Profile");
+	static readonly LABEL = nls.localize('stopExtensionHostProfileStart', "Stop Extension Host Profile");
 
 	constructor(
 		id: string = StartExtensionHostProfileAction.ID, label: string = StartExtensionHostProfileAction.LABEL,
@@ -606,7 +606,7 @@ export class StopExtensionHostProfileAction extends Action {
 
 export class SaveExtensionHostProfileAction extends Action {
 
-	static LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
+	static readonly LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
 	static readonly ID = 'workbench.extensions.action.saveExtensionHostProfile';
 
 	constructor(

@@ -130,15 +130,15 @@ export interface IBreadcrumbsControlOptions {
 
 export class BreadcrumbsControl {
 
-	static HEIGHT = 22;
+	static readonly HEIGHT = 22;
 
 	static readonly Payload_Reveal = {};
 	static readonly Payload_RevealAside = {};
 	static readonly Payload_Pick = {};
 
-	static CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false);
-	static CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
-	static CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false);
+	static readonly CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false);
+	static readonly CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
+	static readonly CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false);
 
 	private readonly _ckBreadcrumbsPossible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;

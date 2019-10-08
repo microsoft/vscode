@@ -132,9 +132,15 @@
 	margin-left: 6px;
 }
 
-.markers-panel .monaco-tl-contents .marker-icon,
-.markers-panel .monaco-tl-contents .actions .action-item {
+.markers-panel .monaco-tl-contents .marker-icon {
 	margin-right: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.markers-panel .monaco-tl-contents .actions .action-item {
+	margin-right: 2px;
 }
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,

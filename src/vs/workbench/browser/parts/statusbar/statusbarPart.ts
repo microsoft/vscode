@@ -27,7 +27,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, find } from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -176,13 +176,7 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	findEntry(container: HTMLElement): IStatusbarViewModelEntry | undefined {
-		for (const entry of this._entries) {
-			if (entry.container === container) {
-				return entry;
-			}
-		}
-
-		return undefined;
+		return find(this._entries, entry => entry.container === container);
 	}
 
 	getEntries(alignment: StatusbarAlignment): IStatusbarViewModelEntry[] {
@@ -578,7 +572,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const container = assertIsDefined(this.getContainer());
 
 		// Background colors
-		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);
+		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND) || '';
 		container.style.backgroundColor = backgroundColor;
 		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
 
@@ -784,7 +778,7 @@ class StatusbarEntryItem extends Disposable {
 		}
 
 		if (isBackground) {
-			container.style.backgroundColor = colorResult;
+			container.style.backgroundColor = colorResult || '';
 		} else {
 			container.style.color = colorResult;
 		}

@@ -15,6 +15,7 @@ import { trackFocus, Dimension } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
+import { find } from 'vs/base/common/arrays';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -258,7 +259,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	private composites: CompositeDescriptor<T>[] = [];
 
 	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
-		if (this.compositeById(descriptor.id) !== null) {
+		if (this.compositeById(descriptor.id)) {
 			return;
 		}
 
@@ -276,7 +277,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 		this._onDidDeregister.fire(descriptor);
 	}
 
-	getComposite(id: string): CompositeDescriptor<T> | null {
+	getComposite(id: string): CompositeDescriptor<T> | undefined {
 		return this.compositeById(id);
 	}
 
@@ -284,13 +285,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 		return this.composites.slice(0);
 	}
 
-	private compositeById(id: string): CompositeDescriptor<T> | null {
-		for (const composite of this.composites) {
-			if (composite.id === id) {
-				return composite;
-			}
-		}
-
-		return null;
+	private compositeById(id: string): CompositeDescriptor<T> | undefined {
+		return find(this.composites, composite => composite.id === id);
 	}
 }

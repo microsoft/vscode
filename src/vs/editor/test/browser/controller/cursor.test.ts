@@ -1494,6 +1494,25 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #74722: Pasting whole line does not replace selection', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line sel 2',
+				'line3'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 6, 2, 9)]);
+
+			cursorCommand(cursor, H.Paste, { text: 'line1\n', pasteOnNewLine: true });
+
+			assert.equal(model.getLineContent(1), 'line1');
+			assert.equal(model.getLineContent(2), 'line line1');
+			assert.equal(model.getLineContent(3), ' 2');
+			assert.equal(model.getLineContent(4), 'line3');
+		});
+	});
+
 	test('issue #4996: Multiple cursor paste pastes contents of all cursors', () => {
 		usingCursor({
 			text: [

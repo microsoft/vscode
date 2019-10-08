@@ -323,7 +323,7 @@ class QuickInput extends Disposable implements IQuickInput {
 
 class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPick<T> {
 
-	private static INPUT_BOX_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
+	private static readonly INPUT_BOX_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 	private _value = '';
 	private _placeholder: string;
@@ -762,7 +762,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 class InputBox extends QuickInput implements IInputBox {
 
-	private static noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
+	private static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 	private _value = '';
 	private _valueSelection: Readonly<[number, number]>;

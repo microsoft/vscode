@@ -727,9 +727,9 @@ export class DebugSession implements IDebugSession {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					const promises = this.model.fetchCallStack(<Thread>thread);
-					const focus = () => {
+					const focus = async () => {
 						if (!event.body.preserveFocusHint && thread.getCallStack().length) {
-							this.debugService.focusStackFrame(undefined, thread);
+							await this.debugService.focusStackFrame(undefined, thread);
 							if (thread.stoppedDetails) {
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
 									this.viewletService.openViewlet(VIEWLET_ID);

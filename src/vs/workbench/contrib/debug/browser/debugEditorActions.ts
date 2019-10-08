@@ -104,8 +104,8 @@ class LogPointAction extends EditorAction {
 
 export class RunToCursorAction extends EditorAction {
 
-	public static ID = 'editor.debug.action.runToCursor';
-	public static LABEL = nls.localize('runToCursor', "Run to Cursor");
+	public static readonly ID = 'editor.debug.action.runToCursor';
+	public static readonly LABEL = nls.localize('runToCursor', "Run to Cursor");
 
 	constructor() {
 		super({

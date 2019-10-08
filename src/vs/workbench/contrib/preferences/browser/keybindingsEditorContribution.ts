@@ -29,6 +29,7 @@ import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRule
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { equals } from 'vs/base/common/arrays';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -265,18 +266,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 		const aParts = KeybindingParser.parseUserBinding(a);
 		const bParts = KeybindingParser.parseUserBinding(b);
-
-		if (aParts.length !== bParts.length) {
-			return false;
-		}
-
-		for (let i = 0, len = aParts.length; i < len; i++) {
-			if (!this._userBindingEquals(aParts[i], bParts[i])) {
-				return false;
-			}
-		}
-
-		return true;
+		return equals(aParts, bParts, (a, b) => this._userBindingEquals(a, b));
 	}
 
 	private static _userBindingEquals(a: SimpleKeybinding | ScanCodeBinding, b: SimpleKeybinding | ScanCodeBinding): boolean {

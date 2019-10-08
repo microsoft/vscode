@@ -100,7 +100,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		editor: ICodeEditor,
 		private _owner: string,
 		private _commentThread: modes.CommentThread,
-		private _pendingComment: string,
+		private _pendingComment: string | null,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,

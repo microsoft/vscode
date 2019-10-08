@@ -28,7 +28,7 @@ import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 class OpenSCMViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static LABEL = localize('toggleGitViewlet', "Show Git");
+	static readonly LABEL = localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);

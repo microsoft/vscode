@@ -192,10 +192,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		super.updateStyles();
 
 		if (this.$el) {
-			this.$el.style.backgroundColor = this.getColor(debugToolBarBackground);
+			this.$el.style.backgroundColor = this.getColor(debugToolBarBackground) || '';
 
 			const widgetShadowColor = this.getColor(widgetShadow);
-			this.$el.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
+			this.$el.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : '';
 
 			const contrastBorderColor = this.getColor(contrastBorder);
 			const borderColor = this.getColor(debugToolBarBorder);
