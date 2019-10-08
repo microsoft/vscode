@@ -379,8 +379,8 @@ declare namespace monaco {
 	}
 
 	export interface IMarkdownString {
-		value: string;
-		isTrusted?: boolean;
+		readonly value: string;
+		readonly isTrusted?: boolean;
 		uris?: {
 			[href: string]: UriComponents;
 		};
