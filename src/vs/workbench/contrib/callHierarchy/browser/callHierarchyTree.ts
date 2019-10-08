@@ -83,8 +83,8 @@ export class DataSource implements IAsyncDataSource<CallHierarchyRoot, Call> {
 		const outgoingCalls = await provideOutgoingCalls(model, position, CancellationToken.None);
 		for (const call of outgoingCalls) {
 			bucket.push(new Call(
-				call.target,
-				call.sourceRanges.map(range => ({ range, uri: model.uri })),
+				call.to,
+				call.fromRanges.map(range => ({ range, uri: model.uri })),
 				parent
 			));
 		}
@@ -94,8 +94,8 @@ export class DataSource implements IAsyncDataSource<CallHierarchyRoot, Call> {
 		const incomingCalls = await provideIncomingCalls(model, position, CancellationToken.None);
 		for (const call of incomingCalls) {
 			bucket.push(new Call(
-				call.source,
-				call.sourceRanges.map(range => ({ range, uri: call.source.uri })),
+				call.from,
+				call.fromRanges.map(range => ({ range, uri: call.from.uri })),
 				parent
 			));
 		}

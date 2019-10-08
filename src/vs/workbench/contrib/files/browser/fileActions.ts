@@ -125,8 +125,8 @@ export class NewFolderAction extends Action {
 
 /* Create new file from anywhere: Open untitled */
 export class GlobalNewUntitledFileAction extends Action {
-	public static readonly ID = 'workbench.action.files.newUntitledFile';
-	public static readonly LABEL = nls.localize('newUntitledFile', "New Untitled File");
+	static readonly ID = 'workbench.action.files.newUntitledFile';
+	static readonly LABEL = nls.localize('newUntitledFile', "New Untitled File");
 
 	constructor(
 		id: string,
@@ -136,7 +136,7 @@ export class GlobalNewUntitledFileAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return this.editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 	}
 }
@@ -440,8 +440,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 // Global Compare with
 export class GlobalCompareResourcesAction extends Action {
 
-	public static readonly ID = 'workbench.files.action.compareFileWith';
-	public static readonly LABEL = nls.localize('globalCompareFile', "Compare Active File With...");
+	static readonly ID = 'workbench.files.action.compareFileWith';
+	static readonly LABEL = nls.localize('globalCompareFile', "Compare Active File With...");
 
 	constructor(
 		id: string,
@@ -453,7 +453,7 @@ export class GlobalCompareResourcesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		const activeInput = this.editorService.activeEditor;
 		const activeResource = activeInput ? activeInput.getResource() : undefined;
 		if (activeResource) {
@@ -491,8 +491,8 @@ export class GlobalCompareResourcesAction extends Action {
 }
 
 export class ToggleAutoSaveAction extends Action {
-	public static readonly ID = 'workbench.action.toggleAutoSave';
-	public static readonly LABEL = nls.localize('toggleAutoSave', "Toggle Auto Save");
+	static readonly ID = 'workbench.action.toggleAutoSave';
+	static readonly LABEL = nls.localize('toggleAutoSave', "Toggle Auto Save");
 
 	constructor(
 		id: string,
@@ -502,7 +502,7 @@ export class ToggleAutoSaveAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		const setting = this.configurationService.inspect('files.autoSave');
 		let userAutoSaveConfig = setting.user;
 		if (types.isUndefinedOrNull(userAutoSaveConfig)) {
@@ -562,7 +562,7 @@ export abstract class BaseSaveAllAction extends Action {
 		}
 	}
 
-	public run(context?: any): Promise<boolean> {
+	run(context?: any): Promise<boolean> {
 		return this.doRun(context).then(() => true, error => {
 			onError(this.notificationService, error);
 			return false;
@@ -572,10 +572,10 @@ export abstract class BaseSaveAllAction extends Action {
 
 export class SaveAllAction extends BaseSaveAllAction {
 
-	public static readonly ID = 'workbench.action.files.saveAll';
-	public static readonly LABEL = SAVE_ALL_LABEL;
+	static readonly ID = 'workbench.action.files.saveAll';
+	static readonly LABEL = SAVE_ALL_LABEL;
 
-	public get class(): string {
+	get class(): string {
 		return 'explorer-action codicon-save-all';
 	}
 
@@ -590,10 +590,10 @@ export class SaveAllAction extends BaseSaveAllAction {
 
 export class SaveAllInGroupAction extends BaseSaveAllAction {
 
-	public static readonly ID = 'workbench.files.action.saveAllInGroup';
-	public static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
+	static readonly ID = 'workbench.files.action.saveAllInGroup';
+	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
-	public get class(): string {
+	get class(): string {
 		return 'explorer-action codicon-save-all';
 	}
 
@@ -608,22 +608,22 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 
 export class CloseGroupAction extends Action {
 
-	public static readonly ID = 'workbench.files.action.closeGroup';
-	public static readonly LABEL = nls.localize('closeGroup', "Close Group");
+	static readonly ID = 'workbench.files.action.closeGroup';
+	static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
 	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
 		super(id, label, 'codicon-close-all');
 	}
 
-	public run(context?: any): Promise<any> {
+	run(context?: any): Promise<any> {
 		return this.commandService.executeCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, {}, context);
 	}
 }
 
 export class FocusFilesExplorer extends Action {
 
-	public static readonly ID = 'workbench.files.action.focusFilesExplorer';
-	public static readonly LABEL = nls.localize('focusFilesExplorer', "Focus on Files Explorer");
+	static readonly ID = 'workbench.files.action.focusFilesExplorer';
+	static readonly LABEL = nls.localize('focusFilesExplorer', "Focus on Files Explorer");
 
 	constructor(
 		id: string,
@@ -633,15 +633,15 @@ export class FocusFilesExplorer extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true);
 	}
 }
 
 export class ShowActiveFileInExplorer extends Action {
 
-	public static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
-	public static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
+	static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
+	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
 
 	constructor(
 		id: string,
@@ -653,7 +653,7 @@ export class ShowActiveFileInExplorer extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
@@ -667,8 +667,8 @@ export class ShowActiveFileInExplorer extends Action {
 
 export class CollapseExplorerView extends Action {
 
-	public static readonly ID = 'workbench.files.action.collapseExplorerFolders';
-	public static readonly LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
+	static readonly ID = 'workbench.files.action.collapseExplorerFolders';
+	static readonly LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
 
 	constructor(id: string,
 		label: string,
@@ -694,8 +694,8 @@ export class CollapseExplorerView extends Action {
 
 export class RefreshExplorerView extends Action {
 
-	public static readonly ID = 'workbench.files.action.refreshFilesExplorer';
-	public static readonly LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
+	static readonly ID = 'workbench.files.action.refreshFilesExplorer';
+	static readonly LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
 
 
 	constructor(
@@ -710,7 +710,7 @@ export class RefreshExplorerView extends Action {
 		}));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID).then(() =>
 			this.explorerService.refresh()
 		);
@@ -719,8 +719,8 @@ export class RefreshExplorerView extends Action {
 
 export class ShowOpenedFileInNewWindow extends Action {
 
-	public static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
-	public static readonly LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
+	static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
+	static readonly LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
 
 	constructor(
 		id: string,
@@ -733,7 +733,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
@@ -808,8 +808,8 @@ export function getWellFormedFileName(filename: string): string {
 
 export class CompareWithClipboardAction extends Action {
 
-	public static readonly ID = 'workbench.files.action.compareWithClipboard';
-	public static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
+	static readonly ID = 'workbench.files.action.compareWithClipboard';
+	static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
 
 	private static readonly SCHEME = 'clipboardCompare';
 
@@ -828,7 +828,7 @@ export class CompareWithClipboardAction extends Action {
 		this.enabled = true;
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
@@ -848,7 +848,7 @@ export class CompareWithClipboardAction extends Action {
 		return Promise.resolve(true);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 
 		dispose(this.registrationDisposal);

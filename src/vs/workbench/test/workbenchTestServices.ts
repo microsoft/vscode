@@ -583,8 +583,8 @@ export class TestViewletService implements IViewletService {
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 
-	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
-		return Promise.resolve(null!);
+	public openViewlet(id: string, focus?: boolean): Promise<IViewlet | undefined> {
+		return Promise.resolve(undefined);
 	}
 
 	public getViewlets(): ViewletDescriptor[] {
@@ -611,7 +611,7 @@ export class TestViewletService implements IViewletService {
 	}
 
 	public getProgressIndicator(id: string) {
-		return null!;
+		return undefined;
 	}
 
 	public hideActiveViewlet(): void { }

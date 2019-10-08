@@ -173,10 +173,10 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 		return find(this._notifications, notification => notification.equals(item));
 	}
 
-	private createViewItem(notification: INotification): INotificationViewItem | null {
+	private createViewItem(notification: INotification): INotificationViewItem | undefined {
 		const item = NotificationViewItem.create(notification);
 		if (!item) {
-			return null;
+			return undefined;
 		}
 
 		// Item Events
@@ -400,9 +400,9 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private readonly _onDidLabelChange: Emitter<INotificationViewItemLabelChangeEvent> = this._register(new Emitter<INotificationViewItemLabelChangeEvent>());
 	readonly onDidLabelChange: Event<INotificationViewItemLabelChangeEvent> = this._onDidLabelChange.event;
 
-	static create(notification: INotification): INotificationViewItem | null {
+	static create(notification: INotification): INotificationViewItem | undefined {
 		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
-			return null; // we need a message to show
+			return undefined; // we need a message to show
 		}
 
 		let severity: Severity;
@@ -414,7 +414,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 		const message = NotificationViewItem.parseNotificationMessage(notification.message);
 		if (!message) {
-			return null; // we need a message to show
+			return undefined; // we need a message to show
 		}
 
 		let actions: INotificationActions | undefined;
@@ -675,9 +675,9 @@ export class ChoiceAction extends Action {
 
 class StatusMessageViewItem {
 
-	static create(notification: NotificationMessage, options?: IStatusMessageOptions): IStatusMessageViewItem | null {
+	static create(notification: NotificationMessage, options?: IStatusMessageOptions): IStatusMessageViewItem | undefined {
 		if (!notification || isPromiseCanceledError(notification)) {
-			return null; // we need a message to show
+			return undefined; // we need a message to show
 		}
 
 		let message: string | undefined;
@@ -688,7 +688,7 @@ class StatusMessageViewItem {
 		}
 
 		if (!message) {
-			return null; // we need a message to show
+			return undefined; // we need a message to show
 		}
 
 		return { message, options };

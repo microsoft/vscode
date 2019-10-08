@@ -53,7 +53,7 @@ export interface IPanelService {
 	/**
 	 * Returns the progress indicator for the panel bar.
 	 */
-	getProgressIndicator(id: string): IProgressIndicator | null;
+	getProgressIndicator(id: string): IProgressIndicator | undefined;
 
 	/**
 	 * Show an activity in a panel.
