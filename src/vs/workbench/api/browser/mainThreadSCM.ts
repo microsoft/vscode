@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, ScmEvents, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
@@ -429,5 +429,10 @@ export class MainThreadSCM implements MainThreadSCMShape {
 			.map(r => (r.provider as MainThreadSCMProvider).handle);
 
 		this._proxy.$setSelectedSourceControls(handles);
+		const events: ScmEvents = {
+			branchChanged: []
+		};
+		events.branchChanged.push("Hello from a different branch!")
+		this._proxy.$onScmChangeEvent(events);
 	}
 }

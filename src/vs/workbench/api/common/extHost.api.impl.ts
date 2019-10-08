@@ -711,6 +711,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
+			},
+			createScmSystemWatcher(){
+				return  extHostSCM.createScmSystemWatcher();
 			}
 		};
 

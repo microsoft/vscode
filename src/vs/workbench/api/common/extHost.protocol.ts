@@ -901,6 +901,11 @@ export interface FileSystemEvents {
 	changed: UriComponents[];
 	deleted: UriComponents[];
 }
+
+export interface ScmEvents {
+	branchChanged: String[]
+}
+
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
 	$onFileRename(oldUri: UriComponents, newUri: UriComponents): void;
@@ -1208,6 +1213,7 @@ export interface ExtHostSCMShape {
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined>;
 	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Promise<void>;
+	$onScmChangeEvent(events: ScmEvents): void;
 }
 
 export interface ExtHostTaskShape {

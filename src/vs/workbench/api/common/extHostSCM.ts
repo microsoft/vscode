@@ -9,7 +9,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape,ScmEvents, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto } from './extHost.protocol';
 import { sortedDiff, equals } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
@@ -17,6 +17,7 @@ import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { Disposable } from './extHostTypes';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -517,6 +518,42 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 }
 
+class ScmSystemWatcher implements vscode.ScmSystemWatcher {
+
+	private readonly _onBranchChanged = new Emitter<String>();
+	private _disposable: Disposable;
+	private _config: number;
+
+	get ignoreBranchEvents(): boolean {
+		return Boolean(this._config & 0b001);
+	}
+
+	constructor(dispatcher: Event<ScmEvents>, ignoreBranchEvents?: boolean) {
+
+		this._config = 0;
+		if (ignoreBranchEvents) {
+			this._config += 0b001;
+		}
+
+		const subscription = dispatcher(events => {
+			if (!ignoreBranchEvents) {
+				this._onBranchChanged.fire("hello world");
+			}
+		});
+
+		this._disposable = Disposable.from(this._onBranchChanged, subscription);
+	}
+
+	dispose() {
+		this._disposable.dispose();
+	}
+
+	get onBranchChanged(): Event<String> {
+		return this._onBranchChanged.event;
+	}
+}
+
+
 export class ExtHostSCM implements ExtHostSCMShape {
 
 	private static _handlePool: number = 0;
@@ -524,7 +561,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	private _proxy: MainThreadSCMShape;
 	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
 	private _sourceControlsByExtension: Map<string, ExtHostSourceControl[]> = new Map<string, ExtHostSourceControl[]>();
-
+	private readonly _onScmEvent = new Emitter<ScmEvents>();
 	private readonly _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
 
@@ -588,6 +625,15 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		this._sourceControlsByExtension.set(ExtensionIdentifier.toKey(extension.identifier), sourceControls);
 
 		return sourceControl;
+	}
+
+	createScmSystemWatcher(): vscode.ScmSystemWatcher
+	{
+		return new ScmSystemWatcher(this._onScmEvent.event);
+	}
+
+	$onScmChangeEvent(events: ScmEvents) {
+		this._onScmEvent.fire(events);
 	}
 
 	// Deprecated
