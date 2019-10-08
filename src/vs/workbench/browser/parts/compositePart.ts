@@ -445,10 +445,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return contentContainer;
 	}
 
-	getProgressIndicator(id: string): IProgressIndicator | null {
+	getProgressIndicator(id: string): IProgressIndicator | undefined {
 		const compositeItem = this.instantiatedCompositeItems.get(id);
 
-		return compositeItem ? compositeItem.progress : null;
+		return compositeItem ? compositeItem.progress : undefined;
 	}
 
 	protected getActions(): ReadonlyArray<IAction> {

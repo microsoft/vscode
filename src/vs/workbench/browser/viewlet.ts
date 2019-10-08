@@ -35,8 +35,8 @@ export abstract class Viewlet extends Composite implements IViewlet {
 		super(id, telemetryService, themeService, storageService);
 	}
 
-	getOptimalWidth(): number | null {
-		return null;
+	getOptimalWidth(): number | undefined {
+		return undefined;
 	}
 
 	getContextMenuActions(): IAction[] {
