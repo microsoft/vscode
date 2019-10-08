@@ -987,6 +987,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				throw new Error('Task shell launch configuration should not be undefined here.');
 			}
 
+			terminalToReuse.terminal.scrollToBottom();
 			terminalToReuse.terminal.reuseTerminal(launchConfigs);
 
 			if (task.command.presentation && task.command.presentation.clear) {

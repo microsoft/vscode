@@ -925,12 +925,11 @@ export class TreeView extends HeightMap {
 			if (!skipDiff) {
 				const lcs = new Diff.LcsDiff(
 					{
-						getLength: () => previousChildrenIds.length,
-						getElementAtIndex: (i: number) => previousChildrenIds[i]
-					}, {
-					getLength: () => afterModelItems.length,
-					getElementAtIndex: (i: number) => afterModelItems[i].id
-				},
+						getElements: () => previousChildrenIds
+					},
+					{
+						getElements: () => afterModelItems.map(item => item.id)
+					},
 					null
 				);
 
