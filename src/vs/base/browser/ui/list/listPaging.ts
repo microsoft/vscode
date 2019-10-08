@@ -155,6 +155,14 @@ export class PagedList<T> implements IDisposable {
 		this.list.scrollTop = scrollTop;
 	}
 
+	get scrollLeft(): number {
+		return this.list.scrollTop;
+	}
+
+	set scrollLeft(scrollLeft: number) {
+		this.list.scrollLeft = scrollLeft;
+	}
+
 	open(indexes: number[], browserEvent?: UIEvent): void {
 		this.list.open(indexes, browserEvent);
 	}

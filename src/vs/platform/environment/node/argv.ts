@@ -109,7 +109,6 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
-	'disable-inspect': { type: 'boolean' },
 	'force-user-env': { type: 'boolean' },
 
 	'js-flags': { type: 'string' }, // chrome js flags

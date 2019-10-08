@@ -547,7 +547,7 @@ export class DebugExtensionHostAction extends Action {
 
 	async run(): Promise<any> {
 
-		const inspectPort = this._extensionService.getInspectPort();
+		const inspectPort = await this._extensionService.getInspectPort(false);
 		if (!inspectPort) {
 			const res = await this._dialogService.confirm({
 				type: 'info',
