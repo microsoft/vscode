@@ -47,7 +47,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		this.score = score;
 	}
 
-	getHighlights(): [IHighlight[] /* Label */, IHighlight[] | undefined /* Description */, IHighlight[] | undefined /* Detail */] {
+	getHighlights(): [IHighlight[] | undefined /* Label */, IHighlight[] | undefined /* Description */, IHighlight[] | undefined /* Detail */] {
 		return [this.isDeprecated() ? [] : filters.createMatches(this.score), undefined, undefined];
 	}
 

@@ -241,7 +241,7 @@ const enum TraceType {
 
 class Trace {
 
-	private static _None = new class extends Trace {
+	private static readonly _None = new class extends Trace {
 		constructor() { super(-1, null); }
 		stop() { }
 		branch() { return this; }

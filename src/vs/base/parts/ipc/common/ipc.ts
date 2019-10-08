@@ -8,7 +8,6 @@ import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/li
 import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
-import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 /**

@@ -193,7 +193,7 @@ class QuickOpenRecentAction extends BaseOpenRecentAction {
 class ToggleFullScreenAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleFullScreen';
-	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
+	static readonly LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
 
 	constructor(
 		id: string,
@@ -211,7 +211,7 @@ class ToggleFullScreenAction extends Action {
 export class ReloadWindowAction extends Action {
 
 	static readonly ID = 'workbench.action.reloadWindow';
-	static LABEL = nls.localize('reloadWindow', "Reload Window");
+	static readonly LABEL = nls.localize('reloadWindow', "Reload Window");
 
 	constructor(
 		id: string,
@@ -249,7 +249,7 @@ class ShowAboutDialogAction extends Action {
 export class NewWindowAction extends Action {
 
 	static readonly ID = 'workbench.action.newWindow';
-	static LABEL = nls.localize('newWindow', "New Window");
+	static readonly LABEL = nls.localize('newWindow', "New Window");
 
 	constructor(
 		id: string,

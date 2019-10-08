@@ -408,14 +408,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The panel is minimized
 		if (!this._isVisible) {
 			return TerminalInstance._lastKnownCanvasDimensions;
-		} else {
-			// Trigger scroll event manually so that the viewport's scroll area is synced. This
-			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
-			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
-			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
-			if (this._xterm && this._xtermCore) {
-				this._xtermCore._onScroll.fire(this._xterm.buffer.viewportY);
-			}
 		}
 
 		if (!this._wrapperElement) {
@@ -902,6 +894,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
+			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
+			// fixed upstream.
 			this._xtermCore._onScroll.fire(this._xterm.buffer.viewportY);
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important

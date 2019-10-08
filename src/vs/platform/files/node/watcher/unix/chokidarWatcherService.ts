@@ -17,6 +17,7 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/platform/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
+import { equals } from 'vs/base/common/arrays';
 
 interface IWatcher {
 	requests: ExtendedWatcherRequest[];
@@ -351,26 +352,10 @@ export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string
 	return result;
 }
 
-function isEqualRequests(r1: IWatcherRequest[], r2: IWatcherRequest[]) {
-	if (r1.length !== r2.length) {
-		return false;
-	}
-	for (let k = 0; k < r1.length; k++) {
-		if (r1[k].path !== r2[k].path || !isEqualIgnore(r1[k].excludes, r2[k].excludes)) {
-			return false;
-		}
-	}
-	return true;
+function isEqualRequests(r1: readonly IWatcherRequest[], r2: readonly IWatcherRequest[]) {
+	return equals(r1, r2, (a, b) => a.path === b.path && isEqualIgnore(a.excludes, b.excludes));
 }
 
-function isEqualIgnore(i1: string[], i2: string[]) {
-	if (i1.length !== i2.length) {
-		return false;
-	}
-	for (let k = 0; k < i1.length; k++) {
-		if (i1[k] !== i2[k]) {
-			return false;
-		}
-	}
-	return true;
+function isEqualIgnore(i1: readonly string[], i2: readonly string[]) {
+	return equals(i1, i2);
 }

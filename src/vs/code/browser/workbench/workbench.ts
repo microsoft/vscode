@@ -103,10 +103,10 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvider {
 
-	static FETCH_INTERVAL = 500; 			// fetch every 500ms
-	static FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop after 5min
+	static readonly FETCH_INTERVAL = 500; 			// fetch every 500ms
+	static readonly FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop after 5min
 
-	static QUERY_KEYS = {
+	static readonly QUERY_KEYS = {
 		REQUEST_ID: 'vscode-requestId',
 		SCHEME: 'vscode-scheme',
 		AUTHORITY: 'vscode-authority',

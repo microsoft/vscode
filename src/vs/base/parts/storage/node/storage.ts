@@ -32,12 +32,12 @@ export interface ISQLiteStorageDatabaseLoggingOptions {
 
 export class SQLiteStorageDatabase implements IStorageDatabase {
 
-	static IN_MEMORY_PATH = ':memory:';
+	static readonly IN_MEMORY_PATH = ':memory:';
 
 	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return Event.None; } // since we are the only client, there can be no external changes
 
-	private static BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
-	private static MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
+	private static readonly BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
+	private static readonly MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
 
 	private path: string;
 	private name: string;

@@ -240,7 +240,7 @@ class RootTreeItem extends BaseTreeItem {
 
 class SessionTreeItem extends BaseTreeItem {
 
-	private static URL_REGEXP = /^(https?:\/\/[^/]+)(\/.*)$/;
+	private static readonly URL_REGEXP = /^(https?:\/\/[^/]+)(\/.*)$/;
 
 	private _session: IDebugSession;
 	private _initialized: boolean;

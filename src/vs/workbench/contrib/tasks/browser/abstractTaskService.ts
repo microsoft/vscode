@@ -77,6 +77,7 @@ import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ITextEditor } from 'vs/workbench/common/editor';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { find } from 'vs/base/common/arrays';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -515,12 +516,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (!values) {
 				return undefined;
 			}
-			for (const task of values) {
-				if (task.matches(key, compareId)) {
-					return task;
-				}
-			}
-			return undefined;
+			return find(values, task => task.matches(key, compareId));
 		});
 	}
 

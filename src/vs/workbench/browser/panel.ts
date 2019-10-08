@@ -45,7 +45,7 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	/**
 	 * Returns a panel by id.
 	 */
-	getPanel(id: string): PanelDescriptor | null {
+	getPanel(id: string): PanelDescriptor | undefined {
 		return this.getComposite(id);
 	}
 

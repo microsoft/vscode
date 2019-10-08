@@ -1568,9 +1568,9 @@ export interface ITokenizationRegistry {
 
 	/**
 	 * Get the tokenization support for a language.
-	 * Returns `null` if not found.
+	 * Returns `undefined` if not found.
 	 */
-	get(language: string): ITokenizationSupport | null;
+	get(language: string): ITokenizationSupport | undefined;
 
 	/**
 	 * Get the promise of a tokenization support for a language.
@@ -1583,9 +1583,9 @@ export interface ITokenizationRegistry {
 	 */
 	setColorMap(colorMap: Color[]): void;
 
-	getColorMap(): Color[] | null;
+	getColorMap(): Color[] | undefined;
 
-	getDefaultBackground(): Color | null;
+	getDefaultBackground(): Color | undefined;
 }
 
 /**

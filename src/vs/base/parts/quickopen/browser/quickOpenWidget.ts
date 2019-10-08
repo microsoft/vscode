@@ -396,16 +396,16 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	protected applyStyles(): void {
 		if (this.element) {
 			const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
-			const background = this.styles.background ? this.styles.background.toString() : null;
-			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : null;
-			const widgetShadow = this.styles.widgetShadow ? this.styles.widgetShadow.toString() : null;
+			const background = this.styles.background ? this.styles.background.toString() : '';
+			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : '';
+			const widgetShadow = this.styles.widgetShadow ? this.styles.widgetShadow.toString() : '';
 
 			this.element.style.color = foreground;
 			this.element.style.backgroundColor = background;
 			this.element.style.borderColor = borderColor;
-			this.element.style.borderWidth = borderColor ? '1px' : null;
-			this.element.style.borderStyle = borderColor ? 'solid' : null;
-			this.element.style.boxShadow = widgetShadow ? `0 5px 8px ${widgetShadow}` : null;
+			this.element.style.borderWidth = borderColor ? '1px' : '';
+			this.element.style.borderStyle = borderColor ? 'solid' : '';
+			this.element.style.boxShadow = widgetShadow ? `0 5px 8px ${widgetShadow}` : '';
 		}
 
 		if (this.progressBar) {

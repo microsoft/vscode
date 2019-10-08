@@ -20,7 +20,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution {
 
-	private static TELEMETRY_OPT_OUT_SHOWN = 'workbench.telemetryOptOutShown';
+	private static readonly TELEMETRY_OPT_OUT_SHOWN = 'workbench.telemetryOptOutShown';
 	private privacyUrl: string | undefined;
 
 	constructor(

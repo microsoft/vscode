@@ -221,7 +221,7 @@ export class NotificationsList extends Themable {
 			this.listContainer.style.color = foreground ? foreground.toString() : null;
 
 			const background = this.getColor(NOTIFICATIONS_BACKGROUND);
-			this.listContainer.style.background = background ? background.toString() : null;
+			this.listContainer.style.background = background ? background.toString() : '';
 
 			const outlineColor = this.getColor(contrastBorder);
 			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : '';
