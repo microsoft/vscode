@@ -576,7 +576,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// within commandsToSkipShell
 				const standardKeyboardEvent = new StandardKeyboardEvent(event);
 				const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
-				if (resolveResult && (resolveResult.enterChord || this._skipTerminalCommands.some(k => k === resolveResult.commandId))) {
+				const allowChords = resolveResult && resolveResult.enterChord && this._configHelper.config.allowChords;
+				if (allowChords || resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 					event.preventDefault();
 					return false;
 				}
