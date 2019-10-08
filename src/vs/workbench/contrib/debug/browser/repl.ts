@@ -80,7 +80,7 @@ interface IPrivateReplService {
 }
 
 function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
-	tree.scrollTop = Number.POSITIVE_INFINITY;
+	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
 }
 
 const sessionsToIgnore = new Set<IDebugSession>();
@@ -799,6 +799,8 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	constructor(private configurationService: IConfigurationService) { }
 
 	getHeight(element: IReplElement): number {
+		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
+
 		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		const fontSize = config.console.fontSize;
@@ -817,13 +819,13 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 				return rowHeight;
 			}
 
-			let valueRows = value ? Math.ceil(value.length / 150) : 0;
+			let valueRows = value ? (countNumberOfLines(value) + Math.floor(value.length / 150)) : 0;
 			return rowHeight * valueRows;
 		}
 
 		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput) {
 			let value = element.value;
-			let valueRows = Math.ceil(value.length / 150);
+			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
 
 			return valueRows * rowHeight;
 		}
