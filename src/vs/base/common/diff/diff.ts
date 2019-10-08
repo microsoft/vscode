@@ -5,21 +5,31 @@
 
 import { DiffChange } from 'vs/base/common/diff/diffChange';
 
-function createStringSequence(a: string): ISequence {
-	return {
-		getLength() { return a.length; },
-		getElementAtIndex(pos: number) { return a.charCodeAt(pos); }
-	};
+export class StringDiffSequence implements ISequence {
+
+	constructor(private source: string) { }
+
+	public getLength() {
+		return this.source.length;
+	}
+
+	public getElementAtIndex(i: number) {
+		return this.source.charCodeAt(i);
+	}
+
+	public elementsAreEqual(seq1: StringDiffSequence, index1: number, seq2: StringDiffSequence, index2: number) {
+		return (seq1.source.charCodeAt(index1) === seq2.source.charCodeAt(index2));
+	}
 }
 
 export function stringDiff(original: string, modified: string, pretty: boolean): IDiffChange[] {
-	return new LcsDiff(createStringSequence(original), createStringSequence(modified)).ComputeDiff(pretty);
+	return new LcsDiff(new StringDiffSequence(original), new StringDiffSequence(modified)).ComputeDiff(pretty);
 }
-
 
 export interface ISequence {
 	getLength(): number;
 	getElementAtIndex(index: number): number | string;
+	elementsAreEqual(seq1: ISequence, index1: number, seq2: ISequence, index2: number): boolean;
 }
 
 export interface IDiffChange {
@@ -239,15 +249,15 @@ export class LcsDiff {
 	}
 
 	private ElementsAreEqual(originalIndex: number, newIndex: number): boolean {
-		return (this.OriginalSequence.getElementAtIndex(originalIndex) === this.ModifiedSequence.getElementAtIndex(newIndex));
+		return this.OriginalSequence.elementsAreEqual(this.OriginalSequence, originalIndex, this.ModifiedSequence, newIndex);
 	}
 
 	private OriginalElementsAreEqual(index1: number, index2: number): boolean {
-		return (this.OriginalSequence.getElementAtIndex(index1) === this.OriginalSequence.getElementAtIndex(index2));
+		return this.OriginalSequence.elementsAreEqual(this.OriginalSequence, index1, this.OriginalSequence, index2);
 	}
 
 	private ModifiedElementsAreEqual(index1: number, index2: number): boolean {
-		return (this.ModifiedSequence.getElementAtIndex(index1) === this.ModifiedSequence.getElementAtIndex(index2));
+		return this.ModifiedSequence.elementsAreEqual(this.ModifiedSequence, index1, this.ModifiedSequence, index2);
 	}
 
 	public ComputeDiff(pretty: boolean): IDiffChange[] {

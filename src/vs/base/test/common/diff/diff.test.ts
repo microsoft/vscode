@@ -4,21 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LcsDiff, IDiffChange, ISequence } from 'vs/base/common/diff/diff';
-
-class StringDiffSequence implements ISequence {
-
-	constructor(private source: string) {
-	}
-
-	getLength() {
-		return this.source.length;
-	}
-
-	getElementAtIndex(i: number) {
-		return this.source.charCodeAt(i);
-	}
-}
+import { LcsDiff, IDiffChange, StringDiffSequence } from 'vs/base/common/diff/diff';
 
 function createArray<T>(length: number, value: T): T[] {
 	const r: T[] = [];
