@@ -251,6 +251,11 @@ configurationRegistry.registerConfiguration({
 			},
 			default: []
 		},
+		'terminal.integrated.allowChords': {
+			markdownDescription: nls.localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass `terminal.integrated.commandsToSkipShell`, setting this to false is particularly useful when you want ctrl+k to go to your shell (not VS Code)."),
+			type: 'boolean',
+			default: true
+		},
 		'terminal.integrated.inheritEnv': {
 			markdownDescription: nls.localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code. This is not supported on Windows."),
 			type: 'boolean',

@@ -445,7 +445,6 @@ export class OutlinePanel extends ViewletPanel {
 	private async _doUpdate(editor: ICodeEditor | undefined, event: IModelContentChangedEvent | undefined): Promise<void> {
 		this._editorDisposables.clear();
 
-		this._progressBar.infinite().show(150);
 
 		const oldModel = this._tree.getInput();
 
@@ -458,16 +457,16 @@ export class OutlinePanel extends ViewletPanel {
 			return this._showMessage(localize('no-editor', "The active editor cannot provide outline information."));
 		}
 
-		let textModel = editor.getModel();
-		let loadingMessage: IDisposable | undefined;
-		if (!oldModel) {
-			loadingMessage = new TimeoutTimer(
-				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(textModel.uri))),
-				100
-			);
-		}
+		const textModel = editor.getModel();
+		const loadingMessage = oldModel && new TimeoutTimer(
+			() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(textModel.uri))),
+			100
+		);
 
-		let createdModel = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
+		const requestDelay = OutlineModel.getRequestDelay(textModel);
+		this._progressBar.infinite().show(requestDelay);
+
+		const createdModel = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
 		dispose(loadingMessage);
 		if (!createdModel) {
 			return;
@@ -517,7 +516,7 @@ export class OutlinePanel extends ViewletPanel {
 			newModel = oldModel;
 		} else {
 			let state = this._treeStates.get(newModel.textModel.uri.toString());
-			await this._tree.setInput(newModel, state);
+			this._tree.setInput(newModel, state);
 		}
 
 		// transfer focus from domNode to the tree

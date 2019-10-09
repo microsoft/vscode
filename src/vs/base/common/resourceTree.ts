@@ -159,12 +159,12 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 
 	delete(uri: URI): T | undefined {
 		const key = relativePath(this.root.uri, uri) || uri.fsPath;
-		const parts = key.split(/[\\\/]/).filter(p => !!p);
-		return this._delete(this.root, parts, 0);
+		const iterator = new PathIterator(false).reset(key);
+		return this._delete(this.root, iterator);
 	}
 
-	private _delete(node: BranchNode<T, C>, parts: string[], index: number): T | undefined {
-		const name = parts[index];
+	private _delete(node: BranchNode<T, C>, iterator: PathIterator): T | undefined {
+		const name = iterator.value();
 		const child = node.get(name);
 
 		if (!child) {
@@ -172,9 +172,9 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 		}
 
 		// not at end
-		if (index < parts.length - 1) {
+		if (iterator.hasNext()) {
 			if (child instanceof BranchNode) {
-				const result = this._delete(child, parts, index + 1);
+				const result = this._delete(child, iterator.next());
 
 				if (typeof result !== 'undefined' && child.size === 0) {
 					node.delete(name);

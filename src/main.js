@@ -12,6 +12,8 @@ const lp = require('./vs/base/node/languagePacks');
 perf.mark('main:started');
 
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const bootstrap = require('./bootstrap');
 const paths = require('./paths');
 // @ts-ignore
@@ -25,7 +27,7 @@ const portable = bootstrap.configurePortable();
 // Enable ASAR support
 bootstrap.enableASARSupport();
 
-// Set userData path before app 'ready' event and call to process.chdir
+// Set userData path before app 'ready' event
 const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
 app.setPath('userData', userDataPath);
@@ -37,17 +39,18 @@ setCurrentWorkingDirectory();
 registerListeners();
 
 /**
- * Support user defined locale
+ * Support user defined locale: load it early before app('ready')
+ * to have more things running in parallel.
  *
- * @type {Promise}
+ * @type {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>} nlsConfig | undefined
  */
-let nlsConfiguration = undefined;
+let nlsConfigurationPromise = undefined;
 const userDefinedLocale = getUserDefinedLocale();
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 
 userDefinedLocale.then(locale => {
-	if (locale && !nlsConfiguration) {
-		nlsConfiguration = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	if (locale && !nlsConfigurationPromise) {
+		nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 	}
 });
 
@@ -74,62 +77,35 @@ app.once('ready', function () {
 	}
 });
 
-function onReady() {
+/**
+ * Main startup routine
+ *
+ * @param {string | undefined} cachedDataDir
+ * @param {import('./vs/base/node/languagePacks').NLSConfiguration} nlsConfig
+ */
+function startup(cachedDataDir, nlsConfig) {
+	nlsConfig._languagePackSupport = true;
+
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+	process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
+
+	// Load main in AMD
+	perf.mark('willLoadMainBundle');
+	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+		perf.mark('didLoadMainBundle');
+	});
+}
+
+async function onReady() {
 	perf.mark('main:appReady');
 
-	Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]).then(([cachedDataDir, locale]) => {
-		if (locale && !nlsConfiguration) {
-			nlsConfiguration = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
-		}
+	try {
+		const [cachedDataDir, locale] = await Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]);
 
-		if (!nlsConfiguration) {
-			nlsConfiguration = Promise.resolve(undefined);
-		}
-
-		// First, we need to test a user defined locale. If it fails we try the app locale.
-		// If that fails we fall back to English.
-		nlsConfiguration.then(nlsConfig => {
-
-			const startup = nlsConfig => {
-				nlsConfig._languagePackSupport = true;
-				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
-
-				// Load main in AMD
-				perf.mark('willLoadMainBundle');
-				require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
-					perf.mark('didLoadMainBundle');
-				});
-			};
-
-			// We received a valid nlsConfig from a user defined locale
-			if (nlsConfig) {
-				startup(nlsConfig);
-			}
-
-			// Try to use the app locale. Please note that the app locale is only
-			// valid after we have received the app ready event. This is why the
-			// code is here.
-			else {
-				let appLocale = app.getLocale();
-				if (!appLocale) {
-					startup({ locale: 'en', availableLanguages: {} });
-				} else {
-
-					// See above the comment about the loader and case sensitiviness
-					appLocale = appLocale.toLowerCase();
-
-					lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale).then(nlsConfig => {
-						if (!nlsConfig) {
-							nlsConfig = { locale: appLocale, availableLanguages: {} };
-						}
-
-						startup(nlsConfig);
-					});
-				}
-			}
-		});
-	}, console.error);
+		startup(cachedDataDir, await resolveNlsConfiguration(locale));
+	} catch (error) {
+		console.error(error);
+	}
 }
 
 /**
@@ -139,14 +115,95 @@ function onReady() {
  */
 function configureCommandlineSwitches(cliArgs) {
 
-	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-	app.commandLine.appendSwitch('disable-color-correct-rendering');
+	// Read argv config
+	const argvConfig = readArgvConfig();
+
+	// Append each flag to Electron
+	Object.keys(argvConfig).forEach(flag => {
+		const value = argvConfig[flag];
+		if (value === true || value === 'true') {
+			if (flag === 'disable-gpu') {
+				app.disableHardwareAcceleration(); // needs to be called explicitly
+			}
+
+			app.commandLine.appendArgument(flag);
+		} else {
+			app.commandLine.appendSwitch(flag, value);
+		}
+	});
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
-		app.commandLine.appendSwitch('--js-flags', jsFlags);
+		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
+}
+
+function readArgvConfig() {
+
+	// Read or create the argv.json config file sync before app('ready')
+	const argvConfigPath = getArgvConfigPath();
+	let argvConfig;
+	try {
+		argvConfig = JSON.parse(stripComments(fs.readFileSync(argvConfigPath).toString()));
+	} catch (error) {
+		if (error && error.code === 'ENOENT') {
+			try {
+				const argvConfigPathDirname = path.dirname(argvConfigPath);
+				if (!fs.existsSync(argvConfigPathDirname)) {
+					fs.mkdirSync(argvConfigPathDirname);
+				}
+
+				// Create initial argv.json if not existing
+				fs.writeFileSync(argvConfigPath, `// This configuration file allows to pass permanent command line arguments to VSCode.
+//
+// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT
+//
+// If the command line argument does not have any values, simply assign
+// it in the JSON below with a value of 'true'. Otherwise, put the value
+// directly.
+//
+// If you see rendering issues in VSCode and have a better experience
+// with software rendering, you can configure this by adding:
+//
+// 'disable-gpu': true
+//
+// NOTE: Changing this file requires a restart of VSCode.
+{
+	// Enabled by default by VSCode to resolve color issues in the renderer
+	// See https://github.com/Microsoft/vscode/issues/51791 for details
+	"disable-color-correct-rendering": true
+}`);
+			} catch (error) {
+				console.error(`Unable to create argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+			}
+		} else {
+			console.warn(`Unable to read argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+		}
+	}
+
+	// Fallback to default
+	if (!argvConfig) {
+		argvConfig = {
+			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
+		};
+	}
+
+	return argvConfig;
+}
+
+function getArgvConfigPath() {
+	const vscodePortable = process.env['VSCODE_PORTABLE'];
+	if (vscodePortable) {
+		return path.join(vscodePortable, 'argv.json');
+	}
+
+	let dataFolderName = product.dataFolderName;
+	if (process.env['VSCODE_DEV']) {
+		dataFolderName = `${dataFolderName}-dev`;
+	}
+
+	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 
 /**
@@ -249,7 +306,7 @@ function registerListeners() {
 }
 
 /**
- * @returns {{ ensureExists: () => Promise<string | void> }}
+ * @returns {{ ensureExists: () => Promise<string | undefined> }}
  */
 function getNodeCachedDir() {
 	return new class {
@@ -258,8 +315,14 @@ function getNodeCachedDir() {
 			this.value = this._compute();
 		}
 
-		ensureExists() {
-			return bootstrap.mkdirp(this.value).then(() => this.value, () => { /*ignore*/ });
+		async ensureExists() {
+			try {
+				await bootstrap.mkdirp(this.value);
+
+				return this.value;
+			} catch (error) {
+				// ignore
+			}
 		}
 
 		_compute() {
@@ -284,6 +347,50 @@ function getNodeCachedDir() {
 }
 
 //#region NLS Support
+/**
+ * Resolve the NLS configuration
+ *
+ * @param {string | undefined} locale
+ * @return {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>}
+ */
+async function resolveNlsConfiguration(locale) {
+
+	// First, we need to test a user defined locale. If it fails we try the app locale.
+	// If that fails we fall back to English.
+	if (locale && !nlsConfigurationPromise) {
+		nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	} else if (!nlsConfigurationPromise) {
+		nlsConfigurationPromise = Promise.resolve(undefined);
+	}
+
+	// First, we need to test a user defined locale. If it fails we try the app locale.
+	// If that fails we fall back to English.
+	let nlsConfiguration = await nlsConfigurationPromise;
+	if (!nlsConfiguration) {
+
+		// Try to use the app locale. Please note that the app locale is only
+		// valid after we have received the app ready event. This is why the
+		// code is here.
+		let appLocale = app.getLocale();
+		if (!appLocale) {
+			nlsConfiguration = { locale: 'en', availableLanguages: {} };
+		} else {
+
+			// See above the comment about the loader and case sensitiviness
+			appLocale = appLocale.toLowerCase();
+
+			nlsConfiguration = await lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
+			if (!nlsConfiguration) {
+				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
+			}
+		}
+	} else {
+		// We received a valid nlsConfig from a user defined locale
+	}
+
+	return nlsConfiguration;
+}
+
 /**
  * @param {string} content
  * @returns {string}
@@ -312,30 +419,29 @@ function stripComments(content) {
 	});
 }
 
-// Language tags are case insensitive however an amd loader is case sensitive
-// To make this work on case preserving & insensitive FS we do the following:
-// the language bundles have lower case language tags and we always lower case
-// the locale we receive from the user or OS.
 /**
+ * Language tags are case insensitive however an amd loader is case sensitive
+ * To make this work on case preserving & insensitive FS we do the following:
+ * the language bundles have lower case language tags and we always lower case
+ * the locale we receive from the user or OS.
+ *
  * @returns {Promise<string>}
  */
-function getUserDefinedLocale() {
+async function getUserDefinedLocale() {
 	const locale = args['locale'];
 	if (locale) {
-		return Promise.resolve(locale.toLowerCase());
+		return locale.toLowerCase();
 	}
 
 	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
-	return bootstrap.readFile(localeConfig).then(content => {
-		content = stripComments(content);
-		try {
-			const value = JSON.parse(content).locale;
-			return value && typeof value === 'string' ? value.toLowerCase() : undefined;
-		} catch (e) {
-			return undefined;
-		}
-	}, () => {
-		return undefined;
-	});
+
+	try {
+		const content = stripComments(await bootstrap.readFile(localeConfig));
+
+		const value = JSON.parse(content).locale;
+		return value && typeof value === 'string' ? value.toLowerCase() : undefined;
+	} catch (error) {
+		// ignore
+	}
 }
 //#endregion

@@ -1249,11 +1249,13 @@ export class CommandCenter {
 			promptToSaveFilesBeforeCommit = 'never';
 		}
 
+		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+
 		if (promptToSaveFilesBeforeCommit !== 'never') {
 			let documents = workspace.textDocuments
 				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (promptToSaveFilesBeforeCommit === 'staged') {
+			if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
 				documents = documents
 					.filter(d => repository.indexGroup.resourceStates.some(s => s.resourceUri.path === d.uri.fsPath));
 			}
@@ -1275,7 +1277,6 @@ export class CommandCenter {
 			}
 		}
 
-		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
@@ -1370,9 +1371,18 @@ export class CommandCenter {
 				value = (await repository.getCommit(repository.HEAD.commit)).message;
 			}
 
+			const branchName = repository.headShortName;
+			let placeHolder: string;
+
+			if (branchName) {
+				placeHolder = localize('commitMessageWithHeadLabel2', "Message (commit on '{0}')", branchName);
+			} else {
+				placeHolder = localize('commit message', "Commit message");
+			}
+
 			return await window.showInputBox({
 				value,
-				placeHolder: localize('commit message', "Commit message"),
+				placeHolder,
 				prompt: localize('provide commit message', "Please provide a commit message"),
 				ignoreFocusOut: true
 			});
@@ -2067,6 +2077,19 @@ export class CommandCenter {
 		}
 
 		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
+	}
+
+	@command('git.revealInExplorer')
+	async revealInExplorer(resourceState: SourceControlResourceState): Promise<void> {
+		if (!resourceState) {
+			return;
+		}
+
+		if (!(resourceState.resourceUri instanceof Uri)) {
+			return;
+		}
+
+		await commands.executeCommand('revealInExplorer', resourceState.resourceUri);
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {

@@ -114,8 +114,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.defaultViewMode.list', "Show the repository changes as a list.")
 			],
 			description: localize('scm.defaultViewMode', "Controls the default Source Control repository view mode."),
-			default: 'tree'
-		}
+			default: 'list'
+		},
+		'scm.autoReveal': {
+			type: 'boolean',
+			description: localize('autoReveal', "Controls whether the SCM view should automatically reveal and select files when opening them."),
+			default: true
+		},
 	}
 });
 

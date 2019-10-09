@@ -59,7 +59,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		}
 
 		const width = viewlet.getOptimalWidth();
-
 		if (typeof width !== 'number') {
 			return;
 		}
@@ -199,7 +198,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	// Viewlet service
 
-	getActiveViewlet(): IViewlet | null {
+	getActiveViewlet(): IViewlet | undefined {
 		return <IViewlet>this.getActiveComposite();
 	}
 
@@ -211,7 +210,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		this.hideActiveComposite();
 	}
 
-	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null> {
+	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | undefined> {
 		if (typeof id === 'string' && this.getViewlet(id)) {
 			return this.doOpenViewlet(id, focus);
 		}
@@ -222,7 +221,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			return this.doOpenViewlet(id, focus);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getViewlets(): ViewletDescriptor[] {
@@ -247,9 +246,9 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
 	}
 
-	private doOpenViewlet(id: string, focus?: boolean): Viewlet | null {
+	private doOpenViewlet(id: string, focus?: boolean): Viewlet | undefined {
 		if (this.blockOpeningViewlet) {
-			return null; // Workaround against a potential race condition
+			return undefined; // Workaround against a potential race condition
 		}
 
 		// First check if sidebar is hidden and show if so
@@ -318,7 +317,7 @@ class FocusSideBarAction extends Action {
 		}
 
 		// Focus into active viewlet
-		let viewlet = this.viewletService.getActiveViewlet();
+		const viewlet = this.viewletService.getActiveViewlet();
 		if (viewlet) {
 			viewlet.focus();
 		}
