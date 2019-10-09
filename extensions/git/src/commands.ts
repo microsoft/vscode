@@ -5,7 +5,7 @@
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions, WorkspaceFolder } from 'vscode';
 import { Git, CommitOptions, Stash, ForcePushMode } from './git';
-import { Repository, Resource, ResourceGroupType } from './repository';
+import { Repository, Resource, ResourceGroupType, getBranchName } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
@@ -1371,9 +1371,16 @@ export class CommandCenter {
 				value = (await repository.getCommit(repository.HEAD.commit)).message;
 			}
 
+			let placeHolder;
+			const branchName = getBranchName(repository.HEAD, repository.refs);
+			if (branchName) {
+				placeHolder = localize('commitMessageWithHeadLabel2', "Message (commit on '{0}')", branchName);
+			} else {
+				placeHolder = localize('commit message', "Commit message");
+			}
 			return await window.showInputBox({
 				value,
-				placeHolder: localize('commit message', "Commit message"),
+				placeHolder,
 				prompt: localize('provide commit message', "Please provide a commit message"),
 				ignoreFocusOut: true
 			});
