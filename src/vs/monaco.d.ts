@@ -44,7 +44,7 @@ declare namespace monaco {
 		constructor(parent?: CancellationToken);
 		readonly token: CancellationToken;
 		cancel(): void;
-		dispose(): void;
+		dispose(cancel?: boolean): void;
 	}
 
 	export interface CancellationToken {
