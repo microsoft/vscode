@@ -116,6 +116,7 @@ export interface IEnvironmentService {
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	localeResource: URI;
+	argvResource: URI;
 
 	// sync resources
 	userDataSyncLogResource: URI;

@@ -12,6 +12,8 @@ const lp = require('./vs/base/node/languagePacks');
 perf.mark('main:started');
 
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const bootstrap = require('./bootstrap');
 const paths = require('./paths');
 // @ts-ignore
@@ -113,14 +115,95 @@ async function onReady() {
  */
 function configureCommandlineSwitches(cliArgs) {
 
-	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-	app.commandLine.appendSwitch('disable-color-correct-rendering');
+	// Read argv config
+	const argvConfig = readArgvConfig();
+
+	// Append each flag to Electron
+	Object.keys(argvConfig).forEach(flag => {
+		const value = argvConfig[flag];
+		if (value === true || value === 'true') {
+			if (flag === 'disable-gpu') {
+				app.disableHardwareAcceleration(); // needs to be called explicitly
+			}
+
+			app.commandLine.appendArgument(flag);
+		} else {
+			app.commandLine.appendSwitch(flag, value);
+		}
+	});
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
-		app.commandLine.appendSwitch('--js-flags', jsFlags);
+		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
+}
+
+function readArgvConfig() {
+
+	// Read or create the argv.json config file sync before app('ready')
+	const argvConfigPath = getArgvConfigPath();
+	let argvConfig;
+	try {
+		argvConfig = JSON.parse(stripComments(fs.readFileSync(argvConfigPath).toString()));
+	} catch (error) {
+		if (error && error.code === 'ENOENT') {
+			try {
+				const argvConfigPathDirname = path.dirname(argvConfigPath);
+				if (!fs.existsSync(argvConfigPathDirname)) {
+					fs.mkdirSync(argvConfigPathDirname);
+				}
+
+				// Create initial argv.json if not existing
+				fs.writeFileSync(argvConfigPath, `// This configuration file allows to pass permanent command line arguments to VSCode.
+//
+// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT
+//
+// If the command line argument does not have any values, simply assign
+// it in the JSON below with a value of 'true'. Otherwise, put the value
+// directly.
+//
+// If you see rendering issues in VSCode and have a better experience
+// with software rendering, you can configure this by adding:
+//
+// 'disable-gpu': true
+//
+// NOTE: Changing this file requires a restart of VSCode.
+{
+	// Enabled by default by VSCode to resolve color issues in the renderer
+	// See https://github.com/Microsoft/vscode/issues/51791 for details
+	"disable-color-correct-rendering": true
+}`);
+			} catch (error) {
+				console.error(`Unable to create argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+			}
+		} else {
+			console.warn(`Unable to read argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+		}
+	}
+
+	// Fallback to default
+	if (!argvConfig) {
+		argvConfig = {
+			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
+		};
+	}
+
+	return argvConfig;
+}
+
+function getArgvConfigPath() {
+	const vscodePortable = process.env['VSCODE_PORTABLE'];
+	if (vscodePortable) {
+		return path.join(vscodePortable, 'argv.json');
+	}
+
+	let dataFolderName = product.dataFolderName;
+	if (process.env['VSCODE_DEV']) {
+		dataFolderName = `${dataFolderName}-dev`;
+	}
+
+	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 
 /**
