@@ -25,7 +25,7 @@ const portable = bootstrap.configurePortable();
 // Enable ASAR support
 bootstrap.enableASARSupport();
 
-// Set userData path before app 'ready' event and call to process.chdir
+// Set userData path before app 'ready' event
 const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
 app.setPath('userData', userDataPath);
@@ -37,17 +37,18 @@ setCurrentWorkingDirectory();
 registerListeners();
 
 /**
- * Support user defined locale
+ * Support user defined locale: load it early before app('ready')
+ * to have more things running in parallel.
  *
- * @type {Promise}
+ * @type {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>} nlsConfig | undefined
  */
-let nlsConfiguration = undefined;
+let nlsConfigurationPromise = undefined;
 const userDefinedLocale = getUserDefinedLocale();
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 
 userDefinedLocale.then(locale => {
-	if (locale && !nlsConfiguration) {
-		nlsConfiguration = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	if (locale && !nlsConfigurationPromise) {
+		nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 	}
 });
 
@@ -74,62 +75,35 @@ app.once('ready', function () {
 	}
 });
 
-function onReady() {
+/**
+ * Main startup routine
+ *
+ * @param {string | undefined} cachedDataDir
+ * @param {import('./vs/base/node/languagePacks').NLSConfiguration} nlsConfig
+ */
+function startup(cachedDataDir, nlsConfig) {
+	nlsConfig._languagePackSupport = true;
+
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+	process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
+
+	// Load main in AMD
+	perf.mark('willLoadMainBundle');
+	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+		perf.mark('didLoadMainBundle');
+	});
+}
+
+async function onReady() {
 	perf.mark('main:appReady');
 
-	Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]).then(([cachedDataDir, locale]) => {
-		if (locale && !nlsConfiguration) {
-			nlsConfiguration = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
-		}
+	try {
+		const [cachedDataDir, locale] = await Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]);
 
-		if (!nlsConfiguration) {
-			nlsConfiguration = Promise.resolve(undefined);
-		}
-
-		// First, we need to test a user defined locale. If it fails we try the app locale.
-		// If that fails we fall back to English.
-		nlsConfiguration.then(nlsConfig => {
-
-			const startup = nlsConfig => {
-				nlsConfig._languagePackSupport = true;
-				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
-
-				// Load main in AMD
-				perf.mark('willLoadMainBundle');
-				require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
-					perf.mark('didLoadMainBundle');
-				});
-			};
-
-			// We received a valid nlsConfig from a user defined locale
-			if (nlsConfig) {
-				startup(nlsConfig);
-			}
-
-			// Try to use the app locale. Please note that the app locale is only
-			// valid after we have received the app ready event. This is why the
-			// code is here.
-			else {
-				let appLocale = app.getLocale();
-				if (!appLocale) {
-					startup({ locale: 'en', availableLanguages: {} });
-				} else {
-
-					// See above the comment about the loader and case sensitiviness
-					appLocale = appLocale.toLowerCase();
-
-					lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale).then(nlsConfig => {
-						if (!nlsConfig) {
-							nlsConfig = { locale: appLocale, availableLanguages: {} };
-						}
-
-						startup(nlsConfig);
-					});
-				}
-			}
-		});
-	}, console.error);
+		startup(cachedDataDir, await resolveNlsConfiguration(locale));
+	} catch (error) {
+		console.error(error);
+	}
 }
 
 /**
@@ -249,7 +223,7 @@ function registerListeners() {
 }
 
 /**
- * @returns {{ ensureExists: () => Promise<string | void> }}
+ * @returns {{ ensureExists: () => Promise<string | undefined> }}
  */
 function getNodeCachedDir() {
 	return new class {
@@ -258,8 +232,14 @@ function getNodeCachedDir() {
 			this.value = this._compute();
 		}
 
-		ensureExists() {
-			return bootstrap.mkdirp(this.value).then(() => this.value, () => { /*ignore*/ });
+		async ensureExists() {
+			try {
+				await bootstrap.mkdirp(this.value);
+
+				return this.value;
+			} catch (error) {
+				// ignore
+			}
 		}
 
 		_compute() {
@@ -284,6 +264,50 @@ function getNodeCachedDir() {
 }
 
 //#region NLS Support
+/**
+ * Resolve the NLS configuration
+ *
+ * @param {string | undefined} locale
+ * @return {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>}
+ */
+async function resolveNlsConfiguration(locale) {
+
+	// First, we need to test a user defined locale. If it fails we try the app locale.
+	// If that fails we fall back to English.
+	if (locale && !nlsConfigurationPromise) {
+		nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	} else if (!nlsConfigurationPromise) {
+		nlsConfigurationPromise = Promise.resolve(undefined);
+	}
+
+	// First, we need to test a user defined locale. If it fails we try the app locale.
+	// If that fails we fall back to English.
+	let nlsConfiguration = await nlsConfigurationPromise;
+	if (!nlsConfiguration) {
+
+		// Try to use the app locale. Please note that the app locale is only
+		// valid after we have received the app ready event. This is why the
+		// code is here.
+		let appLocale = app.getLocale();
+		if (!appLocale) {
+			nlsConfiguration = { locale: 'en', availableLanguages: {} };
+		} else {
+
+			// See above the comment about the loader and case sensitiviness
+			appLocale = appLocale.toLowerCase();
+
+			nlsConfiguration = await lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
+			if (!nlsConfiguration) {
+				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
+			}
+		}
+	} else {
+		// We received a valid nlsConfig from a user defined locale
+	}
+
+	return nlsConfiguration;
+}
+
 /**
  * @param {string} content
  * @returns {string}
@@ -312,30 +336,29 @@ function stripComments(content) {
 	});
 }
 
-// Language tags are case insensitive however an amd loader is case sensitive
-// To make this work on case preserving & insensitive FS we do the following:
-// the language bundles have lower case language tags and we always lower case
-// the locale we receive from the user or OS.
 /**
+ * Language tags are case insensitive however an amd loader is case sensitive
+ * To make this work on case preserving & insensitive FS we do the following:
+ * the language bundles have lower case language tags and we always lower case
+ * the locale we receive from the user or OS.
+ *
  * @returns {Promise<string>}
  */
-function getUserDefinedLocale() {
+async function getUserDefinedLocale() {
 	const locale = args['locale'];
 	if (locale) {
-		return Promise.resolve(locale.toLowerCase());
+		return locale.toLowerCase();
 	}
 
 	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
-	return bootstrap.readFile(localeConfig).then(content => {
-		content = stripComments(content);
-		try {
-			const value = JSON.parse(content).locale;
-			return value && typeof value === 'string' ? value.toLowerCase() : undefined;
-		} catch (e) {
-			return undefined;
-		}
-	}, () => {
-		return undefined;
-	});
+
+	try {
+		const content = stripComments(await bootstrap.readFile(localeConfig));
+
+		const value = JSON.parse(content).locale;
+		return value && typeof value === 'string' ? value.toLowerCase() : undefined;
+	} catch (error) {
+		// ignore
+	}
 }
 //#endregion
