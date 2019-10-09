@@ -77,7 +77,7 @@ export interface IWebviewEditorService {
 	): void;
 
 	registerResolver(
-		reviver: WebviewResolve
+		resolver: WebviewResolver
 	): IDisposable;
 
 	shouldPersist(
@@ -89,7 +89,7 @@ export interface IWebviewEditorService {
 	): Promise<void>;
 }
 
-export interface WebviewResolve {
+export interface WebviewResolver {
 	canResolve(
 		webview: WebviewInput,
 	): boolean;
@@ -99,7 +99,7 @@ export interface WebviewResolve {
 	): Promise<void>;
 }
 
-function canRevive(reviver: WebviewResolve, webview: WebviewInput): boolean {
+function canRevive(reviver: WebviewResolver, webview: WebviewInput): boolean {
 	if (webview.isDisposed()) {
 		return false;
 	}
@@ -113,7 +113,7 @@ class RevivalPool {
 		this._awaitingRevival.push({ input, resolve });
 	}
 
-	public reviveFor(reviver: WebviewResolve) {
+	public reviveFor(reviver: WebviewResolver) {
 		const toRevive = this._awaitingRevival.filter(({ input }) => canRevive(reviver, input));
 		this._awaitingRevival = this._awaitingRevival.filter(({ input }) => !canRevive(reviver, input));
 
@@ -126,7 +126,7 @@ class RevivalPool {
 export class WebviewEditorService implements IWebviewEditorService {
 	_serviceBrand: undefined;
 
-	private readonly _revivers = new Set<WebviewResolve>();
+	private readonly _revivers = new Set<WebviewResolver>();
 	private readonly _revivalPool = new RevivalPool();
 
 	constructor(
@@ -200,7 +200,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 
 	public registerResolver(
-		reviver: WebviewResolve
+		reviver: WebviewResolver
 	): IDisposable {
 		this._revivers.add(reviver);
 		this._revivalPool.reviveFor(reviver);
