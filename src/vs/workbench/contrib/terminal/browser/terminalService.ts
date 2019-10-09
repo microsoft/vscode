@@ -11,7 +11,6 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -92,7 +91,6 @@ export class TerminalService implements ITerminalService {
 		@IPanelService private _panelService: IPanelService,
 		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@INotificationService private _notificationService: INotificationService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IExtensionService private _extensionService: IExtensionService,
@@ -393,7 +391,7 @@ export class TerminalService implements ITerminalService {
 			return null;
 		}
 
-		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
+		const instance = tab.split(shellLaunchConfig);
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
 

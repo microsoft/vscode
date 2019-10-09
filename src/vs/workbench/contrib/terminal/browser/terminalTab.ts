@@ -369,11 +369,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this.terminalInstances.forEach(i => i.setVisible(visible));
 	}
 
-	public split(
-		terminalFocusContextKey: IContextKey<boolean>,
-		configHelper: ITerminalConfigHelper,
-		shellLaunchConfig: IShellLaunchConfig
-	): ITerminalInstance {
+	public split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		if (!this._container) {
 			throw new Error('Cannot split terminal that has not been attached');
 		}
