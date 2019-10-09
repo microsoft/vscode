@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
+import { memoize } from 'vs/base/common/decorators';
 import { IDisposable, toDisposable, UnownedDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { LazilyResolvedWebviewEditorInput, WebviewInput } from './webviewEditorInput';
+import { WebviewInput } from './webviewEditorInput';
 
 export const IWebviewWorkbenchService = createDecorator<IWebviewWorkbenchService>('webviewEditorService');
 
@@ -105,6 +106,26 @@ function canRevive(reviver: WebviewResolver, webview: WebviewInput): boolean {
 	}
 	return reviver.canResolve(webview);
 }
+
+
+export class LazilyResolvedWebviewEditorInput extends WebviewInput {
+	constructor(
+		id: string,
+		viewType: string,
+		name: string,
+		webview: UnownedDisposable<WebviewEditorOverlay>,
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+	) {
+		super(id, viewType, name, webview);
+	}
+
+	@memoize
+	public async resolve(): Promise<IEditorModel> {
+		await this._webviewWorkbenchService.resolveWebview(this);
+		return super.resolve();
+	}
+}
+
 
 class RevivalPool {
 	private _awaitingRevival: Array<{ input: WebviewInput, resolve: () => void }> = [];
