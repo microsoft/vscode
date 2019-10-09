@@ -41,7 +41,7 @@ export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 	): CustomFileEditorInput {
 		const data = this.fromJson(serializedEditorInput);
 		const id = data.id || generateUuid();
-		const webviewInput = this.webviewService.reviveWebview(id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation ? {
+		const webviewInput = this.webviewService.reviveWebview(id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation && data.extensionId ? {
 			location: data.extensionLocation,
 			id: data.extensionId
 		} : undefined, data.group);

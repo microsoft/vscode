@@ -54,7 +54,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		serializedEditorInput: string
 	): WebviewInput {
 		const data = this.fromJson(serializedEditorInput);
-		return this._webviewService.reviveWebview(data.id || generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation ? {
+		return this._webviewService.reviveWebview(data.id || generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation && data.extensionId ? {
 			location: data.extensionLocation,
 			id: data.extensionId
 		} : undefined, data.group);

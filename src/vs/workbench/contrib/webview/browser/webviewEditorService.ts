@@ -26,6 +26,27 @@ export interface ICreateWebViewShowOptions {
 	preserveFocus: boolean;
 }
 
+export interface WebviewInputOptions extends WebviewOptions, WebviewContentOptions {
+	readonly tryRestoreScrollPosition?: boolean;
+	readonly retainContextWhenHidden?: boolean;
+	readonly enableCommandUris?: boolean;
+}
+
+export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewInputOptions): boolean {
+	return a.enableCommandUris === b.enableCommandUris
+		&& a.enableFindWidget === b.enableFindWidget
+		&& a.allowScripts === b.allowScripts
+		&& a.retainContextWhenHidden === b.retainContextWhenHidden
+		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
+		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
+		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort);
+}
+
+export interface WebviewExtensionDescription {
+	readonly location: URI;
+	readonly id: ExtensionIdentifier;
+}
+
 export interface IWebviewEditorService {
 	_serviceBrand: undefined;
 
@@ -35,10 +56,7 @@ export interface IWebviewEditorService {
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
 		options: WebviewInputOptions,
-		extension: undefined | {
-			location: URI,
-			id: ExtensionIdentifier
-		},
+		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput;
 
 	reviveWebview(
@@ -48,10 +66,7 @@ export interface IWebviewEditorService {
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
-		extension: undefined | {
-			readonly location: URI,
-			readonly id?: ExtensionIdentifier
-		},
+		extension: WebviewExtensionDescription | undefined,
 		group: number | undefined
 	): WebviewInput;
 
@@ -82,22 +97,6 @@ export interface WebviewResolve {
 	resolveWebview(
 		webview: WebviewInput,
 	): Promise<void>;
-}
-
-export interface WebviewInputOptions extends WebviewOptions, WebviewContentOptions {
-	readonly tryRestoreScrollPosition?: boolean;
-	readonly retainContextWhenHidden?: boolean;
-	readonly enableCommandUris?: boolean;
-}
-
-export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewInputOptions): boolean {
-	return a.enableCommandUris === b.enableCommandUris
-		&& a.enableFindWidget === b.enableFindWidget
-		&& a.allowScripts === b.allowScripts
-		&& a.retainContextWhenHidden === b.retainContextWhenHidden
-		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
-		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
-		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort);
 }
 
 function canRevive(reviver: WebviewResolve, webview: WebviewInput): boolean {
@@ -143,10 +142,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
 		options: WebviewInputOptions,
-		extension: undefined | {
-			location: URI,
-			id: ExtensionIdentifier
-		},
+		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput {
 		const webview = this.createWebiew(id, extension, options);
 
@@ -188,10 +184,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
-		extension: undefined | {
-			readonly location: URI,
-			readonly id: ExtensionIdentifier
-		},
+		extension: WebviewExtensionDescription | undefined,
 		group: number | undefined,
 	): WebviewInput {
 		const webview = this.createWebiew(id, extension, options);
@@ -254,7 +247,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		}
 	}
 
-	private createWebiew(id: string, extension: { location: URI; id: ExtensionIdentifier; } | undefined, options: WebviewInputOptions) {
+	private createWebiew(id: string, extension: WebviewExtensionDescription | undefined, options: WebviewInputOptions) {
 		const webview = this._webviewService.createWebviewEditorOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
