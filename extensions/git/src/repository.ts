@@ -579,6 +579,23 @@ export class Repository implements Disposable {
 		return this._refs;
 	}
 
+	get headShortName(): string | undefined {
+		if (!this.HEAD) {
+			return;
+		}
+
+		const HEAD = this.HEAD;
+		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+		const tagName = tag && tag.name;
+		const branchName = HEAD.name || tagName || HEAD.commit;
+
+		if (branchName === undefined) {
+			return;
+		}
+
+		return branchName.substr(0, 8);
+	}
+
 	private _remotes: Remote[] = [];
 	get remotes(): Remote[] {
 		return this._remotes;
@@ -1643,7 +1660,7 @@ export class Repository implements Disposable {
 	}
 
 	private updateInputBoxPlaceholder(): void {
-		const branchName = getBranchName(this.HEAD, this.refs);
+		const branchName = this.headShortName;
 
 		if (branchName) {
 			// '{0}' will be replaced by the corresponding key-command later in the process, which is why it needs to stay.
@@ -1656,17 +1673,4 @@ export class Repository implements Disposable {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
-}
-
-export function getBranchName(HEAD: Repository['HEAD'], refs: Repository['refs']): string | undefined {
-	if (HEAD === undefined) {
-		return;
-	}
-	const tag = refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-	const tagName = tag && tag.name;
-	const branchName = HEAD.name || tagName || HEAD.commit;
-	if (branchName === undefined) {
-		return;
-	}
-	return branchName.substr(0, 8);
 }
