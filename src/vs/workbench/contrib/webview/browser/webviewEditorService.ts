@@ -6,17 +6,18 @@
 import { equals } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable, UnownedDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { RevivedWebviewEditorInput, WebviewInput } from './webviewEditorInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -95,8 +96,8 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 		&& a.allowScripts === b.allowScripts
 		&& a.retainContextWhenHidden === b.retainContextWhenHidden
 		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
-		&& (a.localResourceRoots === b.localResourceRoots || (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots) && equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())))
-		&& (a.portMapping === b.portMapping || (Array.isArray(a.portMapping) && Array.isArray(b.portMapping) && equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)));
+		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
+		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort);
 }
 
 function canRevive(reviver: WebviewResolve, webview: WebviewInput): boolean {
