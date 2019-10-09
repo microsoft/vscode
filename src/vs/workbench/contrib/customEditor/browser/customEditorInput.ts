@@ -16,7 +16,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ConfirmResult, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
@@ -31,11 +31,11 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		viewType: string,
 		id: string,
 		webview: UnownedDisposable<WebviewEditorOverlay>,
-		@IWebviewEditorService webviewEditorService: IWebviewEditorService,
+		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
-		super(id, viewType, '', webview, webviewEditorService);
+		super(id, viewType, '', webview, webviewWorkbenchService);
 		this._editorResource = resource;
 	}
 

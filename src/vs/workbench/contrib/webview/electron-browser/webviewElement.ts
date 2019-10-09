@@ -23,7 +23,7 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
-import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
+import { areWebviewInputOptionsEqual } from '../browser/webviewWorkbenchService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
 
 interface IKeydownEvent {

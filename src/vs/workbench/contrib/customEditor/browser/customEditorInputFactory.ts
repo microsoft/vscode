@@ -9,7 +9,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 
 export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 
@@ -17,9 +17,9 @@ export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 
 	public constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWebviewEditorService private readonly webviewService: IWebviewEditorService,
+		@IWebviewWorkbenchService private readonly webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
-		super(webviewService);
+		super(webviewWorkbenchService);
 	}
 
 	public serialize(input: CustomFileEditorInput): string | undefined {
@@ -41,7 +41,7 @@ export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 	): CustomFileEditorInput {
 		const data = this.fromJson(serializedEditorInput);
 		const id = data.id || generateUuid();
-		const webviewInput = this.webviewService.reviveWebview(id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation && data.extensionId ? {
+		const webviewInput = this.webviewWorkbenchService.reviveWebview(id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation && data.extensionId ? {
 			location: data.extensionLocation,
 			id: data.extensionId
 		} : undefined, data.group);

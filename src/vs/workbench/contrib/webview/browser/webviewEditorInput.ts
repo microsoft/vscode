@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 
 const WebviewPanelResourceScheme = 'webview-panel';
 
@@ -148,14 +148,14 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 		viewType: string,
 		name: string,
 		webview: Unowned<WebviewEditorOverlay>,
-		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
 		super(id, viewType, name, webview);
 	}
 
 	@memoize
 	public async resolve(): Promise<IEditorModel> {
-		await this._webviewEditorService.resolveWebview(this);
+		await this._webviewWorkbenchService.resolveWebview(this);
 		return super.resolve();
 	}
 }

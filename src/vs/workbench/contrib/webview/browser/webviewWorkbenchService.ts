@@ -19,7 +19,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { LazilyResolvedWebviewEditorInput, WebviewInput } from './webviewEditorInput';
 
-export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
+export const IWebviewWorkbenchService = createDecorator<IWebviewWorkbenchService>('webviewEditorService');
 
 export interface ICreateWebViewShowOptions {
 	group: IEditorGroup | GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE;
@@ -47,7 +47,7 @@ export interface WebviewExtensionDescription {
 	readonly id: ExtensionIdentifier;
 }
 
-export interface IWebviewEditorService {
+export interface IWebviewWorkbenchService {
 	_serviceBrand: undefined;
 
 	createWebview(
@@ -123,7 +123,7 @@ class RevivalPool {
 	}
 }
 
-export class WebviewEditorService implements IWebviewEditorService {
+export class WebviewEditorService implements IWebviewWorkbenchService {
 	_serviceBrand: undefined;
 
 	private readonly _revivers = new Set<WebviewResolver>();
@@ -271,4 +271,4 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 }
 
-registerSingleton(IWebviewEditorService, WebviewEditorService, true);
+registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);

@@ -9,7 +9,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
 import { WebviewInput } from './webviewEditorInput';
-import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
+import { IWebviewWorkbenchService, WebviewInputOptions } from './webviewWorkbenchService';
 
 interface SerializedIconPath {
 	light: string | UriComponents;
@@ -33,11 +33,11 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 	public static readonly ID = WebviewInput.typeId;
 
 	public constructor(
-		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService
 	) { }
 
 	public serialize(input: WebviewInput): string | undefined {
-		if (!this._webviewService.shouldPersist(input)) {
+		if (!this._webviewWorkbenchService.shouldPersist(input)) {
 			return undefined;
 		}
 
@@ -54,7 +54,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		serializedEditorInput: string
 	): WebviewInput {
 		const data = this.fromJson(serializedEditorInput);
-		return this._webviewService.reviveWebview(data.id || generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation && data.extensionId ? {
+		return this._webviewWorkbenchService.reviveWebview(data.id || generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation && data.extensionId ? {
 			location: data.extensionLocation,
 			id: data.extensionId
 		} : undefined, data.group);
