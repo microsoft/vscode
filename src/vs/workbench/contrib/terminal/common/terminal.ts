@@ -471,3 +471,43 @@ export const enum TERMINAL_COMMAND_ID {
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
 	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious'
 }
+
+interface TerminalDataBuffer {
+	timeoutId: any;
+	data: string[];
+}
+
+export interface TerminalDataBufferer extends IDisposable {
+	onData: (e: string) => void;
+}
+
+const terminalBufferMap = new Map<number, TerminalDataBuffer>();
+
+export function getTerminalDataBufferer(id: number, callback: (id: number, data: string) => void): TerminalDataBufferer {
+	return {
+		dispose: () => {
+			const buffer = terminalBufferMap.get(id);
+			if (buffer) {
+				clearTimeout(buffer.timeoutId);
+				terminalBufferMap.delete(id);
+			}
+		},
+		onData: (e: string) => {
+			let buffer = terminalBufferMap.get(id);
+			if (buffer) {
+				buffer.data.push(e);
+
+				return;
+			}
+
+			buffer = {
+				data: [e],
+				timeoutId: setTimeout(() => {
+					terminalBufferMap.delete(id);
+					callback(id, buffer!.data.join(''));
+				}, 5)
+			};
+			terminalBufferMap.set(id, buffer);
+		}
+	};
+}

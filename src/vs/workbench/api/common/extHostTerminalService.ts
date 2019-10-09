@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { EXT_HOST_CREATION_DELAY, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { EXT_HOST_CREATION_DELAY, ITerminalChildProcess, ITerminalDimensions, getTerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminal';
 import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
@@ -464,8 +465,12 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
 		p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
-		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
-		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
+
+		const bufferer = getTerminalDataBufferer(id, this._proxy.$sendProcessData);
+		const disposables = [bufferer, p.onProcessData(bufferer.onData)];
+
+		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode, disposables));
+
 		if (p.onProcessOverrideDimensions) {
 			p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e));
 		}
@@ -503,7 +508,11 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		return id;
 	}
 
-	private _onProcessExit(id: number, exitCode: number): void {
+	private _onProcessExit(id: number, exitCode: number, disposables: IDisposable[]): void {
+		for (const d of disposables) {
+			d.dispose();
+		}
+
 		// Remove process reference
 		delete this._terminalProcesses[id];
 

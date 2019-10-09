@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest, getTerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
@@ -337,6 +337,19 @@ class TerminalDataEventTracker extends Disposable {
 	}
 
 	private _registerInstance(instance: ITerminalInstance): void {
-		this._register(instance.onData(e => this._callback(instance.id, e)));
+		const bufferer = getTerminalDataBufferer(instance.id, this._callback);
+		const disposables = [bufferer, instance.onData(bufferer.onData)];
+
+		for (const d of disposables) {
+			this._register(d);
+		}
+
+		this._register(this._terminalService.onInstanceDisposed(i => {
+			if (i.id === instance.id) {
+				for (const d of disposables) {
+					d.dispose();
+				}
+			}
+		}));
 	}
 }
