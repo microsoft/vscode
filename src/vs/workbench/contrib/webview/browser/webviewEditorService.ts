@@ -197,19 +197,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		const webview = this.createWebiew(id, extension, options);
 		webview.state = state;
 
-		const webviewInput = new RevivedWebviewEditorInput(id, viewType, title, async (webview: WebviewInput): Promise<void> => {
-			const didRevive = await this.tryRevive(webview);
-			if (didRevive) {
-				return Promise.resolve(undefined);
-			}
-
-			// A reviver may not be registered yet. Put into pool and resolve promise when we can revive
-			let resolve: () => void;
-			const promise = new Promise<void>(r => { resolve = r; });
-			this._revivalPool.add(webview, resolve!);
-			return promise;
-		}, new UnownedDisposable(webview));
-
+		const webviewInput = new RevivedWebviewEditorInput(id, viewType, title, (webview: WebviewInput) => this.resolveWebview(webview), new UnownedDisposable(webview));
 		webviewInput.iconPath = iconPath;
 
 		if (typeof group === 'number') {
@@ -258,6 +246,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	): Promise<void> {
 		const didRevive = await this.tryRevive(webview);
 		if (!didRevive) {
+			// A reviver may not be registered yet. Put into pool and resolve promise when we can revive
 			let resolve: () => void;
 			const promise = new Promise<void>(r => { resolve = r; });
 			this._revivalPool.add(webview, resolve!);
