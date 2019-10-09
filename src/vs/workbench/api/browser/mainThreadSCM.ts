@@ -305,6 +305,13 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$updateSourceControl(features);
+		console.log(handle);
+		console.log(features.commitTemplate);
+		const events: ScmEvents = {
+			branchChanged: []
+		};
+		events.branchChanged.push("foo")
+		this._proxy.$onScmChangeEvent(events);
 	}
 
 	$unregisterSourceControl(handle: number): void {
