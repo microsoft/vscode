@@ -144,11 +144,11 @@ export class NotificationsCenter extends Themable {
 			actionRunner
 		}));
 
-		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
-		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
-
 		const clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
 		notificationsToolBar.push(clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(clearAllAction) });
+
+		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
+		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
 
 		// Notifications List
 		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
