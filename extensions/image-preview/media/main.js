@@ -70,8 +70,7 @@
 	let ctrlPressed = false;
 	let altPressed = false;
 	let hasLoadedImage = false;
-	let isActive = true;
-	let canClickToZoom = false;
+	let consumeClick = false;
 
 	// Elements
 	const container = document.body;
@@ -118,7 +117,7 @@
 		});
 	}
 
-	function setActive(value) {
+	function changeActive(value) {
 		if (value) {
 			if (!(isMac ? altPressed : ctrlPressed)) {
 				container.classList.remove('zoom-out');
@@ -127,9 +126,8 @@
 				container.classList.remove('zoom-in');
 				container.classList.add('zoom-out');
 			}
-			isActive = true;
+			consumeClick = true;
 		} else {
-			isActive = false;
 			ctrlPressed = false;
 			altPressed = false;
 			container.classList.remove('zoom-out');
@@ -181,8 +179,9 @@
 		if (e.button !== 0) {
 			return;
 		}
-		if (isActive) {
-			canClickToZoom = true;
+
+		if (document.hasFocus()) {
+			consumeClick = false;
 		}
 	});
 
@@ -194,32 +193,32 @@
 		if (e.button !== 0) {
 			return;
 		}
-		if (isActive && canClickToZoom) {
-			canClickToZoom = false;
-			// left click
-			if (scale === 'fit') {
-				firstZoom();
-			}
 
-			if (!(isMac ? altPressed : ctrlPressed)) { // zoom in
-				let i = 0;
-				for (; i < zoomLevels.length; ++i) {
-					if (zoomLevels[i] > scale) {
-						break;
-					}
+		if (consumeClick) {
+			consumeClick = false;
+			return;
+		}
+		// left click
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		if (!(isMac ? altPressed : ctrlPressed)) { // zoom in
+			let i = 0;
+			for (; i < zoomLevels.length; ++i) {
+				if (zoomLevels[i] > scale) {
+					break;
 				}
-				updateScale(zoomLevels[i] || MAX_SCALE);
-			} else {
-				let i = zoomLevels.length - 1;
-				for (; i >= 0; --i) {
-					if (zoomLevels[i] < scale) {
-						break;
-					}
-				}
-				updateScale(zoomLevels[i] || MIN_SCALE);
 			}
+			updateScale(zoomLevels[i] || MAX_SCALE);
 		} else {
-			isActive = true;
+			let i = zoomLevels.length - 1;
+			for (; i >= 0; --i) {
+				if (zoomLevels[i] < scale) {
+					break;
+				}
+			}
+			updateScale(zoomLevels[i] || MIN_SCALE);
 		}
 	});
 
@@ -270,6 +269,9 @@
 		document.body.classList.remove('loading');
 		document.body.classList.add('ready');
 		document.body.append(image);
+		if (document.hasFocus()) {
+			container.classList.add('zoom-in');
+		}
 
 		updateScale(scale);
 
@@ -292,7 +294,7 @@
 				updateScale(e.data.scale);
 				break;
 			case 'setActive':
-				setActive(e.data.value);
+				changeActive(e.data.value);
 				break;
 		}
 	});
