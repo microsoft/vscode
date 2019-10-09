@@ -14,7 +14,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITerminalInstance, Direction, ITerminalTab, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const SPLIT_PANE_MIN_SIZE = 120;
-const TERMINAL_MIN_USEFUL_SIZE = 250;
 
 class SplitPaneContainer extends Disposable {
 	private _height: number;
@@ -374,14 +373,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		terminalFocusContextKey: IContextKey<boolean>,
 		configHelper: ITerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
-	): ITerminalInstance | undefined {
+	): ITerminalInstance {
 		if (!this._container) {
 			throw new Error('Cannot split terminal that has not been attached');
 		}
-		const newTerminalSize = ((this._panelPosition === Position.BOTTOM ? this._container.clientWidth : this._container.clientHeight) / (this._terminalInstances.length + 1));
-		if (newTerminalSize < TERMINAL_MIN_USEFUL_SIZE) {
-			return undefined;
-		}
+
 		const instance = this._terminalService.createInstance(undefined, shellLaunchConfig);
 		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
 		this._initInstanceListeners(instance);
