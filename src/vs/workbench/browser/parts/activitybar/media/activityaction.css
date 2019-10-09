@@ -10,6 +10,8 @@
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label {
+	position: relative;
+	z-index: 1;
 	display: flex;
 	overflow: hidden;
 	height: 40px;
@@ -23,8 +25,11 @@
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 	content: "";
 	position: absolute;
-	top: 9px;
-	height: 32px;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	margin: auto;
+	height: calc(100% - 10px);
 	width: 0;
 	border-left: 2px solid;
 }

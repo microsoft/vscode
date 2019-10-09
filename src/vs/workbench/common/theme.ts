@@ -335,8 +335,8 @@ export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
 }, nls.localize('activityBarForeground', "Activity bar item foreground color when it is active. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_INACTIVE_FOREGROUND = registerColor('activityBar.inactiveForeground', {
-	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.6),
-	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.6),
+	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
+	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
 	hc: Color.white
 }, nls.localize('activityBarInActiveForeground', "Activity bar item foreground color when it is inactive. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
@@ -345,6 +345,18 @@ export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
 	light: null,
 	hc: contrastBorder
 }, nls.localize('activityBarBorder', "Activity bar border color separating to the side bar. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_ACTIVE_BORDER = registerColor('activityBar.activeBorder', {
+	dark: ACTIVITY_BAR_FOREGROUND,
+	light: ACTIVITY_BAR_FOREGROUND,
+	hc: ACTIVITY_BAR_FOREGROUND
+}, nls.localize('activityBarActiveBorder', "Activity bar border for active items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('activityBar.activeBackground', {
+	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.1),
+	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.1),
+	hc: null
+}, nls.localize('activityBarActiveBorder', "Activity bar border for active items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', {
 	dark: Color.white.transparent(0.12),

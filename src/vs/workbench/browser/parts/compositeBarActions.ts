@@ -110,6 +110,8 @@ export class ActivityAction extends Action {
 export interface ICompositeBarColors {
 	activeBackgroundColor?: Color;
 	inactiveBackgroundColor?: Color;
+	activeBorderColor?: Color;
+	activeBackground?: Color;
 	activeBorderBottomColor?: Color;
 	activeForegroundColor?: Color;
 	inactiveForegroundColor?: Color;

@@ -22,7 +22,7 @@ import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarCol
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -278,6 +278,42 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
+	const activeBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER);
+	if (activeBorderColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:before {
+				content: "";
+				position: absolute;
+				z-index: 1;
+				top: 0;
+				bottom: 0;
+				margin: auto;
+				left: 0;
+				width: 100%;
+				height: calc(100% - 10px);
+				margin-left: 1px;
+				border-left: 2px solid ${activeBorderColor};
+			}
+		`);
+	}
+
+	const activeBackgroundColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND);
+	if (activeForegroundColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:after {
+				content: "";
+				position: absolute;
+				top: 0;
+				bottom: 0;
+				margin: auto;
+				width: 100%;
+				height: calc(100% - 10px);
+				margin-left: 1px;
+				background-color: ${activeBackgroundColor};
+			}
+		`);
+	}
+
 	// Styling with Outline color (e.g. high contrast theme)
 	const outline = theme.getColor(activeContrastBorder);
 	if (outline) {
@@ -285,9 +321,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:before {
 				content: "";
 				position: absolute;
-				top: 9px;
-				left: 9px;
-				height: 32px;
+				top: 0;
+				bottom: 0;
+				left: 0;
+				margin: auto;
+				height: calc(100% - 10px);
 				width: 32px;
 			}
 
