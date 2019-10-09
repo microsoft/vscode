@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import { Schemas } from 'vs/base/common/network';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -13,8 +12,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
-// import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { ICustomEditorService, CONTEXT_HAS_CUSTOM_EDITORS } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -95,7 +93,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		id: REOPEN_WITH_COMMAND_ID,
 		title: REOPEN_WITH_TITLE,
 		category: viewCategory,
-	}
+	},
+	when: CONTEXT_HAS_CUSTOM_EDITORS,
 });
 
 // #endregion

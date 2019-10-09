@@ -8,8 +8,11 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, IEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
+
+export const CONTEXT_HAS_CUSTOM_EDITORS = new RawContextKey<boolean>('hasCustomEditors', false);
 
 export interface ICustomEditorService {
 	_serviceBrand: any;

@@ -7,23 +7,27 @@ import { equals } from 'vs/base/common/arrays';
 import { UriComponents } from 'vs/base/common/uri';
 
 export interface IMarkdownString {
-	value: string;
-	isTrusted?: boolean;
+	readonly value: string;
+	readonly isTrusted?: boolean;
 	uris?: { [href: string]: UriComponents };
 }
 
 export class MarkdownString implements IMarkdownString {
 
-	value: string;
-	isTrusted?: boolean;
+	private _value: string;
+	private _isTrusted: boolean;
 
-	constructor(value: string = '') {
-		this.value = value;
+	constructor(value: string = '', isTrusted = false) {
+		this._value = value;
+		this._isTrusted = isTrusted;
 	}
+
+	get value() { return this._value; }
+	get isTrusted() { return this._isTrusted; }
 
 	appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += value
+		this._value += value
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
 			.replace('\n', '\n\n');
 
@@ -31,16 +35,16 @@ export class MarkdownString implements IMarkdownString {
 	}
 
 	appendMarkdown(value: string): MarkdownString {
-		this.value += value;
+		this._value += value;
 		return this;
 	}
 
 	appendCodeblock(langId: string, code: string): MarkdownString {
-		this.value += '\n```';
-		this.value += langId;
-		this.value += '\n';
-		this.value += code;
-		this.value += '\n```\n';
+		this._value += '\n```';
+		this._value += langId;
+		this._value += '\n';
+		this._value += code;
+		this._value += '\n```\n';
 		return this;
 	}
 }

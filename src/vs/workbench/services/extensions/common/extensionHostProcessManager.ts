@@ -238,18 +238,17 @@ export class ExtensionHostProcessManager extends Disposable {
 		});
 	}
 
-	public getInspectPort(): number {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
 		if (this._extensionHostProcessWorker) {
+			if (tryEnableInspector) {
+				await this._extensionHostProcessWorker.enableInspectPort();
+			}
 			let port = this._extensionHostProcessWorker.getInspectPort();
 			if (port) {
 				return port;
 			}
 		}
 		return 0;
-	}
-
-	public canProfileExtensionHost(): boolean {
-		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
 	}
 
 	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {

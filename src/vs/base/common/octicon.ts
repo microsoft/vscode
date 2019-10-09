@@ -9,8 +9,8 @@ import { ltrim } from 'vs/base/common/strings';
 const octiconStartMarker = '$(';
 
 export interface IParsedOcticons {
-	text: string;
-	octiconOffsets?: number[];
+	readonly text: string;
+	readonly octiconOffsets?: readonly number[];
 }
 
 export function parseOcticons(text: string): IParsedOcticons {
@@ -78,7 +78,16 @@ function doParseOcticons(text: string, firstOcticonIndex: number): IParsedOctico
 
 		// within octicon
 		else if (currentOcticonStart !== -1) {
-			currentOcticonValue += char;
+			// Make sure this is a real octicon name
+			if (/^[a-z0-9\-]$/i.test(char)) {
+				currentOcticonValue += char;
+			} else {
+				// This is not a real octicon, treat it as text
+				appendChars(currentOcticonValue);
+
+				currentOcticonStart = -1;
+				currentOcticonValue = '';
+			}
 		}
 
 		// any value outside of octicons

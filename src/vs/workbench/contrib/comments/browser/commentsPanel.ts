@@ -27,13 +27,13 @@ import { CommentsList, COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from 'vs/workbe
 
 
 export class CommentsPanel extends Panel {
-	private treeLabels: ResourceLabels;
-	private tree: CommentsList;
-	private treeContainer: HTMLElement;
-	private messageBoxContainer: HTMLElement;
-	private messageBox: HTMLElement;
-	private commentsModel: CommentsModel;
-	private collapseAllAction: IAction;
+	private treeLabels!: ResourceLabels;
+	private tree!: CommentsList;
+	private treeContainer!: HTMLElement;
+	private messageBoxContainer!: HTMLElement;
+	private messageBox!: HTMLElement;
+	private commentsModel!: CommentsModel;
+	private collapseAllAction?: IAction;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -195,7 +195,9 @@ export class CommentsPanel extends Panel {
 
 	private refresh(): void {
 		if (this.isVisible()) {
-			this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
+			if (this.collapseAllAction) {
+				this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
+			}
 
 			dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
 			this.tree.updateChildren().then(() => {
