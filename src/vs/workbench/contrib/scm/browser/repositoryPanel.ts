@@ -6,7 +6,7 @@
 import 'vs/css!./media/scmViewlet';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
@@ -32,7 +32,7 @@ import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { format } from 'vs/base/common/strings';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer, disposableTimeout } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as platform from 'vs/base/common/platform';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -51,6 +51,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 
 type TreeElement = ISCMResourceGroup | IBranchNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -409,12 +410,15 @@ class ViewModel {
 	private items: IGroupItem[] = [];
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
+	private firstVisible = true;
 	private disposables = new DisposableStore();
 
 	constructor(
 		private groups: ISequence<ISCMResourceGroup>,
 		private tree: ObjectTree<TreeElement, FuzzyScore>,
-		private _mode: ViewModelMode
+		private _mode: ViewModelMode,
+		@IEditorService protected editorService: IEditorService,
+		@IConfigurationService protected configurationService: IConfigurationService,
 	) { }
 
 	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
@@ -470,6 +474,9 @@ class ViewModel {
 				this.tree.scrollTop = this.scrollTop;
 				this.scrollTop = undefined;
 			}
+
+			this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
+			this.onDidActiveEditorChange();
 		} else {
 			this.visibilityDisposables.dispose();
 			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: [] });
@@ -482,6 +489,45 @@ class ViewModel {
 			this.tree.setChildren(item.group, groupItemAsTreeElement(item, this.mode).children);
 		} else {
 			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.mode)));
+		}
+	}
+
+	private onDidActiveEditorChange(): void {
+		if (!this.configurationService.getValue<boolean>('scm.autoReveal')) {
+			return;
+		}
+
+		if (this.firstVisible) {
+			this.firstVisible = false;
+			this.visibilityDisposables.add(disposableTimeout(() => this.onDidActiveEditorChange(), 250));
+			return;
+		}
+
+		const editor = this.editorService.activeEditor;
+
+		if (!editor) {
+			return;
+		}
+
+		const uri = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+
+		if (!uri) {
+			return;
+		}
+
+		// go backwards from last group
+		for (let i = this.groups.elements.length - 1; i >= 0; i--) {
+			const group = this.groups.elements[i];
+
+			for (const resource of group.elements) {
+				if (isEqual(uri, resource.sourceUri)) {
+					this.tree.reveal(resource);
+					this.tree.setSelection([resource]);
+					this.tree.setFocus([resource]);
+
+					return;
+				}
+			}
 		}
 	}
 
@@ -708,7 +754,7 @@ export class RepositoryPanel extends ViewletPanel {
 			}
 		}
 
-		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree, mode);
+		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider.groups, this.tree, mode);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');

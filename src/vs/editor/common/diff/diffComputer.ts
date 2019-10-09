@@ -37,7 +37,7 @@ class LineSequence implements ISequence {
 		const elements: string[] = [];
 		for (let i = 0, len = this.lines.length; i < len; i++) {
 			elements[i] = this.lines[i].substring(this._startColumns[i] - 1, this._endColumns[i] - 1);
-	}
+		}
 		return elements;
 	}
 

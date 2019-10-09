@@ -30,9 +30,9 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 	}
 
 	getEOL(resource?: URI, language?: string): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files', { overrideIdentifier: language, resource });
-		if (filesConfiguration && filesConfiguration.eol && filesConfiguration.eol !== 'auto') {
-			return filesConfiguration.eol;
+		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
+		if (eol && eol !== 'auto') {
+			return eol;
 		}
 		const os = this.getOS(resource);
 		return os === OperatingSystem.Linux || os === OperatingSystem.Macintosh ? '\n' : '\r\n';

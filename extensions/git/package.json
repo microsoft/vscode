@@ -363,6 +363,11 @@
         "category": "Git"
       },
       {
+        "command": "git.revealInExplorer",
+        "title": "%command.revealInExplorer%",
+        "category": "Git"
+      },
+      {
         "command": "git.stashIncludeUntracked",
         "title": "%command.stashIncludeUntracked%",
         "category": "Git"
@@ -505,6 +510,10 @@
         },
         {
           "command": "git.restoreCommitTemplate",
+          "when": "false"
+        },
+        {
+          "command": "git.revealInExplorer",
           "when": "false"
         },
         {
@@ -914,6 +923,11 @@
           "group": "inline"
         },
         {
+          "command": "git.revealInExplorer",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "2_view"
+        },
+        {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
           "group": "inline0"
@@ -947,6 +961,11 @@
           "command": "git.unstage",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "inline"
+        },
+        {
+          "command": "git.revealInExplorer",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "2_view"
         },
         {
           "command": "git.openFile2",
@@ -1007,6 +1026,11 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.revealInExplorer",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "2_view"
         }
       ],
       "editor/title": [

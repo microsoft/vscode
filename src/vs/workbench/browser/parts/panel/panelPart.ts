@@ -357,7 +357,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private getToolbarWidth(): number {
 		const activePanel = this.getActivePanel();
-		if (!activePanel) {
+		if (!activePanel || !this.toolBar) {
 			return 0;
 		}
 

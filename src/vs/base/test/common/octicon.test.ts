@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { IMatch } from 'vs/base/common/filters';
-import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
+import { matchesFuzzyOcticonAware, parseOcticons, IParsedOcticons } from 'vs/base/common/octicon';
 
 export interface IOcticonFilter {
 	// Returns null if word doesn't match.
-	(query: string, target: { text: string, octiconOffsets?: number[] }): IMatch[] | null;
+	(query: string, target: IParsedOcticons): IMatch[] | null;
 }
 
-function filterOk(filter: IOcticonFilter, word: string, target: { text: string, octiconOffsets?: number[] }, highlights?: { start: number; end: number; }[]) {
+function filterOk(filter: IOcticonFilter, word: string, target: IParsedOcticons, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, target);
 	assert(r);
 	if (highlights) {

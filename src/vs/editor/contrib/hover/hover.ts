@@ -7,7 +7,7 @@ import 'vs/css!./hover';
 import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -34,21 +34,21 @@ export class ModesHoverController implements IEditorContribution {
 	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
-	private _contentWidget: ModesContentHoverWidget | null;
-	private _glyphWidget: ModesGlyphHoverWidget | null;
+	private readonly _contentWidget = new MutableDisposable<ModesContentHoverWidget>();
+	private readonly _glyphWidget = new MutableDisposable<ModesGlyphHoverWidget>();
 
 	get contentWidget(): ModesContentHoverWidget {
-		if (!this._contentWidget) {
+		if (!this._contentWidget.value) {
 			this._createHoverWidgets();
 		}
-		return this._contentWidget!;
+		return this._contentWidget.value!;
 	}
 
 	get glyphWidget(): ModesGlyphHoverWidget {
-		if (!this._glyphWidget) {
+		if (!this._glyphWidget.value) {
 			this._createHoverWidgets();
 		}
-		return this._glyphWidget!;
+		return this._glyphWidget.value!;
 	}
 
 	private _isMouseDown: boolean;
@@ -69,8 +69,6 @@ export class ModesHoverController implements IEditorContribution {
 	) {
 		this._isMouseDown = false;
 		this._hoverClicked = false;
-		this._contentWidget = null;
-		this._glyphWidget = null;
 
 		this._hookEvents();
 
@@ -197,17 +195,17 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		if (!this._glyphWidget || !this._contentWidget || (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible())) {
+		if (!this._glyphWidget.value || !this._contentWidget.value || (this._isMouseDown && this._hoverClicked && this._contentWidget.value.isColorPickerVisible())) {
 			return;
 		}
 
-		this._glyphWidget!.hide();
-		this._contentWidget.hide();
+		this._glyphWidget.value.hide();
+		this._contentWidget.value.hide();
 	}
 
 	private _createHoverWidgets() {
-		this._contentWidget = new ModesContentHoverWidget(this._editor, this._markerDecorationsService, this._themeService, this._keybindingService, this._modeService, this._openerService);
-		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
+		this._contentWidget.value = new ModesContentHoverWidget(this._editor, this._markerDecorationsService, this._themeService, this._keybindingService, this._modeService, this._openerService);
+		this._glyphWidget.value = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
@@ -222,13 +220,8 @@ export class ModesHoverController implements IEditorContribution {
 		this._unhookEvents();
 		this._toUnhook.dispose();
 		this._didChangeConfigurationHandler.dispose();
-
-		if (this._glyphWidget) {
-			this._glyphWidget.dispose();
-		}
-		if (this._contentWidget) {
-			this._contentWidget.dispose();
-		}
+		this._glyphWidget.dispose();
+		this._contentWidget.dispose();
 	}
 }
 

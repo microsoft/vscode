@@ -71,7 +71,6 @@ export interface ParsedArgs {
 	'driver-verbose'?: boolean;
 	remote?: string;
 	'disable-user-env-probe'?: boolean;
-	'disable-inspect'?: boolean;
 	'force'?: boolean;
 	'force-user-env'?: boolean;
 
@@ -117,6 +116,7 @@ export interface IEnvironmentService {
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	localeResource: URI;
+	argvResource: URI;
 
 	// sync resources
 	userDataSyncLogResource: URI;
