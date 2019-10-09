@@ -99,7 +99,7 @@ class RenameController implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.renameController';
 
-	public static get(editor: ICodeEditor): RenameController {
+	static get(editor: ICodeEditor): RenameController {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
@@ -178,51 +178,51 @@ class RenameController implements IEditorContribution {
 			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
 		}
 
-		return this._renameInputField.getValue().getInput(loc.range, loc.text, selectionStart, selectionEnd).then(newNameOrFocusFlag => {
+		const newNameOrFocusFlag = await this._renameInputField.getValue().getInput(loc.range, loc.text, selectionStart, selectionEnd);
 
-			if (typeof newNameOrFocusFlag === 'boolean') {
-				if (newNameOrFocusFlag) {
-					this.editor.focus();
-				}
-				return undefined;
+
+		if (typeof newNameOrFocusFlag === 'boolean') {
+			if (newNameOrFocusFlag) {
+				this.editor.focus();
+			}
+			return undefined;
+		}
+
+		this.editor.focus();
+
+		const renameOperation = raceCancellation(skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], this._cts.token), this._cts.token).then(async renameResult => {
+
+			if (!renameResult || !this.editor.hasModel()) {
+				return;
 			}
 
-			this.editor.focus();
+			if (renameResult.rejectReason) {
+				this._notificationService.info(renameResult.rejectReason);
+				return;
+			}
 
-			const renameOperation = raceCancellation(skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], this._cts.token), this._cts.token).then(result => {
+			const editResult = await this._bulkEditService.apply(renameResult, { editor: this.editor });
 
-				if (!result || !this.editor.hasModel()) {
-					return;
-				}
+			// alert
+			if (editResult.ariaSummary) {
+				alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, newNameOrFocusFlag, editResult.ariaSummary));
+			}
 
-				if (result.rejectReason) {
-					this._notificationService.info(result.rejectReason);
-					return;
-				}
-
-				return this._bulkEditService.apply(result, { editor: this.editor }).then(result => {
-					// alert
-					if (result.ariaSummary) {
-						alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, newNameOrFocusFlag, result.ariaSummary));
-					}
-				});
-
-			}, err => {
-				this._notificationService.error(nls.localize('rename.failed', "Rename failed to execute."));
-				return Promise.reject(err);
-			});
-
-			this._progressService.showWhile(renameOperation, 250);
-			return renameOperation;
-
+		}, err => {
+			this._notificationService.error(nls.localize('rename.failed', "Rename failed to execute."));
+			return Promise.reject(err);
 		});
+
+		this._progressService.showWhile(renameOperation, 250);
+		return renameOperation;
+
 	}
 
-	public acceptRenameInput(): void {
+	acceptRenameInput(): void {
 		this._renameInputField.getValue().acceptInput();
 	}
 
-	public cancelRenameInput(): void {
+	cancelRenameInput(): void {
 		this._renameInputField.getValue().cancelInput(true);
 	}
 }
