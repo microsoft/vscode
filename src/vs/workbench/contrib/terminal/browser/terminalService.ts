@@ -394,11 +394,6 @@ export class TerminalService implements ITerminalService {
 		}
 
 		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
-		if (!instance) {
-			this._showNotEnoughSpaceToast();
-			return null;
-		}
-
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
 
@@ -493,10 +488,6 @@ export class TerminalService implements ITerminalService {
 			type: 'warning',
 		});
 		return !res.confirmed;
-	}
-
-	protected _showNotEnoughSpaceToast(): void {
-		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
 	}
 
 	protected _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
