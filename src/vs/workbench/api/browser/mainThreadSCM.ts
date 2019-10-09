@@ -308,7 +308,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		const events: ScmEvents = {
 			branchChanged: []
 		};
-		events.branchChanged.push("foo")
+		events.branchChanged.push("foo");
 		this._proxy.$onScmChangeEvent(events);
 	}
 
