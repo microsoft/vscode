@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
+import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
+import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 
 const WebviewPanelResourceScheme = 'webview-panel';
 
@@ -141,24 +142,20 @@ export class WebviewInput extends EditorInput {
 	}
 }
 
-export class RevivedWebviewEditorInput extends WebviewInput {
-	private _revived: boolean = false;
-
+export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 	constructor(
 		id: string,
 		viewType: string,
 		name: string,
-		private readonly reviver: (input: WebviewInput) => Promise<void>,
-		webview: Unowned<WebviewEditorOverlay>
+		webview: Unowned<WebviewEditorOverlay>,
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
 	) {
 		super(id, viewType, name, webview);
 	}
 
+	@memoize
 	public async resolve(): Promise<IEditorModel> {
-		if (!this._revived) {
-			this._revived = true;
-			await this.reviver(this);
-		}
+		await this._webviewEditorService.resolveWebview(this);
 		return super.resolve();
 	}
 }

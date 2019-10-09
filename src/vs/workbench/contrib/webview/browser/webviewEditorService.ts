@@ -17,7 +17,7 @@ import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IWebviewService, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { RevivedWebviewEditorInput, WebviewInput } from './webviewEditorInput';
+import { LazilyResolvedWebviewEditorInput, WebviewInput } from './webviewEditorInput';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -190,7 +190,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		const webview = this.createWebiew(id, extension, options);
 		webview.state = state;
 
-		const webviewInput = new RevivedWebviewEditorInput(id, viewType, title, (webview: WebviewInput) => this.resolveWebview(webview), new UnownedDisposable(webview));
+		const webviewInput = new LazilyResolvedWebviewEditorInput(id, viewType, title, new UnownedDisposable(webview), this);
 		webviewInput.iconPath = iconPath;
 
 		if (typeof group === 'number') {
@@ -219,7 +219,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 		// Revived webviews may not have an actively registered reviver but we still want to presist them
 		// since a reviver should exist when it is actually needed.
-		return webview instanceof RevivedWebviewEditorInput;
+		return webview instanceof LazilyResolvedWebviewEditorInput;
 	}
 
 	private async tryRevive(
