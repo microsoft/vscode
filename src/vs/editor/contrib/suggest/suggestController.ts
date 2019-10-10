@@ -115,10 +115,10 @@ export class SuggestController implements IEditorContribution {
 			const widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
 
 			this._toDispose.add(widget);
-			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, false, true), this));
+			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, false, true, true), this));
 
 			// Wire up logic to accept a suggestion on certain characters
-			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true));
+			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true, false));
 			this._toDispose.add(commitCharacterController);
 			this._toDispose.add(this._model.onDidSuggest(e => {
 				if (e.completionModel.items.length === 0) {
@@ -223,7 +223,7 @@ export class SuggestController implements IEditorContribution {
 		this._lineSuffix.dispose();
 	}
 
-	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
+	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStopBefore: boolean, undoStopAfter: boolean): void {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
@@ -242,7 +242,7 @@ export class SuggestController implements IEditorContribution {
 
 		// pushing undo stops *before* additional text edits and
 		// *after* the main edit
-		if (undoStops) {
+		if (undoStopBefore) {
 			this._editor.pushUndoStop();
 		}
 
@@ -270,7 +270,7 @@ export class SuggestController implements IEditorContribution {
 			adjustWhitespace: !(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
 		});
 
-		if (undoStops) {
+		if (undoStopAfter) {
 			this._editor.pushUndoStop();
 		}
 
@@ -300,7 +300,7 @@ export class SuggestController implements IEditorContribution {
 					if (modelVersionNow !== model.getAlternativeVersionId()) {
 						model.undo();
 					}
-					this._insertSuggestion(next, false, false);
+					this._insertSuggestion(next, false, false, false);
 					break;
 				}
 			});
@@ -382,7 +382,7 @@ export class SuggestController implements IEditorContribution {
 					return;
 				}
 				this._editor.pushUndoStop();
-				this._insertSuggestion({ index, item, model: completionModel }, true, false);
+				this._insertSuggestion({ index, item, model: completionModel }, true, false, false);
 
 			}, undefined, listener);
 		});
@@ -394,7 +394,7 @@ export class SuggestController implements IEditorContribution {
 
 	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
 		const item = this._widget.getValue().getFocusedItem();
-		this._insertSuggestion(item, !!keepAlternativeSuggestions, true);
+		this._insertSuggestion(item, !!keepAlternativeSuggestions, true, true);
 	}
 
 	acceptNextSuggestion() {
