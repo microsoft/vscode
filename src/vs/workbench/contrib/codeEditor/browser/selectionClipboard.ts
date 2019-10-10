@@ -5,9 +5,8 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as process from 'vs/base/common/process';
 import * as platform from 'vs/base/common/platform';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -32,33 +31,12 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				}
 			}));
 
-			this._register(editor.onMouseDown((e: IEditorMouseEvent) => {
+			this._register(editor.onMouseUp((e: IEditorMouseEvent) => {
 				if (!isEnabled) {
-					return;
-				}
-				if (!editor.hasModel()) {
-					return;
-				}
-				if (e.event.middleButton) {
-					e.event.preventDefault();
-					editor.focus();
-
-					if (e.target.position) {
-						editor.setPosition(e.target.position);
+					if (e.event.middleButton) {
+						// try to stop the upcoming paste
+						e.event.preventDefault();
 					}
-
-					if (e.target.type === MouseTargetType.SCROLLBAR) {
-						return;
-					}
-
-					process.nextTick(() => {
-						// TODO@Alex: electron weirdness: calling clipboard.readText('selection') generates a paste event, so no need to execute paste ourselves
-						clipboardService.readText('selection');
-						// keybindingService.executeCommand(Handler.Paste, {
-						// 	text: clipboard.readText('selection'),
-						// 	pasteOnNewLine: false
-						// });
-					});
 				}
 			}));
 
