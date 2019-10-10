@@ -87,9 +87,9 @@ suite('Editor Core - Range', () => {
 		b = new Range(1, 1, 1, 4);
 		assert.ok(Range.compareRangesUsingEnds(a, b) > 0, 'a.start = b.start, a.end > b.end');
 
-		a = new Range(1, 1, 5, 1);
+		a = new Range(1, 2, 5, 1);
 		b = new Range(1, 1, 1, 4);
-		assert.ok(Range.compareRangesUsingEnds(a, b) > 0, 'a.start = b.start, a.end > b.end');
+		assert.ok(Range.compareRangesUsingEnds(a, b) > 0, 'a.start > b.start, a.end > b.end');
 	});
 
 	test('containsPosition', () => {

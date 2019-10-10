@@ -303,7 +303,6 @@ export function buildVersionMessage(version: string | undefined, commit: string 
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
 
-
 export function addArg(argv: string[], ...args: string[]): string[] {
 	const endOfArgsMarkerIndex = argv.indexOf('--');
 	if (endOfArgsMarkerIndex === -1) {
