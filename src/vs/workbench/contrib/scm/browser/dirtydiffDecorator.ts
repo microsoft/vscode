@@ -1177,6 +1177,10 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		const onDidChangeDiffWidthConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterWidth'));
 		onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this);
 		this.onDidChangeDiffWidthConfiguration();
+
+		const onDidChangeDiffVisibilityConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterVisibility'));
+		onDidChangeDiffVisibilityConfiguration(this.onDidChangeDiffVisibiltiyConfiguration, this);
+		this.onDidChangeDiffVisibiltiyConfiguration();
 	}
 
 	private onDidChangeConfiguration(): void {
@@ -1197,6 +1201,16 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		}
 
 		this.stylesheet.innerHTML = `.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${width}px;}`;
+	}
+
+	private onDidChangeDiffVisibiltiyConfiguration(): void {
+		let visibility = this.configurationService.getValue<string>('scm.diffDecorationsGutterVisibility');
+
+		this.stylesheet.innerHTML = `
+			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
+				opacity: ${visibility === 'always' ? 1 : 0};
+			}
+		`;
 	}
 
 	private enable(): void {
@@ -1286,9 +1300,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-modified {
 				border-left: 3px solid ${editorGutterModifiedBackgroundColor};
+				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-modified:before {
 				background: ${editorGutterModifiedBackgroundColor};
+			}
+			.monaco-editor .margin:hover .dirty-diff-modified {
+				opacity: 1;
 			}
 		`);
 	}
@@ -1298,9 +1316,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-added {
 				border-left: 3px solid ${editorGutterAddedBackgroundColor};
+				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-added:before {
 				background: ${editorGutterAddedBackgroundColor};
+			}
+			.monaco-editor .margin:hover .dirty-diff-added {
+				opacity: 1;
 			}
 		`);
 	}
@@ -1310,9 +1332,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-deleted:after {
 				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
+				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-deleted:before {
 				background: ${editorGutteDeletedBackgroundColor};
+			}
+			.monaco-editor .margin:hover .dirty-diff-added {
+				opacity: 1;
 			}
 		`);
 	}
