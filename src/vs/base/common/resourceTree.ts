@@ -69,6 +69,10 @@ class BranchNode<T, C> extends Node<C> implements IBranchNode<T, C> {
 	delete(path: string): void {
 		this._children.delete(path);
 	}
+
+	clear(): void {
+		this._children.clear();
+	}
 }
 
 class LeafNode<T, C> extends Node<C> implements ILeafNode<T, C> {
@@ -194,5 +198,9 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 
 		node.delete(name);
 		return child.element;
+	}
+
+	clear(): void {
+		this.root.clear();
 	}
 }
