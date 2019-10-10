@@ -51,13 +51,13 @@ export class SelectColorThemeAction extends Action {
 				...configurationEntries(this.extensionGalleryService, localize('installColorThemes', "Install Additional Color Themes..."))
 			];
 
-			let selectThemeTimeout: NodeJS.Timeout | undefined;
+			let selectThemeTimeout: number | undefined;
 
 			const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
 				if (selectThemeTimeout) {
 					clearTimeout(selectThemeTimeout);
 				}
-				selectThemeTimeout = setTimeout(() => {
+				selectThemeTimeout = window.setTimeout(() => {
 					selectThemeTimeout = undefined;
 
 					let themeId = theme.id;
@@ -123,13 +123,13 @@ class SelectIconThemeAction extends Action {
 				configurationEntries(this.extensionGalleryService, localize('installIconThemes', "Install Additional File Icon Themes..."))
 			);
 
-			let selectThemeTimeout: NodeJS.Timeout | undefined;
+			let selectThemeTimeout: number | undefined;
 
 			const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
 				if (selectThemeTimeout) {
 					clearTimeout(selectThemeTimeout);
 				}
-				selectThemeTimeout = setTimeout(() => {
+				selectThemeTimeout = window.setTimeout(() => {
 					selectThemeTimeout = undefined;
 					let themeId = theme.id;
 					if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
