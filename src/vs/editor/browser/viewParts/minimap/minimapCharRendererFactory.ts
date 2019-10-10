@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Constants, MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
+import { Constants, MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
 
 /**
  * Creates character renderers. It takes a 'scale' that determines how large

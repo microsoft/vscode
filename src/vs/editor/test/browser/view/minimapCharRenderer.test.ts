@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { Constants } from 'vs/editor/common/view/minimapCharRenderer';
-import { MinimapCharRendererFactory } from 'vs/editor/common/view/minimapCharRendererFactory';
+import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
+import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
 
 suite('MinimapCharRenderer', () => {
 

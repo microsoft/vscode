@@ -18,7 +18,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
 import { ColorId } from 'vs/editor/common/modes';
-import { Constants, MinimapCharRenderer, MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
+import { Constants, MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
+import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -29,7 +30,7 @@ import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel'
 import { Selection } from 'vs/editor/common/core/selection';
 import { Color } from 'vs/base/common/color';
 import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
-import { MinimapCharRendererFactory } from 'vs/editor/common/view/minimapCharRendererFactory';
+import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap, scale: number): number {
 	if (renderMinimap === RenderMinimap.Text) {

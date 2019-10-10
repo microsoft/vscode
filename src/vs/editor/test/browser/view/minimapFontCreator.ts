@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { Constants, MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
-import { MinimapCharRendererFactory } from 'vs/editor/common/view/minimapCharRendererFactory';
+import { Constants, MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
+import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
 
 let sampleData = MinimapCharRendererFactory.createSampleData();
 let minimapCharRenderer1x = MinimapCharRendererFactory.createFromSampleData(sampleData.data, 1);
