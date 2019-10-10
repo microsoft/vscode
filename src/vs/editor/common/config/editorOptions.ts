@@ -1358,10 +1358,8 @@ export interface OverviewRulerPosition {
 
 export const enum RenderMinimap {
 	None = 0,
-	Small = 1,
-	Large = 2,
-	SmallBlocks = 3,
-	LargeBlocks = 4,
+	Text = 1,
+	Blocks = 2,
 }
 
 /**
@@ -1517,6 +1515,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const minimapEnabled = minimap.enabled;
 		const minimapSide = minimap.side;
 		const minimapRenderCharacters = minimap.renderCharacters;
+		const minimapScale = pixelRatio >= 2 ? Math.round(minimap.scale * pixelRatio) : minimap.scale;
 		const minimapMaxColumn = minimap.maxColumn | 0;
 
 		const scrollbar = options.get(EditorOption.scrollbar);
@@ -1567,14 +1566,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			renderMinimap = RenderMinimap.None;
 			contentWidth = remainingWidth;
 		} else {
-			let minimapCharWidth: number;
-			if (pixelRatio >= 2) {
-				renderMinimap = minimapRenderCharacters ? RenderMinimap.Large : RenderMinimap.LargeBlocks;
-				minimapCharWidth = 2 / pixelRatio;
-			} else {
-				renderMinimap = minimapRenderCharacters ? RenderMinimap.Small : RenderMinimap.SmallBlocks;
-				minimapCharWidth = 1 / pixelRatio;
-			}
+			// The minimapScale is also the pixel width of each character. Adjust
+			// for the pixel ratio of the screen.
+			const minimapCharWidth = minimapScale / pixelRatio;
+			renderMinimap = minimapRenderCharacters ? RenderMinimap.Text : RenderMinimap.Blocks;
 
 			// Given:
 			// (leaving 2px for the cursor to have space after the last character)
@@ -1750,6 +1745,11 @@ export interface IEditorMinimapOptions {
 	 * Defaults to 120.
 	 */
 	maxColumn?: number;
+
+	/**
+	 * Relative size of the font in the minimap. Defaults to 1.
+	 */
+	scale?: number;
 }
 
 export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
@@ -1763,6 +1763,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 			showSlider: 'mouseover',
 			renderCharacters: true,
 			maxColumn: 120,
+			scale: 1,
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
@@ -1783,6 +1784,11 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					enum: ['always', 'mouseover'],
 					default: defaults.showSlider,
 					description: nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
+				},
+				'editor.minimap.scale': {
+					type: 'number',
+					default: defaults.scale,
+					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap.")
 				},
 				'editor.minimap.renderCharacters': {
 					type: 'boolean',
@@ -1808,6 +1814,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
 			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),
+			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 8),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 		};
 	}

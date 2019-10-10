@@ -24,7 +24,7 @@ export class MinimapTokensColorTracker {
 
 	private constructor() {
 		this._updateColorMap();
-		TokenizationRegistry.onDidChange((e) => {
+		TokenizationRegistry.onDidChange(e => {
 			if (e.changedColorMap) {
 				this._updateColorMap();
 			}
@@ -45,7 +45,7 @@ export class MinimapTokensColorTracker {
 			this._colors[colorId] = new RGBA8(source.r, source.g, source.b, Math.round(source.a * 255));
 		}
 		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
-		this._backgroundIsLight = (backgroundLuminosity >= 0.5);
+		this._backgroundIsLight = backgroundLuminosity >= 0.5;
 		this._onDidChange.fire(undefined);
 	}
 
@@ -78,32 +78,18 @@ export const enum Constants {
 	x1_CHAR_WIDTH = 1,
 
 	RGBA_CHANNELS_CNT = 4,
+	RGBA_SAMPLED_ROW_WIDTH = RGBA_CHANNELS_CNT * CHAR_COUNT * SAMPLED_CHAR_WIDTH
 }
 
 export class MinimapCharRenderer {
-
 	_minimapCharRendererBrand: void;
 
-	public readonly x2charData: Uint8ClampedArray;
-	public readonly x1charData: Uint8ClampedArray;
+	private readonly charDataNormal: Uint8ClampedArray;
+	private readonly charDataLight: Uint8ClampedArray;
 
-	public readonly x2charDataLight: Uint8ClampedArray;
-	public readonly x1charDataLight: Uint8ClampedArray;
-
-	constructor(x2CharData: Uint8ClampedArray, x1CharData: Uint8ClampedArray) {
-		const x2ExpectedLen = Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CHAR_COUNT;
-		if (x2CharData.length !== x2ExpectedLen) {
-			throw new Error('Invalid x2CharData');
-		}
-		const x1ExpectedLen = Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.CHAR_COUNT;
-		if (x1CharData.length !== x1ExpectedLen) {
-			throw new Error('Invalid x1CharData');
-		}
-		this.x2charData = x2CharData;
-		this.x1charData = x1CharData;
-
-		this.x2charDataLight = MinimapCharRenderer.soften(x2CharData, 12 / 15);
-		this.x1charDataLight = MinimapCharRenderer.soften(x1CharData, 50 / 60);
+	constructor(charData: Uint8ClampedArray, public readonly scale: number) {
+		this.charDataNormal = MinimapCharRenderer.soften(charData, 12 / 15);
+		this.charDataLight = MinimapCharRenderer.soften(charData, 50 / 60);
 	}
 
 	private static soften(input: Uint8ClampedArray, ratio: number): Uint8ClampedArray {
@@ -119,18 +105,29 @@ export class MinimapCharRenderer {
 		if (chCode < 0) {
 			chCode += Constants.CHAR_COUNT;
 		}
-		return (chCode % Constants.CHAR_COUNT);
+		return chCode % Constants.CHAR_COUNT;
 	}
 
-	public x2RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: RGBA8, backgroundColor: RGBA8, useLighterFont: boolean): void {
-		if (dx + Constants.x2_CHAR_WIDTH > target.width || dy + Constants.x2_CHAR_HEIGHT > target.height) {
+	public renderChar(
+		target: ImageData,
+		dx: number,
+		dy: number,
+		chCode: number,
+		color: RGBA8,
+		backgroundColor: RGBA8,
+		useLighterFont: boolean
+	): void {
+		const charWidth = Constants.x1_CHAR_WIDTH * this.scale;
+		const charHeight = Constants.x1_CHAR_HEIGHT * this.scale;
+		if (dx + charWidth > target.width || dy + charHeight > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
-		const x2CharData = useLighterFont ? this.x2charDataLight : this.x2charData;
-		const chIndex = MinimapCharRenderer._getChIndex(chCode);
 
-		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
+		const charData = useLighterFont ? this.charDataLight : this.charDataNormal;
+		const charIndex = MinimapCharRenderer._getChIndex(chCode);
+
+		const destWidth = target.width * Constants.RGBA_CHANNELS_CNT;
 
 		const backgroundR = backgroundColor.r;
 		const backgroundG = backgroundColor.g;
@@ -141,180 +138,39 @@ export class MinimapCharRenderer {
 		const deltaB = color.b - backgroundB;
 
 		const dest = target.data;
-		const sourceOffset = chIndex * Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH;
-		let destOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		{
-			const c = x2CharData[sourceOffset] / 255;
-			dest[destOffset + 0] = backgroundR + deltaR * c;
-			dest[destOffset + 1] = backgroundG + deltaG * c;
-			dest[destOffset + 2] = backgroundB + deltaB * c;
-		}
-		{
-			const c = x2CharData[sourceOffset + 1] / 255;
-			dest[destOffset + 4] = backgroundR + deltaR * c;
-			dest[destOffset + 5] = backgroundG + deltaG * c;
-			dest[destOffset + 6] = backgroundB + deltaB * c;
-		}
+		let sourceOffset = charIndex * charWidth * charHeight;
 
-		destOffset += outWidth;
-		{
-			const c = x2CharData[sourceOffset + 2] / 255;
-			dest[destOffset + 0] = backgroundR + deltaR * c;
-			dest[destOffset + 1] = backgroundG + deltaG * c;
-			dest[destOffset + 2] = backgroundB + deltaB * c;
-		}
-		{
-			const c = x2CharData[sourceOffset + 3] / 255;
-			dest[destOffset + 4] = backgroundR + deltaR * c;
-			dest[destOffset + 5] = backgroundG + deltaG * c;
-			dest[destOffset + 6] = backgroundB + deltaB * c;
-		}
+		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
+		for (let y = 0; y < charHeight; y++) {
+			let column = row;
+			for (let x = 0; x < charWidth; x++) {
+				const c = charData[sourceOffset++] / 255;
+				dest[column++] = backgroundR + deltaR * c;
+				dest[column++] = backgroundG + deltaG * c;
+				dest[column++] = backgroundB + deltaB * c;
+				column++;
+			}
 
-		destOffset += outWidth;
-		{
-			const c = x2CharData[sourceOffset + 4] / 255;
-			dest[destOffset + 0] = backgroundR + deltaR * c;
-			dest[destOffset + 1] = backgroundG + deltaG * c;
-			dest[destOffset + 2] = backgroundB + deltaB * c;
-		}
-		{
-			const c = x2CharData[sourceOffset + 5] / 255;
-			dest[destOffset + 4] = backgroundR + deltaR * c;
-			dest[destOffset + 5] = backgroundG + deltaG * c;
-			dest[destOffset + 6] = backgroundB + deltaB * c;
-		}
-
-		destOffset += outWidth;
-		{
-			const c = x2CharData[sourceOffset + 6] / 255;
-			dest[destOffset + 0] = backgroundR + deltaR * c;
-			dest[destOffset + 1] = backgroundG + deltaG * c;
-			dest[destOffset + 2] = backgroundB + deltaB * c;
-		}
-		{
-			const c = x2CharData[sourceOffset + 7] / 255;
-			dest[destOffset + 4] = backgroundR + deltaR * c;
-			dest[destOffset + 5] = backgroundG + deltaG * c;
-			dest[destOffset + 6] = backgroundB + deltaB * c;
+			row += destWidth;
 		}
 	}
 
-	public x1RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: RGBA8, backgroundColor: RGBA8, useLighterFont: boolean): void {
-		if (dx + Constants.x1_CHAR_WIDTH > target.width || dy + Constants.x1_CHAR_HEIGHT > target.height) {
-			console.warn('bad render request outside image data');
-			return;
-		}
-		const x1CharData = useLighterFont ? this.x1charDataLight : this.x1charData;
-		const chIndex = MinimapCharRenderer._getChIndex(chCode);
-
-		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
-
-		const backgroundR = backgroundColor.r;
-		const backgroundG = backgroundColor.g;
-		const backgroundB = backgroundColor.b;
-
-		const deltaR = color.r - backgroundR;
-		const deltaG = color.g - backgroundG;
-		const deltaB = color.b - backgroundB;
-
-		const dest = target.data;
-		const sourceOffset = chIndex * Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH;
-		let destOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		{
-			const c = x1CharData[sourceOffset] / 255;
-			dest[destOffset + 0] = backgroundR + deltaR * c;
-			dest[destOffset + 1] = backgroundG + deltaG * c;
-			dest[destOffset + 2] = backgroundB + deltaB * c;
-		}
-
-		destOffset += outWidth;
-		{
-			const c = x1CharData[sourceOffset + 1] / 255;
-			dest[destOffset + 0] = backgroundR + deltaR * c;
-			dest[destOffset + 1] = backgroundG + deltaG * c;
-			dest[destOffset + 2] = backgroundB + deltaB * c;
-		}
-	}
-
-	public x2BlockRenderChar(target: ImageData, dx: number, dy: number, color: RGBA8, backgroundColor: RGBA8, useLighterFont: boolean): void {
-		if (dx + Constants.x2_CHAR_WIDTH > target.width || dy + Constants.x2_CHAR_HEIGHT > target.height) {
+	public blockRenderChar(
+		target: ImageData,
+		dx: number,
+		dy: number,
+		color: RGBA8,
+		backgroundColor: RGBA8,
+		useLighterFont: boolean
+	): void {
+		const charWidth = Constants.x1_CHAR_WIDTH * this.scale;
+		const charHeight = Constants.x1_CHAR_HEIGHT * this.scale;
+		if (dx + charWidth > target.width || dy + charHeight > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
 
-		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
-
-		const c = 0.5;
-
-		const backgroundR = backgroundColor.r;
-		const backgroundG = backgroundColor.g;
-		const backgroundB = backgroundColor.b;
-
-		const deltaR = color.r - backgroundR;
-		const deltaG = color.g - backgroundG;
-		const deltaB = color.b - backgroundB;
-
-		const colorR = backgroundR + deltaR * c;
-		const colorG = backgroundG + deltaG * c;
-		const colorB = backgroundB + deltaB * c;
-
-		const dest = target.data;
-		let destOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		{
-			dest[destOffset + 0] = colorR;
-			dest[destOffset + 1] = colorG;
-			dest[destOffset + 2] = colorB;
-		}
-		{
-			dest[destOffset + 4] = colorR;
-			dest[destOffset + 5] = colorG;
-			dest[destOffset + 6] = colorB;
-		}
-
-		destOffset += outWidth;
-		{
-			dest[destOffset + 0] = colorR;
-			dest[destOffset + 1] = colorG;
-			dest[destOffset + 2] = colorB;
-		}
-		{
-			dest[destOffset + 4] = colorR;
-			dest[destOffset + 5] = colorG;
-			dest[destOffset + 6] = colorB;
-		}
-
-		destOffset += outWidth;
-		{
-			dest[destOffset + 0] = colorR;
-			dest[destOffset + 1] = colorG;
-			dest[destOffset + 2] = colorB;
-		}
-		{
-			dest[destOffset + 4] = colorR;
-			dest[destOffset + 5] = colorG;
-			dest[destOffset + 6] = colorB;
-		}
-
-		destOffset += outWidth;
-		{
-			dest[destOffset + 0] = colorR;
-			dest[destOffset + 1] = colorG;
-			dest[destOffset + 2] = colorB;
-		}
-		{
-			dest[destOffset + 4] = colorR;
-			dest[destOffset + 5] = colorG;
-			dest[destOffset + 6] = colorB;
-		}
-	}
-
-	public x1BlockRenderChar(target: ImageData, dx: number, dy: number, color: RGBA8, backgroundColor: RGBA8, useLighterFont: boolean): void {
-		if (dx + Constants.x1_CHAR_WIDTH > target.width || dy + Constants.x1_CHAR_HEIGHT > target.height) {
-			console.warn('bad render request outside image data');
-			return;
-		}
-
-		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
+		const destWidth = target.width * Constants.RGBA_CHANNELS_CNT;
 
 		const c = 0.5;
 
@@ -332,18 +188,17 @@ export class MinimapCharRenderer {
 
 		const dest = target.data;
 
-		let destOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		{
-			dest[destOffset + 0] = colorR;
-			dest[destOffset + 1] = colorG;
-			dest[destOffset + 2] = colorB;
-		}
+		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
+		for (let y = 0; y < charHeight; y++) {
+			let column = row;
+			for (let x = 0; x < charWidth; x++) {
+				dest[column++] = colorR;
+				dest[column++] = colorG;
+				dest[column++] = colorB;
+				column++;
+			}
 
-		destOffset += outWidth;
-		{
-			dest[destOffset + 0] = colorR;
-			dest[destOffset + 1] = colorG;
-			dest[destOffset + 2] = colorB;
+			row += destWidth;
 		}
 	}
 }

@@ -48,7 +48,8 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			side: input.minimapSide,
 			renderCharacters: input.minimapRenderCharacters,
 			maxColumn: input.minimapMaxColumn,
-			showSlider: 'mouseover'
+			showSlider: 'mouseover',
+			scale: 1,
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {
@@ -704,7 +705,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentWidth: 901,
 			contentHeight: 800,
 
-			renderMinimap: RenderMinimap.Small,
+			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 911,
 			minimapWidth: 89,
 			viewportColumn: 89,
@@ -762,7 +763,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentWidth: 901,
 			contentHeight: 800,
 
-			renderMinimap: RenderMinimap.Large,
+			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 911,
 			minimapWidth: 89,
 			viewportColumn: 89,
@@ -820,7 +821,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentWidth: 943,
 			contentHeight: 800,
 
-			renderMinimap: RenderMinimap.Large,
+			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 953,
 			minimapWidth: 47,
 			viewportColumn: 94,
@@ -878,7 +879,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentWidth: 943,
 			contentHeight: 800,
 
-			renderMinimap: RenderMinimap.Large,
+			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 0,
 			minimapWidth: 47,
 			viewportColumn: 94,
@@ -936,7 +937,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentWidth: 1026,
 			contentHeight: 422,
 
-			renderMinimap: RenderMinimap.Large,
+			renderMinimap: RenderMinimap.Text,
 			minimapLeft: 1104,
 			minimapWidth: 83,
 			viewportColumn: 83,
