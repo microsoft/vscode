@@ -19,7 +19,7 @@ const paths = require('./paths');
 // @ts-ignore
 const product = require('../product.json');
 // @ts-ignore
-const app = require('electron').app;
+const { app, protocol } = require('electron');
 
 // Enable portable support
 const portable = bootstrap.configurePortable();
@@ -34,6 +34,11 @@ app.setPath('userData', userDataPath);
 
 // Update cwd based on environment and platform
 setCurrentWorkingDirectory();
+
+// Register custom schemes with privileges
+protocol.registerSchemesAsPrivileged([
+	{ scheme: 'vscode-resource', privileges: { secure: true, supportFetchAPI: true, corsEnabled: true } }
+]);
 
 // Global app listeners
 registerListeners();

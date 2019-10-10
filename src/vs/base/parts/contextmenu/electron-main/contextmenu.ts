@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Menu, MenuItem, BrowserWindow, ipcMain, Event as IpcMainEvent } from 'electron';
+import { Menu, MenuItem, BrowserWindow, ipcMain, IpcMainEvent } from 'electron';
 import { ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHANNEL, CONTEXT_MENU_CHANNEL, IPopupOptions } from 'vs/base/parts/contextmenu/common/contextmenu';
 
 export function registerContextMenuListener(): void {

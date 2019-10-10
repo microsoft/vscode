@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, Event as IpcMainEvent, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
