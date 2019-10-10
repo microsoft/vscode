@@ -676,7 +676,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
 				_insertSuggestion(item: ISelectedSuggestion) {
-					super._insertSuggestion(item, false, true, true);
+					super._insertSuggestion(item, false, true, true, false);
 				}
 			}
 			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);
