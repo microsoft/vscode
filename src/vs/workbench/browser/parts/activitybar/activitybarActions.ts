@@ -288,7 +288,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 	const activeBackgroundColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND);
-	if (activeForegroundColor) {
+	if (activeBackgroundColor) {
 		collector.addRule(`
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item {
 				z-index: 0;
