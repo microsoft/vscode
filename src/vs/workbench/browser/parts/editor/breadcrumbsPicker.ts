@@ -26,8 +26,9 @@ import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
+import { SymbolKind, SymbolKinds } from 'vs/editor/common/modes';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	const ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement
@@ -450,7 +451,8 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 				multipleSelectionSupport: false,
 				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
 				identityProvider: new OutlineIdentityProvider(),
-				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider()
+				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+				filter: new OutlineFilter(this._getOutlineFilteredTypes())
 			}
 		);
 	}
@@ -495,6 +497,16 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 			default:
 				return OutlineSortOrder.ByPosition;
 		}
+	}
+
+	private _getOutlineFilteredTypes(): Set<SymbolKind> {
+		const result = new Set<SymbolKind>();
+		for (const name of SymbolKinds.names()) {
+			if (!this._configurationService.getValue(`breadcrumbs.filteredTypes.${name}`)) {
+				result.add(SymbolKinds.fromString(name) || -1);
+			}
+		}
+		return result;
 	}
 }
 

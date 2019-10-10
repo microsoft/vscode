@@ -6,13 +6,13 @@
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IDataSource, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { IDataSource, ITreeNode, ITreeRenderer, ITreeSorter, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { values } from 'vs/base/common/collections';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
-import { SymbolKind, symbolKindToCssClass, SymbolTag } from 'vs/editor/common/modes';
+import { SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -125,7 +125,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
-			options.extraClasses.push(`outline-element-icon ${symbolKindToCssClass(element.symbol.kind, true)}`);
+			options.extraClasses.push(`outline-element-icon ${SymbolKinds.toCssClassName(element.symbol.kind, true)}`);
 		}
 		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
 			options.extraClasses.push(`deprecated`);
@@ -212,6 +212,17 @@ export const enum OutlineSortOrder {
 	ByPosition,
 	ByName,
 	ByKind
+}
+
+export class OutlineFilter implements ITreeFilter<OutlineItem> {
+
+	constructor(
+		public filteredTypes = new Set<SymbolKind>()
+	) { }
+
+	filter(element: OutlineItem): boolean {
+		return !(element instanceof OutlineElement) || !this.filteredTypes.has(element.symbol.kind);
+	}
 }
 
 export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
