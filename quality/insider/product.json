@@ -780,6 +780,7 @@
 	"uiExtensions": [
 		"atlassian.atlascode",
 		"CoenraadS.bracket-pair-colorizer",
+		"CoenraadS.bracket-pair-colorizer-2",
 		"formulahendry.auto-close-tag",
 		"hiro-sun.vscode-emacs",
 		"hnw.vscode-auto-open-markdown-preview",
