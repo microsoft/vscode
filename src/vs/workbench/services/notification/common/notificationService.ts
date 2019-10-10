@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
@@ -17,13 +17,16 @@ export class NotificationService extends Disposable implements INotificationServ
 	_serviceBrand: undefined;
 
 	private _model: INotificationsModel = this._register(new NotificationsModel());
+	get model(): INotificationsModel { return this._model; }
 
-	get model(): INotificationsModel {
-		return this._model;
-	}
+	private filter = NotificationsFilter.OFF;
 
 	constructor(@IStorageService private readonly storageService: IStorageService) {
 		super();
+	}
+
+	setFilter(filter: NotificationsFilter): void {
+		this.filter = filter;
 	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
@@ -33,7 +36,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.model.addNotification({ severity: Severity.Info, message });
+		this.addNotification(Severity.Info, message);
 	}
 
 	warn(message: NotificationMessage | NotificationMessage[]): void {
@@ -43,7 +46,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.model.addNotification({ severity: Severity.Warning, message });
+		this.addNotification(Severity.Warning, message);
 	}
 
 	error(message: NotificationMessage | NotificationMessage[]): void {
@@ -53,7 +56,16 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.model.addNotification({ severity: Severity.Error, message });
+		this.addNotification(Severity.Error, message);
+	}
+
+	private addNotification(severity: Severity, message: NotificationMessage): void {
+		const notification: INotification = { severity, message };
+		if (this.filter === NotificationsFilter.SILENT) {
+			notification.silent = true;
+		}
+
+		this.model.addNotification(notification);
 	}
 
 	notify(notification: INotification): INotificationHandle {
@@ -94,6 +106,10 @@ export class NotificationService extends Disposable implements INotificationServ
 			}
 
 			notification.actions = actions;
+		}
+
+		if (this.filter === NotificationsFilter.SILENT) {
+			notification.silent = true;
 		}
 
 		// Show notification
