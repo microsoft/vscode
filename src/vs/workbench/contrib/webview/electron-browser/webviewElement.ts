@@ -568,6 +568,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 
 	public layout(): void {
 		// noop
+
 	}
 
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
@@ -629,15 +630,21 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 	}
 
 	public showFind() {
-		this._webviewFindWidget?.reveal();
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.reveal();
+		}
 	}
 
 	public hideFind() {
-		this._webviewFindWidget?.hide();
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.hide();
+		}
 	}
 
 	public runFindAction(previous: boolean) {
-		this._webviewFindWidget?.find(previous);
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.find(previous);
+		}
 	}
 
 	public reload() {
@@ -645,26 +652,38 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 	}
 
 	public selectAll() {
-		this._webview?.selectAll();
+		if (this._webview) {
+			this._webview.selectAll();
+		}
 	}
 
 	public copy() {
-		this._webview?.copy();
+		if (this._webview) {
+			this._webview.copy();
+		}
 	}
 
 	public paste() {
-		this._webview?.paste();
+		if (this._webview) {
+			this._webview.paste();
+		}
 	}
 
 	public cut() {
-		this._webview?.cut();
+		if (this._webview) {
+			this._webview.cut();
+		}
 	}
 
 	public undo() {
-		this._webview?.undo();
+		if (this._webview) {
+			this._webview.undo();
+		}
 	}
 
 	public redo() {
-		this._webview?.redo();
+		if (this._webview) {
+			this._webview.redo();
+		}
 	}
 }
