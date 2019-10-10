@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { MessageBoxOptions, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, CrashReporterStartOptions } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowOpenable, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
-import { INativeOpenDialogOptions, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue } from 'vs/platform/dialogs/node/dialogs';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ParsedArgs } from 'vscode-minimist';
 import { IProcessEnvironment } from 'vs/base/common/platform';

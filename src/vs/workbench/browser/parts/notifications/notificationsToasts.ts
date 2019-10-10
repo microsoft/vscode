@@ -18,7 +18,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -92,6 +92,13 @@ export class NotificationsToasts extends Themable {
 			// Update toasts on notification changes
 			this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 		});
+
+		// Filter
+		this._register(this.model.onDidFilterChange(filter => {
+			if (filter === NotificationsFilter.SILENT) {
+				this.hide();
+			}
+		}));
 	}
 
 	private async onCanShowNotifications(): Promise<void> {

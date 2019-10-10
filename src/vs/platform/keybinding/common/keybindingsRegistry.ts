@@ -38,6 +38,7 @@ export interface IKeybindings {
 export interface IKeybindingRule extends IKeybindings {
 	id: string;
 	weight: number;
+	args?: any;
 	when: ContextKeyExpr | null | undefined;
 }
 
@@ -132,7 +133,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		if (actualKb && actualKb.primary) {
 			const kk = createKeybinding(actualKb.primary, OS);
 			if (kk) {
-				this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, 0, rule.when);
+				this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, 0, rule.when);
 			}
 		}
 
@@ -141,7 +142,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 				const k = actualKb.secondary[i];
 				const kk = createKeybinding(k, OS);
 				if (kk) {
-					this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, -i - 1, rule.when);
+					this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, -i - 1, rule.when);
 				}
 			}
 		}

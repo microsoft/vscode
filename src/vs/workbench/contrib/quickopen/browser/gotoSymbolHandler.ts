@@ -16,7 +16,7 @@ import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecorati
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentSymbol, symbolKindToCssClass, SymbolKind, SymbolTag } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentSymbol, SymbolKinds, SymbolKind, SymbolTag } from 'vs/editor/common/modes';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
@@ -425,7 +425,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Show parent scope as description
 			const description = element.containerName || '';
-			const icon = symbolKindToCssClass(element.kind);
+			const icon = SymbolKinds.toCssClassName(element.kind);
 
 			// Add
 			results.push(new SymbolEntry(i,

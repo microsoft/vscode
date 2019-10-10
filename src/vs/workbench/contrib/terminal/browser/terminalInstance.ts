@@ -232,8 +232,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 
-	private readonly _onExit = new Emitter<number>();
-	public get onExit(): Event<number> { return this._onExit.event; }
+	private readonly _onExit = new Emitter<number | undefined>();
+	public get onExit(): Event<number | undefined> { return this._onExit.event; }
 	private readonly _onDisposed = new Emitter<ITerminalInstance>();
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused = new Emitter<ITerminalInstance>();
@@ -1102,7 +1102,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		this._onExit.fire(exitCode || 0);
+		this._onExit.fire(exitCode);
 	}
 
 	private _attachPressAnyKeyToCloseListener(xterm: XTermTerminal) {

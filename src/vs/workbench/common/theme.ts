@@ -235,8 +235,8 @@ export const PANEL_INACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.inactiv
 }, nls.localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder', {
-	dark: PANEL_BORDER,
-	light: PANEL_BORDER,
+	dark: PANEL_ACTIVE_TITLE_FOREGROUND,
+	light: PANEL_ACTIVE_TITLE_FOREGROUND,
 	hc: contrastBorder
 }, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 

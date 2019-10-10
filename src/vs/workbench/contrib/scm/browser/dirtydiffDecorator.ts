@@ -17,7 +17,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
-import { ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
@@ -37,7 +37,7 @@ import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editor
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqualOrParent } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
@@ -951,6 +951,23 @@ function compareChanges(a: IChange, b: IChange): number {
 	return a.originalEndLineNumber - b.originalEndLineNumber;
 }
 
+function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) => number {
+	return (a, b) => {
+		const aIsParent = isEqualOrParent(uri, a.rootUri!);
+		const bIsParent = isEqualOrParent(uri, b.rootUri!);
+
+		if (aIsParent && bIsParent) {
+			return a.rootUri!.fsPath.length - b.rootUri!.fsPath.length;
+		} else if (aIsParent) {
+			return -1;
+		} else if (bIsParent) {
+			return 1;
+		} else {
+			return 0;
+		}
+	};
+}
+
 export class DirtyDiffModel extends Disposable {
 
 	private _originalModel: ITextModel | null = null;
@@ -1082,13 +1099,25 @@ export class DirtyDiffModel extends Disposable {
 		});
 	}
 
-	private getOriginalResource(): Promise<URI | null> {
+	private async getOriginalResource(): Promise<URI | null> {
 		if (!this._editorModel) {
 			return Promise.resolve(null);
 		}
 
 		const uri = this._editorModel.uri;
-		return first(this.scmService.repositories.map(r => () => r.provider.getOriginalResource(uri)));
+		const providers = this.scmService.repositories.map(r => r.provider);
+		const rootedProviders = providers.filter(p => !!p.rootUri);
+
+		rootedProviders.sort(createProviderComparer(uri));
+
+		const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
+
+		if (result) {
+			return result;
+		}
+
+		const nonRootedProviders = providers.filter(p => !p.rootUri);
+		return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true): number {
