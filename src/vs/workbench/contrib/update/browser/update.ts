@@ -26,7 +26,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId} from 'vs/workbench/contrib/update/common/update';
+import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 
