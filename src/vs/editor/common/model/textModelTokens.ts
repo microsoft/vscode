@@ -16,6 +16,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
+import * as platform from 'vs/base/common/platform';
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
@@ -196,14 +197,14 @@ export class TextModelTokenization extends Disposable {
 
 	private readonly _textModel: TextModel;
 	private readonly _tokenizationStateStore: TokenizationStateStore;
-	private _revalidateTokensTimeout: any;
+	private _isDisposed: boolean;
 	private _tokenizationSupport: ITokenizationSupport | undefined;
 
 	constructor(textModel: TextModel) {
 		super();
+		this._isDisposed = false;
 		this._textModel = textModel;
 		this._tokenizationStateStore = new TokenizationStateStore();
-		this._revalidateTokensTimeout = -1;
 
 		this._register(TokenizationRegistry.onDidChange((e) => {
 			const languageIdentifier = this._textModel.getLanguageIdentifier();
@@ -245,19 +246,11 @@ export class TextModelTokenization extends Disposable {
 	}
 
 	public dispose(): void {
-		this._clearTimers();
+		this._isDisposed = true;
 		super.dispose();
 	}
 
-	private _clearTimers(): void {
-		if (this._revalidateTokensTimeout !== -1) {
-			clearTimeout(this._revalidateTokensTimeout);
-			this._revalidateTokensTimeout = -1;
-		}
-	}
-
 	private _resetTokenizationState(): void {
-		this._clearTimers();
 		const [tokenizationSupport, initialState] = initializeTokenization(this._textModel);
 		this._tokenizationSupport = tokenizationSupport;
 		this._tokenizationStateStore.flush(initialState);
@@ -265,11 +258,14 @@ export class TextModelTokenization extends Disposable {
 	}
 
 	private _beginBackgroundTokenization(): void {
-		if (this._textModel.isAttachedToEditor() && this._hasLinesToTokenize() && this._revalidateTokensTimeout === -1) {
-			this._revalidateTokensTimeout = setTimeout(() => {
-				this._revalidateTokensTimeout = -1;
+		if (this._textModel.isAttachedToEditor() && this._hasLinesToTokenize()) {
+			platform.setImmediate(() => {
+				if (this._isDisposed) {
+					// disposed in the meantime
+					return;
+				}
 				this._revalidateTokensNow();
-			}, 0);
+			});
 		}
 	}
 
