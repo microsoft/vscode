@@ -497,18 +497,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 		this.doUpdateContent();
 	}
 
-	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
-		if (retainContextWhenHidden && html === this.content.html && areWebviewInputOptionsEqual(options, this.content.options)) {
-			return;
-		}
-		this.content = {
-			html: html,
-			options: options,
-			state: this.content.state,
-		};
-		this.doUpdateContent();
-	}
-
 	private doUpdateContent() {
 		this._send('content', {
 			contents: this.content.html,
