@@ -25,7 +25,9 @@ export class MinimapCharRendererFactory {
 			return this.lastCreated;
 		}
 
-		return MinimapCharRendererFactory.createFromSampleData(MinimapCharRendererFactory.createSampleData().data, scale);
+		const factory = MinimapCharRendererFactory.createFromSampleData(MinimapCharRendererFactory.createSampleData().data, scale);
+		this.lastCreated = factory;
+		return factory;
 	}
 
 	/**
