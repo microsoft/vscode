@@ -403,6 +403,17 @@ class ViewModel {
 	get mode(): ViewModelMode { return this._mode; }
 	set mode(mode: ViewModelMode) {
 		this._mode = mode;
+
+		for (const item of this.items) {
+			item.tree.clear();
+
+			if (mode === ViewModelMode.Tree) {
+				for (const resource of item.resources) {
+					item.tree.add(resource.sourceUri, resource);
+				}
+			}
+		}
+
 		this.refresh();
 		this._onDidChangeMode.fire(mode);
 	}
@@ -432,10 +443,12 @@ class ViewModel {
 				group.onDidSplice(splice => this.onDidSpliceGroup(item, splice))
 			);
 
-			const item = { group, resources, tree, disposable };
+			const item: IGroupItem = { group, resources, tree, disposable };
 
-			for (const resource of resources) {
-				item.tree.add(resource.sourceUri, resource);
+			if (this._mode === ViewModelMode.Tree) {
+				for (const resource of resources) {
+					item.tree.add(resource.sourceUri, resource);
+				}
 			}
 
 			itemsToInsert.push(item);
@@ -451,14 +464,18 @@ class ViewModel {
 	}
 
 	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
-		for (const resource of toInsert) {
-			item.tree.add(resource.sourceUri, resource);
+		if (this._mode === ViewModelMode.Tree) {
+			for (const resource of toInsert) {
+				item.tree.add(resource.sourceUri, resource);
+			}
 		}
 
 		const deleted = item.resources.splice(start, deleteCount, ...toInsert);
 
-		for (const resource of deleted) {
-			item.tree.delete(resource.sourceUri);
+		if (this._mode === ViewModelMode.Tree) {
+			for (const resource of deleted) {
+				item.tree.delete(resource.sourceUri);
+			}
 		}
 
 		this.refresh(item);
