@@ -127,7 +127,7 @@
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
     "tslint": "^5.16.0",
-    "typescript": "3.6",
+    "typescript": "3.7.0-beta",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
