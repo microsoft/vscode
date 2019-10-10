@@ -60,11 +60,10 @@ export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
 export const STOP_LABEL = nls.localize('stop', "Stop");
 export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
 
-function getThreadAndRun(accessor: ServicesAccessor, threadIdArg: number | any, run: (thread: IThread) => Promise<void>): void {
+function getThreadAndRun(accessor: ServicesAccessor, threadId: number | any, run: (thread: IThread) => Promise<void>): void {
 	const debugService = accessor.get(IDebugService);
-	const threadId = typeof threadIdArg === 'number' ? threadIdArg : undefined;
 	let thread: IThread | undefined;
-	if (threadId) {
+	if (typeof threadId === 'number') {
 		debugService.getModel().getSessions().forEach(s => {
 			if (!thread) {
 				thread = s.getThread(threadId);
@@ -105,6 +104,10 @@ function getFrame(debugService: IDebugService, frameId: string | undefined): ISt
 
 export function registerCommands(): void {
 
+	// These commands are used in call stack context menu, call stack inline actions, command pallete, debug toolbar, mac native touch bar
+	// When the command is exectued in the context of a thread(context menu on a thread, inline call stack action) we pass the thread id
+	// Otherwise when it is executed "globaly"(using the touch bar, debug toolbar, command pallete) we do not pass any id and just take whatever is the focussed thread
+	// Same for stackFrame commands and session commands.
 	CommandsRegistry.registerCommand({
 		id: COPY_STACK_TRACE_ID,
 		handler: async (accessor: ServicesAccessor, _: string, frameId: string | undefined) => {
