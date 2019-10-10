@@ -281,7 +281,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const activeBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER);
 	if (activeBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
 				border-left-color: ${activeBorderColor};
 			}
 		`);
@@ -290,7 +290,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const activeBackgroundColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND);
 	if (activeBackgroundColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
 				z-index: 0;
 				background-color: ${activeBackgroundColor};
 			}
