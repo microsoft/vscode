@@ -199,7 +199,7 @@
 	});
 
 	container.addEventListener('wheel', (/** @type {WheelEvent} */ e) => {
-		if (!image || !hasLoadedImage) {
+		if (!image || !hasLoadedImage || !isActive) {
 			return;
 		}
 
