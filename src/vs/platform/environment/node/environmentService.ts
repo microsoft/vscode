@@ -140,9 +140,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get keyboardLayoutResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
 
 	@memoize
-	get localeResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'locale.json'); }
-
-	@memoize
 	get argvResource(): URI {
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
 		if (vscodePortable) {

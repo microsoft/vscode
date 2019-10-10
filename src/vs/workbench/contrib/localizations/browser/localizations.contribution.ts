@@ -6,13 +6,11 @@
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/browser/localizationsActions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { IExtensionManagementService, DidInstallExtensionEvent, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -35,7 +33,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction,
 
 export class LocalizationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@ILocalizationsService private readonly localizationService: ILocalizationsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -47,24 +44,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
-		this.updateLocaleDefintionSchema();
 		this.checkAndInstall();
-		this._register(this.localizationService.onDidLanguagesChange(() => this.updateLocaleDefintionSchema()));
 		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
-	}
-
-	private updateLocaleDefintionSchema(): void {
-		this.localizationService.getLanguageIds()
-			.then(languageIds => {
-				let lowercaseLanguageIds: string[] = [];
-				languageIds.forEach((languageId) => {
-					let lowercaseLanguageId = languageId.toLowerCase();
-					if (lowercaseLanguageId !== languageId) {
-						lowercaseLanguageIds.push(lowercaseLanguageId);
-					}
-				});
-				registerLocaleDefinitionSchema([...languageIds, ...lowercaseLanguageIds]);
-			});
 	}
 
 	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
@@ -79,7 +60,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					[{
 						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
 						run: () => {
-							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.localeResource, [{ key: 'locale', value: locale }], true) : Promise.resolve(undefined);
+							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ key: 'locale', value: locale }], true) : Promise.resolve(undefined);
 							updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
 						}
 					}],
@@ -225,31 +206,6 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	}
 }
 
-function registerLocaleDefinitionSchema(languages: string[]): void {
-	const localeDefinitionFileSchemaId = 'vscode://schemas/locale';
-	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-	// Keep en-US since we generated files with that content.
-	jsonRegistry.registerSchema(localeDefinitionFileSchemaId, {
-		id: localeDefinitionFileSchemaId,
-		allowComments: true,
-		allowTrailingCommas: true,
-		description: 'Locale Definition file',
-		type: 'object',
-		default: {
-			'locale': 'en'
-		},
-		required: ['locale'],
-		properties: {
-			locale: {
-				type: 'string',
-				enum: languages,
-				description: localize('JsonSchema.locale', 'The UI Language to use.')
-			}
-		}
-	});
-}
-
-registerLocaleDefinitionSchema(platform.language ? [platform.language] : []);
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, LifecyclePhase.Eventually);
 
