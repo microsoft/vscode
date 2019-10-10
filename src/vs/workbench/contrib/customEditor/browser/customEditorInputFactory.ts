@@ -10,6 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { lazy } from 'vs/base/common/lazy';
 
 export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 
@@ -41,12 +42,16 @@ export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 	): CustomFileEditorInput {
 		const data = this.fromJson(serializedEditorInput);
 		const id = data.id || generateUuid();
-		const webviewInput = this.webviewWorkbenchService.reviveWebview(id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation && data.extensionId ? {
-			location: data.extensionLocation,
-			id: data.extensionId
-		} : undefined, data.group);
 
-		const customInput = this._instantiationService.createInstance(CustomFileEditorInput, URI.from((data as any).editorResource), data.viewType, id, new UnownedDisposable(webviewInput.webview));
+		const webview = lazy(() => {
+			const webviewInput = this.webviewWorkbenchService.reviveWebview(id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation && data.extensionId ? {
+				location: data.extensionLocation,
+				id: data.extensionId
+			} : undefined, data.group);
+			return new UnownedDisposable(webviewInput.webview);
+		});
+
+		const customInput = this._instantiationService.createInstance(CustomFileEditorInput, URI.from((data as any).editorResource), data.viewType, id, webview);
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}

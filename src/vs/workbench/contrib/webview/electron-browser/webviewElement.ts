@@ -435,10 +435,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			this._webview = undefined;
 		}
 
-		if (this._webviewFindWidget) {
-			this._webviewFindWidget.dispose();
-			this._webviewFindWidget = undefined;
-		}
 		super.dispose();
 	}
 

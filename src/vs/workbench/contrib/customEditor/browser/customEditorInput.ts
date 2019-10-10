@@ -5,6 +5,7 @@
 
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
@@ -29,7 +30,7 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		resource: URI,
 		viewType: string,
 		id: string,
-		webview: UnownedDisposable<WebviewEditorOverlay>,
+		webview: Lazy<UnownedDisposable<WebviewEditorOverlay>>,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
