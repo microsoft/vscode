@@ -115,10 +115,10 @@ export class SuggestController implements IEditorContribution {
 			const widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
 
 			this._toDispose.add(widget);
-			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, false, true, true, false), this));
+			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, false, true, true, true), this));
 
 			// Wire up logic to accept a suggestion on certain characters
-			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true, false, false));
+			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true, false, true));
 			this._toDispose.add(commitCharacterController);
 			this._toDispose.add(this._model.onDidSuggest(e => {
 				if (e.completionModel.items.length === 0) {
@@ -227,7 +227,7 @@ export class SuggestController implements IEditorContribution {
 		event: ISelectedSuggestion | undefined,
 		keepAlternativeSuggestions: boolean,
 		undoStopBefore: boolean, undoStopAfter: boolean,
-		overwriteSuffix: boolean
+		keepSuffix: boolean
 	): void {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
@@ -263,13 +263,17 @@ export class SuggestController implements IEditorContribution {
 			insertText = SnippetParser.escape(insertText);
 		}
 
-		const overwriteBefore = position.column - suggestion.range.startColumn;
-		const overwriteAfter = suggestion.range.endColumn - position.column;
-
+		let overwriteBefore = position.column - suggestion.range.startColumn;
+		let overwriteAfter = suggestion.range.endColumn - position.column;
 		let suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(position) : 0;
 		let word: IWordAtPosition | null;
-		if (overwriteAfter === 0 && overwriteSuffix && (word = model.getWordAtPosition(position))) {
-			suffixDelta += word.endColumn - position.column;
+		if (!keepSuffix) {
+			// don't overwrite anything right of the cursor
+			overwriteAfter = 0;
+
+		} else if (overwriteAfter === 0 && (word = model.getWordAtPosition(position))) {
+			// compute fallback overwrite length
+			overwriteAfter = word.endColumn - position.column;
 		}
 
 		SnippetController2.get(this._editor).insert(insertText, {
@@ -310,7 +314,7 @@ export class SuggestController implements IEditorContribution {
 					if (modelVersionNow !== model.getAlternativeVersionId()) {
 						model.undo();
 					}
-					this._insertSuggestion(next, false, false, false, overwriteSuffix);
+					this._insertSuggestion(next, false, false, false, keepSuffix);
 					break;
 				}
 			});
@@ -402,9 +406,9 @@ export class SuggestController implements IEditorContribution {
 		this._editor.focus();
 	}
 
-	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, overwriteSuffix: boolean): void {
+	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, keepSuffix: boolean): void {
 		const item = this._widget.getValue().getFocusedItem();
-		this._insertSuggestion(item, keepAlternativeSuggestions, true, true, overwriteSuffix);
+		this._insertSuggestion(item, keepAlternativeSuggestions, true, true, keepSuffix);
 	}
 
 	acceptNextSuggestion() {
@@ -505,15 +509,15 @@ registerEditorCommand(new SuggestCommand({
 		primary: KeyCode.Tab
 	},
 	handler(x, args) {
-		let overwriteSuffix: boolean;
+		let keepSuffix: boolean;
 		if (typeof args !== 'object') {
-			overwriteSuffix = false;
-		} else if (typeof args.overwriteSuffix !== 'boolean') {
-			overwriteSuffix = false;
+			keepSuffix = true;
+		} else if (typeof args.keepSuffix !== 'boolean') {
+			keepSuffix = true;
 		} else {
-			overwriteSuffix = args.overwriteSuffix;
+			keepSuffix = args.keepSuffix;
 		}
-		x.acceptSelectedSuggestion(true, overwriteSuffix);
+		x.acceptSelectedSuggestion(true, keepSuffix);
 	}
 }));
 
@@ -522,14 +526,14 @@ KeybindingsRegistry.registerKeybindingRule({
 	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
 	primary: KeyMod.Shift | KeyCode.Tab,
 	secondary: [KeyMod.Shift | KeyCode.Enter],
-	args: { overwriteSuffix: true },
+	args: { keepSuffix: false },
 	weight
 });
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
 	precondition: SuggestContext.Visible,
-	handler: x => x.acceptSelectedSuggestion(false, false),
+	handler: x => x.acceptSelectedSuggestion(false, true),
 	kbOpts: {
 		weight: weight,
 		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
