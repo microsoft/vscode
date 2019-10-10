@@ -5,6 +5,7 @@
 
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Lazy, lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -47,7 +48,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 	private readonly _editor: ICodeEditor;
 	private readonly _model: CodeActionModel;
-	private readonly _ui: CodeActionUi;
+	private readonly _ui: Lazy<CodeActionUi>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -64,27 +65,29 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		this._editor = editor;
 		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
-		this._register(this._model.onDidChangeState((newState) => this.update(newState)));
+		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
-		this._ui = this._register(new CodeActionUi(editor, QuickFixAction.Id, {
-			applyCodeAction: async (action, retrigger) => {
-				try {
-					await this._applyCodeAction(action);
-				} finally {
-					if (retrigger) {
-						this._trigger({ type: 'auto', filter: {} });
+		this._ui = lazy(() =>
+			this._register(new CodeActionUi(editor, QuickFixAction.Id, {
+				applyCodeAction: async (action, retrigger) => {
+					try {
+						await this._applyCodeAction(action);
+					} finally {
+						if (retrigger) {
+							this._trigger({ type: 'auto', filter: {} });
+						}
 					}
 				}
-			}
-		}, contextMenuService, keybindingService));
+			}, contextMenuService, keybindingService))
+		);
 	}
 
 	private update(newState: CodeActionsState.State): void {
-		this._ui.update(newState);
+		this._ui.getValue().update(newState);
 	}
 
 	public showCodeActions(actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this._ui.showCodeActionList(actions, at);
+		return this._ui.getValue().showCodeActionList(actions, at);
 	}
 
 	public getId(): string {

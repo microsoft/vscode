@@ -17,11 +17,12 @@ import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { Lazy, lazy } from 'vs/base/common/lazy';
 
 export class CodeActionUi extends Disposable {
 
-	private readonly _codeActionWidget: CodeActionWidget;
-	private readonly _lightBulbWidget: LightBulbWidget;
+	private readonly _codeActionWidget: Lazy<CodeActionWidget>;
+	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
 	constructor(
@@ -35,19 +36,26 @@ export class CodeActionUi extends Disposable {
 	) {
 		super();
 
-		this._codeActionWidget = this._register(new CodeActionWidget(this._editor, contextMenuService, {
-			onSelectCodeAction: async (action) => {
-				this.delegate.applyCodeAction(action, /* retrigger */ true);
-			}
-		}));
-		this._lightBulbWidget = this._register(new LightBulbWidget(this._editor, quickFixActionId, keybindingService));
+		this._codeActionWidget = lazy(() => {
+			return this._register(new CodeActionWidget(this._editor, contextMenuService, {
+				onSelectCodeAction: async (action) => {
+					this.delegate.applyCodeAction(action, /* retrigger */ true);
+				}
+			}));
+		});
 
-		this._register(this._lightBulbWidget.onClick(this._handleLightBulbSelect, this));
+		this._lightBulbWidget = lazy(() => {
+			const widget = this._register(new LightBulbWidget(this._editor, quickFixActionId, keybindingService));
+			this._register(widget.onClick(this._handleLightBulbSelect, this));
+			return widget;
+		});
 	}
 
 	public async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
-			this._lightBulbWidget.hide();
+			if (this._lightBulbWidget.hasValue()) {
+				this._lightBulbWidget.getValue().hide();
+			}
 			return;
 		}
 
@@ -59,7 +67,7 @@ export class CodeActionUi extends Disposable {
 			return;
 		}
 
-		this._lightBulbWidget.update(actions, newState.position);
+		this._lightBulbWidget.getValue().update(actions, newState.position);
 
 		if (!actions.actions.length && newState.trigger.context) {
 			MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
@@ -83,10 +91,10 @@ export class CodeActionUi extends Disposable {
 				}
 			}
 			this._activeCodeActions.value = actions;
-			this._codeActionWidget.show(actions, newState.position);
+			this._codeActionWidget.getValue().show(actions, newState.position);
 		} else {
 			// auto magically triggered
-			if (this._codeActionWidget.isVisible) {
+			if (this._codeActionWidget.getValue().isVisible) {
 				// TODO: Figure out if we should update the showing menu?
 				actions.dispose();
 			} else {
@@ -96,10 +104,10 @@ export class CodeActionUi extends Disposable {
 	}
 
 	public async showCodeActionList(actions: CodeActionSet, at?: IAnchor | IPosition): Promise<void> {
-		this._codeActionWidget.show(actions, at);
+		this._codeActionWidget.getValue().show(actions, at);
 	}
 
 	private _handleLightBulbSelect(e: { x: number, y: number, actions: CodeActionSet }): void {
-		this._codeActionWidget.show(e.actions, e);
+		this._codeActionWidget.getValue().show(e.actions, e);
 	}
 }
