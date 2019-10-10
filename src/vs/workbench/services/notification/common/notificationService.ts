@@ -19,14 +19,12 @@ export class NotificationService extends Disposable implements INotificationServ
 	private _model: INotificationsModel = this._register(new NotificationsModel());
 	get model(): INotificationsModel { return this._model; }
 
-	private filter = NotificationsFilter.OFF;
-
 	constructor(@IStorageService private readonly storageService: IStorageService) {
 		super();
 	}
 
 	setFilter(filter: NotificationsFilter): void {
-		this.filter = filter;
+		this._model.setFilter(filter);
 	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
@@ -36,7 +34,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.addNotification(Severity.Info, message);
+		this.model.addNotification({ severity: Severity.Info, message });
 	}
 
 	warn(message: NotificationMessage | NotificationMessage[]): void {
@@ -46,7 +44,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.addNotification(Severity.Warning, message);
+		this.model.addNotification({ severity: Severity.Warning, message });
 	}
 
 	error(message: NotificationMessage | NotificationMessage[]): void {
@@ -56,16 +54,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.addNotification(Severity.Error, message);
-	}
-
-	private addNotification(severity: Severity, message: NotificationMessage): void {
-		const notification: INotification = { severity, message };
-		if (this.filter === NotificationsFilter.SILENT) {
-			notification.silent = true;
-		}
-
-		this.model.addNotification(notification);
+		this.model.addNotification({ severity: Severity.Error, message });
 	}
 
 	notify(notification: INotification): INotificationHandle {
@@ -106,10 +95,6 @@ export class NotificationService extends Disposable implements INotificationServ
 			}
 
 			notification.actions = actions;
-		}
-
-		if (this.filter === NotificationsFilter.SILENT) {
-			notification.silent = true;
 		}
 
 		// Show notification
