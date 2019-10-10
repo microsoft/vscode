@@ -764,6 +764,35 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Joao: SCM tree rendering
+
+	/**
+	 * Options for creating a [SourceControl](#SourceControl) instance.
+	 */
+	export interface SourceControlOptions {
+
+		/**
+		 * Whether tree rendering is supported by the [SourceControl](#SourceControl) instance.
+		 */
+		readonly treeRendering?: boolean;
+	}
+
+	export namespace scm {
+
+		/**
+		 * Creates a new [source control](#SourceControl) instance.
+		 *
+		 * @param id An `id` for the source control. Something short, e.g.: `git`.
+		 * @param label A human-readable string for the source control. E.g.: `Git`.
+		 * @param rootUri An optional Uri of the root of the source control. E.g.: `Uri.parse(workspaceRoot)`.
+		 * @param options Additional options for creating the source control.
+		 * @return An instance of [source control](#SourceControl).
+		 */
+		export function createSourceControl(id: string, label: string, rootUri?: Uri, options?: SourceControlOptions): SourceControl;
+	}
+
+	//#endregion
+
 	//#region Joao: SCM Input Box
 
 	/**
