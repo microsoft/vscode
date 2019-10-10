@@ -8510,10 +8510,10 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@3.6:
-  version "3.6.2"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.6.2.tgz#105b0f1934119dde543ac8eb71af3a91009efe54"
-  integrity sha512-lmQ4L+J6mnu3xweP8+rOrUwzmN+MRAj7TgtJtDaXE5PMyX2kCrklhg3rvOsOIfNeAWMQWO2F1GPc1kMD2vLAfw==
+typescript@3.7.0-dev.20191017:
+  version "3.7.0-dev.20191017"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.7.0-dev.20191017.tgz#e61440dd445edea6d7b9a699e7c5d5fbcd1906f2"
+  integrity sha512-Yi0lCPEN0cn9Gp8TEEkPpgKNR5SWAmx9Hmzzz+oEuivw6amURqRGynaLyFZkMA9iMsvYG5LLqhdlFO3uu5ZT/w==
 
 typescript@^2.6.2:
   version "2.6.2"
