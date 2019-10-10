@@ -306,10 +306,10 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$updateSourceControl(features);
 		const events: ScmEvents = {
-			branchChanged: []
+			repositoryStateChangedId: []
 		};
-		events.branchChanged.push("foo");
-		this._proxy.$onScmChangeEvent(events);
+		events.repositoryStateChangedId.push(handle);
+		this._proxy.$onScStateChange(events);
 	}
 
 	$unregisterSourceControl(handle: number): void {
@@ -432,12 +432,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		const handles = repositories
 			.filter(r => r.provider instanceof MainThreadSCMProvider)
 			.map(r => (r.provider as MainThreadSCMProvider).handle);
-
 		this._proxy.$setSelectedSourceControls(handles);
-		const events: ScmEvents = {
-			branchChanged: []
-		};
-		events.branchChanged.push("Hello from a different branch!")
-		this._proxy.$onScmChangeEvent(events);
 	}
 }

@@ -903,7 +903,7 @@ export interface FileSystemEvents {
 }
 
 export interface ScmEvents {
-	branchChanged: String[]
+	repositoryStateChangedId: number[];
 }
 
 export interface ExtHostFileSystemEventServiceShape {
@@ -1213,7 +1213,7 @@ export interface ExtHostSCMShape {
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined>;
 	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Promise<void>;
-	$onScmChangeEvent(events: ScmEvents): void;
+	$onScStateChange(events: ScmEvents): void;
 }
 
 export interface ExtHostTaskShape {

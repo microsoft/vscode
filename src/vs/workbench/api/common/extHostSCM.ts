@@ -518,38 +518,27 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 }
 
-class ScmSystemWatcher implements vscode.ScmSystemWatcher {
+class ScmStateWatcher implements vscode.ScmStateWatcher {
 
-	private readonly _onBranchChanged = new Emitter<String>();
+	private readonly _onDidScStateChanged = new Emitter<number>();
 	private _disposable: Disposable;
-	private _config: number;
 
-	get ignoreBranchEvents(): boolean {
-		return Boolean(this._config & 0b001);
-	}
-
-	constructor(dispatcher: Event<ScmEvents>, ignoreBranchEvents?: boolean) {
-
-		this._config = 0;
-		if (ignoreBranchEvents) {
-			this._config += 0b001;
-		}
-
+	constructor(dispatcher: Event<ScmEvents>) {
 		const subscription = dispatcher(events => {
-			if (!ignoreBranchEvents) {
-				this._onBranchChanged.fire("hello world");
+			for (let repositoryId of events.repositoryStateChangedId) {
+				this._onDidScStateChanged.fire(repositoryId);
 			}
 		});
 
-		this._disposable = Disposable.from(this._onBranchChanged, subscription);
+		this._disposable = Disposable.from(this._onDidScStateChanged, subscription);
 	}
 
 	dispose() {
 		this._disposable.dispose();
 	}
 
-	get onBranchChanged(): Event<String> {
-		return this._onBranchChanged.event;
+	get onDidScStateChanged(): Event<number> {
+		return this._onDidScStateChanged.event;
 	}
 }
 
@@ -627,12 +616,13 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return sourceControl;
 	}
 
-	createScmSystemWatcher(): vscode.ScmSystemWatcher
+	createScmStateWatcher(): vscode.ScmStateWatcher
 	{
-		return new ScmSystemWatcher(this._onScmEvent.event);
+		this.logService.trace('ExtHostSCM#createScmStateWatcher');
+		return new ScmStateWatcher(this._onScmEvent.event);
 	}
 
-	$onScmChangeEvent(events: ScmEvents) {
+	$onScStateChange(events: ScmEvents) {
 		this._onScmEvent.fire(events);
 	}
 

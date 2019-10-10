@@ -1535,23 +1535,17 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A source control managagement(scm) watcher notifies about changes to the repository state
+	 * A source control (scm) state watcher notifies about changes to the repository state
 	 *
-	 * To get an instance of a `ScmSystemWatcher` use
-	 * [createScmSystemWatcher](#scm.ScmSystemWatcher).
+	 * To get an instance of a `ScmStateWatcher` use
+	 * [createScmStateWatcher](#scm.ScmStateWatcher).
 	 */
-	export interface ScmSystemWatcher extends Disposable {
+	export interface ScmStateWatcher extends Disposable {
 
 		/**
-		 * true if this file system watcher has been created such that
-		 * it ignores delete file system events.
+		 * An event which fires on change of the repository state. The number is the repository id.
 		 */
-		ignoreBranchEvents: boolean;
-
-		/**
-		 * An event which fires on change of branch.
-		 */
-		onBranchChanged: Event<String>;
+		onDidScStateChanged: Event<number>;
 	}
 
 	/**
@@ -8888,9 +8882,9 @@ declare module 'vscode' {
 		export function createSourceControl(id: string, label: string, rootUri?: Uri): SourceControl;
 
 		/**
-		 *  TODO[sonanopo]: Documentation, rename from  createScmSystemWatcher -> createScmWatcher
+		 *  Creates a new [source control state manager](#ScmStateWatcher) instance.
 		 */
-		export function createScmSystemWatcher(): ScmSystemWatcher;
+		export function createScmStateWatcher(): ScmStateWatcher;
 
 
 	}
