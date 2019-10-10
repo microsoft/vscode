@@ -270,7 +270,7 @@ export class TextModelTokenization extends Disposable {
 	}
 
 	private _revalidateTokensNow(toLineNumber: number = this._textModel.getLineCount()): void {
-		const MAX_ALLOWED_TIME = 20;
+		const MAX_ALLOWED_TIME = 1;
 		const builder = new MultilineTokensBuilder();
 		const sw = StopWatch.create(false);
 
