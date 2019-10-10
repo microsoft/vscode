@@ -236,6 +236,10 @@
 	padding-right: 0; /* remove extra padding when we are running without close button */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off > .tab-close {
+	pointer-events: none; /* don't allow dirty state/close button to be clicked when running without close button */
+}
+
 /* Editor Actions */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
