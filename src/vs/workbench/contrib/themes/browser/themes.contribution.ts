@@ -14,7 +14,6 @@ import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IColor
 import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Delayer } from 'vs/base/common/async';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
@@ -52,34 +51,43 @@ export class SelectColorThemeAction extends Action {
 				...configurationEntries(this.extensionGalleryService, localize('installColorThemes', "Install Additional Color Themes..."))
 			];
 
-			const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
-				let themeId = theme.id;
-				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
-					if (applyTheme) {
-						openExtensionViewlet(this.viewletService, 'category:themes ');
-					}
-					themeId = currentTheme.id;
-				}
-				let target: ConfigurationTarget | undefined = undefined;
-				if (applyTheme) {
-					let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
-					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
-				}
+			let selectThemeTimeout: NodeJS.Timeout | undefined;
 
-				this.themeService.setColorTheme(themeId, target).then(undefined,
-					err => {
-						onUnexpectedError(err);
-						this.themeService.setColorTheme(currentTheme.id, undefined);
+			const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
+				if (selectThemeTimeout) {
+					clearTimeout(selectThemeTimeout);
+				}
+				selectThemeTimeout = setTimeout(() => {
+					selectThemeTimeout = undefined;
+
+					let themeId = theme.id;
+					if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
+						if (applyTheme) {
+							openExtensionViewlet(this.viewletService, 'category:themes ');
+						}
+						themeId = currentTheme.id;
 					}
-				);
+					let target: ConfigurationTarget | undefined = undefined;
+					if (applyTheme) {
+						let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
+						target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+					}
+
+					this.themeService.setColorTheme(themeId, target).then(undefined,
+						err => {
+							onUnexpectedError(err);
+							this.themeService.setColorTheme(currentTheme.id, undefined);
+						}
+					);
+				}, applyTheme ? 0 : 200);
 			};
 
 			const placeHolder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
 			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
 			const activeItem: ThemeItem = picks[autoFocusIndex] as ThemeItem;
-			const delayer = new Delayer<void>(100);
-			const chooseTheme = (theme: ThemeItem) => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0);
-			const tryTheme = (theme: ThemeItem) => delayer.trigger(() => selectTheme(theme, false));
+
+			const chooseTheme = (theme: ThemeItem) => selectTheme(theme || currentTheme, true);
+			const tryTheme = (theme: ThemeItem) => selectTheme(theme, false);
 
 			return this.quickInputService.pick(picks, { placeHolder, activeItem, onDidFocus: tryTheme })
 				.then(chooseTheme);
@@ -115,33 +123,40 @@ class SelectIconThemeAction extends Action {
 				configurationEntries(this.extensionGalleryService, localize('installIconThemes', "Install Additional File Icon Themes..."))
 			);
 
+			let selectThemeTimeout: NodeJS.Timeout | undefined;
+
 			const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
-				let themeId = theme.id;
-				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
+				if (selectThemeTimeout) {
+					clearTimeout(selectThemeTimeout);
+				}
+				selectThemeTimeout = setTimeout(() => {
+					selectThemeTimeout = undefined;
+					let themeId = theme.id;
+					if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
+						if (applyTheme) {
+							openExtensionViewlet(this.viewletService, 'tag:icon-theme ');
+						}
+						themeId = currentTheme.id;
+					}
+					let target: ConfigurationTarget | undefined = undefined;
 					if (applyTheme) {
-						openExtensionViewlet(this.viewletService, 'tag:icon-theme ');
+						let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
+						target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 					}
-					themeId = currentTheme.id;
-				}
-				let target: ConfigurationTarget | undefined = undefined;
-				if (applyTheme) {
-					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
-					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
-				}
-				this.themeService.setFileIconTheme(themeId, target).then(undefined,
-					err => {
-						onUnexpectedError(err);
-						this.themeService.setFileIconTheme(currentTheme.id, undefined);
-					}
-				);
+					this.themeService.setFileIconTheme(themeId, target).then(undefined,
+						err => {
+							onUnexpectedError(err);
+							this.themeService.setFileIconTheme(currentTheme.id, undefined);
+						}
+					);
+				}, applyTheme ? 0 : 200);
 			};
 
 			const placeHolder = localize('themes.selectIconTheme', "Select File Icon Theme");
 			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
 			const activeItem: ThemeItem = picks[autoFocusIndex] as ThemeItem;
-			const delayer = new Delayer<void>(100);
-			const chooseTheme = (theme: ThemeItem) => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0);
-			const tryTheme = (theme: ThemeItem) => delayer.trigger(() => selectTheme(theme, false));
+			const chooseTheme = (theme: ThemeItem) => selectTheme(theme || currentTheme, true);
+			const tryTheme = (theme: ThemeItem) => selectTheme(theme, false);
 
 			return this.quickInputService.pick(picks, { placeHolder, activeItem, onDidFocus: tryTheme })
 				.then(chooseTheme);
