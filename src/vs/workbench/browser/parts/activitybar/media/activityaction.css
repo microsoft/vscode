@@ -44,6 +44,11 @@
 	border-left: none; /* don't show active border + focus at the same time, focus takes priority */
 }
 
+/* Hides active elements in high contrast mode */
+.hc-black .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item {
+	display: none;
+}
+
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.clicked:focus:before {
 	border-left: none !important; /* no focus feedback when using mouse */
 }
