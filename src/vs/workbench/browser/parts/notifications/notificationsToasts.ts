@@ -421,10 +421,10 @@ export class NotificationsToasts extends Themable {
 	protected updateStyles(): void {
 		this.mapNotificationToToast.forEach(t => {
 			const widgetShadowColor = this.getColor(widgetShadow);
-			t.toast.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
+			t.toast.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : '';
 
 			const borderColor = this.getColor(NOTIFICATIONS_TOAST_BORDER);
-			t.toast.style.border = borderColor ? `1px solid ${borderColor}` : null;
+			t.toast.style.border = borderColor ? `1px solid ${borderColor}` : '';
 		});
 	}
 

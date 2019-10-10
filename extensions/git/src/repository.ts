@@ -1476,9 +1476,9 @@ export class Repository implements Disposable {
 		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
 
 		this._HEAD = HEAD;
-		this._refs = refs;
-		this._remotes = remotes;
-		this._submodules = submodules;
+		this._refs = refs!;
+		this._remotes = remotes!;
+		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
 
 		const index: Resource[] = [];

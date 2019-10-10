@@ -683,7 +683,7 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	private _updatePreference(key: string, value: any, source: ISetting, fromEditableSettings?: boolean): void {
-		const data: { [key: string]: any } = {
+		const data: { [key: string]: any; } = {
 			userConfigurationKeys: [key]
 		};
 
@@ -718,7 +718,7 @@ class PreferencesRenderersController extends Disposable {
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', data);
 	}
 
-	private _findSetting(filterResult: IFilterResult, key: string): { groupIdx: number, settingIdx: number, overallSettingIdx: number } | undefined {
+	private _findSetting(filterResult: IFilterResult, key: string): { groupIdx: number, settingIdx: number, overallSettingIdx: number; } | undefined {
 		let overallSettingIdx = 0;
 
 		for (let groupIdx = 0; groupIdx < filterResult.filteredGroups.length; groupIdx++) {
@@ -826,11 +826,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this._register(attachStylerCallback(this.themeService, { scrollbarShadow }, colors => {
 			const shadow = colors.scrollbarShadow ? colors.scrollbarShadow.toString() : null;
 
-			if (shadow) {
-				this.editablePreferencesEditorContainer.style.boxShadow = `-6px 0 5px -5px ${shadow}`;
-			} else {
-				this.editablePreferencesEditorContainer.style.boxShadow = null;
-			}
+			this.editablePreferencesEditorContainer.style.boxShadow = shadow ? `-6px 0 5px -5px ${shadow}` : '';
 		}));
 
 		this.splitview.addView({
@@ -845,7 +841,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 	}
 
-	setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting> }> {
+	setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting>; }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
 		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.getResource()!);
 		return Promise.all([
