@@ -216,12 +216,26 @@ export const enum OutlineSortOrder {
 
 export class OutlineFilter implements ITreeFilter<OutlineItem> {
 
+	private readonly _filteredTypes = new Set<SymbolKind>();
+
 	constructor(
-		public filteredTypes = new Set<SymbolKind>()
-	) { }
+		private readonly _prefix: string,
+		@IConfigurationService private readonly _configService: IConfigurationService,
+	) {
+
+	}
+
+	update() {
+		this._filteredTypes.clear();
+		for (const name of SymbolKinds.names()) {
+			if (!this._configService.getValue<boolean>(`${this._prefix}.${name}`)) {
+				this._filteredTypes.add(SymbolKinds.fromString(name) || -1);
+			}
+		}
+	}
 
 	filter(element: OutlineItem): boolean {
-		return !(element instanceof OutlineElement) || !this.filteredTypes.has(element.symbol.kind);
+		return !(element instanceof OutlineElement) || !this._filteredTypes.has(element.symbol.kind);
 	}
 }
 

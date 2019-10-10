@@ -28,7 +28,6 @@ import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/th
 import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { SymbolKind, SymbolKinds } from 'vs/editor/common/modes';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	const ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement
@@ -452,7 +451,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				filter: new OutlineFilter(this._getOutlineFilteredTypes())
+				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs.filteredTypes')
 			}
 		);
 	}
@@ -497,16 +496,6 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 			default:
 				return OutlineSortOrder.ByPosition;
 		}
-	}
-
-	private _getOutlineFilteredTypes(): Set<SymbolKind> {
-		const result = new Set<SymbolKind>();
-		for (const name of SymbolKinds.names()) {
-			if (!this._configurationService.getValue(`breadcrumbs.filteredTypes.${name}`)) {
-				result.add(SymbolKinds.fromString(name) || -1);
-			}
-		}
-		return result;
 	}
 }
 
