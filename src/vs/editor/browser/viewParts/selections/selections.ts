@@ -279,7 +279,9 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 
 	private _actualRenderOneSelection(output2: [string, string][], visibleStartLineNumber: number, hasMultipleSelections: boolean, visibleRanges: LineVisibleRangesWithStyle[]): void {
-		if (visibleRanges.length === 0) { return; }
+		if (visibleRanges.length === 0) {
+			return;
+		}
 
 		const visibleRangesHaveStyle = !!visibleRanges[0].ranges[0].startStyle;
 		const fullLineHeight = (this._lineHeight).toString();
