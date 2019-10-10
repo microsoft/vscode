@@ -20,12 +20,12 @@ suite('Lazy', () => {
 
 	test('lazy values handle error case', () => {
 		let counter = 0;
-		const value = new Lazy(() => { throw ++counter; });
+		const value = new Lazy(() => { throw new Error(`${++counter}`); });
 
 		assert.strictEqual(value.hasValue(), false);
-		assert.throws(() => value.getValue(), 1);
+		assert.throws(() => value.getValue(), /\b1\b/);
 		assert.strictEqual(value.hasValue(), true);
-		assert.throws(() => value.getValue(), 1);
+		assert.throws(() => value.getValue(), /\b1\b/);
 	});
 
 	test('map should not cause lazy values to be re-resolved', () => {
@@ -50,15 +50,15 @@ suite('Lazy', () => {
 	test('map should should handle error values', () => {
 		let outer = 0;
 		let inner = 10;
-		const outerLazy = new Lazy(() => { throw ++outer; });
-		const innerLazy = outerLazy.map(x => { throw ++inner; });
+		const outerLazy = new Lazy(() => { throw new Error(`${++outer}`); });
+		const innerLazy = outerLazy.map(x => { throw new Error(`${++inner}`); });
 
 		assert.strictEqual(outerLazy.hasValue(), false);
 		assert.strictEqual(innerLazy.hasValue(), false);
 
-		assert.throws(() => innerLazy.getValue(), 1); // we should get result from outer
+		assert.throws(() => innerLazy.getValue(), /\b1\b/); // we should get result from outer
 		assert.strictEqual(outerLazy.hasValue(), true);
 		assert.strictEqual(innerLazy.hasValue(), true);
-		assert.throws(() => outerLazy.getValue(), 1);
+		assert.throws(() => outerLazy.getValue(), /\b1\b/);
 	});
 });
