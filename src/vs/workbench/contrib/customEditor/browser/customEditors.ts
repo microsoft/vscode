@@ -29,7 +29,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { CustomFileEditorInput } from './customEditorInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { lazy } from 'vs/base/common/lazy';
+import { Lazy } from 'vs/base/common/lazy';
 
 const defaultEditorId = 'default';
 
@@ -169,7 +169,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		options?: { readonly customClasses: string; },
 	): CustomFileEditorInput {
 		const id = generateUuid();
-		const webview = lazy(() => {
+		const webview = new Lazy(() => {
 			return new UnownedDisposable(this.webviewService.createWebviewEditorOverlay(id, { customClasses: options ? options.customClasses : undefined }, {}));
 		});
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, webview);

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { lazy } from 'vs/base/common/lazy';
+import { Lazy } from 'vs/base/common/lazy';
 
 suite('Lazy', () => {
 
 	test('lazy values should only be resolved once', () => {
 		let counter = 0;
-		const value = lazy(() => ++counter);
+		const value = new Lazy(() => ++counter);
 
 		assert.strictEqual(value.hasValue(), false);
 		assert.strictEqual(value.getValue(), 1);
@@ -20,7 +20,7 @@ suite('Lazy', () => {
 
 	test('lazy values handle error case', () => {
 		let counter = 0;
-		const value = lazy(() => { throw ++counter; });
+		const value = new Lazy(() => { throw ++counter; });
 
 		assert.strictEqual(value.hasValue(), false);
 		assert.throws(() => value.getValue(), 1);
@@ -31,7 +31,7 @@ suite('Lazy', () => {
 	test('map should not cause lazy values to be re-resolved', () => {
 		let outer = 0;
 		let inner = 10;
-		const outerLazy = lazy(() => ++outer);
+		const outerLazy = new Lazy(() => ++outer);
 		const innerLazy = outerLazy.map(x => [x, ++inner]);
 
 		assert.strictEqual(outerLazy.hasValue(), false);
@@ -50,7 +50,7 @@ suite('Lazy', () => {
 	test('map should should handle error values', () => {
 		let outer = 0;
 		let inner = 10;
-		const outerLazy = lazy(() => { throw ++outer; });
+		const outerLazy = new Lazy(() => { throw ++outer; });
 		const innerLazy = outerLazy.map(x => { throw ++inner; });
 
 		assert.strictEqual(outerLazy.hasValue(), false);

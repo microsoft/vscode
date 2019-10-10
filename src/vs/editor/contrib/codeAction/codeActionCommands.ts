@@ -5,7 +5,7 @@
 
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy, lazy } from 'vs/base/common/lazy';
+import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -67,7 +67,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
-		this._ui = lazy(() =>
+		this._ui = new Lazy(() =>
 			this._register(new CodeActionUi(editor, QuickFixAction.Id, {
 				applyCodeAction: async (action, retrigger) => {
 					try {

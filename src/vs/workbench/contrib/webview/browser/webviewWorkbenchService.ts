@@ -19,7 +19,7 @@ import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewOp
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewInput } from './webviewEditorInput';
-import { Lazy, lazy } from 'vs/base/common/lazy';
+import { Lazy } from 'vs/base/common/lazy';
 
 export const IWebviewWorkbenchService = createDecorator<IWebviewWorkbenchService>('webviewEditorService');
 
@@ -166,7 +166,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		options: WebviewInputOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput {
-		const webview = lazy(() => new UnownedDisposable(this.createWebiew(id, extension, options)));
+		const webview = new Lazy(() => new UnownedDisposable(this.createWebiew(id, extension, options)));
 		const webviewInput = new WebviewInput(id, viewType, title, webview);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
@@ -208,7 +208,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		extension: WebviewExtensionDescription | undefined,
 		group: number | undefined,
 	): WebviewInput {
-		const webview = lazy(() => {
+		const webview = new Lazy(() => {
 			const webview = this.createWebiew(id, extension, options);
 			webview.state = state;
 			return new UnownedDisposable(webview);

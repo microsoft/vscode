@@ -7,28 +7,17 @@
  * A value that is resolved synchronously when it is first needed.
  */
 export interface Lazy<T> {
-	/**
-	 * True if the lazy value has been resolved.
-	 */
+
 	hasValue(): boolean;
 
-	/**
-	 * Get the wrapped value.
-	 *
-	 * This will force evaluation of the lazy value if it has not been resolved yet. Lazy values are only
-	 * resolved once. `getValue` will re-throw exceptions that are hit while resolving the value
-	 */
+
 	getValue(): T;
 
-	/**
-	 * Create a new lazy value that is the result of applying `f` to the wrapped value.
-	 *
-	 * This does not force the evaluation of the current lazy value.
-	 */
+
 	map<R>(f: (x: T) => R): Lazy<R>;
 }
 
-class LazyValue<T> implements Lazy<T> {
+export class Lazy<T> {
 
 	private _didRun: boolean = false;
 	private _value?: T;
@@ -38,8 +27,17 @@ class LazyValue<T> implements Lazy<T> {
 		private readonly executor: () => T,
 	) { }
 
+	/**
+	 * True if the lazy value has been resolved.
+	 */
 	hasValue() { return this._didRun; }
 
+	/**
+	 * Get the wrapped value.
+	 *
+	 * This will force evaluation of the lazy value if it has not been resolved yet. Lazy values are only
+	 * resolved once. `getValue` will re-throw exceptions that are hit while resolving the value
+	 */
 	getValue(): T {
 		if (!this._didRun) {
 			try {
@@ -56,11 +54,12 @@ class LazyValue<T> implements Lazy<T> {
 		return this._value!;
 	}
 
+	/**
+	 * Create a new lazy value that is the result of applying `f` to the wrapped value.
+	 *
+	 * This does not force the evaluation of the current lazy value.
+	 */
 	map<R>(f: (x: T) => R): Lazy<R> {
-		return new LazyValue<R>(() => f(this.getValue()));
+		return new Lazy<R>(() => f(this.getValue()));
 	}
-}
-
-export function lazy<T>(executor: () => T) {
-	return new LazyValue<T>(executor);
 }

@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { lazy } from 'vs/base/common/lazy';
+import { Lazy } from 'vs/base/common/lazy';
 
 export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 
@@ -43,7 +43,7 @@ export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 		const data = this.fromJson(serializedEditorInput);
 		const id = data.id || generateUuid();
 
-		const webview = lazy(() => {
+		const webview = new Lazy(() => {
 			const webviewInput = this.webviewWorkbenchService.reviveWebview(id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation && data.extensionId ? {
 				location: data.extensionLocation,
 				id: data.extensionId

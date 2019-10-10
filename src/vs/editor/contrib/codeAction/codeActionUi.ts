@@ -17,7 +17,7 @@ import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Lazy, lazy } from 'vs/base/common/lazy';
+import { Lazy } from 'vs/base/common/lazy';
 
 export class CodeActionUi extends Disposable {
 
@@ -36,7 +36,7 @@ export class CodeActionUi extends Disposable {
 	) {
 		super();
 
-		this._codeActionWidget = lazy(() => {
+		this._codeActionWidget = new Lazy(() => {
 			return this._register(new CodeActionWidget(this._editor, contextMenuService, {
 				onSelectCodeAction: async (action) => {
 					this.delegate.applyCodeAction(action, /* retrigger */ true);
@@ -44,7 +44,7 @@ export class CodeActionUi extends Disposable {
 			}));
 		});
 
-		this._lightBulbWidget = lazy(() => {
+		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._register(new LightBulbWidget(this._editor, quickFixActionId, keybindingService));
 			this._register(widget.onClick(this._handleLightBulbSelect, this));
 			return widget;
