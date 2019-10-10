@@ -281,18 +281,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const activeBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER);
 	if (activeBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:before {
-				content: "";
-				position: absolute;
-				z-index: 1;
-				top: 0;
-				bottom: 0;
-				margin: auto;
-				left: 0;
-				width: 100%;
-				height: calc(100% - 10px);
-				margin-left: 1px;
-				border-left: 2px solid ${activeBorderColor};
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item:before {
+				border-left-color: ${activeBorderColor};
 			}
 		`);
 	}
@@ -300,15 +290,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const activeBackgroundColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND);
 	if (activeForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:after {
-				content: "";
-				position: absolute;
-				top: 0;
-				bottom: 0;
-				margin: auto;
-				width: 100%;
-				height: calc(100% - 10px);
-				margin-left: 1px;
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item {
+				z-index: 0;
 				background-color: ${activeBackgroundColor};
 			}
 		`);
@@ -321,11 +304,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:before {
 				content: "";
 				position: absolute;
-				top: 0;
-				bottom: 0;
-				left: 0;
-				margin: auto;
-				height: calc(100% - 10px);
+				top: 9px;
+				left: 9px;
+				height: 32px;
 				width: 32px;
 			}
 

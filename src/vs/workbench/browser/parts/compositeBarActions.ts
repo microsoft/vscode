@@ -213,6 +213,9 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.badge = dom.append(container, dom.$('.badge'));
 		this.badgeContent = dom.append(this.badge, dom.$('.badge-content'));
 
+		// Active border + background
+		dom.append(container, dom.$('.active-item'));
+
 		dom.hide(this.badge);
 
 		this.updateActivity();
