@@ -780,9 +780,11 @@ export class DebugService implements IDebugService {
 			});
 			const taskPromise = this.taskService.run(task);
 			if (task.configurationProperties.isBackground) {
-				return new Promise((c, e) => once(e => e.kind === TaskEventKind.Inactive && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
+				return new Promise((c, e) => once(e => {
+					return (e.kind === TaskEventKind.Inactive || (e.kind === TaskEventKind.ProcessEnded && e.runType === 'background' && e.exitCode === undefined)) && e.taskId === task._id;
+				}, this.taskService.onDidStateChange)(e => {
 					taskStarted = true;
-					c(null);
+					c(e.kind === TaskEventKind.ProcessEnded ? { exitCode: e.exitCode } : null);
 				}));
 			}
 
