@@ -1833,7 +1833,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'string',
 					enum: ['always', 'mouseover'],
 					default: defaults.showSlider,
-					description: nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
+					description: nls.localize('minimap.showSlider', "Controls when the minimap slider is shown.")
 				},
 				'editor.minimap.renderCharacters': {
 					type: 'boolean',
