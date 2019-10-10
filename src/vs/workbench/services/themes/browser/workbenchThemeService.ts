@@ -177,6 +177,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 						// restore color
 						this.setColorTheme(prevColorId, 'auto');
 						prevColorId = undefined;
+					} else {
+						this.reloadCurrentColorTheme();
 					}
 				}
 			}
@@ -199,6 +201,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					if (this.currentIconTheme.id === DEFAULT_ICON_THEME_ID && !types.isUndefined(prevFileIconId) && await this.iconThemeStore.findThemeData(prevFileIconId)) {
 						this.setFileIconTheme(prevFileIconId, 'auto');
 						prevFileIconId = undefined;
+					} else {
+						this.reloadCurrentFileIconTheme();
 					}
 				}
 			}
@@ -206,18 +210,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.fileService.onFileChanges(async e => {
 			if (this.watchedColorThemeLocation && this.currentColorTheme && e.contains(this.watchedColorThemeLocation, FileChangeType.UPDATED)) {
-				await this.currentColorTheme.reload(this.fileService);
-				this.currentColorTheme.setCustomColors(this.colorCustomizations);
-				this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
-				this.updateDynamicCSSRules(this.currentColorTheme);
-				this.applyTheme(this.currentColorTheme, undefined, false);
+				this.reloadCurrentColorTheme();
 			}
 			if (this.watchedIconThemeLocation && this.currentIconTheme && e.contains(this.watchedIconThemeLocation, FileChangeType.UPDATED)) {
-				await this.currentIconTheme.reload(this.fileService);
-				_applyIconTheme(this.currentIconTheme, () => {
-					this.doSetFileIconTheme(this.currentIconTheme);
-					return Promise.resolve(this.currentIconTheme);
-				});
+				this.reloadCurrentFileIconTheme();
 			}
 		});
 	}
@@ -362,6 +358,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
+	private async reloadCurrentColorTheme() {
+		await this.currentColorTheme.reload(this.fileService);
+		this.currentColorTheme.setCustomColors(this.colorCustomizations);
+		this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
+		this.updateDynamicCSSRules(this.currentColorTheme);
+		this.applyTheme(this.currentColorTheme, undefined, false);
+	}
+
 	public restoreColorTheme() {
 		let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
 		if (colorThemeSetting !== this.currentColorTheme.settingsId) {
@@ -496,6 +500,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			return iconThemeData.ensureLoaded(this.fileService).then(_ => {
 				return _applyIconTheme(iconThemeData, onApply);
 			});
+		});
+	}
+
+	private async reloadCurrentFileIconTheme() {
+		await this.currentIconTheme.reload(this.fileService);
+		_applyIconTheme(this.currentIconTheme, () => {
+			this.doSetFileIconTheme(this.currentIconTheme);
+			return Promise.resolve(this.currentIconTheme);
 		});
 	}
 
