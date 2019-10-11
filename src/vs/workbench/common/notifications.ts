@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -23,8 +23,11 @@ export interface INotificationsModel {
 	readonly notifications: INotificationViewItem[];
 
 	readonly onDidNotificationChange: Event<INotificationChangeEvent>;
+	readonly onDidFilterChange: Event<NotificationsFilter>;
 
 	addNotification(notification: INotification): INotificationHandle;
+
+	setFilter(filter: NotificationsFilter): void;
 
 	//
 	// Notifications as Status
@@ -126,17 +129,28 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 
 	private static readonly NO_OP_NOTIFICATION = new NoOpNotification();
 
-	private readonly _onDidNotificationChange: Emitter<INotificationChangeEvent> = this._register(new Emitter<INotificationChangeEvent>());
+	private readonly _onDidNotificationChange = this._register(new Emitter<INotificationChangeEvent>());
 	readonly onDidNotificationChange: Event<INotificationChangeEvent> = this._onDidNotificationChange.event;
 
-	private readonly _onDidStatusMessageChange: Emitter<IStatusMessageChangeEvent> = this._register(new Emitter<IStatusMessageChangeEvent>());
+	private readonly _onDidStatusMessageChange = this._register(new Emitter<IStatusMessageChangeEvent>());
 	readonly onDidStatusMessageChange: Event<IStatusMessageChangeEvent> = this._onDidStatusMessageChange.event;
+
+	private readonly _onDidFilterChange = this._register(new Emitter<NotificationsFilter>());
+	readonly onDidFilterChange: Event<NotificationsFilter> = this._onDidFilterChange.event;
 
 	private readonly _notifications: INotificationViewItem[] = [];
 	get notifications(): INotificationViewItem[] { return this._notifications; }
 
 	private _statusMessage: IStatusMessageViewItem | undefined;
 	get statusMessage(): IStatusMessageViewItem | undefined { return this._statusMessage; }
+
+	private filter = NotificationsFilter.OFF;
+
+	setFilter(filter: NotificationsFilter): void {
+		this.filter = filter;
+
+		this._onDidFilterChange.fire(filter);
+	}
 
 	addNotification(notification: INotification): INotificationHandle {
 		const item = this.createViewItem(notification);
@@ -174,7 +188,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	}
 
 	private createViewItem(notification: INotification): INotificationViewItem | undefined {
-		const item = NotificationViewItem.create(notification);
+		const item = NotificationViewItem.create(notification, this.filter);
 		if (!item) {
 			return undefined;
 		}
@@ -400,7 +414,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private readonly _onDidLabelChange: Emitter<INotificationViewItemLabelChangeEvent> = this._register(new Emitter<INotificationViewItemLabelChangeEvent>());
 	readonly onDidLabelChange: Event<INotificationViewItemLabelChangeEvent> = this._onDidLabelChange.event;
 
-	static create(notification: INotification): INotificationViewItem | undefined {
+	static create(notification: INotification, filter: NotificationsFilter = NotificationsFilter.OFF): INotificationViewItem | undefined {
 		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
 			return undefined; // we need a message to show
 		}
@@ -424,7 +438,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			actions = { primary: notification.message.actions };
 		}
 
-		return new NotificationViewItem(severity, notification.sticky, notification.silent, message, notification.source, actions);
+		return new NotificationViewItem(severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT, message, notification.source, actions);
 	}
 
 	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {

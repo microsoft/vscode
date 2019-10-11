@@ -156,7 +156,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get scrollLeft(): number {
-		return this.list.scrollTop;
+		return this.list.scrollLeft;
 	}
 
 	set scrollLeft(scrollLeft: number) {

@@ -728,8 +728,8 @@ export class TabsTitleControl extends TitleControl {
 		const isActiveTab = isTab && !!editor && this.group.isActive(editor);
 
 		// Background
-		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : null;
-		element.style.backgroundColor = isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor;
+		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : '';
+		element.style.backgroundColor = (isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor) || '';
 
 		// Outline
 		const activeContrastBorderColor = this.getColor(activeContrastBorder);
@@ -879,7 +879,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Borders / Outline
 		const borderRightColor = (this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
-		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : null;
+		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
 
 		// Settings
@@ -934,7 +934,7 @@ export class TabsTitleControl extends TitleControl {
 			// Container
 			addClass(tabContainer, 'active');
 			tabContainer.setAttribute('aria-selected', 'true');
-			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_ACTIVE_BACKGROUND : TAB_UNFOCUSED_ACTIVE_BACKGROUND);
+			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_ACTIVE_BACKGROUND : TAB_UNFOCUSED_ACTIVE_BACKGROUND) || '';
 
 			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
 			if (activeTabBorderColorBottom) {
@@ -964,8 +964,8 @@ export class TabsTitleControl extends TitleControl {
 			// Container
 			removeClass(tabContainer, 'active');
 			tabContainer.setAttribute('aria-selected', 'false');
-			tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
-			tabContainer.style.boxShadow = null;
+			tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND) || '';
+			tabContainer.style.boxShadow = '';
 
 			// Label
 			tabLabelWidget.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);

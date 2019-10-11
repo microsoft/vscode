@@ -110,7 +110,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.pickFileToSaveSimplified(schema, options);
 		} else {
 			const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-			if (result && result.filePath) {
+			if (result && !result.canceled && result.filePath) {
 				return URI.file(result.filePath);
 			}
 		}
@@ -134,7 +134,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-		if (result && result.filePath) {
+		if (result && !result.canceled && result.filePath) {
 			return URI.file(result.filePath);
 		}
 

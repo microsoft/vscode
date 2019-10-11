@@ -303,9 +303,7 @@ export namespace MarkdownString {
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
-		const ret = new htmlContent.MarkdownString(value.value);
-		ret.isTrusted = value.isTrusted;
-		return ret;
+		return new htmlContent.MarkdownString(value.value, value.isTrusted);
 	}
 
 	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {

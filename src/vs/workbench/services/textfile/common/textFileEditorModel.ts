@@ -783,11 +783,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return 'keybindings';
 		}
 
-		// Check for locale file
-		if (isEqual(this.resource, joinPath(this.environmentService.userRoamingDataHome, 'locale.json'))) {
-			return 'locale';
-		}
-
 		// Check for snippets
 		if (isEqualOrParent(this.resource, joinPath(this.environmentService.userRoamingDataHome, 'snippets'))) {
 			return 'snippets';

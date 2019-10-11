@@ -44,8 +44,7 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 			: nls.localize('links.navigate.kb.alt', "alt + click");
 
 	if (link.url) {
-		const hoverMessage = new MarkdownString().appendMarkdown(`[${label}](${link.url.toString()}) (${kb})`);
-		hoverMessage.isTrusted = true;
+		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString()}) (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);
