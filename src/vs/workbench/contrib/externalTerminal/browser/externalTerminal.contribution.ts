@@ -136,7 +136,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 const openConsoleCommand = {
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
-	title: nls.localize('scopedConsoleAction', "Open in External Terminal")
+	title: nls.localize('scopedConsoleAction', "Open in Terminal")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
