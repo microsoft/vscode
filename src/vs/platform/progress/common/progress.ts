@@ -51,6 +51,7 @@ export interface IProgressOptions {
 	total?: number;
 	cancellable?: boolean;
 	buttons?: string[];
+	command?: string;
 }
 
 export interface IProgressNotificationOptions extends IProgressOptions {

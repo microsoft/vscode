@@ -110,6 +110,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			let progressTitle = options.title;
 			let progressMessage = progress.value && progress.value.message;
+			let progressCommand = options.command;
 			let text: string;
 			let title: string;
 
@@ -136,7 +137,8 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			this.globalStatusEntry.value = this.statusbarService.addEntry({
 				text: `$(sync~spin) ${text}`,
-				tooltip: title
+				tooltip: title,
+				command: progressCommand
 			}, 'status.progress', localize('status.progress', "Progress Message"), StatusbarAlignment.LEFT);
 		}
 	}
