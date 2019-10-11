@@ -44,10 +44,22 @@
 	padding: 0 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	display: flex;
+	align-items: center;
+}
+
+.scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label .octicon {
+	font-size: 14px;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item:last-of-type {
 	padding-right: 0;
+}
+
+.scm-viewlet .scm-provider > .name,
+.scm-viewlet .scm-provider > .count {
+	display: flex;
+	align-items: center;
 }
 
 .scm-viewlet .scm-provider > .count {
