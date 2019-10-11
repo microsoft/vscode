@@ -6,12 +6,12 @@
 import 'vs/css!./media/scmViewlet';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -32,11 +32,11 @@ import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { format } from 'vs/base/common/strings';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer, disposableTimeout } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as platform from 'vs/base/common/platform';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { ISequence, ISplice } from 'vs/base/common/sequence';
+import { ISplice } from 'vs/base/common/sequence';
 import { ResourceTree, IBranchNode, INode } from 'vs/base/common/resourceTree';
 import { ObjectTree, ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
@@ -50,6 +50,8 @@ import { localize } from 'vs/nls';
 import { flatten } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 
 type TreeElement = ISCMResourceGroup | IBranchNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -63,7 +65,7 @@ interface ResourceGroupTemplate {
 
 class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGroup, FuzzyScore, ResourceGroupTemplate> {
 
-	static TEMPLATE_ID = 'resource group';
+	static readonly TEMPLATE_ID = 'resource group';
 	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
 
 	constructor(
@@ -149,7 +151,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 
 class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBranchNode<ISCMResource, ISCMResourceGroup>, FuzzyScore, ResourceTemplate> {
 
-	static TEMPLATE_ID = 'resource';
+	static readonly TEMPLATE_ID = 'resource';
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
 
 	constructor(
@@ -380,8 +382,7 @@ function asTreeElement(node: INode<ISCMResource, ISCMResourceGroup>, incompressi
 		return {
 			element: node,
 			children: Iterator.map(node.children, node => asTreeElement(node, false)),
-			incompressible,
-			collapsed: false
+			incompressible
 		};
 	}
 
@@ -389,8 +390,8 @@ function asTreeElement(node: INode<ISCMResource, ISCMResourceGroup>, incompressi
 }
 
 const enum ViewModelMode {
-	List,
-	Tree
+	List = 'list',
+	Tree = 'tree'
 }
 
 class ViewModel {
@@ -400,7 +401,24 @@ class ViewModel {
 
 	get mode(): ViewModelMode { return this._mode; }
 	set mode(mode: ViewModelMode) {
+		mode = this.provider.treeRendering ? mode : ViewModelMode.List;
+
+		if (mode === this._mode) {
+			return;
+		}
+
 		this._mode = mode;
+
+		for (const item of this.items) {
+			item.tree.clear();
+
+			if (mode === ViewModelMode.Tree) {
+				for (const resource of item.resources) {
+					item.tree.add(resource.sourceUri, resource);
+				}
+			}
+		}
+
 		this.refresh();
 		this._onDidChangeMode.fire(mode);
 	}
@@ -408,12 +426,15 @@ class ViewModel {
 	private items: IGroupItem[] = [];
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
+	private firstVisible = true;
 	private disposables = new DisposableStore();
 
 	constructor(
-		private groups: ISequence<ISCMResourceGroup>,
+		private provider: ISCMProvider,
 		private tree: ObjectTree<TreeElement, FuzzyScore>,
-		private _mode: ViewModelMode
+		private _mode: ViewModelMode,
+		@IEditorService protected editorService: IEditorService,
+		@IConfigurationService protected configurationService: IConfigurationService,
 	) { }
 
 	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
@@ -427,10 +448,12 @@ class ViewModel {
 				group.onDidSplice(splice => this.onDidSpliceGroup(item, splice))
 			);
 
-			const item = { group, resources, tree, disposable };
+			const item: IGroupItem = { group, resources, tree, disposable };
 
-			for (const resource of resources) {
-				item.tree.add(resource.sourceUri, resource);
+			if (this._mode === ViewModelMode.Tree) {
+				for (const resource of resources) {
+					item.tree.add(resource.sourceUri, resource);
+				}
 			}
 
 			itemsToInsert.push(item);
@@ -446,14 +469,18 @@ class ViewModel {
 	}
 
 	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
-		for (const resource of toInsert) {
-			item.tree.add(resource.sourceUri, resource);
+		if (this._mode === ViewModelMode.Tree) {
+			for (const resource of toInsert) {
+				item.tree.add(resource.sourceUri, resource);
+			}
 		}
 
 		const deleted = item.resources.splice(start, deleteCount, ...toInsert);
 
-		for (const resource of deleted) {
-			item.tree.delete(resource.sourceUri);
+		if (this._mode === ViewModelMode.Tree) {
+			for (const resource of deleted) {
+				item.tree.delete(resource.sourceUri);
+			}
 		}
 
 		this.refresh(item);
@@ -462,13 +489,16 @@ class ViewModel {
 	setVisible(visible: boolean): void {
 		if (visible) {
 			this.visibilityDisposables = new DisposableStore();
-			this.groups.onDidSplice(this.onDidSpliceGroups, this, this.visibilityDisposables);
-			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: this.groups.elements });
+			this.provider.groups.onDidSplice(this.onDidSpliceGroups, this, this.visibilityDisposables);
+			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: this.provider.groups.elements });
 
 			if (typeof this.scrollTop === 'number') {
 				this.tree.scrollTop = this.scrollTop;
 				this.scrollTop = undefined;
 			}
+
+			this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
+			this.onDidActiveEditorChange();
 		} else {
 			this.visibilityDisposables.dispose();
 			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: [] });
@@ -481,6 +511,45 @@ class ViewModel {
 			this.tree.setChildren(item.group, groupItemAsTreeElement(item, this.mode).children);
 		} else {
 			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.mode)));
+		}
+	}
+
+	private onDidActiveEditorChange(): void {
+		if (!this.configurationService.getValue<boolean>('scm.autoReveal')) {
+			return;
+		}
+
+		if (this.firstVisible) {
+			this.firstVisible = false;
+			this.visibilityDisposables.add(disposableTimeout(() => this.onDidActiveEditorChange(), 250));
+			return;
+		}
+
+		const editor = this.editorService.activeEditor;
+
+		if (!editor) {
+			return;
+		}
+
+		const uri = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+
+		if (!uri) {
+			return;
+		}
+
+		// go backwards from last group
+		for (let i = this.provider.groups.elements.length - 1; i >= 0; i--) {
+			const group = this.provider.groups.elements[i];
+
+			for (const resource of group.elements) {
+				if (isEqual(uri, resource.sourceUri)) {
+					this.tree.reveal(resource);
+					this.tree.setSelection([resource]);
+					this.tree.setFocus([resource]);
+
+					return;
+				}
+			}
 		}
 	}
 
@@ -524,12 +593,12 @@ export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
-	private inputBoxContainer: HTMLElement;
-	private inputBox: InputBox;
-	private listContainer: HTMLElement;
-	private tree: ObjectTree<TreeElement, FuzzyScore>;
-	private viewModel: ViewModel;
-	private listLabels: ResourceLabels;
+	private inputBoxContainer!: HTMLElement;
+	private inputBox!: InputBox;
+	private listContainer!: HTMLElement;
+	private tree!: ObjectTree<TreeElement, FuzzyScore>;
+	private viewModel!: ViewModel;
+	private listLabels!: ResourceLabels;
 	private menus: SCMMenus;
 	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 	protected contextKeyService: IContextKeyService;
@@ -547,7 +616,8 @@ export class RepositoryPanel extends ViewletPanel {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService protected menuService: IMenuService
+		@IMenuService protected menuService: IMenuService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 
@@ -694,29 +764,61 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
-		const mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
-		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree, mode);
+		let mode: ViewModelMode;
+
+		if (!this.repository.provider.treeRendering) {
+			mode = ViewModelMode.List;
+		} else {
+			mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+
+			const rootUri = this.repository.provider.rootUri;
+
+			if (typeof rootUri !== 'undefined') {
+				const storageMode = this.storageService.get(`scm.repository.viewMode:${rootUri.toString()}`, StorageScope.WORKSPACE) as ViewModelMode;
+
+				if (typeof storageMode === 'string') {
+					mode = storageMode;
+				}
+			}
+		}
+
+		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider, this.tree, mode);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
 		addClass(this.listContainer, 'show-file-icons');
 
-		const updateIndentStyles = (theme: IFileIconTheme) => {
-			toggleClass(this.listContainer, 'list-view-mode', this.viewModel.mode === ViewModelMode.List);
-			toggleClass(this.listContainer, 'align-icons-and-twisties', this.viewModel.mode === ViewModelMode.Tree && theme.hasFileIcons && !theme.hasFolderIcons);
-			toggleClass(this.listContainer, 'hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
-		};
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
+		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
 
-		updateIndentStyles(this.themeService.getFileIconTheme());
-		this._register(this.themeService.onDidFileIconThemeChange(updateIndentStyles));
-		this._register(this.viewModel.onDidChangeMode(() => updateIndentStyles(this.themeService.getFileIconTheme())));
-
-		this.toggleViewModelModeAction = new ToggleViewModeAction(this.viewModel);
-		this._register(this.toggleViewModelModeAction);
+		if (this.repository.provider.treeRendering) {
+			this.toggleViewModelModeAction = new ToggleViewModeAction(this.viewModel);
+			this._register(this.toggleViewModelModeAction);
+		}
 
 		this._register(this.onDidChangeBodyVisibility(this._onDidChangeVisibility, this));
 
 		this.updateActions();
+	}
+
+	private updateIndentStyles(theme: IFileIconTheme): void {
+		toggleClass(this.listContainer, 'list-view-mode', this.viewModel.mode === ViewModelMode.List);
+		toggleClass(this.listContainer, 'tree-view-mode', this.viewModel.mode === ViewModelMode.Tree);
+		toggleClass(this.listContainer, 'align-icons-and-twisties', this.viewModel.mode === ViewModelMode.Tree && theme.hasFileIcons && !theme.hasFolderIcons);
+		toggleClass(this.listContainer, 'hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
+	}
+
+	private onDidChangeMode(): void {
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+
+		const rootUri = this.repository.provider.rootUri;
+
+		if (typeof rootUri === 'undefined') {
+			return;
+		}
+
+		this.storageService.store(`scm.repository.viewMode:${rootUri.toString()}`, this.viewModel.mode, StorageScope.WORKSPACE);
 	}
 
 	layoutBody(height: number | undefined = this.cachedHeight, width: number | undefined = this.cachedWidth): void {

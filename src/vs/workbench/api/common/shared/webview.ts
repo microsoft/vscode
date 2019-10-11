@@ -7,6 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
 
 export interface WebviewInitData {
+	readonly isExtensionDevelopmentDebug: boolean;
 	readonly webviewResourceRoot: string;
 	readonly webviewCspSource: string;
 }

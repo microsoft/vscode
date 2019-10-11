@@ -12,6 +12,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { equals } from 'vs/base/common/arrays';
 
 class CursorState {
 	readonly selections: readonly Selection[];
@@ -21,17 +22,7 @@ class CursorState {
 	}
 
 	public equals(other: CursorState): boolean {
-		const thisLen = this.selections.length;
-		const otherLen = other.selections.length;
-		if (thisLen !== otherLen) {
-			return false;
-		}
-		for (let i = 0; i < thisLen; i++) {
-			if (!this.selections[i].equalsSelection(other.selections[i])) {
-				return false;
-			}
-		}
-		return true;
+		return equals(this.selections, other.selections, (a, b) => a.equalsSelection(b));
 	}
 }
 

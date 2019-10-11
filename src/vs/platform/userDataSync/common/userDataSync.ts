@@ -38,13 +38,13 @@ export function registerConfiguration(): IDisposable {
 			},
 			'configurationSync.enableSettings': {
 				type: 'boolean',
-				description: localize('configurationSync.enableSettings', "When enabled settings are synchronised while synchronising configuration."),
+				description: localize('configurationSync.enableSettings', "When enabled settings are synchronised while synchronizing configuration."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
 			'configurationSync.enableExtensions': {
 				type: 'boolean',
-				description: localize('configurationSync.enableExtensions', "When enabled extensions are synchronised while synchronising configuration."),
+				description: localize('configurationSync.enableExtensions', "When enabled extensions are synchronised while synchronizing configuration."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
@@ -63,6 +63,12 @@ export function registerConfiguration(): IDisposable {
 				$ref: ignoredSettingsSchemaId,
 				additionalProperties: true,
 				uniqueItems: true
+			},
+			'configurationSync.enableAuth': {
+				'type': 'boolean',
+				description: localize('configurationSync.enableAuth', "Enables authentication and requires VS Code restart when changed"),
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});
@@ -85,6 +91,7 @@ export interface IUserData {
 }
 
 export enum UserDataSyncStoreErrorCode {
+	Unauthroized = 'Unauthroized',
 	Rejected = 'Rejected',
 	Unknown = 'Unknown'
 }

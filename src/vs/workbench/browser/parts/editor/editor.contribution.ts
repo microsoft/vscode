@@ -106,7 +106,7 @@ interface ISerializedUntitledEditorInput {
 	resource: string;
 	resourceJSON: object;
 	modeId: string | undefined;
-	encoding: string;
+	encoding: string | undefined;
 }
 
 // Register Editor Input Factory

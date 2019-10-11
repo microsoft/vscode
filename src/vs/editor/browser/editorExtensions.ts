@@ -16,17 +16,17 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConstructorSignature1, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature1, ServicesAccessor as InstantiationServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
-export type ServicesAccessor = ServicesAccessor;
+export type ServicesAccessor = InstantiationServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
 export type EditorTelemetryDataFragment = {
-	target: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	target: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
+	snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true, };
 };
 
 //#region Command
@@ -224,8 +224,8 @@ export abstract class EditorAction extends EditorCommand {
 
 	protected reportTelemetry(accessor: ServicesAccessor, editor: ICodeEditor) {
 		type EditorActionInvokedClassification = {
-			name: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			name: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
+			id: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
 		};
 		type EditorActionInvokedEvent = {
 			name: string;
@@ -241,7 +241,7 @@ export abstract class EditorAction extends EditorCommand {
 
 // --- Registration of commands and actions
 
-export function registerLanguageCommand<Args extends { [n: string]: any }>(id: string, handler: (accessor: ServicesAccessor, args: Args) => any) {
+export function registerLanguageCommand<Args extends { [n: string]: any; }>(id: string, handler: (accessor: ServicesAccessor, args: Args) => any) {
 	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
 }
 

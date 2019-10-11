@@ -2178,10 +2178,10 @@ terser@*:
     source-map "~0.6.1"
     source-map-support "~0.5.12"
 
-terser@4.3.1:
-  version "4.3.1"
-  resolved "https://registry.yarnpkg.com/terser/-/terser-4.3.1.tgz#09820bcb3398299c4b48d9a86aefc65127d0ed65"
-  integrity sha512-pnzH6dnFEsR2aa2SJaKb1uSCl3QmIsJ8dEkj0Fky+2AwMMcC9doMqLOQIH6wVTEKaVfKVvLSk5qxPBEZT9mywg==
+terser@4.3.8:
+  version "4.3.8"
+  resolved "https://registry.yarnpkg.com/terser/-/terser-4.3.8.tgz#707f05f3f4c1c70c840e626addfdb1c158a17136"
+  integrity sha512-otmIRlRVmLChAWsnSFNO0Bfk6YySuBp6G9qrHiJwlLDd4mxe2ta4sjI7TzIR+W1nBMjilzrMcPOz9pSusgx3hQ==
   dependencies:
     commander "^2.20.0"
     source-map "~0.6.1"

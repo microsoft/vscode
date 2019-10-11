@@ -456,6 +456,7 @@ export class Minimap extends ViewPart {
 	private readonly _mouseDownListener: IDisposable;
 	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 	private readonly _sliderMouseDownListener: IDisposable;
+	private readonly _gestureDisposable: IDisposable;
 	private readonly _sliderTouchStartListener: IDisposable;
 	private readonly _sliderTouchMoveListener: IDisposable;
 	private readonly _sliderTouchEndListener: IDisposable;
@@ -576,7 +577,7 @@ export class Minimap extends ViewPart {
 			}
 		});
 
-		Gesture.addTarget(this._domNode.domNode);
+		this._gestureDisposable = Gesture.addTarget(this._domNode.domNode);
 		this._sliderTouchStartListener = dom.addDisposableListener(this._domNode.domNode, EventType.Start, (e: GestureEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -615,6 +616,7 @@ export class Minimap extends ViewPart {
 		this._mouseDownListener.dispose();
 		this._sliderMouseMoveMonitor.dispose();
 		this._sliderMouseDownListener.dispose();
+		this._gestureDisposable.dispose();
 		this._sliderTouchStartListener.dispose();
 		this._sliderTouchMoveListener.dispose();
 		this._sliderTouchEndListener.dispose();

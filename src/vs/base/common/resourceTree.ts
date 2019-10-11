@@ -9,6 +9,7 @@ import { Iterator } from 'vs/base/common/iterator';
 import { relativePath, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { mapValues } from 'vs/base/common/collections';
+import { PathIterator } from 'vs/base/common/map';
 
 export interface ILeafNode<T, C = void> {
 	readonly uri: URI;
@@ -68,6 +69,10 @@ class BranchNode<T, C> extends Node<C> implements IBranchNode<T, C> {
 	delete(path: string): void {
 		this._children.delete(path);
 	}
+
+	clear(): void {
+		this._children.clear();
+	}
 }
 
 class LeafNode<T, C> extends Node<C> implements ILeafNode<T, C> {
@@ -113,18 +118,18 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 
 	add(uri: URI, element: T): void {
 		const key = relativePath(this.root.uri, uri) || uri.fsPath;
-		const parts = key.split(/[\\\/]/).filter(p => !!p);
+		const iterator = new PathIterator(false).reset(key);
 		let node = this.root;
 		let path = '';
 
-		for (let i = 0; i < parts.length; i++) {
-			const name = parts[i];
+		while (true) {
+			const name = iterator.value();
 			path = path + '/' + name;
 
 			let child = node.get(name);
 
 			if (!child) {
-				if (i < parts.length - 1) {
+				if (iterator.hasNext()) {
 					child = new BranchNode(joinPath(this.root.uri, path), path, this.root.context, node);
 					node.set(name, child);
 				} else {
@@ -135,29 +140,35 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 			}
 
 			if (!(child instanceof BranchNode)) {
-				if (i < parts.length - 1) {
+				if (iterator.hasNext()) {
 					throw new Error('Inconsistent tree: can\'t override leaf with branch.');
 				}
 
 				// replace
 				node.set(name, new LeafNode(uri, path, this.root.context, element));
 				return;
-			} else if (i === parts.length - 1) {
+			} else if (!iterator.hasNext()) {
 				throw new Error('Inconsistent tree: can\'t override branch with leaf.');
 			}
 
 			node = child;
+
+			if (!iterator.hasNext()) {
+				return;
+			}
+
+			iterator.next();
 		}
 	}
 
 	delete(uri: URI): T | undefined {
 		const key = relativePath(this.root.uri, uri) || uri.fsPath;
-		const parts = key.split(/[\\\/]/).filter(p => !!p);
-		return this._delete(this.root, parts, 0);
+		const iterator = new PathIterator(false).reset(key);
+		return this._delete(this.root, iterator);
 	}
 
-	private _delete(node: BranchNode<T, C>, parts: string[], index: number): T | undefined {
-		const name = parts[index];
+	private _delete(node: BranchNode<T, C>, iterator: PathIterator): T | undefined {
+		const name = iterator.value();
 		const child = node.get(name);
 
 		if (!child) {
@@ -165,9 +176,9 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 		}
 
 		// not at end
-		if (index < parts.length - 1) {
+		if (iterator.hasNext()) {
 			if (child instanceof BranchNode) {
-				const result = this._delete(child, parts, index + 1);
+				const result = this._delete(child, iterator.next());
 
 				if (typeof result !== 'undefined' && child.size === 0) {
 					node.delete(name);
@@ -187,5 +198,9 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 
 		node.delete(name);
 		return child.element;
+	}
+
+	clear(): void {
+		this.root.clear();
 	}
 }

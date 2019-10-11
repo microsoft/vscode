@@ -144,7 +144,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 
 	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-	dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (params.initializationOptions.provideFormatter === undefined);
+	dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof params.initializationOptions.provideFormatter !== 'boolean');
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
 	const capabilities: ServerCapabilities = {
@@ -153,11 +153,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
-		documentRangeFormattingProvider: false,
+		documentRangeFormattingProvider: params.initializationOptions.provideFormatter === true,
 		colorProvider: {},
 		foldingRangeProvider: true,
-		selectionRangeProvider: true,
-		documentFormattingProvider: params.initializationOptions.provideFormatter === true
+		selectionRangeProvider: true
 	};
 
 	return { capabilities };

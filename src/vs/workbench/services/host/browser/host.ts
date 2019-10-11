@@ -66,11 +66,5 @@ export interface IHostService {
 	 */
 	reload(): Promise<void>;
 
-	/**
-	 * Closes the currently opened folder/workspace and returns to an empty
-	 * window.
-	 */
-	closeWorkspace(): Promise<void>;
-
 	//#endregion
 }

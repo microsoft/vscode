@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { AbstractTelemetryOptOut } from 'vs/workbench/contrib/welcome/gettingStarted/browser/telemetryOptOut';
+import { AbstractTelemetryOptOut } from 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class NativeTelemetryOptOut extends AbstractTelemetryOptOut {
@@ -30,6 +30,8 @@ export class NativeTelemetryOptOut extends AbstractTelemetryOptOut {
 		@IElectronService private readonly electronService: IElectronService
 	) {
 		super(storageService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService);
+
+		this.handleTelemetryOptOut();
 	}
 
 	protected getWindowCount(): Promise<number> {

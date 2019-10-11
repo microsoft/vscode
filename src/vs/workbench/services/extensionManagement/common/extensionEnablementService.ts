@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionIdentifier, DidInstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -43,7 +43,6 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
 		this._register(this.storageManger.onDidChange(extensions => this.onDidChangeStorage(extensions)));
-		this._register(extensionManagementService.onDidInstallExtension(this._onDidInstallExtension, this));
 		this._register(extensionManagementService.onDidUninstallExtension(this._onDidUninstallExtension, this));
 	}
 
@@ -284,16 +283,6 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const extensions = installedExtensions.filter(installedExtension => extensionIdentifiers.some(identifier => areSameExtensions(identifier, installedExtension.identifier)));
 		this._onEnablementChanged.fire(extensions);
-	}
-
-	private _onDidInstallExtension(event: DidInstallExtensionEvent): void {
-		if (event.local && event.operation === InstallOperation.Install) {
-			const wasDisabled = !this.isEnabled(event.local);
-			this._reset(event.local.identifier);
-			if (wasDisabled) {
-				this._onEnablementChanged.fire([event.local]);
-			}
-		}
 	}
 
 	private _onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {

@@ -39,7 +39,7 @@ function code() {
 	node build/lib/builtInExtensions.js
 
 	# Build
-	test -d out || ./node_modules/.bin/gulp compile
+	test -d out || yarn compile
 
 	# Configuration
 	export NODE_ENV=development

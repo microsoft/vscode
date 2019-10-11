@@ -76,10 +76,7 @@ class CommentingRangeDecoration {
 			options: commentingOptions
 		}];
 
-		let model = this._editor.getModel();
-		if (model) {
-			this._decorationId = model.deltaDecorations([this._decorationId], commentingRangeDecorations)[0];
-		}
+		this._decorationId = this._editor.deltaDecorations([], commentingRangeDecorations)[0];
 	}
 
 	public getCommentAction(): { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges } {

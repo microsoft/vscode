@@ -8,8 +8,11 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, IEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
+
+export const CONTEXT_HAS_CUSTOM_EDITORS = new RawContextKey<boolean>('hasCustomEditors', false);
 
 export interface ICustomEditorService {
 	_serviceBrand: any;
@@ -23,7 +26,7 @@ export interface ICustomEditorService {
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 }
 
-export const enum CustomEditorDiscretion {
+export const enum CustomEditorPriority {
 	default = 'default',
 	option = 'option',
 }
@@ -36,6 +39,6 @@ export interface CustomEditorSelector {
 export interface CustomEditorInfo {
 	readonly id: string;
 	readonly displayName: string;
-	readonly discretion: CustomEditorDiscretion;
+	readonly priority: CustomEditorPriority;
 	readonly selector: readonly CustomEditorSelector[];
 }

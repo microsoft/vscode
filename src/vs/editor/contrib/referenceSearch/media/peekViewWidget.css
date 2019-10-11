@@ -60,3 +60,7 @@
 	border-top: 1px solid;
 	position: relative;
 }
+
+.monaco-editor .peekview-widget .head .peekview-title .codicon {
+	margin-right: 4px;
+}

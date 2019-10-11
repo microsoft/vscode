@@ -81,13 +81,10 @@ export class TypeOperations {
 			const selection = selections[i];
 			let position = selection.getPosition();
 
+			if (pasteOnNewLine && !selection.isEmpty()) {
+				pasteOnNewLine = false;
+			}
 			if (pasteOnNewLine && text.indexOf('\n') !== text.length - 1) {
-				pasteOnNewLine = false;
-			}
-			if (pasteOnNewLine && selection.startLineNumber !== selection.endLineNumber) {
-				pasteOnNewLine = false;
-			}
-			if (pasteOnNewLine && selection.startColumn === model.getLineMinColumn(selection.startLineNumber) && selection.endColumn === model.getLineMaxColumn(selection.startLineNumber)) {
 				pasteOnNewLine = false;
 			}
 

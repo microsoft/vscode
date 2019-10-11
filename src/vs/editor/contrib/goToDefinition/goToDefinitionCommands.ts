@@ -31,6 +31,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { ISymbolNavigationService } from 'vs/editor/contrib/goToDefinition/goToDefinitionResultsNavigation';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { isEqual } from 'vs/base/common/resources';
 
 export class DefinitionActionConfig {
 
@@ -84,7 +85,7 @@ export class DefinitionAction extends EditorAction {
 				}
 				const newLen = result.push(reference);
 				if (this._configuration.filterCurrent
-					&& reference.uri.toString() === model.uri.toString()
+					&& isEqual(reference.uri, model.uri)
 					&& Range.containsPosition(reference.range, pos)
 					&& idxOfCurrent === -1
 				) {

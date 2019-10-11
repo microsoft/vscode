@@ -105,7 +105,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4, true),
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
@@ -118,7 +118,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 12, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 12, 4, true),
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
@@ -131,7 +131,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 11, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 11, 4, true),
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
@@ -143,7 +143,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 1, 11, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 1, 11, 4, true),
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">iao</span>',
@@ -155,7 +155,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 4, 11, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 4, 11, 4, true),
 			[
 				'<div>',
 				'<span style="color: #000000;">&nbsp;</span>',
@@ -166,7 +166,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 5, 11, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 5, 11, 4, true),
 			[
 				'<div>',
 				'<span style="color: #00ff00;">hello</span>',
@@ -176,7 +176,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 5, 10, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 5, 10, 4, true),
 			[
 				'<div>',
 				'<span style="color: #00ff00;">hello</span>',
@@ -185,7 +185,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 6, 9, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 6, 9, 4, true),
 			[
 				'<div>',
 				'<span style="color: #00ff00;">ell</span>',
@@ -238,7 +238,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 21, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 21, 4, true),
 			[
 				'<div>',
 				'<span style="color: #000000;">&nbsp;&nbsp;</span>',
@@ -252,7 +252,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4, true),
 			[
 				'<div>',
 				'<span style="color: #000000;">&nbsp;&nbsp;</span>',
@@ -266,7 +266,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 
 		assert.equal(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 3, 4),
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 3, 4, true),
 			[
 				'<div>',
 				'<span style="color: #000000;">&nbsp;&nbsp;</span>',

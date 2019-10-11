@@ -35,9 +35,9 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	constructor(
 		private readonly resource: URI,
 		private readonly _hasAssociatedFilePath: boolean,
-		private preferredMode: string,
-		private readonly initialValue: string,
-		private preferredEncoding: string,
+		private preferredMode: string | undefined,
+		private readonly initialValue: string | undefined,
+		private preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILabelService private readonly labelService: ILabelService
@@ -177,7 +177,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.getName();
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		if (this.cachedModel) {
 			return this.cachedModel.getEncoding();
 		}

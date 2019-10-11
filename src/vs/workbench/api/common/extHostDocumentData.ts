@@ -12,6 +12,7 @@ import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model
 import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { EndOfLine, Position, Range } from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
+import { equals } from 'vs/base/common/arrays';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
@@ -48,17 +49,8 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		this._isDirty = false;
 	}
 
-	equalLines(lines: string[]): boolean {
-		const len = lines.length;
-		if (len !== this._lines.length) {
-			return false;
-		}
-		for (let i = 0; i < len; i++) {
-			if (lines[i] !== this._lines[i]) {
-				return false;
-			}
-		}
-		return true;
+	equalLines(lines: readonly string[]): boolean {
+		return equals(this._lines, lines);
 	}
 
 	get document(): vscode.TextDocument {

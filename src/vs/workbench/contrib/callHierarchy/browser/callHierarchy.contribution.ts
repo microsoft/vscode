@@ -26,13 +26,13 @@ const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisibl
 
 class CallHierarchyController implements IEditorContribution {
 
-	static Id = 'callHierarchy';
+	static readonly Id = 'callHierarchy';
 
 	static get(editor: ICodeEditor): CallHierarchyController {
 		return editor.getContribution<CallHierarchyController>(CallHierarchyController.Id);
 	}
 
-	private static _StorageDirection = 'callHierarchy/defaultDirection';
+	private static readonly _StorageDirection = 'callHierarchy/defaultDirection';
 
 	private readonly _ctxHasProvider: IContextKey<boolean>;
 	private readonly _ctxIsVisible: IContextKey<boolean>;

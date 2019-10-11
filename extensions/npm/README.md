@@ -28,7 +28,7 @@ The extension supports running a script as a task from the Explorer. Right-click
 
 ### Others
 
-The extension fetches data from https://registry.npmjs/org and https://registry.bower.io to provide auto-completion and information on hover features on npm dependencies.
+The extension fetches data from https://registry.npmjs.org and https://registry.bower.io to provide auto-completion and information on hover features on npm dependencies.
 
 ## Settings
 

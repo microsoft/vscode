@@ -518,14 +518,14 @@ export class Configuration {
 		return folderConsolidatedConfiguration;
 	}
 
-	private getFolderConfigurationModelForResource(resource: URI | null | undefined, workspace: Workspace | undefined): ConfigurationModel | null {
+	private getFolderConfigurationModelForResource(resource: URI | null | undefined, workspace: Workspace | undefined): ConfigurationModel | undefined {
 		if (workspace && resource) {
 			const root = workspace.getFolder(resource);
 			if (root) {
-				return types.withUndefinedAsNull(this._folderConfigurations.get(root.uri));
+				return this._folderConfigurations.get(root.uri);
 			}
 		}
-		return null;
+		return undefined;
 	}
 
 	toData(): IConfigurationData {
@@ -663,13 +663,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 			configurationModelsToSearch.push(...this._changedConfigurationByResource.values());
 		}
 
-		for (const configuration of configurationModelsToSearch) {
-			if (this.doesConfigurationContains(configuration, config)) {
-				return true;
-			}
-		}
-
-		return false;
+		return configurationModelsToSearch.some(configuration => this.doesConfigurationContains(configuration, config));
 	}
 
 	private changeWithKeys(keys: string[], resource?: URI): void {

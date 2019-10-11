@@ -17,11 +17,11 @@ export const HELP_PREFIX = '?';
 class HelpEntry extends QuickOpenEntryGroup {
 	private prefixLabel: string;
 	private prefix: string;
-	private description: string;
+	private description: string | undefined;
 	private quickOpenService: IQuickOpenService;
 	private openOnPreview: boolean;
 
-	constructor(prefix: string, description: string, quickOpenService: IQuickOpenService, openOnPreview: boolean) {
+	constructor(prefix: string, description: string | undefined, openOnPreview: boolean, quickOpenService: IQuickOpenService) {
 		super();
 
 		if (!prefix) {
@@ -44,7 +44,7 @@ class HelpEntry extends QuickOpenEntryGroup {
 		return nls.localize('entryAriaLabel', "{0}, picker help", this.getLabel());
 	}
 
-	getDescription(): string {
+	getDescription(): string | undefined {
 		return this.description;
 	}
 
@@ -101,9 +101,9 @@ export class HelpHandler extends QuickOpenHandler {
 
 		matchingHandlers.forEach(handler => {
 			if (handler instanceof QuickOpenHandlerDescriptor) {
-				workbenchScoped.push(new HelpEntry(handler.prefix, handler.description, this.quickOpenService, matchingHandlers.length === 1));
+				workbenchScoped.push(new HelpEntry(handler.prefix, handler.description, matchingHandlers.length === 1, this.quickOpenService));
 			} else {
-				const entry = new HelpEntry(handler.prefix, handler.description, this.quickOpenService, matchingHandlers.length === 1);
+				const entry = new HelpEntry(handler.prefix, handler.description, matchingHandlers.length === 1, this.quickOpenService);
 				if (handler.needsEditor) {
 					editorScoped.push(entry);
 				} else {

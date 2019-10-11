@@ -63,11 +63,11 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 	}
 
 	start(accessor: ServicesAccessor): void {
-		this.instantiationService = accessor.get(IInstantiationService);
-		this.lifecycleService = accessor.get(ILifecycleService);
+		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
+		const lifecycleService = this.lifecycleService = accessor.get(ILifecycleService);
 
 		[LifecyclePhase.Starting, LifecyclePhase.Ready, LifecyclePhase.Restored, LifecyclePhase.Eventually].forEach(phase => {
-			this.instantiateByPhase(this.instantiationService!, this.lifecycleService!, phase);
+			this.instantiateByPhase(instantiationService, lifecycleService, phase);
 		});
 	}
 
@@ -119,7 +119,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 		try {
 			instantiationService.createInstance(ctor);
 		} catch (error) {
-			console.error(`Unable to instantiate workbench contribution ${ctor}.`, error);
+			console.error(`Unable to instantiate workbench contribution ${(ctor as any).name}.`, error);
 		}
 	}
 }

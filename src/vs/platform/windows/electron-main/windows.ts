@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OpenContext, IWindowConfiguration, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -13,6 +12,7 @@ import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow } from 'electron';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IWindowState {
 	width?: number;
@@ -30,10 +30,16 @@ export const enum WindowMode {
 	Fullscreen
 }
 
-export interface ICodeWindow {
+export interface ICodeWindow extends IDisposable {
+
+	readonly onClose: Event<void>;
+	readonly onDestroy: Event<void>;
+
+	readonly whenClosedOrLoaded: Promise<void>;
+
 	readonly id: number;
 	readonly win: BrowserWindow;
-	readonly config: IWindowConfiguration;
+	readonly config: IWindowConfiguration | undefined;
 
 	readonly openedFolderUri?: URI;
 	readonly openedWorkspace?: IWorkspaceIdentifier;
@@ -48,6 +54,9 @@ export interface ICodeWindow {
 
 	readonly isReady: boolean;
 	ready(): Promise<ICodeWindow>;
+	setReady(): void;
+
+	readonly hasHiddenTitleBarStyle: boolean;
 
 	addTabbedWindow(window: ICodeWindow): void;
 
@@ -62,20 +71,19 @@ export interface ICodeWindow {
 	send(channel: string, ...args: any[]): void;
 	sendWhenReady(channel: string, ...args: any[]): void;
 
+	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
-	isFullScreen(): boolean;
+
 	isMinimized(): boolean;
-	hasHiddenTitleBarStyle(): boolean;
+
 	setRepresentedFilename(name: string): void;
-	getRepresentedFilename(): string;
+	getRepresentedFilename(): string | undefined;
+
 	handleTitleDoubleClick(): void;
 
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
-	setReady(): void;
 	serializeWindowState(): IWindowState;
-
-	dispose(): void;
 }
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
@@ -91,16 +99,10 @@ export interface IWindowsMainService {
 
 	readonly onWindowReady: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
-	readonly onWindowClose: Event<number>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
-
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void>;
 
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
@@ -110,11 +112,6 @@ export interface IWindowsMainService {
 	getWindowById(windowId: number): ICodeWindow | undefined;
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
-
-	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
-	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	closeWorkspace(win: ICodeWindow): void;
-	quit(): void;
 }
 
 export interface IOpenConfiguration {

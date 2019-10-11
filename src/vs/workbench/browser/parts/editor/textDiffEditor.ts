@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
-import { isFunction, isObject, isArray } from 'vs/base/common/types';
+import { isFunction, isObject, isArray, assertIsDefined } from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -100,7 +100,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 			}
 
 			// Set Editor Model
-			const diffEditor = this.getControl();
+			const diffEditor = assertIsDefined(this.getControl());
 			const resolvedDiffEditorModel = <TextDiffEditorModel>resolvedModel;
 			diffEditor.setModel(resolvedDiffEditorModel.textDiffEditorModel);
 
@@ -113,7 +113,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 			// Otherwise restore View State
 			let hasPreviousViewState = false;
 			if (!optionsGotApplied) {
-				hasPreviousViewState = this.restoreTextDiffEditorViewState(input);
+				hasPreviousViewState = this.restoreTextDiffEditorViewState(input, diffEditor);
 			}
 
 			// Diff navigator
@@ -138,17 +138,18 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	setOptions(options: EditorOptions | undefined): void {
 		const textOptions = <TextEditorOptions>options;
 		if (textOptions && isFunction(textOptions.apply)) {
-			textOptions.apply(this.getControl(), ScrollType.Smooth);
+			const diffEditor = assertIsDefined(this.getControl());
+			textOptions.apply(diffEditor, ScrollType.Smooth);
 		}
 	}
 
-	private restoreTextDiffEditorViewState(input: EditorInput): boolean {
-		if (input instanceof DiffEditorInput) {
-			const resource = this.toDiffEditorViewStateResource(input);
+	private restoreTextDiffEditorViewState(editor: EditorInput, control: IDiffEditor): boolean {
+		if (editor instanceof DiffEditorInput) {
+			const resource = this.toDiffEditorViewStateResource(editor);
 			if (resource) {
 				const viewState = this.loadTextEditorViewState(resource);
 				if (viewState) {
-					this.getControl().restoreViewState(viewState);
+					control.restoreViewState(viewState);
 
 					return true;
 				}
@@ -258,7 +259,10 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		this.saveTextDiffEditorViewState(this.input);
 
 		// Clear Model
-		this.getControl().setModel(null);
+		const diffEditor = this.getControl();
+		if (diffEditor) {
+			diffEditor.setModel(null);
+		}
 
 		// Pass to super
 		super.clearInput();
@@ -268,8 +272,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return this.diffNavigator;
 	}
 
-	getControl(): IDiffEditor {
-		return super.getControl() as IDiffEditor;
+	getControl(): IDiffEditor | undefined {
+		return super.getControl() as IDiffEditor | undefined;
 	}
 
 	protected loadTextEditorViewState(resource: URI): IDiffEditorViewState {
@@ -307,7 +311,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	}
 
 	private retrieveTextDiffEditorViewState(resource: URI): IDiffEditorViewState | null {
-		const control = this.getControl();
+		const control = assertIsDefined(this.getControl());
 		const model = control.getModel();
 		if (!model || !model.modified || !model.original) {
 			return null; // view state always needs a model
