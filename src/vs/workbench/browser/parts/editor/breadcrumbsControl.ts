@@ -17,7 +17,7 @@ import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { symbolKindToCssClass } from 'vs/editor/common/modes';
+import { SymbolKinds } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -109,7 +109,7 @@ class Item extends BreadcrumbsItem {
 			// symbol
 			if (this.options.showSymbolIcons) {
 				let icon = document.createElement('div');
-				icon.className = symbolKindToCssClass(this.element.symbol.kind);
+				icon.className = SymbolKinds.toCssClassName(this.element.symbol.kind);
 				container.appendChild(icon);
 				dom.addClass(container, 'shows-symbol-icon');
 			}
@@ -246,7 +246,7 @@ export class BreadcrumbsControl {
 
 		const uri = input.getResource()!;
 		const editor = this._getActiveCodeEditor();
-		const model = new EditorBreadcrumbsModel(uri, editor, this._workspaceService, this._configurationService);
+		const model = new EditorBreadcrumbsModel(uri, editor, this._configurationService, this._workspaceService);
 		dom.toggleClass(this.domNode, 'relative-path', model.isRelative());
 		dom.toggleClass(this.domNode, 'backslash-path', this._labelService.getSeparator(uri.scheme, uri.authority) === '\\');
 

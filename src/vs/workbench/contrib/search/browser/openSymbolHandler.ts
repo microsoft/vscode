@@ -14,7 +14,7 @@ import * as filters from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { symbolKindToCssClass, SymbolTag } from 'vs/editor/common/modes';
+import { SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -73,7 +73,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	}
 
 	getIcon(): string {
-		return symbolKindToCssClass(this.bearing.kind);
+		return SymbolKinds.toCssClassName(this.bearing.kind);
 	}
 
 	getLabelOptions(): IIconLabelValueOptions | undefined {
@@ -145,8 +145,8 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		if (res !== 0) {
 			return res;
 		}
-		let aKind = symbolKindToCssClass(a.bearing.kind);
-		let bKind = symbolKindToCssClass(b.bearing.kind);
+		let aKind = SymbolKinds.toCssClassName(a.bearing.kind);
+		let bKind = SymbolKinds.toCssClassName(b.bearing.kind);
 		return aKind.localeCompare(bKind);
 	}
 }

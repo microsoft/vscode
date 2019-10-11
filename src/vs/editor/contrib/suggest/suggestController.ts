@@ -22,7 +22,7 @@ import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Context as SuggestContext, CompletionItem } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
 import { State, SuggestModel } from './suggestModel';
@@ -34,7 +34,7 @@ import { IdleValue } from 'vs/base/common/async';
 import { isObject } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
 import { IPosition } from 'vs/editor/common/core/position';
-import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
+import { TrackedRangeStickiness, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
 
@@ -115,10 +115,10 @@ export class SuggestController implements IEditorContribution {
 			const widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
 
 			this._toDispose.add(widget);
-			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, false, true), this));
+			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, false, true, true, true), this));
 
 			// Wire up logic to accept a suggestion on certain characters
-			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true));
+			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true, false, true));
 			this._toDispose.add(commitCharacterController);
 			this._toDispose.add(this._model.onDidSuggest(e => {
 				if (e.completionModel.items.length === 0) {
@@ -223,7 +223,12 @@ export class SuggestController implements IEditorContribution {
 		this._lineSuffix.dispose();
 	}
 
-	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
+	protected _insertSuggestion(
+		event: ISelectedSuggestion | undefined,
+		keepAlternativeSuggestions: boolean,
+		undoStopBefore: boolean, undoStopAfter: boolean,
+		keepSuffix: boolean
+	): void {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
@@ -237,12 +242,12 @@ export class SuggestController implements IEditorContribution {
 		const model = this._editor.getModel();
 		const modelVersionNow = model.getAlternativeVersionId();
 		const { completion: suggestion, position } = event.item;
-		const editorColumn = this._editor.getPosition().column;
-		const columnDelta = editorColumn - position.column;
+		const editorPosition = this._editor.getPosition();
+		const columnDelta = editorPosition.column - position.column;
 
 		// pushing undo stops *before* additional text edits and
 		// *after* the main edit
-		if (undoStops) {
+		if (undoStopBefore) {
 			this._editor.pushUndoStop();
 		}
 
@@ -251,16 +256,25 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		// keep item in memory
-		this._memoryService.memorize(model, this._editor.getPosition(), event.item);
+		this._memoryService.memorize(model, editorPosition, event.item);
 
 		let { insertText } = suggestion;
 		if (!(suggestion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)) {
 			insertText = SnippetParser.escape(insertText);
 		}
 
-		const overwriteBefore = position.column - suggestion.range.startColumn;
-		const overwriteAfter = suggestion.range.endColumn - position.column;
-		const suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(this._editor.getPosition()) : 0;
+		let overwriteBefore = position.column - suggestion.range.startColumn;
+		let overwriteAfter = suggestion.range.endColumn - position.column;
+		let suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(position) : 0;
+		let word: IWordAtPosition | null;
+		if (!keepSuffix) {
+			// don't overwrite anything right of the cursor
+			overwriteAfter = 0;
+
+		} else if (overwriteAfter === 0 && (word = model.getWordAtPosition(position))) {
+			// compute fallback overwrite length
+			overwriteAfter = word.endColumn - position.column;
+		}
 
 		SnippetController2.get(this._editor).insert(insertText, {
 			overwriteBefore: overwriteBefore + columnDelta,
@@ -270,7 +284,7 @@ export class SuggestController implements IEditorContribution {
 			adjustWhitespace: !(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
 		});
 
-		if (undoStops) {
+		if (undoStopAfter) {
 			this._editor.pushUndoStop();
 		}
 
@@ -300,7 +314,7 @@ export class SuggestController implements IEditorContribution {
 					if (modelVersionNow !== model.getAlternativeVersionId()) {
 						model.undo();
 					}
-					this._insertSuggestion(next, false, false);
+					this._insertSuggestion(next, false, false, false, keepSuffix);
 					break;
 				}
 			});
@@ -382,7 +396,7 @@ export class SuggestController implements IEditorContribution {
 					return;
 				}
 				this._editor.pushUndoStop();
-				this._insertSuggestion({ index, item, model: completionModel }, true, false);
+				this._insertSuggestion({ index, item, model: completionModel }, true, false, false, false);
 
 			}, undefined, listener);
 		});
@@ -392,9 +406,9 @@ export class SuggestController implements IEditorContribution {
 		this._editor.focus();
 	}
 
-	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
+	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, keepSuffix: boolean): void {
 		const item = this._widget.getValue().getFocusedItem();
-		this._insertSuggestion(item, !!keepAlternativeSuggestions, true);
+		this._insertSuggestion(item, keepAlternativeSuggestions, true, true, keepSuffix);
 	}
 
 	acceptNextSuggestion() {
@@ -489,18 +503,37 @@ const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(Sugge
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
 	precondition: SuggestContext.Visible,
-	handler: x => x.acceptSelectedSuggestion(true),
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.Tab
+	},
+	handler(x, args) {
+		let keepSuffix: boolean;
+		if (typeof args !== 'object') {
+			keepSuffix = true;
+		} else if (typeof args.keepSuffix !== 'boolean') {
+			keepSuffix = true;
+		} else {
+			keepSuffix = args.keepSuffix;
+		}
+		x.acceptSelectedSuggestion(true, keepSuffix);
 	}
 }));
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'acceptSelectedSuggestion',
+	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+	primary: KeyMod.Shift | KeyCode.Tab,
+	secondary: [KeyMod.Shift | KeyCode.Enter],
+	args: { keepSuffix: false },
+	weight
+});
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
 	precondition: SuggestContext.Visible,
-	handler: x => x.acceptSelectedSuggestion(false),
+	handler: x => x.acceptSelectedSuggestion(false, true),
 	kbOpts: {
 		weight: weight,
 		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),

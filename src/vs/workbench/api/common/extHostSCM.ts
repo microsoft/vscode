@@ -9,7 +9,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, SCMProviderProps } from './extHost.protocol';
 import { sortedDiff, equals } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
@@ -452,10 +452,15 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _commands: ExtHostCommands,
 		private _id: string,
 		private _label: string,
-		private _rootUri?: vscode.Uri
+		private _rootUri: vscode.Uri | undefined,
+		_props: SCMProviderProps
 	) {
+		if (!_extension.enableProposedApi && _props.treeRendering) {
+			throw new Error(`[${_extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${_extension.identifier.value}`);
+		}
+
 		this._inputBox = new ExtHostSCMInputBox(_extension, this._proxy, this.handle);
-		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri);
+		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri, _props);
 	}
 
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
@@ -517,6 +522,12 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 }
 
+function asProps(options: vscode.SourceControlOptions | undefined): SCMProviderProps {
+	return {
+		treeRendering: options && !!options.treeRendering || false
+	};
+}
+
 export class ExtHostSCM implements ExtHostSCMShape {
 
 	private static _handlePool: number = 0;
@@ -576,11 +587,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
+	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, options?: vscode.SourceControlOptions): vscode.SourceControl {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri);
+		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri, asProps(options));
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];

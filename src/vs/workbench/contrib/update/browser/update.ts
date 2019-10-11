@@ -469,7 +469,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '6_update',
 			command: {
 				id: 'update.restart',
-				title: nls.localize('restartToUpdate', "Restart to Update")
+				title: nls.localize('restartToUpdate', "*Restart to Update")
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});

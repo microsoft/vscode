@@ -183,7 +183,7 @@ export class DefineKeybindingWidget extends Widget {
 			if (colors.editorWidgetBackground) {
 				this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground.toString();
 			} else {
-				this._domNode.domNode.style.backgroundColor = null;
+				this._domNode.domNode.style.backgroundColor = '';
 			}
 			if (colors.editorWidgetForeground) {
 				this._domNode.domNode.style.color = colors.editorWidgetForeground.toString();
@@ -194,7 +194,7 @@ export class DefineKeybindingWidget extends Widget {
 			if (colors.widgetShadow) {
 				this._domNode.domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
 			} else {
-				this._domNode.domNode.style.boxShadow = null;
+				this._domNode.domNode.style.boxShadow = '';
 			}
 		}));
 

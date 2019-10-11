@@ -221,7 +221,7 @@ export class ProgressBar extends Disposable {
 
 	protected applyStyles(): void {
 		if (this.bit) {
-			const background = this.progressBarBackground ? this.progressBarBackground.toString() : null;
+			const background = this.progressBarBackground ? this.progressBarBackground.toString() : '';
 
 			this.bit.style.backgroundColor = background;
 		}

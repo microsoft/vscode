@@ -20,6 +20,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { asArray } from 'vs/base/common/arrays';
 import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
 import { isMacintosh } from 'vs/base/common/platform';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = DOM.$;
 
@@ -252,7 +253,14 @@ export class MenuBar extends Disposable {
 				e.stopPropagation();
 			}));
 
-			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
+			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+				// Ignore non-left-click
+				const mouseEvent = new StandardMouseEvent(e);
+				if (!mouseEvent.leftButton) {
+					e.preventDefault();
+					return;
+				}
+
 				if (!this.isOpen) {
 					// Open the menu with mouse down and ignore the following mouse up event
 					this.ignoreNextMouseUp = true;
@@ -337,6 +345,13 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
+			// Ignore non-left-click
+			const mouseEvent = new StandardMouseEvent(e);
+			if (!mouseEvent.leftButton) {
+				e.preventDefault();
+				return;
+			}
+
 			if (!this.isOpen) {
 				// Open the menu with mouse down and ignore the following mouse up event
 				this.ignoreNextMouseUp = true;

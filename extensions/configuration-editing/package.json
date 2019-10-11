@@ -72,8 +72,8 @@
         "url": "vscode://schemas/workspaceConfig"
       },
       {
-        "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
-        "url": "vscode://schemas/locale"
+        "fileMatch": "**/argv.json",
+        "url": "vscode://schemas/argv"
       },
       {
         "fileMatch": "/.vscode/settings.json",

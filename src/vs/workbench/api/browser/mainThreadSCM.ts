@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMProviderProps, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
@@ -128,12 +128,15 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	get treeRendering(): boolean { return this._props.treeRendering; }
+
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
 		private readonly _handle: number,
 		private readonly _contextValue: string,
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
+		private readonly _props: SCMProviderProps,
 		@ISCMService scmService: ISCMService
 	) { }
 
@@ -287,8 +290,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables.dispose();
 	}
 
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.revive(rootUri), this.scmService);
+	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, props: SCMProviderProps): void {
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.revive(rootUri), props, this.scmService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

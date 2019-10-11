@@ -674,6 +674,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private shouldAttachProblemMatcher(task: Task): boolean {
+		const settingValue = this.configurationService.getValue('task.problemMatchers.neverPrompt');
+		if (settingValue === true) {
+			return false;
+		} else if (task.type && Types.isStringArray(settingValue) && (settingValue.indexOf(task.type) >= 0)) {
+			return false;
+		}
 		if (!this.canCustomize(task)) {
 			return false;
 		}

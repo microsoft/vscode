@@ -176,14 +176,6 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		}
 	}
 
-	update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean): void {
-		this._contentOptions = options;
-		this._html = html;
-		this.withWebview(webview => {
-			webview.update(html, options, retainContextWhenHidden);
-		});
-	}
-
 	layout(): void { this.withWebview(webview => webview.layout()); }
 	focus(): void { this.withWebview(webview => webview.focus()); }
 	reload(): void { this.withWebview(webview => webview.reload()); }

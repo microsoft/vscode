@@ -4,83 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
+import { memoize } from 'vs/base/common/decorators';
 import { IDisposable, toDisposable, UnownedDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { RevivedWebviewEditorInput, WebviewInput } from './webviewEditorInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { WebviewInput } from './webviewEditorInput';
+import { Lazy } from 'vs/base/common/lazy';
 
-export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
+export const IWebviewWorkbenchService = createDecorator<IWebviewWorkbenchService>('webviewEditorService');
 
 export interface ICreateWebViewShowOptions {
 	group: IEditorGroup | GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE;
 	preserveFocus: boolean;
-}
-
-export interface IWebviewEditorService {
-	_serviceBrand: undefined;
-
-	createWebview(
-		id: string,
-		viewType: string,
-		title: string,
-		showOptions: ICreateWebViewShowOptions,
-		options: WebviewInputOptions,
-		extension: undefined | {
-			location: URI,
-			id: ExtensionIdentifier
-		},
-	): WebviewInput;
-
-	reviveWebview(
-		id: string,
-		viewType: string,
-		title: string,
-		iconPath: { light: URI, dark: URI } | undefined,
-		state: any,
-		options: WebviewInputOptions,
-		extension: undefined | {
-			readonly location: URI,
-			readonly id?: ExtensionIdentifier
-		},
-		group: number | undefined
-	): WebviewInput;
-
-	revealWebview(
-		webview: WebviewInput,
-		group: IEditorGroup,
-		preserveFocus: boolean
-	): void;
-
-	registerResolver(
-		reviver: WebviewResolve
-	): IDisposable;
-
-	shouldPersist(
-		input: WebviewInput
-	): boolean;
-
-	resolveWebview(
-		webview: WebviewInput,
-	): Promise<void>;
-}
-
-export interface WebviewResolve {
-	canResolve(
-		webview: WebviewInput,
-	): boolean;
-
-	resolveWebview(
-		webview: WebviewInput,
-	): Promise<void>;
 }
 
 export interface WebviewInputOptions extends WebviewOptions, WebviewContentOptions {
@@ -95,16 +40,93 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 		&& a.allowScripts === b.allowScripts
 		&& a.retainContextWhenHidden === b.retainContextWhenHidden
 		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
-		&& (a.localResourceRoots === b.localResourceRoots || (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots) && equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())))
-		&& (a.portMapping === b.portMapping || (Array.isArray(a.portMapping) && Array.isArray(b.portMapping) && equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)));
+		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
+		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort);
 }
 
-function canRevive(reviver: WebviewResolve, webview: WebviewInput): boolean {
+export interface WebviewExtensionDescription {
+	readonly location: URI;
+	readonly id: ExtensionIdentifier;
+}
+
+export interface IWebviewWorkbenchService {
+	_serviceBrand: undefined;
+
+	createWebview(
+		id: string,
+		viewType: string,
+		title: string,
+		showOptions: ICreateWebViewShowOptions,
+		options: WebviewInputOptions,
+		extension: WebviewExtensionDescription | undefined,
+	): WebviewInput;
+
+	reviveWebview(
+		id: string,
+		viewType: string,
+		title: string,
+		iconPath: { light: URI, dark: URI } | undefined,
+		state: any,
+		options: WebviewInputOptions,
+		extension: WebviewExtensionDescription | undefined,
+		group: number | undefined
+	): WebviewInput;
+
+	revealWebview(
+		webview: WebviewInput,
+		group: IEditorGroup,
+		preserveFocus: boolean
+	): void;
+
+	registerResolver(
+		resolver: WebviewResolver
+	): IDisposable;
+
+	shouldPersist(
+		input: WebviewInput
+	): boolean;
+
+	resolveWebview(
+		webview: WebviewInput,
+	): Promise<void>;
+}
+
+export interface WebviewResolver {
+	canResolve(
+		webview: WebviewInput,
+	): boolean;
+
+	resolveWebview(
+		webview: WebviewInput,
+	): Promise<void>;
+}
+
+function canRevive(reviver: WebviewResolver, webview: WebviewInput): boolean {
 	if (webview.isDisposed()) {
 		return false;
 	}
 	return reviver.canResolve(webview);
 }
+
+
+export class LazilyResolvedWebviewEditorInput extends WebviewInput {
+	constructor(
+		id: string,
+		viewType: string,
+		name: string,
+		webview: Lazy<UnownedDisposable<WebviewEditorOverlay>>,
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+	) {
+		super(id, viewType, name, webview);
+	}
+
+	@memoize
+	public async resolve(): Promise<IEditorModel> {
+		await this._webviewWorkbenchService.resolveWebview(this);
+		return super.resolve();
+	}
+}
+
 
 class RevivalPool {
 	private _awaitingRevival: Array<{ input: WebviewInput, resolve: () => void }> = [];
@@ -113,7 +135,7 @@ class RevivalPool {
 		this._awaitingRevival.push({ input, resolve });
 	}
 
-	public reviveFor(reviver: WebviewResolve) {
+	public reviveFor(reviver: WebviewResolver) {
 		const toRevive = this._awaitingRevival.filter(({ input }) => canRevive(reviver, input));
 		this._awaitingRevival = this._awaitingRevival.filter(({ input }) => !canRevive(reviver, input));
 
@@ -123,10 +145,10 @@ class RevivalPool {
 	}
 }
 
-export class WebviewEditorService implements IWebviewEditorService {
+export class WebviewEditorService implements IWebviewWorkbenchService {
 	_serviceBrand: undefined;
 
-	private readonly _revivers = new Set<WebviewResolve>();
+	private readonly _revivers = new Set<WebviewResolver>();
 	private readonly _revivalPool = new RevivalPool();
 
 	constructor(
@@ -142,14 +164,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
 		options: WebviewInputOptions,
-		extension: undefined | {
-			location: URI,
-			id: ExtensionIdentifier
-		},
+		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput {
-		const webview = this.createWebiew(id, extension, options);
-
-		const webviewInput = new WebviewInput(id, viewType, title, new UnownedDisposable(webview));
+		const webview = new Lazy(() => new UnownedDisposable(this.createWebiew(id, extension, options)));
+		const webviewInput = new WebviewInput(id, viewType, title, webview);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
@@ -187,28 +205,16 @@ export class WebviewEditorService implements IWebviewEditorService {
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
-		extension: undefined | {
-			readonly location: URI,
-			readonly id: ExtensionIdentifier
-		},
+		extension: WebviewExtensionDescription | undefined,
 		group: number | undefined,
 	): WebviewInput {
-		const webview = this.createWebiew(id, extension, options);
-		webview.state = state;
+		const webview = new Lazy(() => {
+			const webview = this.createWebiew(id, extension, options);
+			webview.state = state;
+			return new UnownedDisposable(webview);
+		});
 
-		const webviewInput = new RevivedWebviewEditorInput(id, viewType, title, async (webview: WebviewInput): Promise<void> => {
-			const didRevive = await this.tryRevive(webview);
-			if (didRevive) {
-				return Promise.resolve(undefined);
-			}
-
-			// A reviver may not be registered yet. Put into pool and resolve promise when we can revive
-			let resolve: () => void;
-			const promise = new Promise<void>(r => { resolve = r; });
-			this._revivalPool.add(webview, resolve!);
-			return promise;
-		}, new UnownedDisposable(webview));
-
+		const webviewInput = new LazilyResolvedWebviewEditorInput(id, viewType, title, webview, this);
 		webviewInput.iconPath = iconPath;
 
 		if (typeof group === 'number') {
@@ -218,7 +224,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 
 	public registerResolver(
-		reviver: WebviewResolve
+		reviver: WebviewResolver
 	): IDisposable {
 		this._revivers.add(reviver);
 		this._revivalPool.reviveFor(reviver);
@@ -237,7 +243,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 		// Revived webviews may not have an actively registered reviver but we still want to presist them
 		// since a reviver should exist when it is actually needed.
-		return webview instanceof RevivedWebviewEditorInput;
+		return webview instanceof LazilyResolvedWebviewEditorInput;
 	}
 
 	private async tryRevive(
@@ -257,6 +263,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	): Promise<void> {
 		const didRevive = await this.tryRevive(webview);
 		if (!didRevive) {
+			// A reviver may not be registered yet. Put into pool and resolve promise when we can revive
 			let resolve: () => void;
 			const promise = new Promise<void>(r => { resolve = r; });
 			this._revivalPool.add(webview, resolve!);
@@ -264,7 +271,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		}
 	}
 
-	private createWebiew(id: string, extension: { location: URI; id: ExtensionIdentifier; } | undefined, options: WebviewInputOptions) {
+	private createWebiew(id: string, extension: WebviewExtensionDescription | undefined, options: WebviewInputOptions) {
 		const webview = this._webviewService.createWebviewEditorOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
@@ -288,4 +295,4 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 }
 
-registerSingleton(IWebviewEditorService, WebviewEditorService, true);
+registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
