@@ -998,7 +998,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _adjustOptionsForLeftHandSide(options: IDiffEditorOptions, isEditable: boolean): IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
 		result.readOnly = !isEditable;
-		result.overviewRulerLanes = 1;
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return result;
 	}
