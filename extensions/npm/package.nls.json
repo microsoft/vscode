@@ -19,5 +19,5 @@
 	"command.openScript": "Open",
 	"command.runInstall": "Run Install",
 	"command.runSelectedScript": "Run Script",
-	"command.runScriptsFromFolder": "Select npm Scripts to Run..."
+	"command.runScriptFromFolder": "Run npm Script in Folder..."
 }

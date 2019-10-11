@@ -9,7 +9,6 @@ import * as vscode from 'vscode';
 import {
 	detectNpmScriptsForFolder,
 	findScriptAtPosition,
-	getPackageJsonUriFromTask,
 	runScript
 } from './tasks';
 
@@ -34,27 +33,16 @@ export function runSelectedScript() {
 	}
 }
 
-export async function selectAndRunScriptFromFolder(folderInfo: vscode.Uri) {
-	type TaskMap = { [id: string]: vscode.Task; };
-	let taskList = await detectNpmScriptsForFolder(folderInfo.path);
+export async function selectAndRunScriptFromFolder(selectedFolder: vscode.Uri) {
+	let taskList: { label: string, task: vscode.Task }[] = await detectNpmScriptsForFolder(selectedFolder);
 
 	if (taskList && taskList.length > 0) {
-		let taskMap: TaskMap = {};
-		taskList.forEach(t => {
-			let uri = getPackageJsonUriFromTask(t);
-			if (uri && uri.fsPath.length >= folderInfo.fsPath.length) {
-				let taskName = uri.fsPath.substring(folderInfo.fsPath.length, uri.fsPath.length - '/package.json'.length) + ' > ' + t.name.substring(0, t.name.search('-'));
-				taskMap[taskName] = t;
-			}
-		});
-		let result = await vscode.window.showQuickPick(Object.keys(taskMap).sort(), {
-			placeHolder: `Run scripts on folder ${folderInfo.fsPath}...`,
-		});
+		let result = await vscode.window.showQuickPick(taskList, { placeHolder: 'Select script' });
 		if (result) {
-			vscode.tasks.executeTask(taskMap[result]);
+			vscode.tasks.executeTask(result.task);
 		}
 	}
 	else {
-		vscode.window.showInformationMessage(`No scripts detected in folder ${folderInfo.path}`);
+		vscode.window.showInformationMessage(`No npm scripts found in ${selectedFolder.fsPath}`, { modal: true });
 	}
 }
