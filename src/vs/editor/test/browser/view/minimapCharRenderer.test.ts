@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
+import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
 
 suite('MinimapCharRenderer', () => {
@@ -78,7 +78,7 @@ suite('MinimapCharRenderer', () => {
 
 		let background = new RGBA8(0, 0, 0, 255);
 		let color = new RGBA8(255, 255, 255, 255);
-		let imageData = createFakeImageData(Constants.x2_CHAR_WIDTH, Constants.x2_CHAR_HEIGHT);
+		let imageData = createFakeImageData(Constants.BASE_CHAR_WIDTH * 2, Constants.BASE_CHAR_HEIGHT * 2);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
 			imageData.data[4 * i + 0] = background.r;
@@ -107,7 +107,7 @@ suite('MinimapCharRenderer', () => {
 
 		let background = new RGBA8(0, 0, 0, 255);
 		let color = new RGBA8(255, 255, 255, 255);
-		let imageData = createFakeImageData(Constants.x1_CHAR_WIDTH, Constants.x1_CHAR_HEIGHT);
+		let imageData = createFakeImageData(Constants.BASE_CHAR_WIDTH, Constants.BASE_CHAR_HEIGHT);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
 			imageData.data[4 * i + 0] = background.r;

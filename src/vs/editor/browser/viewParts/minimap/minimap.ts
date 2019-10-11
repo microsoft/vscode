@@ -18,7 +18,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
 import { ColorId } from 'vs/editor/common/modes';
-import { Constants, MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
+import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
+import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -34,18 +35,18 @@ import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap, scale: number): number {
 	if (renderMinimap === RenderMinimap.Text) {
-		return Constants.x1_CHAR_HEIGHT * scale;
+		return Constants.BASE_CHAR_HEIGHT * scale;
 	}
 	// RenderMinimap.Blocks
-	return (Constants.x1_CHAR_HEIGHT + 1) * scale;
+	return (Constants.BASE_CHAR_HEIGHT + 1) * scale;
 }
 
 function getMinimapCharWidth(renderMinimap: RenderMinimap, scale: number): number {
 	if (renderMinimap === RenderMinimap.Text) {
-		return Constants.x1_CHAR_WIDTH * scale;
+		return Constants.BASE_CHAR_WIDTH * scale;
 	}
 	// RenderMinimap.Blocks
-	return Constants.x1_CHAR_WIDTH * scale;
+	return Constants.BASE_CHAR_WIDTH * scale;
 }
 
 /**
@@ -113,7 +114,7 @@ class MinimapOptions {
 		const minimapOpts = options.get(EditorOption.minimap);
 		this.showSlider = minimapOpts.showSlider;
 		this.fontScale = Math.round(minimapOpts.scale * pixelRatio);
-		this.charRenderer = MinimapCharRendererFactory.create(this.fontScale);
+		this.charRenderer = MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily);
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = options.get(EditorOption.lineHeight);

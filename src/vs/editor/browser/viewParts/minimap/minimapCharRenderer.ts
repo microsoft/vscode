@@ -4,25 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RGBA8 } from 'vs/editor/common/core/rgba';
-
-export const enum Constants {
-	START_CH_CODE = 32, // Space
-	END_CH_CODE = 126, // Tilde (~)
-	CHAR_COUNT = END_CH_CODE - START_CH_CODE + 1,
-
-	SAMPLED_CHAR_HEIGHT = 16,
-	SAMPLED_CHAR_WIDTH = 10,
-	SAMPLED_HALF_CHAR_WIDTH = SAMPLED_CHAR_WIDTH / 2,
-
-	x2_CHAR_HEIGHT = 4,
-	x2_CHAR_WIDTH = 2,
-
-	x1_CHAR_HEIGHT = 2,
-	x1_CHAR_WIDTH = 1,
-
-	RGBA_CHANNELS_CNT = 4,
-	RGBA_SAMPLED_ROW_WIDTH = RGBA_CHANNELS_CNT * CHAR_COUNT * SAMPLED_CHAR_WIDTH
-}
+import { Constants, getCharIndex } from './minimapCharSheet';
 
 export class MinimapCharRenderer {
 	_minimapCharRendererBrand: void;
@@ -43,14 +25,6 @@ export class MinimapCharRenderer {
 		return result;
 	}
 
-	private static _getChIndex(chCode: number): number {
-		chCode -= Constants.START_CH_CODE;
-		if (chCode < 0) {
-			chCode += Constants.CHAR_COUNT;
-		}
-		return chCode % Constants.CHAR_COUNT;
-	}
-
 	public renderChar(
 		target: ImageData,
 		dx: number,
@@ -60,15 +34,15 @@ export class MinimapCharRenderer {
 		backgroundColor: RGBA8,
 		useLighterFont: boolean
 	): void {
-		const charWidth = Constants.x1_CHAR_WIDTH * this.scale;
-		const charHeight = Constants.x1_CHAR_HEIGHT * this.scale;
+		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
+		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
 		if (dx + charWidth > target.width || dy + charHeight > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
 
 		const charData = useLighterFont ? this.charDataLight : this.charDataNormal;
-		const charIndex = MinimapCharRenderer._getChIndex(chCode);
+		const charIndex = getCharIndex(chCode);
 
 		const destWidth = target.width * Constants.RGBA_CHANNELS_CNT;
 
@@ -106,8 +80,8 @@ export class MinimapCharRenderer {
 		backgroundColor: RGBA8,
 		useLighterFont: boolean
 	): void {
-		const charWidth = Constants.x1_CHAR_WIDTH * this.scale;
-		const charHeight = Constants.x1_CHAR_HEIGHT * this.scale;
+		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
+		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
 		if (dx + charWidth > target.width || dy + charHeight > target.height) {
 			console.warn('bad render request outside image data');
 			return;

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Constants, MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
+import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
+import { allCharCodes } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
+import { Constants } from './minimapCharSheet';
 
 /**
  * Creates character renderers. It takes a 'scale' that determines how large
@@ -14,18 +16,22 @@ import { Constants, MinimapCharRenderer } from 'vs/editor/browser/viewParts/mini
  */
 export class MinimapCharRendererFactory {
 	private static lastCreated?: MinimapCharRenderer;
+	private static lastFontFamily?: string;
 
 	/**
 	 * Creates a new character renderer factory with the given scale.
 	 */
-	public static create(scale: number) {
+	public static create(scale: number, fontFamily: string) {
 		// renderers are immutable. By default we'll 'create' a new minimap
 		// character renderer whenever we switch editors, no need to do extra work.
-		if (this.lastCreated && scale === this.lastCreated.scale) {
+		if (this.lastCreated && scale === this.lastCreated.scale && fontFamily === this.lastFontFamily) {
 			return this.lastCreated;
 		}
 
-		const factory = MinimapCharRendererFactory.createFromSampleData(MinimapCharRendererFactory.createSampleData().data, scale);
+		const factory = MinimapCharRendererFactory.createFromSampleData(
+			MinimapCharRendererFactory.createSampleData(fontFamily).data,
+			scale
+		);
 		this.lastCreated = factory;
 		return factory;
 	}
@@ -33,7 +39,7 @@ export class MinimapCharRendererFactory {
 	/**
 	 * Creates the font sample data, writing to a canvas.
 	 */
-	public static createSampleData(): ImageData {
+	public static createSampleData(fontFamily: string): ImageData {
 		const canvas = document.createElement('canvas');
 		const ctx = canvas.getContext('2d')!;
 
@@ -43,14 +49,13 @@ export class MinimapCharRendererFactory {
 		canvas.style.width = Constants.CHAR_COUNT * Constants.SAMPLED_CHAR_WIDTH + 'px';
 
 		ctx.fillStyle = '#ffffff';
-		ctx.font = `bold ${Constants.SAMPLED_CHAR_HEIGHT}px monospace`;
+		ctx.font = `bold ${Constants.SAMPLED_CHAR_HEIGHT}px ${fontFamily}`;
 		ctx.textBaseline = 'middle';
-		for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
-			ctx.fillText(
-				String.fromCharCode(chCode),
-				(chCode - Constants.START_CH_CODE) * Constants.SAMPLED_CHAR_WIDTH,
-				Constants.SAMPLED_CHAR_HEIGHT / 2
-			);
+
+		let x = 0;
+		for (const code of allCharCodes) {
+			ctx.fillText(String.fromCharCode(code), x, Constants.SAMPLED_CHAR_HEIGHT / 2);
+			x += Constants.SAMPLED_CHAR_WIDTH;
 		}
 
 		return ctx.getImageData(0, 0, Constants.CHAR_COUNT * Constants.SAMPLED_CHAR_WIDTH, Constants.SAMPLED_CHAR_HEIGHT);
@@ -77,8 +82,8 @@ export class MinimapCharRendererFactory {
 		destOffset: number,
 		scale: number
 	): number {
-		const width = Constants.x1_CHAR_WIDTH * scale;
-		const height = Constants.x1_CHAR_HEIGHT * scale;
+		const width = Constants.BASE_CHAR_WIDTH * scale;
+		const height = Constants.BASE_CHAR_HEIGHT * scale;
 
 		let targetIndex = destOffset;
 		let brightest = 0;
@@ -130,7 +135,7 @@ export class MinimapCharRendererFactory {
 	}
 
 	private static _downsample(data: Uint8ClampedArray, scale: number): Uint8ClampedArray {
-		const pixelsPerCharacter = Constants.x1_CHAR_HEIGHT * scale * Constants.x1_CHAR_WIDTH * scale;
+		const pixelsPerCharacter = Constants.BASE_CHAR_HEIGHT * scale * Constants.BASE_CHAR_WIDTH * scale;
 		const resultLen = pixelsPerCharacter * Constants.CHAR_COUNT;
 		const result = new Uint8ClampedArray(resultLen);
 

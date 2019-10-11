@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { Constants, MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
+import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
+import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
 
-let sampleData = MinimapCharRendererFactory.createSampleData();
+let sampleData = MinimapCharRendererFactory.createSampleData('monospace');
 let minimapCharRenderer1x = MinimapCharRendererFactory.createFromSampleData(sampleData.data, 1);
 let minimapCharRenderer2x = MinimapCharRendererFactory.createFromSampleData(sampleData.data, 2);
 let minimapCharRenderer4x = MinimapCharRendererFactory.createFromSampleData(sampleData.data, 4);
@@ -33,8 +34,8 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 
 	{
 		let x2 = createFakeImageData(
-			Constants.x1_CHAR_WIDTH * scale * Constants.CHAR_COUNT,
-			Constants.x1_CHAR_HEIGHT * scale
+			Constants.BASE_CHAR_WIDTH * scale * Constants.CHAR_COUNT,
+			Constants.BASE_CHAR_HEIGHT * scale
 		);
 		// set the background color
 		for (let i = 0, len = x2.data.length / 4; i < len; i++) {
@@ -46,7 +47,7 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 		let dx = 0;
 		for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
 			minimapCharRenderer.renderChar(x2, dx, 0, chCode, color, background, false);
-			dx += Constants.x1_CHAR_WIDTH * scale;
+			dx += Constants.BASE_CHAR_WIDTH * scale;
 		}
 		renderImageData(x2, 10, y);
 	}
@@ -59,7 +60,7 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 		let charCode = charIndex + Constants.START_CH_CODE;
 		r += '\n\n// ' + String.fromCharCode(charCode);
 
-		for (let i = 0; i < Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH; i++) {
+		for (let i = 0; i < Constants.BASE_CHAR_HEIGHT * 2; i++) {
 			if (i % 2 === 0) {
 				r += '\n';
 			}
@@ -78,7 +79,7 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 		let charCode = charIndex + Constants.START_CH_CODE;
 		r += '\n\n// ' + String.fromCharCode(charCode);
 
-		for (let i = 0; i < Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH; i++) {
+		for (let i = 0; i < Constants.BASE_CHAR_HEIGHT * Constants.BASE_CHAR_WIDTH; i++) {
 			r += '\n';
 			r += (minimapCharRenderer1x as any).charDataNormal[offset] + ',';
 			offset++;
