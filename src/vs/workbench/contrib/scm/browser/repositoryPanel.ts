@@ -11,7 +11,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -36,8 +36,8 @@ import { ThrottledDelayer, disposableTimeout } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as platform from 'vs/base/common/platform';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { ISplice } from 'vs/base/common/sequence';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
+import { ISequence, ISplice } from 'vs/base/common/sequence';
 import { ObjectTree, ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
@@ -401,12 +401,6 @@ class ViewModel {
 
 	get mode(): ViewModelMode { return this._mode; }
 	set mode(mode: ViewModelMode) {
-		mode = this.provider.treeRendering ? mode : ViewModelMode.List;
-
-		if (mode === this._mode) {
-			return;
-		}
-
 		this._mode = mode;
 
 		for (const item of this.items) {
@@ -430,7 +424,7 @@ class ViewModel {
 	private disposables = new DisposableStore();
 
 	constructor(
-		private provider: ISCMProvider,
+		private groups: ISequence<ISCMResourceGroup>,
 		private tree: ObjectTree<TreeElement, FuzzyScore>,
 		private _mode: ViewModelMode,
 		@IEditorService protected editorService: IEditorService,
@@ -489,8 +483,8 @@ class ViewModel {
 	setVisible(visible: boolean): void {
 		if (visible) {
 			this.visibilityDisposables = new DisposableStore();
-			this.provider.groups.onDidSplice(this.onDidSpliceGroups, this, this.visibilityDisposables);
-			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: this.provider.groups.elements });
+			this.groups.onDidSplice(this.onDidSpliceGroups, this, this.visibilityDisposables);
+			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: this.groups.elements });
 
 			if (typeof this.scrollTop === 'number') {
 				this.tree.scrollTop = this.scrollTop;
@@ -761,25 +755,19 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
-		let mode: ViewModelMode;
+		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
 
-		if (!this.repository.provider.treeRendering) {
-			mode = ViewModelMode.List;
-		} else {
-			mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+		const rootUri = this.repository.provider.rootUri;
 
-			const rootUri = this.repository.provider.rootUri;
+		if (typeof rootUri !== 'undefined') {
+			const storageMode = this.storageService.get(`scm.repository.viewMode:${rootUri.toString()}`, StorageScope.WORKSPACE) as ViewModelMode;
 
-			if (typeof rootUri !== 'undefined') {
-				const storageMode = this.storageService.get(`scm.repository.viewMode:${rootUri.toString()}`, StorageScope.WORKSPACE) as ViewModelMode;
-
-				if (typeof storageMode === 'string') {
-					mode = storageMode;
-				}
+			if (typeof storageMode === 'string') {
+				mode = storageMode;
 			}
 		}
 
-		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider, this.tree, mode);
+		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider.groups, this.tree, mode);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
@@ -789,10 +777,8 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
 
-		if (this.repository.provider.treeRendering) {
-			this.toggleViewModelModeAction = new ToggleViewModeAction(this.viewModel);
-			this._register(this.toggleViewModelModeAction);
-		}
+		this.toggleViewModelModeAction = new ToggleViewModeAction(this.viewModel);
+		this._register(this.toggleViewModelModeAction);
 
 		this._register(this.onDidChangeBodyVisibility(this._onDidChangeVisibility, this));
 

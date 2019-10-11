@@ -62,7 +62,6 @@ export interface ISCMProvider extends IDisposable {
 	readonly acceptInputCommand?: Command;
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;
-	readonly treeRendering: boolean;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
