@@ -44,6 +44,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDiffLinesChange, InlineDiffMargin } from 'vs/editor/browser/widget/inlineDiffMargin';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Constants } from 'vs/base/common/uint';
+import { IDiffEditorContributionCtor, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -364,6 +366,15 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			}
 			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getTheme(), this._renderSideBySide);
 		}));
+
+		const contributions: IDiffEditorContributionCtor[] = EditorExtensionsRegistry.getDiffEditorContributions();
+		for (const ctor of contributions) {
+			try {
+				this._register(instantiationService.createInstance(ctor, this));
+			} catch (err) {
+				onUnexpectedError(err);
+			}
+		}
 
 		this._codeEditorService.addDiffEditor(this);
 	}
