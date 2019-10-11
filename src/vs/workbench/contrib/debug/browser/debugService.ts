@@ -768,9 +768,27 @@ export class DebugService implements IDebugService {
 
 		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
 		let taskStarted = false;
-		const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(tasks => {
+		const inactivePromise: Promise<ITaskSummary | null> = new Promise((c, e) => once(e => {
+			// When a task isBackground it will go inactive when it is safe to launch.
+			// But when a background task is terminated by the user, it will also fire an inactive event.
+			// This means that we will not get to see the real exit code from running the task (undefined when terminated by the user).
+			// Catch the ProcessEnded event here, which occurs before inactive, and capture the exit code to prevent this.
+			return (e.kind === TaskEventKind.Inactive
+				|| (e.kind === TaskEventKind.ProcessEnded && e.exitCode === undefined))
+				&& e.taskId === task._id;
+		}, this.taskService.onDidStateChange)(e => {
+			taskStarted = true;
+			c(e.kind === TaskEventKind.ProcessEnded ? { exitCode: e.exitCode } : null);
+		}));
+
+		const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(async (tasks): Promise<ITaskSummary | null> => {
 			if (tasks.filter(t => t._id === task._id).length) {
-				// task is already running - nothing to do.
+				// Check that the task isn't busy and if it is, wait for it
+				const busyTasks = await this.taskService.getBusyTasks();
+				if (busyTasks.filter(t => t._id === task._id).length) {
+					return inactivePromise;
+				}
+				// task is already running and isn't busy - nothing to do.
 				return Promise.resolve(null);
 			}
 			once(e => ((e.kind === TaskEventKind.Active) || (e.kind === TaskEventKind.DependsOnStarted)) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
@@ -780,18 +798,7 @@ export class DebugService implements IDebugService {
 			});
 			const taskPromise = this.taskService.run(task);
 			if (task.configurationProperties.isBackground) {
-				return new Promise((c, e) => once(e => {
-					// When a task isBackground it will go inactive when it is safe to launch.
-					// But when a background task is terminated by the user, it will also fire an inactive event.
-					// This means that we will not get to see the real exit code from running the task (undefined when terminated by the user).
-					// Catch the ProcessEnded event here, which occurs before inactive, and capture the exit code to prevent this.
-					return (e.kind === TaskEventKind.Inactive
-						|| (e.kind === TaskEventKind.ProcessEnded && e.exitCode === undefined))
-						&& e.taskId === task._id;
-				}, this.taskService.onDidStateChange)(e => {
-					taskStarted = true;
-					c(e.kind === TaskEventKind.ProcessEnded ? { exitCode: e.exitCode } : null);
-				}));
+				return inactivePromise;
 			}
 
 			return taskPromise;
