@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { EXT_HOST_CREATION_DELAY, ITerminalChildProcess, ITerminalDimensions, getTerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminal';
+import { EXT_HOST_CREATION_DELAY, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -287,9 +287,13 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
+	private readonly _bufferer: TerminalDataBufferer;
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
+		this._bufferer = new TerminalDataBufferer();
+
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
@@ -466,10 +470,9 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 
-		const bufferer = getTerminalDataBufferer(id, this._proxy.$sendProcessData);
-		const disposables = [bufferer, p.onProcessData(bufferer.onData)];
-
-		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode, disposables));
+		// Buffer data events to reduce the amount of messages going to the renderer
+		this._bufferer.startBuffering(id, p.onProcessData, this._proxy.$sendProcessData);
+		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
 
 		if (p.onProcessOverrideDimensions) {
 			p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e));
@@ -508,10 +511,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		return id;
 	}
 
-	private _onProcessExit(id: number, exitCode: number, disposables: IDisposable[]): void {
-		for (const d of disposables) {
-			d.dispose();
-		}
+	private _onProcessExit(id: number, exitCode: number): void {
+		this._bufferer.stopBuffering(id);
 
 		// Remove process reference
 		delete this._terminalProcesses[id];
