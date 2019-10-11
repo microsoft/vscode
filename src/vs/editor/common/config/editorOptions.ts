@@ -1566,7 +1566,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const minimapEnabled = minimap.enabled;
 		const minimapSide = minimap.side;
 		const minimapRenderCharacters = minimap.renderCharacters;
-		const minimapScale = pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale;
+		const minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
 		const minimapMaxColumn = minimap.maxColumn | 0;
 
 		const scrollbar = options.get(EditorOption.scrollbar);

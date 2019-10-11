@@ -36,7 +36,7 @@ function getMinimapLineHeight(renderMinimap: RenderMinimap, scale: number): numb
 	if (renderMinimap === RenderMinimap.Text) {
 		return Constants.x1_CHAR_HEIGHT * scale;
 	}
-	// RenderMinimap.SmallBlocks
+	// RenderMinimap.Blocks
 	return (Constants.x1_CHAR_HEIGHT + 1) * scale;
 }
 
@@ -44,7 +44,7 @@ function getMinimapCharWidth(renderMinimap: RenderMinimap, scale: number): numbe
 	if (renderMinimap === RenderMinimap.Text) {
 		return Constants.x1_CHAR_WIDTH * scale;
 	}
-	// RenderMinimap.SmallBlocks
+	// RenderMinimap.Blocks
 	return Constants.x1_CHAR_WIDTH * scale;
 }
 
