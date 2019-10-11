@@ -380,7 +380,7 @@ class Widget {
 			belowLeft = absoluteBelowLeft;
 		}
 
-		return { fitsAbove, aboveTop, aboveLeft, fitsBelow, belowTop, belowLeft };
+		return { fitsAbove, aboveTop: Math.max(aboveTop, TOP_PADDING), aboveLeft, fitsBelow, belowTop, belowLeft };
 	}
 
 	private _prepareRenderWidgetAtExactPositionOverflowing(topLeft: Coordinate): Coordinate {

@@ -274,7 +274,7 @@ export namespace PresentationOptions {
 export enum RuntimeType {
 	Shell = 1,
 	Process = 2,
-	CustomExecution2 = 3
+	CustomExecution = 3
 }
 
 export namespace RuntimeType {
@@ -284,8 +284,8 @@ export namespace RuntimeType {
 				return RuntimeType.Shell;
 			case 'process':
 				return RuntimeType.Process;
-			case 'customExecution2':
-				return RuntimeType.CustomExecution2;
+			case 'customExecution':
+				return RuntimeType.CustomExecution;
 			default:
 				return RuntimeType.Process;
 		}
@@ -680,8 +680,8 @@ export class CustomTask extends CommonTask {
 					type = 'process';
 					break;
 
-				case RuntimeType.CustomExecution2:
-					type = 'customExecution2';
+				case RuntimeType.CustomExecution:
+					type = 'customExecution';
 					break;
 
 				case undefined:
