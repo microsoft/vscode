@@ -41,7 +41,7 @@ export interface IModeService {
 	getMimeForMode(modeId: string): string | null;
 	getLanguageName(modeId: string): string | null;
 	getModeIdForLanguageName(alias: string): string | null;
-	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
+	getModeIdByFilePathOrFirstLine(resource: URI, firstLine?: string): string | null;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null;
 	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null;
 	getConfigurationFiles(modeId: string): URI[];
@@ -49,7 +49,7 @@ export interface IModeService {
 	// --- instantiation
 	create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection;
 	createByLanguageName(languageName: string): ILanguageSelection;
-	createByFilepathOrFirstLine(rsource: URI | null, firstLine?: string): ILanguageSelection;
+	createByFilePathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection;
 
 	triggerMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): void;
 }

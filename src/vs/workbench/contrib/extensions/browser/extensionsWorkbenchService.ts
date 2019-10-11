@@ -621,7 +621,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const keywords = lookup[ext] || [];
 
 				// Get mode name
-				const modeId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(`.${ext}`));
+				const modeId = this.modeService.getModeIdByFilePathOrFirstLine(URI.file(`.${ext}`));
 				const languageName = modeId && this.modeService.getLanguageName(modeId);
 				const languageTag = languageName ? ` tag:"${languageName}"` : '';
 

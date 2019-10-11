@@ -401,8 +401,8 @@ export class PieceTreeBase {
 			} else if (x.lf_left + x.piece.lineFeedCnt + 1 >= lineNumber) {
 				leftLen += x.size_left;
 				// lineNumber >= 2
-				let accumualtedValInCurrentIndex = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
-				return leftLen += accumualtedValInCurrentIndex + column - 1;
+				let accumulatedValInCurrentIndex = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
+				return leftLen += accumulatedValInCurrentIndex + column - 1;
 			} else {
 				lineNumber -= x.lf_left + x.piece.lineFeedCnt;
 				leftLen += x.size_left + x.piece.length;

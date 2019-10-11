@@ -123,7 +123,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 		// lookup mode via resource path if the provided mode is unspecific
 		if (!preferredMode || preferredMode === PLAINTEXT_MODE_ID) {
-			return modeService.createByFilepathOrFirstLine(withUndefinedAsNull(resource), firstLineText);
+			return modeService.createByFilePathOrFirstLine(withUndefinedAsNull(resource), firstLineText);
 		}
 
 		// otherwise take the preferred mode for granted

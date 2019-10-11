@@ -108,7 +108,7 @@ export class ViewController {
 		return viewPosition;
 	}
 
-	private _hasMulticursorModifier(data: IMouseDispatchData): boolean {
+	private _hasMultiCursorModifier(data: IMouseDispatchData): boolean {
 		switch (this.configuration.options.get(EditorOption.multiCursorModifier)) {
 			case 'altKey':
 				return data.altKey;
@@ -120,7 +120,7 @@ export class ViewController {
 		return false;
 	}
 
-	private _hasNonMulticursorModifier(data: IMouseDispatchData): boolean {
+	private _hasNonMultiCursorModifier(data: IMouseDispatchData): boolean {
 		switch (this.configuration.options.get(EditorOption.multiCursorModifier)) {
 			case 'altKey':
 				return data.ctrlKey || data.metaKey;
@@ -138,7 +138,7 @@ export class ViewController {
 			this._columnSelect(data.position, data.mouseColumn, data.inSelectionMode);
 		} else if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
-			if (this._hasMulticursorModifier(data)) {
+			if (this._hasMultiCursorModifier(data)) {
 				if (data.inSelectionMode) {
 					this._lastCursorLineSelect(data.position);
 				} else {
@@ -154,7 +154,7 @@ export class ViewController {
 		} else if (data.mouseDownCount >= 4) {
 			this._selectAll();
 		} else if (data.mouseDownCount === 3) {
-			if (this._hasMulticursorModifier(data)) {
+			if (this._hasMultiCursorModifier(data)) {
 				if (data.inSelectionMode) {
 					this._lastCursorLineSelectDrag(data.position);
 				} else {
@@ -168,7 +168,7 @@ export class ViewController {
 				}
 			}
 		} else if (data.mouseDownCount === 2) {
-			if (this._hasMulticursorModifier(data)) {
+			if (this._hasMultiCursorModifier(data)) {
 				this._lastCursorWordSelect(data.position);
 			} else {
 				if (data.inSelectionMode) {
@@ -178,8 +178,8 @@ export class ViewController {
 				}
 			}
 		} else {
-			if (this._hasMulticursorModifier(data)) {
-				if (!this._hasNonMulticursorModifier(data)) {
+			if (this._hasMultiCursorModifier(data)) {
+				if (!this._hasNonMultiCursorModifier(data)) {
 					if (data.shiftKey) {
 						this._columnSelect(data.position, data.mouseColumn, true);
 					} else {

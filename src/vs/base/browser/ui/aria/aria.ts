@@ -57,7 +57,7 @@ function insertMessage(target: HTMLElement, msg: string, disableRepeat?: boolean
 
 	// If the same message should be inserted that is already present, a screen reader would
 	// not announce this message because it matches the previous one. As a workaround, we
-	// alter the message with the number of occurences unless this is explicitly disabled
+	// alter the message with the number of occurrences unless this is explicitly disabled
 	// via the disableRepeat flag.
 	if (!disableRepeat) {
 		if (prevText === msg) {

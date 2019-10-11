@@ -160,7 +160,7 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 			firstLine = value.substring(0, firstLF);
 		}
 
-		return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(uri || null, firstLine), uri);
+		return doCreateModel(value, StaticServices.modeService.get().createByFilePathOrFirstLine(uri || null, firstLine), uri);
 	}
 	return doCreateModel(value, StaticServices.modeService.get().create(language), uri);
 }

@@ -126,7 +126,7 @@ export interface V8CallSite {
 	getLineNumber(): number;
 	getColumnNumber(): number;
 	getEvalOrigin(): string;
-	isToplevel(): boolean;
+	isTopLevel(): boolean;
 	isEval(): boolean;
 	isNative(): boolean;
 	isConstructor(): boolean;

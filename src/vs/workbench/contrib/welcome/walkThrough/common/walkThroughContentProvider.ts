@@ -52,7 +52,7 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 
 		let codeEditorModel = this.modelService.getModel(resource);
 		if (!codeEditorModel) {
-			codeEditorModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource), resource);
+			codeEditorModel = this.modelService.createModel(content, this.modeService.createByFilePathOrFirstLine(resource), resource);
 		} else {
 			this.modelService.updateModel(codeEditorModel, content);
 		}

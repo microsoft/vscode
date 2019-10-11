@@ -62,7 +62,7 @@ interface LocalClipboardMetadata {
 
 /**
  * Every time we write to the clipboard, we record a bit of extra metadata here.
- * Every time we read from the cipboard, if the text matches our last written text,
+ * Every time we read from the clipboard, if the text matches our last written text,
  * we can fetch the previous metadata.
  */
 class LocalClipboardMetadataManager {
@@ -177,11 +177,11 @@ export class TextAreaHandler extends ViewPart {
 				const newLineCharacter = this._context.model.getEOL();
 
 				const isFromEmptySelection = (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty());
-				const multicursorText = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy : null);
+				const multiCursorText = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy : null);
 				const whatToCopy = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy.join(newLineCharacter) : rawWhatToCopy);
 
 				let metadata: LocalClipboardMetadata | null = null;
-				if (isFromEmptySelection || multicursorText) {
+				if (isFromEmptySelection || multiCursorText) {
 					// Only store the non-default metadata
 
 					// When writing "LINE\r\n" to the clipboard and then pasting,
@@ -190,7 +190,7 @@ export class TextAreaHandler extends ViewPart {
 					metadata = {
 						lastCopiedValue: lastCopiedValue,
 						isFromEmptySelection: (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty()),
-						multicursorText: multicursorText
+						multicursorText: multiCursorText
 					};
 				}
 

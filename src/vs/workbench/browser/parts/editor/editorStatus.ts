@@ -973,7 +973,7 @@ export class ChangeModeAction extends Action {
 					if (textModel) {
 						const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 						if (resource) {
-							languageSelection = this.modeService.createByFilepathOrFirstLine(resource, textModel.getLineContent(1));
+							languageSelection = this.modeService.createByFilePathOrFirstLine(resource, textModel.getLineContent(1));
 						}
 					}
 				} else {
@@ -991,7 +991,7 @@ export class ChangeModeAction extends Action {
 	private configureFileAssociation(resource: URI): void {
 		const extension = extname(resource);
 		const base = basename(resource);
-		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(base));
+		const currentAssociation = this.modeService.getModeIdByFilePathOrFirstLine(URI.file(base));
 
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {

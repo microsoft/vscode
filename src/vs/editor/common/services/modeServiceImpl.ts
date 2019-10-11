@@ -95,8 +95,8 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
 	}
 
-	public getModeIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
-		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(resource, firstLine);
+	public getModeIdByFilePathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
+		const modeIds = this._registry.getModeIdsFromFilePathOrFirstLine(resource, firstLine);
 		return firstOrDefault(modeIds, null);
 	}
 
@@ -129,9 +129,9 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
+	public createByFilePathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const modeId = this.getModeIdByFilepathOrFirstLine(resource, firstLine);
+			const modeId = this.getModeIdByFilePathOrFirstLine(resource, firstLine);
 			return this._createModeAndGetLanguageIdentifier(modeId);
 		});
 	}

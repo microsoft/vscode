@@ -226,7 +226,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	/**
-	 * launch or attach to the debuggee
+	 * launch or attach to the debugger
 	 */
 	launchOrAttach(config: IConfig): Promise<void> {
 		if (this.raw) {

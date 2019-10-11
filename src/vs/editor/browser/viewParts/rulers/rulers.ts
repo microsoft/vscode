@@ -18,7 +18,7 @@ export class Rulers extends ViewPart {
 	public domNode: FastDomNode<HTMLElement>;
 	private readonly _renderedRulers: FastDomNode<HTMLElement>[];
 	private _rulers: number[];
-	private _typicalHalfwidthCharacterWidth: number;
+	private _typicalFullWidthCharacterWidth: number;
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -29,7 +29,7 @@ export class Rulers extends ViewPart {
 		this._renderedRulers = [];
 		const options = this._context.configuration.options;
 		this._rulers = options.get(EditorOption.rulers);
-		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		this._typicalFullWidthCharacterWidth = options.get(EditorOption.fontInfo).typicalFullwidthCharacterWidth;
 	}
 
 	public dispose(): void {
@@ -41,7 +41,7 @@ export class Rulers extends ViewPart {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		this._rulers = options.get(EditorOption.rulers);
-		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		this._typicalFullWidthCharacterWidth = options.get(EditorOption.fontInfo).typicalFullwidthCharacterWidth;
 		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
@@ -94,7 +94,7 @@ export class Rulers extends ViewPart {
 			const node = this._renderedRulers[i];
 
 			node.setHeight(Math.min(ctx.scrollHeight, 1000000));
-			node.setLeft(this._rulers[i] * this._typicalHalfwidthCharacterWidth);
+			node.setLeft(this._rulers[i] * this._typicalFullWidthCharacterWidth);
 		}
 	}
 }

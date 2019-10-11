@@ -190,7 +190,6 @@ export class TextAreaState {
 
 		if (currentSelectionStart === currentSelectionEnd) {
 			// composition accept case (noticed in FF + Japanese)
-			// [blahblah] => blahblah|
 			if (
 				previousValue === currentValue
 				&& previousSelectionStart === 0
@@ -252,8 +251,8 @@ export class PagedScreenReaderStrategy {
 
 		const lastLine = model.getLineCount();
 		const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
-		const posttextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn))!;
-		let posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
+		const postTextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn))!;
+		let postText = model.getValueInRange(postTextRange, EndOfLinePreference.LF);
 
 
 		let text: string;
@@ -277,14 +276,14 @@ export class PagedScreenReaderStrategy {
 			if (pretext.length > LIMIT_CHARS) {
 				pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
 			}
-			if (posttext.length > LIMIT_CHARS) {
-				posttext = posttext.substring(0, LIMIT_CHARS);
+			if (postText.length > LIMIT_CHARS) {
+				postText = postText.substring(0, LIMIT_CHARS);
 			}
 			if (text.length > 2 * LIMIT_CHARS) {
 				text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 			}
 		}
 
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));
+		return new TextAreaState(pretext + text + postText, pretext.length, pretext.length + text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));
 	}
 }

@@ -203,7 +203,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 			if (textFileModel) {
 				languageSelector = this.modeService.create(textFileModel.getModeId());
 			} else {
-				languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource);
+				languageSelector = this.modeService.createByFilePathOrFirstLine(savedFileResource);
 			}
 
 			codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);

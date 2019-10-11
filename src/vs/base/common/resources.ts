@@ -45,7 +45,7 @@ export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = ha
 }
 
 /**
- * Tests wheter the two authorities are the same
+ * Tests whether the two authorities are the same
  */
 export function isEqualAuthority(a1: string, a2: string) {
 	return a1 === a2 || equalsIgnoreCase(a1, a2);

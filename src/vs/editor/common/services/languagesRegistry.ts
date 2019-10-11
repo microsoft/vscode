@@ -323,7 +323,7 @@ export class LanguagesRegistry extends Disposable {
 		return [];
 	}
 
-	public getModeIdsFromFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
+	public getModeIdsFromFilePathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
 		if (!resource && !firstLine) {
 			return [];
 		}

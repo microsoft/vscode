@@ -85,7 +85,7 @@ export function detectModeId(modelService: IModelService, modeService: IModeServ
 	}
 
 	// otherwise fallback to path based detection
-	return modeService.getModeIdByFilepathOrFirstLine(resource);
+	return modeService.getModeIdByFilePathOrFirstLine(resource);
 }
 
 export function cssEscape(val: string): string {

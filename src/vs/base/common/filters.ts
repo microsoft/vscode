@@ -357,8 +357,8 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 }
 
 /**
- * Match pattern againt word in a fuzzy way. As in IntelliSense and faster and more
- * powerfull than `matchesFuzzy`
+ * Match pattern against word in a fuzzy way. As in IntelliSense and faster and more
+ * powerful than `matchesFuzzy`
  */
 export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
 	const score = fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, true);

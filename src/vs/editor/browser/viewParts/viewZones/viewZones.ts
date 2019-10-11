@@ -71,7 +71,7 @@ export class ViewZones extends ViewPart {
 
 	// ---- begin view event handlers
 
-	private _recomputeWhitespacesProps(): boolean {
+	private _recomputeWhiteSpacesProps(): boolean {
 		let hadAChange = false;
 
 		const keys = Object.keys(this._zones);
@@ -97,14 +97,14 @@ export class ViewZones extends ViewPart {
 		this._contentLeft = layoutInfo.contentLeft;
 
 		if (e.hasChanged(EditorOption.lineHeight)) {
-			this._recomputeWhitespacesProps();
+			this._recomputeWhiteSpacesProps();
 		}
 
 		return true;
 	}
 
 	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
-		const hadAChange = this._recomputeWhitespacesProps();
+		const hadAChange = this._recomputeWhiteSpacesProps();
 		if (hadAChange) {
 			this._context.viewLayout.onHeightMaybeChanged();
 		}

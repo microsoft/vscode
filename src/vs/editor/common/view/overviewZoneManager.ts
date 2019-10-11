@@ -196,18 +196,18 @@ export class OverviewZoneManager {
 			const y1 = Math.floor(heightRatio * (this._getVerticalOffsetForLine(zone.startLineNumber)));
 			const y2 = Math.floor(heightRatio * (this._getVerticalOffsetForLine(zone.endLineNumber) + lineHeight));
 
-			let ycenter = Math.floor((y1 + y2) / 2);
-			let halfHeight = (y2 - ycenter);
+			let yCenter = Math.floor((y1 + y2) / 2);
+			let halfHeight = (y2 - yCenter);
 
 			if (halfHeight < halfMinimumHeight) {
 				halfHeight = halfMinimumHeight;
 			}
 
-			if (ycenter - halfHeight < 0) {
-				ycenter = halfHeight;
+			if (yCenter - halfHeight < 0) {
+				yCenter = halfHeight;
 			}
-			if (ycenter + halfHeight > totalHeight) {
-				ycenter = totalHeight - halfHeight;
+			if (yCenter + halfHeight > totalHeight) {
+				yCenter = totalHeight - halfHeight;
 			}
 
 			const color = zone.color;
@@ -217,7 +217,7 @@ export class OverviewZoneManager {
 				this._color2Id[color] = colorId;
 				this._id2Color[colorId] = color;
 			}
-			const colorZone = new ColorZone(ycenter - halfHeight, ycenter + halfHeight, colorId);
+			const colorZone = new ColorZone(yCenter - halfHeight, yCenter + halfHeight, colorId);
 
 			zone.setColorZone(colorZone);
 			allColorZones.push(colorZone);
