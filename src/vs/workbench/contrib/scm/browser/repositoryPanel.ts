@@ -382,8 +382,7 @@ function asTreeElement(node: INode<ISCMResource, ISCMResourceGroup>, incompressi
 		return {
 			element: node,
 			children: Iterator.map(node.children, node => asTreeElement(node, false)),
-			incompressible,
-			collapsed: false
+			incompressible
 		};
 	}
 

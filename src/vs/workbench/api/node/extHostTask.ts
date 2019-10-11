@@ -19,7 +19,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostTaskBase, TaskHandleDTO, TaskDTO, CustomExecution2DTO, HandlerData } from 'vs/workbench/api/common/extHostTask';
+import { ExtHostTaskBase, TaskHandleDTO, TaskDTO, CustomExecutionDTO, HandlerData } from 'vs/workbench/api/common/extHostTask';
 import { Schemas } from 'vs/base/common/network';
 
 export class ExtHostTask extends ExtHostTaskBase {
@@ -56,8 +56,8 @@ export class ExtHostTask extends ExtHostTaskBase {
 			// If this task is a custom execution, then we need to save it away
 			// in the provided custom execution map that is cleaned up after the
 			// task is executed.
-			if (CustomExecution2DTO.is(dto.execution)) {
-				await this.addCustomExecution2(dto, <vscode.Task2>task, false);
+			if (CustomExecutionDTO.is(dto.execution)) {
+				await this.addCustomExecution(dto, <vscode.Task2>task, false);
 			}
 
 			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
@@ -76,11 +76,11 @@ export class ExtHostTask extends ExtHostTaskBase {
 				if (taskDTO) {
 					taskDTOs.push(taskDTO);
 
-					if (CustomExecution2DTO.is(taskDTO.execution)) {
+					if (CustomExecutionDTO.is(taskDTO.execution)) {
 						// The ID is calculated on the main thread task side, so, let's call into it here.
 						// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 						// is invoked, we have to be able to map it back to our data.
-						taskIdPromises.push(this.addCustomExecution2(taskDTO, <vscode.Task2>task, true));
+						taskIdPromises.push(this.addCustomExecution(taskDTO, <vscode.Task2>task, true));
 					}
 				}
 			}

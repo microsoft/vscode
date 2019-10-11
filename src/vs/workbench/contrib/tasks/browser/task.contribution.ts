@@ -330,6 +330,11 @@ configurationRegistry.registerConfiguration({
 				}
 			],
 			default: false
+		},
+		'task.autoDetect': {
+			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions my provide settings to disabled auto detection."),
+			type: 'boolean',
+			default: true
 		}
 	}
 });
