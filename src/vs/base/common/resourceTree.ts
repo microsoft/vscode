@@ -11,58 +11,48 @@ import { URI } from 'vs/base/common/uri';
 import { mapValues } from 'vs/base/common/collections';
 import { PathIterator } from 'vs/base/common/map';
 
-export interface ILeafNode<T, C = void> {
+export interface IResourceNode<T, C = void> {
 	readonly uri: URI;
 	readonly relativePath: string;
 	readonly name: string;
-	readonly element: T;
+	readonly element: T | undefined;
+	readonly children: Iterator<IResourceNode<T, C>>;
+	readonly childrenCount: number;
+	readonly parent: IResourceNode<T, C> | undefined;
 	readonly context: C;
+	get(childName: string): IResourceNode<T, C> | undefined;
 }
 
-export interface IBranchNode<T, C = void> {
-	readonly uri: URI;
-	readonly relativePath: string;
-	readonly name: string;
-	readonly size: number;
-	readonly children: Iterator<INode<T, C>>;
-	readonly parent: IBranchNode<T, C> | undefined;
-	readonly context: C;
-	get(childName: string): INode<T, C> | undefined;
-}
+class Node<T, C> implements IResourceNode<T, C> {
 
-export type INode<T, C> = IBranchNode<T, C> | ILeafNode<T, C>;
+	private _children = new Map<string, Node<T, C>>();
 
-// Internals
-
-class Node<C> {
-
-	@memoize
-	get name(): string { return paths.posix.basename(this.relativePath); }
-
-	constructor(readonly uri: URI, readonly relativePath: string, readonly context: C) { }
-}
-
-class BranchNode<T, C> extends Node<C> implements IBranchNode<T, C> {
-
-	private _children = new Map<string, BranchNode<T, C> | LeafNode<T, C>>();
-
-	get size(): number {
+	get childrenCount(): number {
 		return this._children.size;
 	}
 
-	get children(): Iterator<BranchNode<T, C> | LeafNode<T, C>> {
+	get children(): Iterator<Node<T, C>> {
 		return Iterator.fromArray(mapValues(this._children));
 	}
 
-	constructor(uri: URI, relativePath: string, context: C, readonly parent: IBranchNode<T, C> | undefined = undefined) {
-		super(uri, relativePath, context);
+	@memoize
+	get name(): string {
+		return paths.posix.basename(this.relativePath);
 	}
 
-	get(path: string): BranchNode<T, C> | LeafNode<T, C> | undefined {
+	constructor(
+		readonly uri: URI,
+		readonly relativePath: string,
+		readonly context: C,
+		public element: T | undefined = undefined,
+		readonly parent: IResourceNode<T, C> | undefined = undefined
+	) { }
+
+	get(path: string): Node<T, C> | undefined {
 		return this._children.get(path);
 	}
 
-	set(path: string, child: BranchNode<T, C> | LeafNode<T, C>): void {
+	set(path: string, child: Node<T, C>): void {
 		this._children.set(path, child);
 	}
 
@@ -75,32 +65,21 @@ class BranchNode<T, C> extends Node<C> implements IBranchNode<T, C> {
 	}
 }
 
-class LeafNode<T, C> extends Node<C> implements ILeafNode<T, C> {
-
-	constructor(uri: URI, path: string, context: C, readonly element: T) {
-		super(uri, path, context);
-	}
-}
-
-function collect<T, C>(node: INode<T, C>, result: T[]): T[] {
-	if (ResourceTree.isBranchNode(node)) {
-		Iterator.forEach(node.children, child => collect(child, result));
-	} else {
+function collect<T, C>(node: IResourceNode<T, C>, result: T[]): T[] {
+	if (typeof node.element !== 'undefined') {
 		result.push(node.element);
 	}
+
+	Iterator.forEach(node.children, child => collect(child, result));
 
 	return result;
 }
 
 export class ResourceTree<T extends NonNullable<any>, C> {
 
-	readonly root: BranchNode<T, C>;
+	readonly root: Node<T, C>;
 
-	static isBranchNode<T, C>(obj: any): obj is IBranchNode<T, C> {
-		return obj instanceof BranchNode;
-	}
-
-	static getRoot<T, C>(node: IBranchNode<T, C>): IBranchNode<T, C> {
+	static getRoot<T, C>(node: IResourceNode<T, C>): IResourceNode<T, C> {
 		while (node.parent) {
 			node = node.parent;
 		}
@@ -108,12 +87,16 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 		return node;
 	}
 
-	static collect<T, C>(node: INode<T, C>): T[] {
+	static collect<T, C>(node: IResourceNode<T, C>): T[] {
 		return collect(node, []);
 	}
 
+	static isResourceNode<T, C>(obj: any): obj is IResourceNode<T, C> {
+		return obj instanceof Node;
+	}
+
 	constructor(context: C, rootURI: URI = URI.file('/')) {
-		this.root = new BranchNode(rootURI, '', context);
+		this.root = new Node(rootURI, '', context);
 	}
 
 	add(uri: URI, element: T): void {
@@ -129,26 +112,17 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 			let child = node.get(name);
 
 			if (!child) {
-				if (iterator.hasNext()) {
-					child = new BranchNode(joinPath(this.root.uri, path), path, this.root.context, node);
-					node.set(name, child);
-				} else {
-					child = new LeafNode(uri, path, this.root.context, element);
-					node.set(name, child);
-					return;
-				}
-			}
+				child = new Node(
+					joinPath(this.root.uri, path),
+					path,
+					this.root.context,
+					iterator.hasNext() ? undefined : element,
+					node
+				);
 
-			if (!(child instanceof BranchNode)) {
-				if (iterator.hasNext()) {
-					throw new Error('Inconsistent tree: can\'t override leaf with branch.');
-				}
-
-				// replace
-				node.set(name, new LeafNode(uri, path, this.root.context, element));
-				return;
+				node.set(name, child);
 			} else if (!iterator.hasNext()) {
-				throw new Error('Inconsistent tree: can\'t override branch with leaf.');
+				child.element = element;
 			}
 
 			node = child;
@@ -167,7 +141,7 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 		return this._delete(this.root, iterator);
 	}
 
-	private _delete(node: BranchNode<T, C>, iterator: PathIterator): T | undefined {
+	private _delete(node: Node<T, C>, iterator: PathIterator): T | undefined {
 		const name = iterator.value();
 		const child = node.get(name);
 
@@ -175,25 +149,14 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 			return undefined;
 		}
 
-		// not at end
 		if (iterator.hasNext()) {
-			if (child instanceof BranchNode) {
-				const result = this._delete(child, iterator.next());
+			const result = this._delete(child, iterator.next());
 
-				if (typeof result !== 'undefined' && child.size === 0) {
-					node.delete(name);
-				}
-
-				return result;
-			} else {
-				throw new Error('Inconsistent tree: Expected a branch, found a leaf instead.');
+			if (typeof result !== 'undefined' && child.childrenCount === 0) {
+				node.delete(name);
 			}
-		}
 
-		//at end
-		if (child instanceof BranchNode) {
-			// TODO: maybe we can allow this
-			throw new Error('Inconsistent tree: Expected a leaf, found a branch instead.');
+			return result;
 		}
 
 		node.delete(name);
@@ -202,5 +165,23 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 
 	clear(): void {
 		this.root.clear();
+	}
+
+	getNode(uri: URI): IResourceNode<T, C> | undefined {
+		const key = relativePath(this.root.uri, uri) || uri.fsPath;
+		const iterator = new PathIterator(false).reset(key);
+		let node = this.root;
+
+		while (true) {
+			const name = iterator.value();
+			const child = node.get(name);
+
+			if (!child || !iterator.hasNext()) {
+				return child;
+			}
+
+			node = child;
+			iterator.next();
+		}
 	}
 }
