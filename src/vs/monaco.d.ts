@@ -44,7 +44,7 @@ declare namespace monaco {
 		constructor(parent?: CancellationToken);
 		readonly token: CancellationToken;
 		cancel(): void;
-		dispose(): void;
+		dispose(cancel?: boolean): void;
 	}
 
 	export interface CancellationToken {
@@ -379,8 +379,8 @@ declare namespace monaco {
 	}
 
 	export interface IMarkdownString {
-		value: string;
-		isTrusted?: boolean;
+		readonly value: string;
+		readonly isTrusted?: boolean;
 		uris?: {
 			[href: string]: UriComponents;
 		};
@@ -2581,7 +2581,7 @@ declare namespace monaco.editor {
 		 * Enable font ligatures.
 		 * Defaults to false.
 		 */
-		fontLigatures?: boolean;
+		fontLigatures?: boolean | string;
 		/**
 		 * Disable the use of `will-change` for the editor margin and lines layers.
 		 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
@@ -4124,6 +4124,7 @@ declare namespace monaco.editor {
 		readonly fontFamily: string;
 		readonly fontWeight: string;
 		readonly fontSize: number;
+		readonly fontFeatureSettings: string;
 		readonly lineHeight: number;
 		readonly letterSpacing: number;
 	}

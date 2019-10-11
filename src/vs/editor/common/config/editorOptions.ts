@@ -178,7 +178,7 @@ export interface IEditorOptions {
 	 * Enable font ligatures.
 	 * Defaults to false.
 	 */
-	fontLigatures?: boolean;
+	fontLigatures?: boolean | string;
 	/**
 	 * Disable the use of `will-change` for the editor margin and lines layers.
 	 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
@@ -641,6 +641,9 @@ export interface IEditorOption<K1 extends EditorOption, V> {
 type PossibleKeyName0<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
 type PossibleKeyName<V> = NonNullable<PossibleKeyName0<V>>;
 
+/**
+ * @internal
+ */
 abstract class BaseEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1, V> {
 
 	public readonly id: K1;
@@ -1044,7 +1047,7 @@ function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'l
 class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName, string> {
 
 	constructor() {
-		super(EditorOption.editorClassName, [EditorOption.mouseStyle, EditorOption.fontLigatures, EditorOption.extraEditorClassName]);
+		super(EditorOption.editorClassName, [EditorOption.mouseStyle, EditorOption.extraEditorClassName]);
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: string): string {
@@ -1054,9 +1057,6 @@ class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName,
 		}
 		if (env.extraEditorClassName) {
 			className += ' ' + env.extraEditorClassName;
-		}
-		if (options.get(EditorOption.fontLigatures)) {
-			className += ' enable-ligatures';
 		}
 		if (options.get(EditorOption.mouseStyle) === 'default') {
 			className += ' mouse-default';
@@ -1162,6 +1162,57 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 			globalFindClipboard: EditorBooleanOption.boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop)
 		};
+	}
+}
+
+//#endregion
+
+//#region fontLigatures
+
+/**
+ * @internal
+ */
+export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigatures, string> {
+
+	public static OFF = '"liga" off, "calt" off';
+	public static ON = '"liga" on, "calt" on';
+
+	constructor() {
+		super(
+			EditorOption.fontLigatures, 'fontLigatures', EditorFontLigatures.OFF,
+			{
+				anyOf: [
+					{
+						type: 'boolean',
+						description: nls.localize('fontLigatures', "Enables/Disables font ligatures."),
+					},
+					{
+						type: 'string',
+						description: nls.localize('fontFeatureSettings', "Explicit font-feature-settings.")
+					}
+				],
+				default: false
+			}
+		);
+	}
+
+	public validate(input: any): string {
+		if (typeof input === 'undefined') {
+			return this.defaultValue;
+		}
+		if (typeof input === 'string') {
+			if (input === 'false') {
+				return EditorFontLigatures.OFF;
+			}
+			if (input === 'true') {
+				return EditorFontLigatures.ON;
+			}
+			return input;
+		}
+		if (Boolean(input)) {
+			return EditorFontLigatures.ON;
+		}
+		return EditorFontLigatures.OFF;
 	}
 }
 
@@ -2910,10 +2961,7 @@ export const EditorOptions = {
 		{ description: nls.localize('fontFamily', "Controls the font family.") }
 	)),
 	fontInfo: register(new EditorFontInfo()),
-	fontLigatures: register(new EditorBooleanOption(
-		EditorOption.fontLigatures, 'fontLigatures', false,
-		{ description: nls.localize('fontLigatures', "Enables/Disables font ligatures.") }
-	)),
+	fontLigatures2: register(new EditorFontLigatures()),
 	fontSize: register(new EditorFontSize()),
 	fontWeight: register(new EditorStringOption(
 		EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight,

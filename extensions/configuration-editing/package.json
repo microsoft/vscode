@@ -37,7 +37,8 @@
           "launch.json",
           "tasks.json",
           "keybindings.json",
-          "extensions.json"
+          "extensions.json",
+          "argv.json"
         ]
       }
     ],
