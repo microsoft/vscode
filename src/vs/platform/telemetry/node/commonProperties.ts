@@ -39,7 +39,7 @@ export async function resolveCommonProperties(
 
 	const msftInternal = verifyMicrosoftInternalDomain(msftInternalDomains || []);
 	if (msftInternal) {
-		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		result['common.msftInternal'] = msftInternal;
 	}
 

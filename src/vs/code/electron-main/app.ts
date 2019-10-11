@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, Event as IpcMainEvent, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -592,7 +592,9 @@ export class CodeApplication extends Disposable {
 				// Catch file URLs
 				if (uri.authority === Schemas.file && !!uri.path) {
 					const cli = assign(Object.create(null), environmentService.args);
-					const urisToOpen = [{ fileUri: uri }];
+
+					// hey Ben, we need to convert this `code://file` URI into a `file://` URI
+					const urisToOpen = [{ fileUri: URI.file(uri.fsPath) }];
 
 					windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
 

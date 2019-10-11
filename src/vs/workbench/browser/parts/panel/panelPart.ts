@@ -60,13 +60,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	readonly snap = true;
 
 	get preferredHeight(): number | undefined {
-		const sidebarDimension = assertIsDefined(this.layoutService.getDimension(Parts.SIDEBAR_PART));
-		return sidebarDimension.height * 0.4;
+		// Don't worry about titlebar or statusbar visibility
+		// The difference is minimal and keeps this function clean
+		return this.layoutService.dimension.height * 0.4;
 	}
 
 	get preferredWidth(): number | undefined {
-		const statusbarDimension = assertIsDefined(this.layoutService.getDimension(Parts.STATUSBAR_PART));
-		return statusbarDimension.width * 0.4;
+		return this.layoutService.dimension.width * 0.4;
 	}
 
 	//#endregion

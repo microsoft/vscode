@@ -57,8 +57,8 @@ export class ColorThemeStore {
 	private readonly onDidChangeEmitter = new Emitter<ColorThemeChangeEvent>();
 	public readonly onDidChange: Event<ColorThemeChangeEvent> = this.onDidChangeEmitter.event;
 
-	constructor(@IExtensionService private readonly extensionService: IExtensionService, defaultTheme: ColorThemeData) {
-		this.extensionsColorThemes = [defaultTheme];
+	constructor(@IExtensionService private readonly extensionService: IExtensionService) {
+		this.extensionsColorThemes = [];
 		this.initialize();
 	}
 
@@ -69,7 +69,7 @@ export class ColorThemeStore {
 			for (const theme of this.extensionsColorThemes) {
 				previousIds[theme.id] = true;
 			}
-			this.extensionsColorThemes.length = 1; // remove all but the default theme
+			this.extensionsColorThemes.length = 0;
 			for (let ext of extensions) {
 				let extensionData = {
 					extensionId: ext.description.identifier.value,
@@ -114,11 +114,7 @@ export class ColorThemeStore {
 			}
 
 			let themeData = ColorThemeData.fromExtensionTheme(theme, colorThemeLocation, extensionData);
-			if (themeData.id === this.extensionsColorThemes[0].id) {
-				this.extensionsColorThemes[0] = themeData;
-			} else {
-				this.extensionsColorThemes.push(themeData);
-			}
+			this.extensionsColorThemes.push(themeData);
 		});
 	}
 

@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
-import { illegalArgument } from 'vs/base/common/errors';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -15,7 +14,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
@@ -75,7 +74,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private cachedViewlets: ICachedViewlet[] = [];
 
 	private compositeBar: CompositeBar;
-	private compositeActions: Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
+	private readonly compositeActions: Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
 
 	private readonly viewletDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
@@ -169,7 +168,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (foundViewlet) {
 			this.compositeBar.addComposite(foundViewlet);
 		}
+
 		this.compositeBar.activateComposite(viewlet.getId());
+
 		const viewletDescriptor = this.viewletService.getViewlet(viewlet.getId());
 		if (viewletDescriptor) {
 			const viewContainer = this.getViewContainer(viewletDescriptor.id);
@@ -191,7 +192,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			return this.showGlobalActivity(badge, clazz);
 		}
 
-		throw illegalArgument('globalActivityId');
+		return Disposable.None;
 	}
 
 	private showGlobalActivity(badge: IBadge, clazz?: string): IDisposable {
@@ -222,7 +223,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Menubar: install a custom menu bar depending on configuration
 		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 		this.customMenubar.create(this.menubar);
-
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -295,6 +295,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			name: nls.localize('manage', "Manage"),
 			cssClass: 'update-activity'
 		});
+
 		this.globalActivityActionBar.push(this.globalActivityAction);
 	}
 
@@ -340,6 +341,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				}
 			}
 		}
+
 		for (const viewlet of viewlets) {
 			this.enableCompositeActions(viewlet);
 			const viewContainer = this.getViewContainer(viewlet.id);
@@ -358,6 +360,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (disposable) {
 			disposable.dispose();
 		}
+
 		this.viewletDisposables.delete(viewletId);
 		this.hideComposite(viewletId);
 	}
@@ -375,6 +378,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (!viewContainer || !viewContainer.hideIfEmpty) {
 			return false;
 		}
+
 		return cachedViewlet && cachedViewlet.views && cachedViewlet.views.length
 			? cachedViewlet.views.every(({ when }) => !!when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))
 			: viewletId === TEST_VIEW_CONTAINER_ID /* Hide Test viewlet for the first time or it had no views registered before */;
@@ -391,6 +395,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private hideComposite(compositeId: string): void {
 		this.compositeBar.hideComposite(compositeId);
+
 		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();

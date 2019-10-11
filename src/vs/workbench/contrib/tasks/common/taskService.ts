@@ -62,6 +62,7 @@ export interface ITaskService {
 	inTerminal(): boolean;
 	isActive(): Promise<boolean>;
 	getActiveTasks(): Promise<Task[]>;
+	getBusyTasks(): Promise<Task[]>;
 	restart(task: Task): void;
 	terminate(task: Task): Promise<TaskTerminateResponse>;
 	terminateAll(): Promise<TaskTerminateResponse[]>;

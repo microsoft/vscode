@@ -73,11 +73,6 @@ export interface Webview extends IDisposable {
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
 	sendMessage(data: any): void;
-	update(
-		html: string,
-		options: WebviewContentOptions,
-		retainContextWhenHidden: boolean
-	): void;
 
 	layout(): void;
 	focus(): void;

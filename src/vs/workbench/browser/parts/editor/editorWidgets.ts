@@ -75,9 +75,9 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 				this._domNode.style.color = foregroundColor.toString();
 			}
 
-			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : null;
-			this._domNode.style.borderWidth = borderColor ? '1px' : null;
-			this._domNode.style.borderStyle = borderColor ? 'solid' : null;
+			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+			this._domNode.style.borderWidth = borderColor ? '1px' : '';
+			this._domNode.style.borderStyle = borderColor ? 'solid' : '';
 			this._domNode.style.borderColor = borderColor;
 		}));
 

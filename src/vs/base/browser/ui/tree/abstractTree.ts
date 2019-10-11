@@ -780,8 +780,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const onDragEnd = () => {
 			this.positionClassName = positionClassName;
 			this.domNode.className = `monaco-list-type-filter ${this.positionClassName}`;
-			this.domNode.style.top = null;
-			this.domNode.style.left = null;
+			this.domNode.style.top = '';
+			this.domNode.style.left = '';
 
 			dispose(disposables);
 		};

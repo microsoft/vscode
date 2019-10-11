@@ -24,6 +24,7 @@ import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLi
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import * as platform from 'vs/base/common/platform';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -128,6 +129,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		super.dispose();
 		this.decorations.dispose();
 		this.lines.dispose();
+		this.invalidateMinimapColorCache();
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 	}
 
@@ -713,7 +715,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			if (lineContent === '') {
 				result += '<br>';
 			} else {
-				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize);
+				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize, platform.isWindows);
 			}
 		}
 
