@@ -119,6 +119,10 @@
         {
           "command": "npm.runSelectedScript",
           "when": "false"
+        },
+        {
+          "command": "npm.runScriptFromFolder",
+          "when": "false"
         }
       ],
       "editor/context": [
