@@ -434,7 +434,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 				}
 			} else {
 				DOM.removeClass(groupData.container, 'results-group-separator');
-				groupData.container.style.borderTopColor = null;
+				groupData.container.style.borderTopColor = '';
 			}
 
 			// Group Label

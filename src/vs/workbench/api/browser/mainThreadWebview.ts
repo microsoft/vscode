@@ -20,7 +20,7 @@ import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import { ICreateWebViewShowOptions, WebviewInputOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -80,7 +80,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IProductService private readonly _productService: IProductService,
@@ -93,7 +93,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		// This reviver's only job is to activate webview panel extensions
 		// This should trigger the real reviver to be registered from the extension host side.
-		this._register(_webviewEditorService.registerResolver({
+		this._register(_webviewWorkbenchService.registerResolver({
 			canResolve: (webview: WebviewInput) => {
 				if (webview.getTypeId() === CustomFileEditorInput.typeId) {
 					extensionService.activateByEvent(`onWebviewEditor:${(webview as CustomFileEditorInput).viewType}`);
@@ -125,7 +125,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
-		const webview = this._webviewEditorService.createWebview(handle, this.getInternalWebviewViewType(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
+		const webview = this._webviewWorkbenchService.createWebview(handle, this.getInternalWebviewViewType(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
 			location: URI.revive(extensionLocation),
 			id: extensionId
 		});
@@ -186,7 +186,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
 		if (targetGroup) {
-			this._webviewEditorService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
+			this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
 		}
 	}
 
@@ -201,7 +201,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			throw new Error(`Reviver for ${viewType} already registered`);
 		}
 
-		this._revivers.set(viewType, this._webviewEditorService.registerResolver({
+		this._revivers.set(viewType, this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewEditorInput) => {
 				return webviewEditorInput.viewType === this.getInternalWebviewViewType(viewType);
 			},
@@ -250,7 +250,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
 
-		this._editorProviders.set(viewType, this._webviewEditorService.registerResolver({
+		this._editorProviders.set(viewType, this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewEditorInput) => {
 				return webviewEditorInput.getTypeId() !== WebviewInput.typeId && webviewEditorInput.viewType === viewType;
 			},
