@@ -54,21 +54,21 @@ const COMMENT_SCHEME = 'comment';
 let INMEM_MODEL_ID = 0;
 
 export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget {
-	private _headElement: HTMLElement;
-	protected _headingLabel: HTMLElement;
-	protected _actionbarWidget: ActionBar;
-	private _bodyElement: HTMLElement;
+	private _headElement!: HTMLElement;
+	protected _headingLabel!: HTMLElement;
+	protected _actionbarWidget!: ActionBar;
+	private _bodyElement!: HTMLElement;
 	private _parentEditor: ICodeEditor;
-	private _commentEditor: ICodeEditor;
-	private _commentsElement: HTMLElement;
-	private _commentElements: CommentNode[];
-	private _commentForm: HTMLElement;
-	private _reviewThreadReplyButton: HTMLElement;
+	private _commentEditor!: ICodeEditor;
+	private _commentsElement!: HTMLElement;
+	private _commentElements: CommentNode[] = [];
+	private _commentForm!: HTMLElement;
+	private _reviewThreadReplyButton!: HTMLElement;
 	private _resizeObserver: any;
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isExpanded?: boolean;
-	private _collapseAction: Action;
+	private _collapseAction!: Action;
 	private _commentGlyph?: CommentGlyphWidget;
 	private _submitActionsDisposables: IDisposable[];
 	private readonly _globalToDispose = new DisposableStore();
@@ -76,12 +76,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
 	private _formActions: HTMLElement | null;
-	private _error: HTMLElement;
+	private _error!: HTMLElement;
 	private _contextKeyService: IContextKeyService;
 	private _threadIsEmpty: IContextKey<boolean>;
 	private _commentThreadContextValue: IContextKey<string>;
-	private _commentEditorIsEmpty: IContextKey<boolean>;
-	private _commentFormActions: CommentFormActions;
+	private _commentEditorIsEmpty!: IContextKey<boolean>;
+	private _commentFormActions!: CommentFormActions;
 
 	public get owner(): string {
 		return this._owner;
