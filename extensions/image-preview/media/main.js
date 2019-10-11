@@ -119,13 +119,7 @@
 
 	function changeActive(value) {
 		if (value) {
-			if (!(isMac ? altPressed : ctrlPressed)) {
-				container.classList.remove('zoom-out');
-				container.classList.add('zoom-in');
-			} else {
-				container.classList.remove('zoom-in');
-				container.classList.add('zoom-out');
-			}
+			container.classList.add('zoom-in');
 			consumeClick = true;
 		} else {
 			ctrlPressed = false;
@@ -277,9 +271,6 @@
 		document.body.classList.remove('loading');
 		document.body.classList.add('ready');
 		document.body.append(image);
-		if (document.hasFocus()) {
-			container.classList.add('zoom-in');
-		}
 
 		updateScale(scale);
 
