@@ -226,7 +226,7 @@ export interface ITerminalInstance {
 	 * is the processes' exit code, an exit code of null means the process was killed as a result of
 	 * the ITerminalInstance being disposed.
 	 */
-	onExit: Event<number>;
+	onExit: Event<number | undefined>;
 
 	processReady: Promise<void>;
 

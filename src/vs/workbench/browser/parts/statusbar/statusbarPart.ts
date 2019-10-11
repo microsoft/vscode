@@ -308,8 +308,8 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 
 class HideStatusbarEntryAction extends Action {
 
-	constructor(id: string, private model: StatusbarViewModel) {
-		super(id, nls.localize('hide', "Hide"), undefined, true);
+	constructor(id: string, name: string, private model: StatusbarViewModel) {
+		super(id, nls.localize('hide', "Hide '{0}'", name), undefined, true);
 	}
 
 	run(): Promise<any> {
@@ -560,7 +560,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		if (statusEntryUnderMouse) {
 			actions.push(new Separator());
-			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, this.viewModel));
+			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, statusEntryUnderMouse.name, this.viewModel));
 		}
 
 		return actions;

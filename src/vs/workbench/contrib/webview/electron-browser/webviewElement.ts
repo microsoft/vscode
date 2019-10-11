@@ -23,7 +23,7 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
-import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
+import { areWebviewInputOptionsEqual } from '../browser/webviewWorkbenchService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
 
 interface IKeydownEvent {
@@ -435,10 +435,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			this._webview = undefined;
 		}
 
-		if (this._webviewFindWidget) {
-			this._webviewFindWidget.dispose();
-			this._webviewFindWidget = undefined;
-		}
 		super.dispose();
 	}
 
@@ -496,18 +492,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 		this.content = {
 			html: value,
 			options: this.content.options,
-			state: this.content.state,
-		};
-		this.doUpdateContent();
-	}
-
-	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
-		if (retainContextWhenHidden && html === this.content.html && areWebviewInputOptionsEqual(options, this.content.options)) {
-			return;
-		}
-		this.content = {
-			html: html,
-			options: options,
 			state: this.content.state,
 		};
 		this.doUpdateContent();

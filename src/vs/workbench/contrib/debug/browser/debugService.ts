@@ -780,9 +780,17 @@ export class DebugService implements IDebugService {
 			});
 			const taskPromise = this.taskService.run(task);
 			if (task.configurationProperties.isBackground) {
-				return new Promise((c, e) => once(e => e.kind === TaskEventKind.Inactive && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
+				return new Promise((c, e) => once(e => {
+					// When a task isBackground it will go inactive when it is safe to launch.
+					// But when a background task is terminated by the user, it will also fire an inactive event.
+					// This means that we will not get to see the real exit code from running the task (undefined when terminated by the user).
+					// Catch the ProcessEnded event here, which occurs before inactive, and capture the exit code to prevent this.
+					return (e.kind === TaskEventKind.Inactive
+						|| (e.kind === TaskEventKind.ProcessEnded && e.exitCode === undefined))
+						&& e.taskId === task._id;
+				}, this.taskService.onDidStateChange)(e => {
 					taskStarted = true;
-					c(null);
+					c(e.kind === TaskEventKind.ProcessEnded ? { exitCode: e.exitCode } : null);
 				}));
 			}
 

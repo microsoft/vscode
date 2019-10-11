@@ -8,7 +8,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 	VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
-	LINUX_NO_SANDBOX=""
+	LINUX_NO_SANDBOX="--no-sandbox" # Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox.
 fi
 
 cd $ROOT

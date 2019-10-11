@@ -91,8 +91,12 @@
 
 .search-view .search-widget .replace-container .monaco-action-bar .action-item .codicon {
 	background-repeat: no-repeat;
-	width: 20px;
+	width: 25px;
 	height: 25px;
+	margin-right: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .search-view .query-details {
@@ -103,10 +107,9 @@
 
 .search-view .query-details .more {
 	position: absolute;
-	margin-right: 0.3em;
 	right: 0;
 	cursor: pointer;
-	width: 16px;
+	width: 25px;
 	height: 16px;
 	z-index: 2; /* Force it above the search results message, which has a negative top margin */
 }

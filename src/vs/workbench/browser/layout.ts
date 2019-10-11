@@ -37,6 +37,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
 import { assertIsDefined } from 'vs/base/common/types';
+import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -135,6 +136,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private viewletService: IViewletService;
 	private contextService: IWorkspaceContextService;
 	private backupFileService: IBackupFileService;
+	private notificationService: INotificationService;
 
 	protected readonly state = {
 		fullscreen: false,
@@ -182,7 +184,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			transitionedToCenteredEditorLayout: false,
 			wasSideBarVisible: false,
 			wasPanelVisible: false,
-			transitionDisposables: new DisposableStore()
+			transitionDisposables: new DisposableStore(),
+			setNotificationsFilter: false
 		},
 
 	};
@@ -210,6 +213,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.panelService = accessor.get(IPanelService);
 		this.viewletService = accessor.get(IViewletService);
 		this.titleService = accessor.get(ITitleService);
+		this.notificationService = accessor.get(INotificationService);
 		accessor.get(IStatusbarService); // not used, but called to ensure instantiated
 		accessor.get(IActivityBarService); // not used, but called to ensure instantiated
 
@@ -650,6 +654,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				hideActivityBar: boolean;
 				hideStatusBar: boolean;
 				hideLineNumbers: boolean;
+				silentNotifications: boolean;
 			} = this.configurationService.getValue('zenMode');
 
 			toggleFullScreen = !this.state.fullscreen && config.fullScreen;
@@ -679,6 +684,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
 			}
 
+			this.state.zenMode.setNotificationsFilter = config.silentNotifications;
+			if (config.silentNotifications) {
+				this.notificationService.setFilter(NotificationsFilter.SILENT);
+			}
+
 			if (config.centerLayout) {
 				this.centerEditorLayout(true, true);
 			}
@@ -704,6 +714,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.doUpdateLayoutConfiguration(true);
 
 			this.editorGroupService.activeGroup.focus();
+			if (this.state.zenMode.setNotificationsFilter) {
+				this.notificationService.setFilter(NotificationsFilter.OFF);
+			}
 
 			toggleFullScreen = this.state.zenMode.transitionedToFullScreen && this.state.fullscreen;
 		}

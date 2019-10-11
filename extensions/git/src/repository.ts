@@ -691,7 +691,9 @@ export class Repository implements Disposable {
 		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, onDotGitFileChange, outputChannel));
 
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, {
+			treeRendering: true
+		});
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
@@ -1474,9 +1476,9 @@ export class Repository implements Disposable {
 		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
 
 		this._HEAD = HEAD;
-		this._refs = refs;
-		this._remotes = remotes;
-		this._submodules = submodules;
+		this._refs = refs!;
+		this._remotes = remotes!;
+		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
 
 		const index: Resource[] = [];

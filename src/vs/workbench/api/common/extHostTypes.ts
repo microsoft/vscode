@@ -1709,11 +1709,11 @@ export class ShellExecution implements vscode.ShellExecution {
 		}
 	}
 
-	get commandLine(): string {
-		return this._commandLine ? this._commandLine : '';
+	get commandLine(): string | undefined {
+		return this._commandLine;
 	}
 
-	set commandLine(value: string) {
+	set commandLine(value: string | undefined) {
 		if (typeof value !== 'string') {
 			throw illegalArgument('commandLine');
 		}
