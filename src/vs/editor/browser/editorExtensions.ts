@@ -6,10 +6,10 @@
 import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { illegalArgument } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -24,6 +24,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
+export type IDiffEditorContributionCtor = IConstructorSignature1<IDiffEditor, IDiffEditorContribution>;
 export type EditorTelemetryDataFragment = {
 	target: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
 	snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true, };
@@ -300,6 +301,10 @@ export function registerEditorContribution(ctor: IEditorContributionCtor): void 
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
 }
 
+export function registerDiffEditorContribution(ctor: IDiffEditorContributionCtor): void {
+	EditorContributionRegistry.INSTANCE.registerDiffEditorContribution(ctor);
+}
+
 export namespace EditorExtensionsRegistry {
 
 	export function getEditorCommand(commandId: string): EditorCommand {
@@ -313,6 +318,10 @@ export namespace EditorExtensionsRegistry {
 	export function getEditorContributions(): IEditorContributionCtor[] {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
 	}
+
+	export function getDiffEditorContributions(): IDiffEditorContributionCtor[] {
+		return EditorContributionRegistry.INSTANCE.getDiffEditorContributions();
+	}
 }
 
 // Editor extension points
@@ -325,11 +334,13 @@ class EditorContributionRegistry {
 	public static readonly INSTANCE = new EditorContributionRegistry();
 
 	private readonly editorContributions: IEditorContributionCtor[];
+	private readonly diffEditorContributions: IDiffEditorContributionCtor[];
 	private readonly editorActions: EditorAction[];
 	private readonly editorCommands: { [commandId: string]: EditorCommand; };
 
 	constructor() {
 		this.editorContributions = [];
+		this.diffEditorContributions = [];
 		this.editorActions = [];
 		this.editorCommands = Object.create(null);
 	}
@@ -338,13 +349,21 @@ class EditorContributionRegistry {
 		this.editorContributions.push(ctor);
 	}
 
+	public getEditorContributions(): IEditorContributionCtor[] {
+		return this.editorContributions.slice(0);
+	}
+
+	public registerDiffEditorContribution(ctor: IDiffEditorContributionCtor): void {
+		this.diffEditorContributions.push(ctor);
+	}
+
+	public getDiffEditorContributions(): IDiffEditorContributionCtor[] {
+		return this.diffEditorContributions.slice(0);
+	}
+
 	public registerEditorAction(action: EditorAction) {
 		action.register();
 		this.editorActions.push(action);
-	}
-
-	public getEditorContributions(): IEditorContributionCtor[] {
-		return this.editorContributions.slice(0);
 	}
 
 	public getEditorActions(): EditorAction[] {
