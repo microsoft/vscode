@@ -152,6 +152,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	};
 
 	private activeTasks: IStringDictionary<ActiveTerminalData>;
+	private busyTasks: IStringDictionary<Task>;
 	private terminals: IStringDictionary<TerminalData>;
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
@@ -180,6 +181,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	) {
 
 		this.activeTasks = Object.create(null);
+		this.busyTasks = Object.create(null);
 		this.terminals = Object.create(null);
 		this.idleTaskTerminals = new LinkedMap<string, string>();
 		this.sameTaskTerminals = Object.create(null);
@@ -278,6 +280,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public getActiveTasks(): Task[] {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
+	}
+
+	public getBusyTasks(): Task[] {
+		return Object.keys(this.busyTasks).map(key => this.busyTasks[key]);
 	}
 
 	public customExecutionComplete(task: Task, result: number): Promise<void> {
@@ -533,12 +539,17 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 			const toDispose = new DisposableStore();
 			let eventCounter: number = 0;
+			const mapKey = task.getMapKey();
 			toDispose.add(watchingProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					eventCounter++;
+					this.busyTasks[mapKey] = task;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
 					eventCounter--;
+					if (this.busyTasks[mapKey]) {
+						delete this.busyTasks[mapKey];
+					}
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					if (eventCounter === 0) {
 						if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
@@ -597,6 +608,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					onData.dispose();
 					onExit.dispose();
 					let key = task.getMapKey();
+					if (this.busyTasks[mapKey]) {
+						delete this.busyTasks[mapKey];
+					}
 					delete this.activeTasks[key];
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
 					if (exitCode !== undefined) {
@@ -656,6 +670,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 				// The process never got ready. Need to think how to handle this.
 			});
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
+			const mapKey = task.getMapKey();
+			this.busyTasks[mapKey] = task;
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 			let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
@@ -709,6 +725,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					}
 
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					if (this.busyTasks[mapKey]) {
+						delete this.busyTasks[mapKey];
+					}
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });
@@ -1028,7 +1047,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 				// This can happen if the terminal wasn't shutdown with an "immediate" flag and is expected.
 				// For correct terminal re-use, the task needs to be deleted immediately.
 				// Note that this shouldn't be a problem anymore since user initiated terminal kills are now immediate.
-				delete this.activeTasks[task.getMapKey()];
+				const mapKey = task.getMapKey();
+				delete this.activeTasks[mapKey];
+				if (this.busyTasks[mapKey]) {
+					delete this.busyTasks[mapKey];
+				}
 			}
 		});
 		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey, group };

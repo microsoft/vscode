@@ -569,6 +569,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return Promise.resolve(this._taskSystem.getActiveTasks());
 	}
 
+	public getBusyTasks(): Promise<Task[]> {
+		if (!this._taskSystem) {
+			return Promise.resolve([]);
+		}
+		return Promise.resolve(this._taskSystem.getBusyTasks());
+	}
+
 	public getRecentlyUsedTasks(): LinkedMap<string, string> {
 		if (this._recentlyUsedTasks) {
 			return this._recentlyUsedTasks;
