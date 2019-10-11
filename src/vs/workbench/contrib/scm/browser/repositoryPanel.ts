@@ -713,15 +713,21 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
-		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+		let mode: ViewModelMode;
 
-		const rootUri = this.repository.provider.rootUri;
+		if (this.repository.provider.contextValue !== 'git') {
+			mode = ViewModelMode.List;
+		} else {
+			mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
 
-		if (typeof rootUri !== 'undefined') {
-			const storageMode = this.storageService.get(`scm.repository.viewMode:${rootUri.toString()}`, StorageScope.WORKSPACE) as ViewModelMode;
+			const rootUri = this.repository.provider.rootUri;
 
-			if (typeof storageMode === 'string') {
-				mode = storageMode;
+			if (typeof rootUri !== 'undefined') {
+				const storageMode = this.storageService.get(`scm.repository.viewMode:${rootUri.toString()}`, StorageScope.WORKSPACE) as ViewModelMode;
+
+				if (typeof storageMode === 'string') {
+					mode = storageMode;
+				}
 			}
 		}
 
@@ -735,8 +741,10 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
 
-		this.toggleViewModelModeAction = new ToggleViewModeAction(this.viewModel);
-		this._register(this.toggleViewModelModeAction);
+		if (this.repository.provider.contextValue === 'git') {
+			this.toggleViewModelModeAction = new ToggleViewModeAction(this.viewModel);
+			this._register(this.toggleViewModelModeAction);
+		}
 
 		this._register(this.onDidChangeBodyVisibility(this._onDidChangeVisibility, this));
 
