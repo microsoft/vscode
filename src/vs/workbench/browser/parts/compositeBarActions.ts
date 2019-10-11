@@ -110,6 +110,8 @@ export class ActivityAction extends Action {
 export interface ICompositeBarColors {
 	activeBackgroundColor?: Color;
 	inactiveBackgroundColor?: Color;
+	activeBorderColor?: Color;
+	activeBackground?: Color;
 	activeBorderBottomColor?: Color;
 	activeForegroundColor?: Color;
 	inactiveForegroundColor?: Color;
@@ -210,6 +212,13 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		// Badge
 		this.badge = dom.append(container, dom.$('.badge'));
 		this.badgeContent = dom.append(this.badge, dom.$('.badge-content'));
+
+		// Activity bar active border + background
+		const isActivityBarItem = this.options.icon;
+		if (isActivityBarItem) {
+			dom.append(container, dom.$('.active-item-indicator'));
+		}
+
 
 		dom.hide(this.badge);
 

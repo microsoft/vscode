@@ -942,7 +942,7 @@ declare module 'vscode' {
 	/**
 	 * Class used to execute an extension callback as a task.
 	 */
-	export class CustomExecution2 {
+	export class CustomExecution {
 		/**
 		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
 		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
@@ -971,12 +971,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's execution engine
 		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution2;
+		execution2?: ProcessExecution | ShellExecution | CustomExecution;
 	}
 	//#endregion
 

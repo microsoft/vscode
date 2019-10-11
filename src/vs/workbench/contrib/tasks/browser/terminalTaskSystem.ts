@@ -152,6 +152,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	};
 
 	private activeTasks: IStringDictionary<ActiveTerminalData>;
+	private busyTasks: IStringDictionary<Task>;
 	private terminals: IStringDictionary<TerminalData>;
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
@@ -180,6 +181,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	) {
 
 		this.activeTasks = Object.create(null);
+		this.busyTasks = Object.create(null);
 		this.terminals = Object.create(null);
 		this.idleTaskTerminals = new LinkedMap<string, string>();
 		this.sameTaskTerminals = Object.create(null);
@@ -278,6 +280,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public getActiveTasks(): Task[] {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
+	}
+
+	public getBusyTasks(): Task[] {
+		return Object.keys(this.busyTasks).map(key => this.busyTasks[key]);
 	}
 
 	public customExecutionComplete(task: Task, result: number): Promise<void> {
@@ -477,11 +483,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		const resolvedVariables = this.resolveVariablesFromSet(systemInfo, workspaceFolder, task, variables);
 
 		return resolvedVariables.then((resolvedVariables) => {
-			const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution2);
+			const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution);
 			if (resolvedVariables && (task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined))) {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder);
 			} else {
+				// Allows the taskExecutions array to be updated in the extension host
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				return Promise.resolve({ exitCode: 0 });
 			}
 		}, reason => {
@@ -527,18 +535,23 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (task.configurationProperties.isBackground) {
 			const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
-			if (!watchingProblemMatcher.isWatching()) {
+			if ((problemMatchers.length > 0) && !watchingProblemMatcher.isWatching()) {
 				this.appendOutput(nls.localize('TerminalTaskSystem.nonWatchingMatcher', 'Task {0} is a background task but uses a problem matcher without a background pattern', task._label));
 				this.showOutput();
 			}
 			const toDispose = new DisposableStore();
 			let eventCounter: number = 0;
+			const mapKey = task.getMapKey();
 			toDispose.add(watchingProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					eventCounter++;
+					this.busyTasks[mapKey] = task;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
 					eventCounter--;
+					if (this.busyTasks[mapKey]) {
+						delete this.busyTasks[mapKey];
+					}
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					if (eventCounter === 0) {
 						if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
@@ -597,6 +610,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					onData.dispose();
 					onExit.dispose();
 					let key = task.getMapKey();
+					if (this.busyTasks[mapKey]) {
+						delete this.busyTasks[mapKey];
+					}
 					delete this.activeTasks[key];
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
 					if (exitCode !== undefined) {
@@ -656,6 +672,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 				// The process never got ready. Need to think how to handle this.
 			});
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
+			const mapKey = task.getMapKey();
+			this.busyTasks[mapKey] = task;
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 			let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
@@ -709,6 +727,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					}
 
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					if (this.busyTasks[mapKey]) {
+						delete this.busyTasks[mapKey];
+					}
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });
@@ -861,7 +882,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 		} else {
-			let commandExecutable = (task.command.runtime !== RuntimeType.CustomExecution2) ? CommandString.value(command) : undefined;
+			let commandExecutable = (task.command.runtime !== RuntimeType.CustomExecution) ? CommandString.value(command) : undefined;
 			let executable = !isShellCommand
 				? this.resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}')
 				: commandExecutable;
@@ -932,7 +953,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let args: CommandString[] | undefined;
 		let launchConfigs: IShellLaunchConfig | undefined;
 
-		if (task.command.runtime === RuntimeType.CustomExecution2) {
+		if (task.command.runtime === RuntimeType.CustomExecution) {
 			this.currentTask.shellLaunchConfig = launchConfigs = {
 				isExtensionTerminal: true,
 				waitOnExit,
@@ -1028,7 +1049,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 				// This can happen if the terminal wasn't shutdown with an "immediate" flag and is expected.
 				// For correct terminal re-use, the task needs to be deleted immediately.
 				// Note that this shouldn't be a problem anymore since user initiated terminal kills are now immediate.
-				delete this.activeTasks[task.getMapKey()];
+				const mapKey = task.getMapKey();
+				delete this.activeTasks[mapKey];
+				if (this.busyTasks[mapKey]) {
+					delete this.busyTasks[mapKey];
+				}
 			}
 		});
 		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey, group };
@@ -1154,7 +1179,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {
 		// The custom execution should have everything it needs already as it provided
 		// the callback.
-		if (command.runtime === RuntimeType.CustomExecution2) {
+		if (command.runtime === RuntimeType.CustomExecution) {
 			return;
 		}
 

@@ -265,7 +265,7 @@ export class SuggestController implements IEditorContribution {
 
 		let overwriteBefore = position.column - suggestion.range.startColumn;
 		let overwriteAfter = suggestion.range.endColumn - position.column;
-		let suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(position) : 0;
+		let suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(editorPosition) : 0;
 		let word: IWordAtPosition | null;
 		if (!keepSuffix) {
 			// don't overwrite anything right of the cursor
@@ -273,7 +273,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else if (overwriteAfter === 0 && (word = model.getWordAtPosition(position))) {
 			// compute fallback overwrite length
-			overwriteAfter = word.endColumn - position.column;
+			overwriteAfter = word.endColumn - editorPosition.column;
 		}
 
 		SnippetController2.get(this._editor).insert(insertText, {
