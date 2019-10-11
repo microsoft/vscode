@@ -190,6 +190,11 @@ configurationRegistry.registerConfiguration({
 			enum: [TerminalCursorStyle.BLOCK, TerminalCursorStyle.LINE, TerminalCursorStyle.UNDERLINE],
 			default: TerminalCursorStyle.BLOCK
 		},
+		'terminal.integrated.wordSeparator': {
+			description: nls.localize('terminal.integrated.wordSeparator', "Controls the word separators when double clicking in integrated terminal"),
+			type: 'string',
+			default: ' ()[]{}\'",'
+		},
 		'terminal.integrated.scrollback': {
 			description: nls.localize('terminal.integrated.scrollback', "Controls the maximum amount of lines the terminal keeps in its buffer."),
 			type: 'number',

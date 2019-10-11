@@ -457,6 +457,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fontSize: font.fontSize,
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
+			wordSeparator: config.wordSeparator,
 			bellStyle: config.enableBell ? 'sound' : 'none',
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
