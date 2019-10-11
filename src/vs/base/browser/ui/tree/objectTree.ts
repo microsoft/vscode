@@ -14,7 +14,7 @@ import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeNode, ICompr
 import { memoize } from 'vs/base/common/decorators';
 
 export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
-	sorter?: ITreeSorter<T>;
+	readonly sorter?: ITreeSorter<T>;
 }
 
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
