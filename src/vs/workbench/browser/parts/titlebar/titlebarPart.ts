@@ -413,17 +413,13 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.windowControls = append(this.element, $('div.window-controls-container'));
 
 			// Minimize
-			const minimizeIconContainer = append(this.windowControls, $('div.window-icon-bg'));
-			const minimizeIcon = append(minimizeIconContainer, $('div.window-icon'));
-			addClass(minimizeIcon, 'window-minimize');
+			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize.codicon.codicon-chrome-minimize'));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
 				this.electronService.minimizeWindow();
 			}));
 
 			// Restore
-			const restoreIconContainer = append(this.windowControls, $('div.window-icon-bg'));
-			this.maxRestoreControl = append(restoreIconContainer, $('div.window-icon'));
-			addClass(this.maxRestoreControl, 'window-max-restore');
+			this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore.codicon'));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
 				const maximized = await this.electronService.isMaximized();
 				if (maximized) {
@@ -434,10 +430,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			}));
 
 			// Close
-			const closeIconContainer = append(this.windowControls, $('div.window-icon-bg'));
-			addClass(closeIconContainer, 'window-close-bg');
-			const closeIcon = append(closeIconContainer, $('div.window-icon'));
-			addClass(closeIcon, 'window-close');
+			const closeIcon = append(this.windowControls, $('div.window-icon.window-close.codicon.codicon-chrome-close'));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
 				this.electronService.closeWindow();
 			}));
@@ -477,11 +470,11 @@ export class TitlebarPart extends Part implements ITitleService {
 	private onDidChangeMaximized(maximized: boolean) {
 		if (this.maxRestoreControl) {
 			if (maximized) {
-				removeClass(this.maxRestoreControl, 'window-maximize');
-				addClass(this.maxRestoreControl, 'window-unmaximize');
+				removeClass(this.maxRestoreControl, 'codicon-chrome-maximize');
+				addClass(this.maxRestoreControl, 'codicon-chrome-restore');
 			} else {
-				removeClass(this.maxRestoreControl, 'window-unmaximize');
-				addClass(this.maxRestoreControl, 'window-maximize');
+				removeClass(this.maxRestoreControl, 'codicon-chrome-restore');
+				addClass(this.maxRestoreControl, 'codicon-chrome-maximize');
 			}
 		}
 
@@ -621,7 +614,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (titlebarActiveFg) {
 		collector.addRule(`
 		.monaco-workbench .part.titlebar > .window-controls-container .window-icon {
-			background-color: ${titlebarActiveFg};
+			color: ${titlebarActiveFg};
 		}
 		`);
 	}
@@ -630,7 +623,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (titlebarInactiveFg) {
 		collector.addRule(`
 		.monaco-workbench .part.titlebar.inactive > .window-controls-container .window-icon {
-				background-color: ${titlebarInactiveFg};
+				color: ${titlebarInactiveFg};
 			}
 		`);
 	}
