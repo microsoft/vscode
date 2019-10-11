@@ -488,6 +488,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder);
 			} else {
+				// Allows the taskExecutions array to be updated in the extension host
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				return Promise.resolve({ exitCode: 0 });
 			}
 		}, reason => {
