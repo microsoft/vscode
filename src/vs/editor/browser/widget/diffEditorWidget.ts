@@ -492,6 +492,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			}
 		}));
 
+		this._register(editor.onDidChangeModelOptions((e) => {
+			if (e.tabSize) {
+				this._updateDecorationsRunner.schedule();
+			}
+		}));
+
 		return editor;
 	}
 
@@ -646,6 +652,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.originalEditor.setModel(model ? model.original : null);
 		this.modifiedEditor.setModel(model ? model.modified : null);
 		this._updateDecorationsRunner.cancel();
+
+		// this.originalEditor.onDidChangeModelOptions
 
 		if (model) {
 			this.originalEditor.setScrollTop(0);
