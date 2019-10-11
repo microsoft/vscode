@@ -130,13 +130,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-		title: { value: nls.localize('globalConsoleAction', "Open New Terminal"), original: 'Open New Terminal' }
+		title: { value: nls.localize('globalConsoleAction', "Open New External Terminal"), original: 'Open New External Terminal' }
 	}
 });
 
 const openConsoleCommand = {
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
-	title: nls.localize('scopedConsoleAction', "Open in Terminal")
+	title: nls.localize('scopedConsoleAction', "Open in External Terminal")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
