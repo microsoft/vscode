@@ -420,7 +420,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			// Restore
 			this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore.codicon'));
-			addClass(this.maxRestoreControl, 'window-max-restore');
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
 				const maximized = await this.electronService.isMaximized();
 				if (maximized) {
@@ -474,7 +473,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				removeClass(this.maxRestoreControl, 'codicon-chrome-maximize');
 				addClass(this.maxRestoreControl, 'codicon-chrome-restore');
 			} else {
-				removeClass(this.maxRestoreControl, 'codicon.chrome-restore');
+				removeClass(this.maxRestoreControl, 'codicon-chrome-restore');
 				addClass(this.maxRestoreControl, 'codicon-chrome-maximize');
 			}
 		}
