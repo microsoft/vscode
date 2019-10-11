@@ -41,8 +41,13 @@
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item {
+	padding: 0 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item:last-of-type {
+	padding-right: 0;
 }
 
 .scm-viewlet .scm-provider > .count {
