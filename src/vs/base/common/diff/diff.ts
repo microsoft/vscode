@@ -5,6 +5,7 @@
 
 import { DiffChange } from 'vs/base/common/diff/diffChange';
 import { stringHash } from 'vs/base/common/hash';
+import { Constants } from 'vs/base/common/uint';
 
 export class StringDiffSequence implements ISequence {
 
@@ -138,8 +139,8 @@ class DiffChangeHelper {
 	 */
 	constructor() {
 		this.m_changes = [];
-		this.m_originalStart = Number.MAX_VALUE;
-		this.m_modifiedStart = Number.MAX_VALUE;
+		this.m_originalStart = Constants.MAX_SAFE_SMALL_INTEGER;
+		this.m_modifiedStart = Constants.MAX_SAFE_SMALL_INTEGER;
 		this.m_originalCount = 0;
 		this.m_modifiedCount = 0;
 	}
@@ -158,8 +159,8 @@ class DiffChangeHelper {
 		// Reset for the next change
 		this.m_originalCount = 0;
 		this.m_modifiedCount = 0;
-		this.m_originalStart = Number.MAX_VALUE;
-		this.m_modifiedStart = Number.MAX_VALUE;
+		this.m_originalStart = Constants.MAX_SAFE_SMALL_INTEGER;
+		this.m_modifiedStart = Constants.MAX_SAFE_SMALL_INTEGER;
 	}
 
 	/**
@@ -422,7 +423,7 @@ export class LcsDiff {
 		let diagonalMin = diagonalForwardStart;
 		let diagonalMax = diagonalForwardEnd;
 		let diagonalRelative = (midOriginalArr[0] - midModifiedArr[0]) - diagonalForwardOffset;
-		let lastOriginalIndex = Number.MIN_VALUE;
+		let lastOriginalIndex = Constants.MIN_SAFE_SMALL_INTEGER;
 		let historyIndex = this.m_forwardHistory.length - 1;
 		let diagonal: number;
 
@@ -488,7 +489,7 @@ export class LcsDiff {
 			diagonalMin = diagonalReverseStart;
 			diagonalMax = diagonalReverseEnd;
 			diagonalRelative = (midOriginalArr[0] - midModifiedArr[0]) - diagonalReverseOffset;
-			lastOriginalIndex = Number.MAX_VALUE;
+			lastOriginalIndex = Constants.MAX_SAFE_SMALL_INTEGER;
 			historyIndex = (deltaIsEven) ? this.m_reverseHistory.length - 1 : this.m_reverseHistory.length - 2;
 
 			do {
