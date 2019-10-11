@@ -77,6 +77,11 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				if (!isEnabled) {
 					return;
 				}
+				if (e.source === 'restoreState') {
+					// do not set selection to clipboard if this selection change
+					// was caused by restoring editors...
+					return;
+				}
 				setSelectionToClipboard.schedule();
 			}));
 		}
