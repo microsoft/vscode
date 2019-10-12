@@ -1839,6 +1839,8 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 				'editor.minimap.scale': {
 					type: 'number',
 					default: defaults.scale,
+					minimum: 1,
+					maximum: 3,
 					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap.")
 				},
 				'editor.minimap.renderCharacters': {
@@ -1865,7 +1867,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
 			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),
-			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 8),
+			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 3),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 		};
 	}
