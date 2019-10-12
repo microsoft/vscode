@@ -578,6 +578,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._diffComputationResult.changes;
 	}
 
+	public getDiffComputationResult(): IDiffComputationResult | null {
+		return this._diffComputationResult;
+	}
+
 	public getOriginalEditor(): editorBrowser.ICodeEditor {
 		return this.originalEditor;
 	}
