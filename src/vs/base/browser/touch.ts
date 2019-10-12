@@ -33,6 +33,10 @@ export interface GestureEvent extends MouseEvent {
 	translationY: number;
 	pageX: number;
 	pageY: number;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	shiftKey: boolean;
 }
 
 interface Touch {
@@ -61,6 +65,10 @@ interface TouchEvent extends Event {
 	touches: TouchList;
 	targetTouches: TouchList;
 	changedTouches: TouchList;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	shiftKey: boolean;
 }
 
 export class Gesture extends Disposable {
@@ -176,6 +184,10 @@ export class Gesture extends Disposable {
 				let evt = this.newGestureEvent(EventType.Tap, data.initialTarget);
 				evt.pageX = arrays.tail(data.rollingPageX);
 				evt.pageY = arrays.tail(data.rollingPageY);
+				evt.altKey = e.altKey;
+				evt.ctrlKey = e.ctrlKey;
+				evt.metaKey = e.metaKey;
+				evt.shiftKey = e.shiftKey;
 				this.dispatchEvent(evt);
 
 			} else if (holdTime >= Gesture.HOLD_DELAY
