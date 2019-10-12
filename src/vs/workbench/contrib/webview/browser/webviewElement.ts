@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { Webview, WebviewContentOptions, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
@@ -35,10 +35,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
-	public extension: {
-		readonly location: URI;
-		readonly id?: ExtensionIdentifier;
-	} | undefined;
+	public extension: WebviewExtensionDescription | undefined;
 
 	constructor(
 		private readonly id: string,
