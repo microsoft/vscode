@@ -8,9 +8,10 @@ import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
 import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
-import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
+import { EditorMouseEvent, PageCoordinates, createEditorPagePosition } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { Position } from 'vs/editor/common/core/position';
 
 interface IThrottledGestureEvent {
 	translationX: number;
@@ -186,9 +187,17 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 }
 
 class TouchHandler extends MouseHandler {
-
+	
+	private static readonly CLEAR_TAP_COUNT_TIME = 400;
+	private _lastTapPosition: Position | null;
+	private _lastTapCount: number;
+	private _lastSetTapCountTime: number;
+	
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
+		this._lastTapPosition = null;
+		this._lastTapCount = 0;
+		this._lastSetTapCountTime = 0;
 
 		this._register(Gesture.addTarget(this.viewHelper.linesContentDomNode));
 
@@ -205,12 +214,39 @@ class TouchHandler extends MouseHandler {
 		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
-			this.viewController.moveTo(target.position);
+			let pos = new PageCoordinates(event.pageX, event.pageY);
+			let editorPos = createEditorPagePosition(this.viewHelper.viewDomNode)
+			this.viewController.dispatchMouse({
+				position: target.position,
+				mouseColumn: this.mouseTargetFactory.getMouseColumn(editorPos, pos),
+				startedOnLineNumbers: false,
+				inSelectionMode: event.shiftKey,
+				mouseDownCount: this.trySetCount(target.position),
+				altKey: event.altKey,
+				ctrlKey: event.ctrlKey,
+				metaKey: event.metaKey,
+				shiftKey: event.shiftKey,
+				leftButton: true,
+				middleButton: false,
+			});
 		}
 	}
 
 	private onChange(e: GestureEvent): void {
 		this._context.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
+	}
+	
+	private trySetCount(newMouseDownPosition: Position): number {
+		const currentTime = (new Date()).getTime();
+		const lastime = this._lastSetTapCountTime;
+		this._lastSetTapCountTime = currentTime;
+		if (currentTime - lastime > TouchHandler.CLEAR_TAP_COUNT_TIME) {
+			return this._lastTapCount = 1;
+		}
+		if (this._lastTapPosition && this._lastTapPosition.equals(newMouseDownPosition)) {
+			return ++this._lastTapCount;
+		}
+		return this._lastTapCount = 1;
 	}
 }
 
