@@ -121,11 +121,11 @@ From https://raw.githubusercontent.com/isagalaev/highlight.js/master/src/styles/
 Visual Studio-like style based on original C# coloring by Jason Diamond <jason@diamond.name>
 
 */
- /*
+/*
+
+Resetting color in light theme by Gan Xianyu <ganxy1028@outlook.com>
  
- Resetting color in light theme by Gan Xianyu <ganxy1028@outlook.com>
- 
- */ 
+*/ 
 
 .vscode-light .hljs-function,
 .vscode-light .hljs-params {
@@ -134,8 +134,8 @@ Visual Studio-like style based on original C# coloring by Jason Diamond <jason@d
 
 .vscode-light .hljs-comment,
 .vscode-light .hljs-quote,
- .vscode-light .hljs-number,
- .vscode-light .hljs-class,
+.vscode-light .hljs-number,
+.vscode-light .hljs-class,
 .vscode-light .hljs-variable {
 	color: #008000;
 }
@@ -147,10 +147,10 @@ Visual Studio-like style based on original C# coloring by Jason Diamond <jason@d
 	color: #00f;
 }
 
- .vscode-light .hljs-built_in,
- .vscode-light .hljs-builtin-name {
-     color: #007acc;
- }
+.vscode-light .hljs-built_in,
+.vscode-light .hljs-builtin-name {
+	color: #007acc;
+}
 
 .vscode-light .hljs-string,
 .vscode-light .hljs-section,
