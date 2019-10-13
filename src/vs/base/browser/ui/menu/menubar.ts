@@ -208,7 +208,11 @@ export class MenuBar extends Disposable {
 			const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
 
 			buttonElement.appendChild(titleElement);
-			this.container.insertBefore(buttonElement, this.overflowMenu.buttonElement);
+			if (this.options.compactMode !== undefined) {
+				this.container.appendChild(buttonElement);
+			} else {
+				this.container.insertBefore(buttonElement, this.overflowMenu.buttonElement);
+			}
 
 			let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(menuBarMenu.label);
 
@@ -477,12 +481,8 @@ export class MenuBar extends Disposable {
 				this.overflowMenu.actions.push(new SubmenuAction(this.menuCache[idx].label, this.menuCache[idx].actions || []));
 			}
 
-			DOM.removeNode(this.overflowMenu.buttonElement);
-			this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
 			this.overflowMenu.buttonElement.style.visibility = 'visible';
 		} else {
-			DOM.removeNode(this.overflowMenu.buttonElement);
-			this.container.appendChild(this.overflowMenu.buttonElement);
 			this.overflowMenu.buttonElement.style.visibility = 'hidden';
 		}
 	}
