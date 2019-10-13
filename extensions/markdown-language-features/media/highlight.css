@@ -123,7 +123,9 @@ Visual Studio-like style based on original C# coloring by Jason Diamond <jason@d
 */
 
 .vscode-light .hljs-function,
-.vscode-light .hljs-params {
+.vscode-light .hljs-params,
+.vscode-light .hljs-number,
+.vscode-light .hljs-class  {
 	color: inherit;
 }
 
