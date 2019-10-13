@@ -9,7 +9,8 @@ import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { writeFileSync, writeFile, readFile, readdir, exists, rimraf, rename, RimRafMode } from 'vs/base/node/pfs';
 import * as arrays from 'vs/base/common/arrays';
-import { IBackupMainService, IBackupWorkspacesFormat, IEmptyWindowBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
+import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
@@ -27,9 +28,9 @@ export class BackupMainService implements IBackupMainService {
 	protected backupHome: string;
 	protected workspacesJsonPath: string;
 
-	private rootWorkspaces: IWorkspaceBackupInfo[];
-	private folderWorkspaces: URI[];
-	private emptyWorkspaces: IEmptyWindowBackupInfo[];
+	private rootWorkspaces: IWorkspaceBackupInfo[] = [];
+	private folderWorkspaces: URI[] = [];
+	private emptyWorkspaces: IEmptyWindowBackupInfo[] = [];
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -54,8 +55,6 @@ export class BackupMainService implements IBackupMainService {
 		} else if (Array.isArray(backups.emptyWorkspaces)) {
 			// read legacy entries
 			this.emptyWorkspaces = await this.validateEmptyWorkspaces(backups.emptyWorkspaces.map(backupFolder => ({ backupFolder })));
-		} else {
-			this.emptyWorkspaces = [];
 		}
 
 		// read workspace backups
@@ -69,6 +68,7 @@ export class BackupMainService implements IBackupMainService {
 		} catch (e) {
 			// ignore URI parsing exceptions
 		}
+
 		this.rootWorkspaces = await this.validateWorkspaces(rootWorkspaces);
 
 		// read folder backups
@@ -212,14 +212,11 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	registerEmptyWindowBackupSync(backupFolder?: string, remoteAuthority?: string): string {
+	registerEmptyWindowBackupSync(backupFolderCandidate?: string, remoteAuthority?: string): string {
 
 		// Generate a new folder if this is a new empty workspace
-		if (!backupFolder) {
-			backupFolder = this.getRandomEmptyWindowId();
-		}
-
-		if (!this.emptyWorkspaces.some(window => !!window.backupFolder && isEqual(window.backupFolder, backupFolder!, !platform.isLinux))) {
+		const backupFolder = backupFolderCandidate || this.getRandomEmptyWindowId();
+		if (!this.emptyWorkspaces.some(window => !!window.backupFolder && isEqual(window.backupFolder, backupFolder, !platform.isLinux))) {
 			this.emptyWorkspaces.push({ backupFolder, remoteAuthority });
 			this.saveSync();
 		}

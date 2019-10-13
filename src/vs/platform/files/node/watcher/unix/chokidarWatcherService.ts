@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as chokidar from 'vscode-chokidar';
+import * as chokidar from 'chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
@@ -17,6 +17,7 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/platform/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
+import { equals } from 'vs/base/common/arrays';
 
 interface IWatcher {
 	requests: ExtendedWatcherRequest[];
@@ -32,8 +33,8 @@ export class ChokidarWatcherService implements IWatcherService {
 	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static readonly EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
 
-	private _watchers: { [watchPath: string]: IWatcher };
-	private _watcherCount: number;
+	private _watchers: { [watchPath: string]: IWatcher } = Object.create(null);
+	private _watcherCount = 0;
 
 	private _pollingInterval?: number;
 	private _usePolling?: boolean;
@@ -43,10 +44,10 @@ export class ChokidarWatcherService implements IWatcherService {
 	private spamWarningLogged: boolean | undefined;
 	private enospcErrorLogged: boolean | undefined;
 
-	private _onWatchEvent = new Emitter<IDiskFileChange[]>();
+	private readonly _onWatchEvent = new Emitter<IDiskFileChange[]>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	private _onLogMessage = new Emitter<ILogMessage>();
+	private readonly _onLogMessage = new Emitter<ILogMessage>();
 	readonly onLogMessage: Event<ILogMessage> = this._onLogMessage.event;
 
 	public watch(options: IWatcherOptions): Event<IDiskFileChange[]> {
@@ -351,26 +352,10 @@ export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string
 	return result;
 }
 
-function isEqualRequests(r1: IWatcherRequest[], r2: IWatcherRequest[]) {
-	if (r1.length !== r2.length) {
-		return false;
-	}
-	for (let k = 0; k < r1.length; k++) {
-		if (r1[k].path !== r2[k].path || !isEqualIgnore(r1[k].excludes, r2[k].excludes)) {
-			return false;
-		}
-	}
-	return true;
+function isEqualRequests(r1: readonly IWatcherRequest[], r2: readonly IWatcherRequest[]) {
+	return equals(r1, r2, (a, b) => a.path === b.path && isEqualIgnore(a.excludes, b.excludes));
 }
 
-function isEqualIgnore(i1: string[], i2: string[]) {
-	if (i1.length !== i2.length) {
-		return false;
-	}
-	for (let k = 0; k < i1.length; k++) {
-		if (i1[k] !== i2[k]) {
-			return false;
-		}
-	}
-	return true;
+function isEqualIgnore(i1: readonly string[], i2: readonly string[]) {
+	return equals(i1, i2);
 }

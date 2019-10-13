@@ -30,6 +30,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -99,8 +100,10 @@ export class VariablesView extends ViewletPanel {
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
-		const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
-		this.toolbar.setActions([collapseAction])();
+		if (this.toolbar) {
+			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
+			this.toolbar.setActions([collapseAction])();
+		}
 		this.tree.updateChildren();
 
 		this._register(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
@@ -188,7 +191,8 @@ export class VariablesView extends ViewletPanel {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
-				getActionsContext: () => variable
+				getActionsContext: () => variable,
+				onHide: () => dispose(actions)
 			});
 		}
 	}

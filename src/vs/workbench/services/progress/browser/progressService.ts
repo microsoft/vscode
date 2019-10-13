@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
@@ -308,7 +308,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		return this.withCompositeProgress(this.panelService.getProgressIndicator(panelid), task, options);
 	}
 
-	private withCompositeProgress<P extends Promise<R>, R = unknown>(progressIndicator: IProgressIndicator | null, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
+	private withCompositeProgress<P extends Promise<R>, R = unknown>(progressIndicator: IProgressIndicator | undefined, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
 		let progressRunner: IProgressRunner | undefined = undefined;
 
 		const promise = task({

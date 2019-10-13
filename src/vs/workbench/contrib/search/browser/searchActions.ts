@@ -260,7 +260,7 @@ export class RefreshAction extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'search-action refresh');
+		super(id, label, 'search-action codicon-refresh');
 	}
 
 	get enabled(): boolean {
@@ -291,7 +291,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'search-action collapse');
+		super(id, label, 'search-action codicon-collapse-all');
 		this.update();
 	}
 
@@ -348,7 +348,7 @@ export class ClearSearchResultsAction extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'search-action clear-search-results');
+		super(id, label, 'search-action codicon-clear-all');
 		this.update();
 	}
 
@@ -375,7 +375,7 @@ export class CancelSearchAction extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'search-action cancel-search');
+		super(id, label, 'search-action codicon-search-stop');
 		this.update();
 	}
 
@@ -494,13 +494,13 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 export class RemoveAction extends AbstractSearchAndReplaceAction {
 
-	static LABEL = nls.localize('RemoveAction.label', "Dismiss");
+	static readonly LABEL = nls.localize('RemoveAction.label', "Dismiss");
 
 	constructor(
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
 		private element: RenderableMatch
 	) {
-		super('remove', RemoveAction.LABEL, 'action-remove');
+		super('remove', RemoveAction.LABEL, 'codicon-close');
 	}
 
 	run(): Promise<any> {
@@ -540,7 +540,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		private fileMatch: FileMatch,
 		@IKeybindingService keyBindingService: IKeybindingService
 	) {
-		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
+		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'codicon-replace-all');
 	}
 
 	run(): Promise<any> {
@@ -564,7 +564,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 	constructor(private viewer: WorkbenchObjectTree<RenderableMatch>, private folderMatch: FolderMatch,
 		@IKeybindingService keyBindingService: IKeybindingService
 	) {
-		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'action-replace-all');
+		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'codicon-replace-all');
 	}
 
 	run(): Promise<any> {
@@ -587,7 +587,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService) {
-		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
+		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'codicon-replace');
 	}
 
 	run(): Promise<any> {

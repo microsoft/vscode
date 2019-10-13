@@ -94,12 +94,12 @@ export class DebugHoverWidget implements IContentWidget {
 			if (colors.editorHoverBackground) {
 				this.domNode.style.backgroundColor = colors.editorHoverBackground.toString();
 			} else {
-				this.domNode.style.backgroundColor = null;
+				this.domNode.style.backgroundColor = '';
 			}
 			if (colors.editorHoverBorder) {
 				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
 			} else {
-				this.domNode.style.border = null;
+				this.domNode.style.border = '';
 			}
 		}));
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
@@ -137,7 +137,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	showAt(range: Range, focus: boolean): Promise<void> {
+	async showAt(range: Range, focus: boolean): Promise<void> {
 		const pos = range.getStartPosition();
 
 		const session = this.debugService.getViewModel().focusedSession;
@@ -153,63 +153,64 @@ export class DebugHoverWidget implements IContentWidget {
 			return Promise.resolve(this.hide());
 		}
 
-		let promise: Promise<IExpression | undefined>;
+		let expression;
 		if (session.capabilities.supportsEvaluateForHovers) {
-			const result = new Expression(matchingExpression);
-			promise = result.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
+			expression = new Expression(matchingExpression);
+			await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover');
 		} else {
-			promise = this.findExpressionInStackFrame(coalesce(matchingExpression.split('.').map(word => word.trim())));
+			expression = await this.findExpressionInStackFrame(coalesce(matchingExpression.split('.').map(word => word.trim())));
 		}
 
-		return promise.then(expression => {
-			if (!expression || (expression instanceof Expression && !expression.available)) {
-				this.hide();
-				return undefined;
-			}
+		if (!expression || (expression instanceof Expression && !expression.available)) {
+			this.hide();
+			return undefined;
+		}
 
-			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-				range: new Range(pos.lineNumber, start, pos.lineNumber, start + matchingExpression.length),
-				options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
-			}]);
+		this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
+			range: new Range(pos.lineNumber, start, pos.lineNumber, start + matchingExpression.length),
+			options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
+		}]);
 
-			return this.doShow(pos, expression, focus);
-		});
+		return this.doShow(pos, expression, focus);
 	}
 
-	private static _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'hoverHighlight'
 	});
 
-	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
+	private async doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 		if (!container) {
 			return Promise.resolve(null);
 		}
 
-		return container.getChildren().then(children => {
-			// look for our variable in the list. First find the parents of the hovered variable if there are any.
-			const filtered = children.filter(v => namesToFind[0] === v.name);
-			if (filtered.length !== 1) {
-				return null;
-			}
+		const children = await container.getChildren();
+		// look for our variable in the list. First find the parents of the hovered variable if there are any.
+		const filtered = children.filter(v => namesToFind[0] === v.name);
+		if (filtered.length !== 1) {
+			return null;
+		}
 
-			if (namesToFind.length === 1) {
-				return filtered[0];
-			} else {
-				return this.doFindExpression(filtered[0], namesToFind.slice(1));
-			}
-		});
+		if (namesToFind.length === 1) {
+			return filtered[0];
+		} else {
+			return this.doFindExpression(filtered[0], namesToFind.slice(1));
+		}
 	}
 
-	private findExpressionInStackFrame(namesToFind: string[]): Promise<IExpression | undefined> {
-		return this.debugService.getViewModel().focusedStackFrame!.getScopes()
-			.then(scopes => scopes.filter(s => !s.expensive))
-			.then(scopes => Promise.all(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
-			.then(coalesce)
-			// only show if all expressions found have the same value
-			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : undefined);
+	private async findExpressionInStackFrame(namesToFind: string[]): Promise<IExpression | undefined> {
+		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+		if (!focusedStackFrame) {
+			return undefined;
+		}
+
+		const scopes = await focusedStackFrame.getScopes();
+		const nonExpensive = scopes.filter(s => !s.expensive);
+		const expressions = coalesce(await Promise.all(nonExpensive.map(scope => this.doFindExpression(scope, namesToFind))));
+		// only show if all expressions found have the same value
+		return expressions.length > 0 && expressions.every(e => e.value === expressions[0].value) ? expressions[0] : undefined;
 	}
 
-	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Promise<void> {
+	private async doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Promise<void> {
 		if (!this.domNode) {
 			this.create();
 		}
@@ -239,20 +240,19 @@ export class DebugHoverWidget implements IContentWidget {
 		this.valueContainer.hidden = true;
 		this.complexValueContainer.hidden = false;
 
-		return this.tree.setInput(expression).then(() => {
-			this.complexValueTitle.textContent = replaceWhitespace(expression.value);
-			this.complexValueTitle.title = expression.value;
-			this.layoutTreeAndContainer();
-			this.editor.layoutContentWidget(this);
-			this.scrollbar.scanDomNode();
-			this.tree.scrollTop = 0;
-			this.tree.scrollLeft = 0;
+		await this.tree.setInput(expression);
+		this.complexValueTitle.textContent = replaceWhitespace(expression.value);
+		this.complexValueTitle.title = expression.value;
+		this.layoutTreeAndContainer();
+		this.editor.layoutContentWidget(this);
+		this.scrollbar.scanDomNode();
+		this.tree.scrollTop = 0;
+		this.tree.scrollLeft = 0;
 
-			if (focus) {
-				this.editor.render();
-				this.tree.domFocus();
-			}
-		});
+		if (focus) {
+			this.editor.render();
+			this.tree.domFocus();
+		}
 	}
 
 	private layoutTreeAndContainer(): void {

@@ -14,7 +14,7 @@
 				default-src 'self';
 				img-src 'self' https: data: blob:;
 				media-src 'none';
-				script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https: 'sha256-4DqvCTjCHj2KW4QxC/Yt6uBwMRyYiEg7kOoykSEkonQ=';
+				script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https: 'sha256-lrlqPnPED1SjcFocGzCtf6ikbQdTUwJKs8VprSqhvS4=';
 				child-src 'self';
 				frame-src 'self' https://*.vscode-webview-test.com;
 				worker-src 'self';
@@ -37,7 +37,6 @@
 
 		<!-- Prefetch to avoid waterfall -->
 		<link rel="prefetch" href="./static/node_modules/semver-umd/lib/semver-umd.js">
-		<link rel="prefetch" href="./static/node_modules/@microsoft/applicationinsights-web/dist/applicationinsights-web.js">
 	</head>
 
 	<body aria-label="">
@@ -55,7 +54,6 @@
 				'xterm-addon-search': `${window.location.origin}/static/node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
 				'xterm-addon-web-links': `${window.location.origin}/static/node_modules/xterm-addon-web-links/lib/xterm-addon-web-links.js`,
 				'semver-umd': `${window.location.origin}/static/node_modules/semver-umd/lib/semver-umd.js`,
-				'@microsoft/applicationinsights-web': `${window.location.origin}/static/node_modules/@microsoft/applicationinsights-web/dist/applicationinsights-web.js`,
 			}
 		};
 	</script>

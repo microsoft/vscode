@@ -11,13 +11,14 @@ import * as pfs from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { WORKSPACE_EXTENSION, IWorkspaceIdentifier, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { dirname, joinPath } from 'vs/base/common/resources';
+import { TestBackupMainService, TestDialogMainService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('WorkspacesMainService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesservice');
@@ -26,16 +27,6 @@ suite('WorkspacesMainService', () => {
 	class TestEnvironmentService extends EnvironmentService {
 		get untitledWorkspacesHome(): URI {
 			return URI.file(untitledWorkspacesHomePath);
-		}
-	}
-
-	class TestWorkspacesMainService extends WorkspacesMainService {
-		public deleteWorkspaceCall: IWorkspaceIdentifier;
-
-		public deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
-			this.deleteWorkspaceCall = workspace;
-
-			super.deleteUntitledWorkspaceSync(workspace);
 		}
 	}
 
@@ -50,10 +41,10 @@ suite('WorkspacesMainService', () => {
 	const environmentService = new TestEnvironmentService(parseArgs(process.argv, OPTIONS), process.execPath);
 	const logService = new NullLogService();
 
-	let service: TestWorkspacesMainService;
+	let service: WorkspacesMainService;
 
 	setup(async () => {
-		service = new TestWorkspacesMainService(environmentService, logService);
+		service = new WorkspacesMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
 
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);

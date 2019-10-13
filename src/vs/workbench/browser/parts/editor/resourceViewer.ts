@@ -10,15 +10,13 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/resourceviewer';
 import * as nls from 'vs/nls';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICssStyleCollector, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IMAGE_PREVIEW_BORDER } from 'vs/workbench/common/theme';
 
 export interface IResourceDescriptor {
 	readonly resource: URI;
 	readonly name: string;
-	readonly size: number;
+	readonly size?: number;
 	readonly etag?: string;
 	readonly mime: string;
 }
@@ -75,19 +73,17 @@ export class ResourceViewer {
 
 	static show(
 		descriptor: IResourceDescriptor,
-		fileService: IFileService,
 		container: HTMLElement,
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate,
-		instantiationService: IInstantiationService,
 	): ResourceViewerContext {
 
 		// Ensure CSS class
 		container.className = 'monaco-resource-viewer';
 
 		// Large Files
-		if (descriptor.size > ResourceViewer.MAX_OPEN_INTERNAL_SIZE) {
-			return FileTooLargeFileView.create(container, descriptor, scrollbar, delegate);
+		if (typeof descriptor.size === 'number' && descriptor.size > ResourceViewer.MAX_OPEN_INTERNAL_SIZE) {
+			return FileTooLargeFileView.create(container, descriptor.size, scrollbar, delegate);
 		}
 
 		// Seemingly Binary Files
@@ -95,18 +91,16 @@ export class ResourceViewer {
 			return FileSeemsBinaryFileView.create(container, descriptor, scrollbar, delegate);
 		}
 	}
-
 }
-
 
 class FileTooLargeFileView {
 	static create(
 		container: HTMLElement,
-		descriptor: IResourceDescriptor,
+		descriptorSize: number,
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate
 	) {
-		const size = BinarySize.formatSize(descriptor.size);
+		const size = BinarySize.formatSize(descriptorSize);
 		delegate.metadataClb(size);
 
 		DOM.clearNode(container);

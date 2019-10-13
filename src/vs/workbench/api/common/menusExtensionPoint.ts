@@ -12,7 +12,7 @@ import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } fr
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, ILocalizedString, IMenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 namespace schema {
 
@@ -39,8 +39,9 @@ namespace schema {
 			case 'menuBar/file': return MenuId.MenubarFileMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
-			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'scm/resourceFolder/context': return MenuId.SCMResourceFolderContext;
+			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/change/title': return MenuId.SCMChangeContext;
 			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;
@@ -386,7 +387,7 @@ commandsExtensionPoint.setHandler(extensions => {
 	}
 });
 
-let _menuRegistrations: IDisposable[] = [];
+const _menuRegistrations = new DisposableStore();
 
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>({
 	extensionPoint: 'menus',
@@ -394,7 +395,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 }).setHandler(extensions => {
 
 	// remove all previous menu registrations
-	_menuRegistrations = dispose(_menuRegistrations);
+	_menuRegistrations.clear();
 
 	for (let extension of extensions) {
 		const { value, collector } = extension;
@@ -449,7 +450,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					order,
 					when: ContextKeyExpr.deserialize(item.when)
 				} as IMenuItem);
-				_menuRegistrations.push(registration);
+				_menuRegistrations.add(registration);
 			}
 		});
 	}

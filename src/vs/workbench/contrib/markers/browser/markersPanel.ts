@@ -117,7 +117,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
 
 		// actions
-		this.collapseAllAction = this._register(new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, async () => this.collapseAll()));
+		this.collapseAllAction = this._register(new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action codicon-collapse-all', true, async () => this.collapseAll()));
 		this.filterAction = this._register(this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelState['filter'] || '', filterHistory: this.panelState['filterHistory'] || [], useFilesExclude: !!this.panelState['useFilesExclude'] }));
 	}
 
@@ -340,11 +340,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this._register(this.tree.onDidChangeFocus(focus => {
 			markerFocusContextKey.set(focus.elements.some(e => e instanceof Marker));
 			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
-		}));
-		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
-		this._register(focusTracker.onDidBlur(() => {
-			markerFocusContextKey.set(false);
-			relatedInformationFocusContextKey.set(false);
 		}));
 
 		const markersNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));

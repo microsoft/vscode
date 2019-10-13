@@ -18,7 +18,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
@@ -111,6 +111,10 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 
 	getInspectPort(): number | undefined {
 		return undefined;
+	}
+
+	enableInspectPort(): Promise<boolean> {
+		return Promise.resolve(false);
 	}
 
 	private async _createExtHostInitData(): Promise<IInitData> {

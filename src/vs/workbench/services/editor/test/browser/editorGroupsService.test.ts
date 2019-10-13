@@ -43,7 +43,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	resolve(): Promise<IEditorModel | null> { return Promise.resolve(null); }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
-	getEncoding(): string { return null!; }
+	getEncoding() { return undefined; }
 	setPreferredEncoding(encoding: string) { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
@@ -60,8 +60,6 @@ suite('EditorGroupsService', () => {
 		}
 
 		class TestEditorInputFactory implements IEditorInputFactory {
-
-			constructor() { }
 
 			serialize(editorInput: EditorInput): string {
 				const testEditorInput = <TestEditorInput>editorInput;

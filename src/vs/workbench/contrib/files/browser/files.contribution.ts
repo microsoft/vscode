@@ -18,7 +18,6 @@ import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerServ
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/contrib/files/browser/saveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -26,7 +25,6 @@ import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry'
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { DirtyFilesTracker } from 'vs/workbench/contrib/files/common/dirtyFilesTracker';
 import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
@@ -39,6 +37,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
+import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -101,17 +100,6 @@ registry.registerWorkbenchAction(
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		TextFileEditor,
-		TextFileEditor.ID,
-		nls.localize('textFileEditor', "Text File Editor")
-	),
-	[
-		new SyncDescriptor<EditorInput>(FileEditorInput)
-	]
-);
-
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
 		BinaryFileEditor,
 		BinaryFileEditor.ID,
 		nls.localize('binaryFileEditor', "Binary File Editor")
@@ -142,8 +130,6 @@ interface ISerializedFileInput {
 
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
-
-	constructor() { }
 
 	serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
@@ -181,12 +167,11 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Register Save Error Handler
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SaveErrorHandler, LifecyclePhase.Starting);
 
-// Register Dirty Files Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);
-
 // Register uri display for file uris
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
 
+// Workspace Watcher
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceWatcher, LifecyclePhase.Restored);
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -268,6 +253,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.eol': {
 			'type': 'string',
+			'overridable': true,
 			'enum': [
 				'\n',
 				'\r\n',
@@ -339,7 +325,8 @@ configurationRegistry.registerConfiguration({
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
-			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line.")
+			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
+			included: platform.isNative
 		},
 		'files.simpleDialog.enable': {
 			'type': 'boolean',

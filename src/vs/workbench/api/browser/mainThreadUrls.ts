@@ -5,10 +5,10 @@
 
 import { ExtHostContext, IExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
-import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
+import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/common/extensionUrlHandler';
+import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 class ExtensionUrlHandler implements IURLHandler {
@@ -19,7 +19,7 @@ class ExtensionUrlHandler implements IURLHandler {
 		readonly extensionId: ExtensionIdentifier
 	) { }
 
-	handleURL(uri: URI): Promise<boolean> {
+	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		if (!ExtensionIdentifier.equals(this.extensionId, uri.authority)) {
 			return Promise.resolve(false);
 		}

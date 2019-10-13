@@ -18,6 +18,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -905,6 +906,12 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * Get the computed diff information.
 	 */
 	getLineChanges(): editorCommon.ILineChange[] | null;
+
+	/**
+	 * Get the computed diff information.
+	 * @internal
+	 */
+	getDiffComputationResult(): IDiffComputationResult | null;
 
 	/**
 	 * Get information based on computed diff about a line number from the original model.

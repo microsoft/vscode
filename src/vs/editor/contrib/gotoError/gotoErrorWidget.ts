@@ -173,7 +173,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	private readonly _callOnDispose = new DisposableStore();
 	private _severity: MarkerSeverity;
 	private _backgroundColor?: Color;
-	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
+	private readonly _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 	private _heightInPixel!: number;
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
@@ -283,7 +283,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 				: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
 			this.setTitle(basename(model.uri), detail);
 		}
-		this._icon.className = SeverityIcon.className(MarkerSeverity.toSeverity(this._severity));
+		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
 	}

@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { SCMStatusController } from './scmActivity';
+import { SCMStatusController } from './activity';
 import { SCMViewlet } from 'vs/workbench/contrib/scm/browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -28,7 +28,7 @@ import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 class OpenSCMViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static LABEL = localize('toggleGitViewlet', "Show Git");
+	static readonly LABEL = localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
@@ -105,7 +105,22 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.countBadge', "Controls the Source Control count badge."),
 			default: 'all'
-		}
+		},
+		'scm.defaultViewMode': {
+			type: 'string',
+			enum: ['tree', 'list'],
+			enumDescriptions: [
+				localize('scm.defaultViewMode.tree', "Show the repository changes as a tree."),
+				localize('scm.defaultViewMode.list', "Show the repository changes as a list.")
+			],
+			description: localize('scm.defaultViewMode', "Controls the default Source Control repository view mode."),
+			default: 'list'
+		},
+		'scm.autoReveal': {
+			type: 'boolean',
+			description: localize('autoReveal', "Controls whether the SCM view should automatically reveal and select files when opening them."),
+			default: true
+		},
 	}
 });
 

@@ -24,10 +24,10 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
 	readonly debugSearch: IDebugParams;
 
+	readonly webviewExternalEndpoint: string;
 	readonly webviewResourceRoot: string;
 	readonly webviewCspSource: string;
 
-	readonly skipGettingStarted: boolean | undefined;
 	readonly skipReleaseNotes: boolean | undefined;
 
 }

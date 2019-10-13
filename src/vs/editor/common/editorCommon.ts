@@ -280,6 +280,8 @@ export interface IEditor {
 	/**
 	 * Instructs the editor to remeasure its container. This method should
 	 * be called when the container of the editor gets resized.
+	 *
+	 * If a dimension is passed in, the passed in value will be used.
 	 */
 	layout(dimension?: IDimension): void;
 
@@ -389,7 +391,7 @@ export interface IEditor {
 	 * Set the selections for all the cursors of the editor.
 	 * Cursors will be removed or added, as necessary.
 	 */
-	setSelections(selections: ISelection[]): void;
+	setSelections(selections: readonly ISelection[]): void;
 
 	/**
 	 * Scroll vertically as necessary and reveal lines.
@@ -502,6 +504,21 @@ export interface IEditorContribution {
 	 * Restore view state.
 	 */
 	restoreViewState?(state: any): void;
+}
+
+/**
+ * A diff editor contribution that gets created every time a new  diffeditor gets created and gets disposed when the diff editor gets disposed.
+ * @internal
+ */
+export interface IDiffEditorContribution {
+	/**
+	 * Get a unique identifier for this contribution.
+	 */
+	getId(): string;
+	/**
+	 * Dispose this contribution.
+	 */
+	dispose(): void;
 }
 
 /**

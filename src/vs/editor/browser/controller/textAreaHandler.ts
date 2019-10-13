@@ -66,7 +66,7 @@ interface LocalClipboardMetadata {
  * we can fetch the previous metadata.
  */
 class LocalClipboardMetadataManager {
-	public static INSTANCE = new LocalClipboardMetadataManager();
+	public static readonly INSTANCE = new LocalClipboardMetadataManager();
 
 	private _lastState: LocalClipboardMetadata | null;
 
@@ -151,6 +151,10 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('aria-multiline', 'true');
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');
+
+		if (platform.isWeb && options.get(EditorOption.readOnly)) {
+			this.textArea.setAttribute('readonly', 'true');
+		}
 
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
@@ -394,6 +398,14 @@ export class TextAreaHandler extends ViewPart {
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+
+		if (platform.isWeb && e.hasChanged(EditorOption.readOnly)) {
+			if (options.get(EditorOption.readOnly)) {
+				this.textArea.setAttribute('readonly', 'true');
+			} else {
+				this.textArea.removeAttribute('readonly');
+			}
+		}
 
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
 			this._textAreaInput.writeScreenReaderContent('strategy changed');

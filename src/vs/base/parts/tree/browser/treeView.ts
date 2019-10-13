@@ -154,7 +154,7 @@ export class ViewItem implements IViewItem {
 	}
 
 	set loading(value: boolean) {
-		value ? this.addClass('loading') : this.removeClass('loading');
+		value ? this.addClass('codicon-loading') : this.removeClass('codicon-loading');
 	}
 
 	set draggable(value: boolean) {
@@ -398,8 +398,8 @@ function reactionEquals(one: _.IDragOverReaction, other: _.IDragOverReaction | n
 
 export class TreeView extends HeightMap {
 
-	static BINDING = 'monaco-tree-row';
-	static LOADING_DECORATION_DELAY = 800;
+	static readonly BINDING = 'monaco-tree-row';
+	static readonly LOADING_DECORATION_DELAY = 800;
 
 	private static counter: number = 0;
 	private instance: number;
@@ -437,6 +437,7 @@ export class TreeView extends HeightMap {
 	private shouldInvalidateDropReaction: boolean;
 	private currentDropTargets: ViewItem[] | null = null;
 	private currentDropDisposable: Lifecycle.IDisposable = Lifecycle.Disposable.None;
+	private gestureDisposable: Lifecycle.IDisposable = Lifecycle.Disposable.None;
 	private dragAndDropScrollInterval: number | null = null;
 	private dragAndDropScrollTimeout: number | null = null;
 	private dragAndDropMouseY: number | null = null;
@@ -523,7 +524,7 @@ export class TreeView extends HeightMap {
 			this.wrapper.style.msTouchAction = 'none';
 			this.wrapper.style.msContentZooming = 'none';
 		} else {
-			Touch.Gesture.addTarget(this.wrapper);
+			this.gestureDisposable = Touch.Gesture.addTarget(this.wrapper);
 		}
 
 		this.rowsContainer = document.createElement('div');
@@ -924,12 +925,11 @@ export class TreeView extends HeightMap {
 			if (!skipDiff) {
 				const lcs = new Diff.LcsDiff(
 					{
-						getLength: () => previousChildrenIds.length,
-						getElementAtIndex: (i: number) => previousChildrenIds[i]
-					}, {
-					getLength: () => afterModelItems.length,
-					getElementAtIndex: (i: number) => afterModelItems[i].id
-				},
+						getElements: () => previousChildrenIds
+					},
+					{
+						getElements: () => afterModelItems.map(item => item.id)
+					},
 					null
 				);
 
@@ -1675,6 +1675,7 @@ export class TreeView extends HeightMap {
 		if (this.context.cache) {
 			this.context.cache.dispose();
 		}
+		this.gestureDisposable.dispose();
 
 		super.dispose();
 	}

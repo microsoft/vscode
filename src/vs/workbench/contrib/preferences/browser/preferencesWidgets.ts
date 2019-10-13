@@ -34,6 +34,7 @@ import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIV
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { isEqual } from 'vs/base/common/resources';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -168,7 +169,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this._register(focusTracker.onDidFocus(() => this.toggleFocus(true)));
 		this._register(focusTracker.onDidBlur(() => this.toggleFocus(false)));
 
-		this.icon = DOM.append(this.titleContainer, DOM.$('.expand-collapse-icon'));
+		this.icon = DOM.append(this.titleContainer, DOM.$('.codicon.codicon-chevron-down'));
 		this.title = DOM.append(this.titleContainer, DOM.$('.title'));
 		this.title.textContent = this.settingsGroup.title + ` (${this.settingsGroup.sections.reduce((count, section) => count + section.settings.length, 0)})`;
 
@@ -387,7 +388,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		const oldFolder = this._folder;
 		const workspace = this.contextService.getWorkspace();
 		if (oldFolder) {
-			this._folder = workspace.folders.filter(folder => folder.uri.toString() === oldFolder.uri.toString())[0] || workspace.folders[0];
+			this._folder = workspace.folders.filter(folder => isEqual(folder.uri, oldFolder.uri))[0] || workspace.folders[0];
 		}
 		this._folder = this._folder ? this._folder : workspace.folders.length === 1 ? workspace.folders[0] : null;
 
@@ -440,7 +441,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: this.labelWithCount(folder.name, folderCount),
-					checked: this.folder && this.folder.uri.toString() === folder.uri.toString(),
+					checked: this.folder && isEqual(this.folder.uri, folder.uri),
 					enabled: true,
 					run: () => this._action.run(folder)
 				};
@@ -574,7 +575,7 @@ export class SettingsTargetsWidget extends Widget {
 		const isSameTarget = this.settingsTarget === settingsTarget ||
 			settingsTarget instanceof URI &&
 			this.settingsTarget instanceof URI &&
-			this.settingsTarget.toString() === settingsTarget.toString();
+			isEqual(this.settingsTarget, settingsTarget);
 
 		if (!isSameTarget) {
 			this.settingsTarget = settingsTarget;
@@ -632,13 +633,13 @@ export class SearchWidget extends Widget {
 		if (this.options.showResultCount) {
 			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
 			this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
-				const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-				const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+				const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+				const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
 				this.countElement.style.backgroundColor = background;
 
-				this.countElement.style.borderWidth = border ? '1px' : null;
-				this.countElement.style.borderStyle = border ? 'solid' : null;
+				this.countElement.style.borderWidth = border ? '1px' : '';
+				this.countElement.style.borderStyle = border ? 'solid' : '';
 				this.countElement.style.borderColor = border;
 
 				const color = this.themeService.getTheme().getColor(badgeForeground);
@@ -737,7 +738,7 @@ export class SearchWidget extends Widget {
 
 export class EditPreferenceWidget<T> extends Disposable {
 
-	static readonly GLYPH_MARGIN_CLASS_NAME = 'edit-preferences-widget';
+	static readonly GLYPH_MARGIN_CLASS_NAME = 'codicon codicon-edit';
 
 	private _line: number = -1;
 	private _preferences: T[] = [];

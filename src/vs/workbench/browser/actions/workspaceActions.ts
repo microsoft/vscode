@@ -5,29 +5,28 @@
 
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { toResource } from 'vs/workbench/common/editor';
-import { URI } from 'vs/base/common/uri';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { MenuRegistry, MenuId, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { WorkbenchStateContext, SupportsWorkspacesContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class OpenFileAction extends Action {
 
 	static readonly ID = 'workbench.action.files.openFile';
-	static LABEL = nls.localize('openFile', "Open File...");
+	static readonly LABEL = nls.localize('openFile', "Open File...");
 
 	constructor(
 		id: string,
@@ -42,40 +41,10 @@ export class OpenFileAction extends Action {
 	}
 }
 
-export namespace OpenLocalFileCommand {
-	export const ID = 'workbench.action.files.openLocalFile';
-	export const LABEL = nls.localize('openLocalFile', "Open Local File...");
-
-	export function handler(): ICommandHandler {
-		return accessor => {
-			const dialogService = accessor.get(IFileDialogService);
-			return dialogService.pickFileAndOpen({ forceNewWindow: false, availableFileSystems: [Schemas.file] });
-		};
-	}
-}
-
-export namespace SaveLocalFileCommand {
-	export const ID = 'workbench.action.files.saveLocalFile';
-	export const LABEL = nls.localize('saveLocalFile', "Save Local File...");
-
-	export function handler(): ICommandHandler {
-		return accessor => {
-			const textFileService = accessor.get(ITextFileService);
-			const editorService = accessor.get(IEditorService);
-			let resource: URI | undefined = toResource(editorService.activeEditor);
-			const options: ISaveOptions = { force: true, availableFileSystems: [Schemas.file] };
-			if (resource) {
-				return textFileService.saveAs(resource, undefined, options);
-			}
-			return Promise.resolve(undefined);
-		};
-	}
-}
-
 export class OpenFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.files.openFolder';
-	static LABEL = nls.localize('openFolder', "Open Folder...");
+	static readonly LABEL = nls.localize('openFolder', "Open Folder...");
 
 	constructor(
 		id: string,
@@ -90,23 +59,10 @@ export class OpenFolderAction extends Action {
 	}
 }
 
-export namespace OpenLocalFolderCommand {
-	export const ID = 'workbench.action.files.openLocalFolder';
-	export const LABEL = nls.localize('openLocalFolder', "Open Local Folder...");
-
-	export function handler(): ICommandHandler {
-		return accessor => {
-			const dialogService = accessor.get(IFileDialogService);
-			return dialogService.pickFolderAndOpen({ forceNewWindow: false, availableFileSystems: [Schemas.file] });
-		};
-	}
-}
-
-
 export class OpenFileFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.files.openFileFolder';
-	static LABEL = nls.localize('openFileFolder', "Open...");
+	static readonly LABEL = nls.localize('openFileFolder', "Open...");
 
 	constructor(
 		id: string,
@@ -121,101 +77,10 @@ export class OpenFileFolderAction extends Action {
 	}
 }
 
-export namespace OpenLocalFileFolderCommand {
-
-	export const ID = 'workbench.action.files.openLocalFileFolder';
-	export const LABEL = nls.localize('openLocalFileFolder', "Open Local...");
-
-	export function handler(): ICommandHandler {
-		return accessor => {
-			const dialogService = accessor.get(IFileDialogService);
-			return dialogService.pickFileFolderAndOpen({ forceNewWindow: false, availableFileSystems: [Schemas.file] });
-		};
-	}
-}
-
-export class AddRootFolderAction extends Action {
-
-	static readonly ID = 'workbench.action.addRootFolder';
-	static LABEL = ADD_ROOT_FOLDER_LABEL;
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<any> {
-		return this.commandService.executeCommand(ADD_ROOT_FOLDER_COMMAND_ID);
-	}
-}
-
-export class GlobalRemoveRootFolderAction extends Action {
-
-	static readonly ID = 'workbench.action.removeRootFolder';
-	static LABEL = nls.localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<any> {
-		const state = this.contextService.getWorkbenchState();
-
-		// Workspace / Folder
-		if (state === WorkbenchState.WORKSPACE || state === WorkbenchState.FOLDER) {
-			const folder = await this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-			if (folder) {
-				await this.workspaceEditingService.removeFolders([folder.uri]);
-			}
-		}
-
-		return true;
-	}
-}
-
-export class SaveWorkspaceAsAction extends Action {
-
-	static readonly ID = 'workbench.action.saveWorkspaceAs';
-	static LABEL = nls.localize('saveWorkspaceAsAction', "Save Workspace As...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService
-
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<any> {
-		const configPathUri = await this.workspaceEditingService.pickNewWorkspacePath();
-		if (configPathUri) {
-			switch (this.contextService.getWorkbenchState()) {
-				case WorkbenchState.EMPTY:
-				case WorkbenchState.FOLDER:
-					const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
-					return this.workspaceEditingService.createAndEnterWorkspace(folders, configPathUri);
-				case WorkbenchState.WORKSPACE:
-					return this.workspaceEditingService.saveAndEnterWorkspace(configPathUri);
-			}
-		}
-	}
-}
-
 export class OpenWorkspaceAction extends Action {
 
 	static readonly ID = 'workbench.action.openWorkspace';
-	static LABEL = nls.localize('openWorkspaceAction', "Open Workspace...");
+	static readonly LABEL = nls.localize('openWorkspaceAction', "Open Workspace...");
 
 	constructor(
 		id: string,
@@ -233,14 +98,15 @@ export class OpenWorkspaceAction extends Action {
 export class CloseWorkspaceAction extends Action {
 
 	static readonly ID = 'workbench.action.closeFolder';
-	static LABEL = nls.localize('closeWorkspace', "Close Workspace");
+	static readonly LABEL = nls.localize('closeWorkspace', "Close Workspace");
 
 	constructor(
 		id: string,
 		label: string,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWindowService private readonly windowService: IWindowService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super(id, label);
 	}
@@ -252,7 +118,7 @@ export class CloseWorkspaceAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
-		return this.windowService.closeWorkspace();
+		return this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: this.environmentService.configuration.remoteAuthority });
 	}
 }
 
@@ -281,40 +147,77 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	}
 }
 
-export class DuplicateWorkspaceInNewWindowAction extends Action {
+export class AddRootFolderAction extends Action {
 
-	static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
-	static readonly LABEL = nls.localize('duplicateWorkspaceInNewWindow', "Duplicate Workspace in New Window");
+	static readonly ID = 'workbench.action.addRootFolder';
+	static readonly LABEL = ADD_ROOT_FOLDER_LABEL;
 
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<any> {
+		return this.commandService.executeCommand(ADD_ROOT_FOLDER_COMMAND_ID);
+	}
+}
+
+export class GlobalRemoveRootFolderAction extends Action {
+
+	static readonly ID = 'workbench.action.removeRootFolder';
+	static readonly LABEL = nls.localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace...");
+
+	constructor(
+		id: string,
+		label: string,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IWindowService private readonly windowService: IWindowService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<any> {
-		const folders = this.workspaceContextService.getWorkspace().folders;
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		const state = this.contextService.getWorkbenchState();
 
-		const newWorkspace = await this.workspacesService.createUntitledWorkspace(folders, remoteAuthority);
-		await this.workspaceEditingService.copyWorkspaceSettings(newWorkspace);
+		// Workspace / Folder
+		if (state === WorkbenchState.WORKSPACE || state === WorkbenchState.FOLDER) {
+			const folder = await this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
+			if (folder) {
+				await this.workspaceEditingService.removeFolders([folder.uri]);
+			}
+		}
 
-		return this.windowService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
+		return true;
 	}
 }
 
-// --- Menu Registration
+// --- Actions Registration
 
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const workspacesCategory = nls.localize('workspaces', "Workspaces");
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory, SupportsWorkspacesContext);
+registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalRemoveRootFolderAction, GlobalRemoveRootFolderAction.ID, GlobalRemoveRootFolderAction.LABEL), 'Workspaces: Remove Folder from Workspace...', workspacesCategory, SupportsWorkspacesContext);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'Workspaces: Close Workspace', workspacesCategory, SupportsWorkspacesContext);
+
+// --- Menu Registration
 
 CommandsRegistry.registerCommand(OpenWorkspaceConfigFileAction.ID, serviceAccessor => {
 	serviceAccessor.get(IInstantiationService).createInstance(OpenWorkspaceConfigFileAction, OpenWorkspaceConfigFileAction.ID, OpenWorkspaceConfigFileAction.LABEL).run();
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '3_workspace',
+	command: {
+		id: ADD_ROOT_FOLDER_COMMAND_ID,
+		title: nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "A&&dd Folder to Workspace...")
+	},
+	order: 1,
+	when: SupportsWorkspacesContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -323,4 +226,25 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: `${workspacesCategory}: ${OpenWorkspaceConfigFileAction.LABEL}`, original: 'Workspaces: Open Workspace Configuration File' },
 	},
 	when: WorkbenchStateContext.isEqualTo('workspace')
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '6_close',
+	command: {
+		id: CloseWorkspaceAction.ID,
+		title: nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"),
+		precondition: WorkspaceFolderCountContext.notEqualsTo('0')
+	},
+	order: 3,
+	when: WorkbenchStateContext.notEqualsTo('workspace')
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '6_close',
+	command: {
+		id: CloseWorkspaceAction.ID,
+		title: nls.localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace")
+	},
+	order: 3,
+	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), SupportsWorkspacesContext)
 });

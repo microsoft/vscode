@@ -1,4 +1,4 @@
-// Type definitions for Electron 6.0.9
+// Type definitions for Electron 6.0.12
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -2400,6 +2400,11 @@ declare namespace Electron {
 		 */
 		readBookmark(): ReadBookmark;
 		readBuffer(format: string): Buffer;
+		/**
+		 * This method uses synchronous IPC when called from the renderer process. The
+		 * cached value is reread from the find pasteboard whenever the application is
+		 * activated.
+		 */
 		readFindText(): string;
 		readHTML(type?: 'selection' | 'clipboard'): string;
 		readImage(type?: 'selection' | 'clipboard'): NativeImage;
@@ -2420,8 +2425,9 @@ declare namespace Electron {
 		 */
 		writeBuffer(format: string, buffer: Buffer, type?: 'selection' | 'clipboard'): void;
 		/**
-		 * Writes the text into the find pasteboard as plain text. This method uses
-		 * synchronous IPC when called from the renderer process.
+		 * Writes the text into the find pasteboard (the pasteboard that holds information
+		 * about the current state of the active application’s find panel) as plain text.
+		 * This method uses synchronous IPC when called from the renderer process.
 		 */
 		writeFindText(text: string): void;
 		/**
@@ -8460,7 +8466,7 @@ declare namespace Electron {
 		image?: NativeImage;
 		rtf?: string;
 		/**
-		 * The title of the url at text.
+		 * The title of the URL at text.
 		 */
 		bookmark?: string;
 	}
@@ -8543,7 +8549,9 @@ declare namespace Electron {
 		 * When critical is passed, the dock icon will bounce until either the application
 		 * becomes active or the request is canceled. When informational is passed, the
 		 * dock icon will bounce for one second. However, the request remains active until
-		 * either the application becomes active or the request is canceled.
+		 * either the application becomes active or the request is canceled. Nota Bene:
+		 * This method can only be used while the app is not focused; when the app is
+		 * focused it will return -1.
 		 */
 		bounce: (type?: 'critical' | 'informational') => number;
 		/**
@@ -9444,6 +9452,10 @@ declare namespace Electron {
 	}
 
 	interface OpenDialogReturnValue {
+		/**
+		 * whether or not the dialog was canceled.
+		 */
+		canceled: boolean;
 		/**
 		 * An array of file paths chosen by the user. If the dialog is cancelled this will
 		 * be an empty array.

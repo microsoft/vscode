@@ -114,7 +114,7 @@ const documents: TextDocuments = new TextDocuments();
 documents.listen(connection);
 
 let clientSnippetSupport = false;
-let clientDynamicRegisterSupport = false;
+let dynamicFormatterRegistration = false;
 let foldingRangeLimit = Number.MAX_VALUE;
 let hierarchicalDocumentSymbolSupport = false;
 
@@ -144,7 +144,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 
 	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
+	dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof params.initializationOptions.provideFormatter !== 'boolean');
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
 	const capabilities: ServerCapabilities = {
@@ -153,7 +153,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
-		documentRangeFormattingProvider: false,
+		documentRangeFormattingProvider: params.initializationOptions.provideFormatter === true,
 		colorProvider: {},
 		foldingRangeProvider: true,
 		selectionRangeProvider: true
@@ -195,7 +195,7 @@ connection.onDidChangeConfiguration((change) => {
 	updateConfiguration();
 
 	// dynamically enable & disable the formatter
-	if (clientDynamicRegisterSupport) {
+	if (dynamicFormatterRegistration) {
 		const enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {

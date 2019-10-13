@@ -796,7 +796,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	updateStyles(): void {
-		this.container.style.backgroundColor = this.getColor(editorBackground);
+		this.container.style.backgroundColor = this.getColor(editorBackground) || '';
 
 		const separatorBorderStyle = { separatorBorder: this.gridSeparatorBorder, background: this.theme.getColor(EDITOR_PANE_BACKGROUND) || Color.transparent };
 		this.gridWidget.style(separatorBorderStyle);

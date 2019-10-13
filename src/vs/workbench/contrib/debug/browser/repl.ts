@@ -356,7 +356,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	getActions(): IAction[] {
 		const result: IAction[] = [];
-		if (this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s)).length > 1) {
+		if (this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s)).length > 1) {
 			result.push(this.selectReplAction);
 		}
 		result.push(this.clearReplAction);
@@ -504,7 +504,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => e.element
+			getActionsContext: () => e.element,
+			onHide: () => dispose(actions)
 		});
 	}
 
@@ -700,7 +701,7 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, Fuz
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService);
+		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session);
 		templateData.value.appendChild(result);
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
@@ -918,7 +919,7 @@ class AcceptReplInputAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion();
+		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
 		accessor.get(IPrivateReplService).acceptReplInput();
 	}
 }
@@ -940,7 +941,7 @@ class FilterReplAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion();
+		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
 		accessor.get(IPrivateReplService).focusRepl();
 	}
 }
@@ -968,19 +969,22 @@ registerEditorAction(FilterReplAction);
 
 class SelectReplActionViewItem extends FocusSessionActionViewItem {
 
-	protected getActionContext(_: string, index: number): any {
-		return this.debugService.getModel().getSessions(true)[index];
+	protected getSessions(): ReadonlyArray<IDebugSession> {
+		return this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s));
 	}
 
-	protected getSessions(): ReadonlyArray<IDebugSession> {
-		return this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s));
+	protected mapFocusedSessionToSelected(focusedSession: IDebugSession): IDebugSession {
+		while (focusedSession.parentSession && !focusedSession.hasSeparateRepl()) {
+			focusedSession = focusedSession.parentSession;
+		}
+		return focusedSession;
 	}
 }
 
 class SelectReplAction extends Action {
 
 	static readonly ID = 'workbench.action.debug.selectRepl';
-	static LABEL = nls.localize('selectRepl', "Select Debug Console");
+	static readonly LABEL = nls.localize('selectRepl', "Select Debug Console");
 
 	constructor(id: string, label: string,
 		@IDebugService private readonly debugService: IDebugService,
@@ -989,10 +993,10 @@ class SelectReplAction extends Action {
 		super(id, label);
 	}
 
-	run(session: IDebugSession): Promise<any> {
+	async run(session: IDebugSession): Promise<any> {
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
-			this.debugService.focusStackFrame(undefined, undefined, session, true);
+			await this.debugService.focusStackFrame(undefined, undefined, session, true);
 		} else {
 			this.replService.selectSession(session);
 		}
@@ -1003,12 +1007,12 @@ class SelectReplAction extends Action {
 
 export class ClearReplAction extends Action {
 	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
-	static LABEL = nls.localize('clearRepl', "Clear Console");
+	static readonly LABEL = nls.localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'debug-action clear-repl');
+		super(id, label, 'debug-action codicon-clear-all');
 	}
 
 	run(): Promise<any> {

@@ -107,12 +107,12 @@ export class Match {
 
 		// If match string is not matching then regex pattern has a lookahead expression
 		if (replaceString === null) {
-			const fullMatchTextWithTrailingContent = this.fullMatchText(true);
-			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithTrailingContent, searchModel.preserveCase);
+			const fullMatchTextWithSurroundingContent = this.fullMatchText(true);
+			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithSurroundingContent, searchModel.preserveCase);
 
 			// Search/find normalize line endings - check whether \r prevents regex from matching
 			if (replaceString === null) {
-				const fullMatchTextWithoutCR = fullMatchTextWithTrailingContent.replace(/\r\n/g, '\n');
+				const fullMatchTextWithoutCR = fullMatchTextWithSurroundingContent.replace(/\r\n/g, '\n');
 				replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR, searchModel.preserveCase);
 			}
 		}
@@ -125,17 +125,16 @@ export class Match {
 		return replaceString;
 	}
 
-	fullMatchText(includeTrailing = false): string {
+	fullMatchText(includeSurrounding = false): string {
 		let thisMatchPreviewLines: string[];
-		if (includeTrailing) {
-			thisMatchPreviewLines = this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber);
+		if (includeSurrounding) {
+			thisMatchPreviewLines = this._fullPreviewLines;
 		} else {
 			thisMatchPreviewLines = this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
 			thisMatchPreviewLines[thisMatchPreviewLines.length - 1] = thisMatchPreviewLines[thisMatchPreviewLines.length - 1].slice(0, this._fullPreviewRange.endColumn);
-
+			thisMatchPreviewLines[0] = thisMatchPreviewLines[0].slice(this._fullPreviewRange.startColumn);
 		}
 
-		thisMatchPreviewLines[0] = thisMatchPreviewLines[0].slice(this._fullPreviewRange.startColumn);
 		return thisMatchPreviewLines.join('\n');
 	}
 

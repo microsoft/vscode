@@ -198,14 +198,69 @@
 		}
 	},
 	{
-		"c": " extern \"C\"",
-		"t": "source.cpp meta.preprocessor.macro.cpp",
+		"c": " ",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "meta.preprocessor: #569CD6"
+		}
+	},
+	{
+		"c": "extern",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp meta.head.extern.cpp storage.type.extern.cpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp meta.head.extern.cpp",
+		"r": {
+			"dark_plus": "meta.preprocessor: #569CD6",
+			"light_plus": "meta.preprocessor: #0000FF",
+			"dark_vs": "meta.preprocessor: #569CD6",
+			"light_vs": "meta.preprocessor: #0000FF",
+			"hc_black": "meta.preprocessor: #569CD6"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp meta.head.extern.cpp string.quoted.double.cpp punctuation.definition.string.begin.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "C",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp meta.head.extern.cpp string.quoted.double.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.extern.cpp meta.head.extern.cpp string.quoted.double.cpp punctuation.definition.string.end.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
 		}
 	},
 	{

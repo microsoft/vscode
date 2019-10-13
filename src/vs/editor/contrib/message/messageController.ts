@@ -23,7 +23,7 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 
 	private static readonly _id = 'editor.contrib.messageController';
 
-	static MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false);
+	static readonly MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false);
 
 	static get(editor: ICodeEditor): MessageController {
 		return editor.getContribution<MessageController>(MessageController._id);

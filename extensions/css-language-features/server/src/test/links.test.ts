@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import 'mocha';
 import * as assert from 'assert';
-import Uri from 'vscode-uri';
+import { URI }  from 'vscode-uri';
 import { resolve } from 'path';
 import { TextDocument, DocumentLink } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver-protocol';
@@ -54,7 +54,7 @@ suite('Links', () => {
 	}
 
 	function getTestResource(path: string) {
-		return Uri.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString();
+		return URI.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString();
 	}
 
 	test('url links', function () {

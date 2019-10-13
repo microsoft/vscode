@@ -75,7 +75,7 @@ class ConditionalBreakpointAction extends EditorAction {
 
 		const position = editor.getPosition();
 		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber);
+			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, undefined);
 		}
 	}
 }
@@ -104,8 +104,8 @@ class LogPointAction extends EditorAction {
 
 export class RunToCursorAction extends EditorAction {
 
-	public static ID = 'editor.debug.action.runToCursor';
-	public static LABEL = nls.localize('runToCursor', "Run to Cursor");
+	public static readonly ID = 'editor.debug.action.runToCursor';
+	public static readonly LABEL = nls.localize('runToCursor', "Run to Cursor");
 
 	constructor() {
 		super({

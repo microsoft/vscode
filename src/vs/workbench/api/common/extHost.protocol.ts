@@ -32,20 +32,21 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
 import { RemoteAuthorityResolverErrorCode, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import * as statusbar from 'vs/platform/statusbar/common/statusbar';
+import * as statusbar from 'vs/workbench/services/statusbar/common/statusbar';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
-import { IAdapterDescriptor, IConfig } from 'vs/workbench/contrib/debug/common/debug';
+import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ITerminalDimensions, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -504,7 +505,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: string | undefined, color: string | ThemeColor | undefined, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
 	$dispose(id: number): void;
 }
 
@@ -544,11 +545,13 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
-	$setState(handle: WebviewPanelHandle, state: modes.WebviewEditorState): void;
+	$setState(handle: WebviewPanelHandle, state: modes.WebviewContentState): void;
 	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void;
+	$setExtension(handle: WebviewPanelHandle, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
+
 	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
 
 	$registerSerializer(viewType: string): void;
@@ -645,12 +648,16 @@ export interface MainThreadTaskShape extends IDisposable {
 }
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
-	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string | null): Promise<void>;
+	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
-	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string | null): void;
+	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
 	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: ExtensionActivationError): Promise<void>;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
 	$onExtensionHostExit(code: number): void;
+}
+
+export interface SCMProviderProps {
+	readonly treeRendering: boolean;
 }
 
 export interface SCMProviderFeatures {
@@ -686,7 +693,7 @@ export type SCMRawResourceSplices = [
 ];
 
 export interface MainThreadSCMShape extends IDisposable {
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void;
+	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, props: SCMProviderProps): void;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
 	$unregisterSourceControl(handle: number): void;
 
@@ -712,6 +719,11 @@ export interface IDebugConfiguration {
 	[key: string]: any;
 }
 
+export interface IStartDebuggingOptions {
+	parentSessionID?: DebugSessionUUID;
+	repl?: IDebugSessionReplMode;
+}
+
 export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugTypes(debugTypes: string[]): void;
 	$sessionCached(sessionID: string): void;
@@ -722,7 +734,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
 	$unregisterDebugConfigurationProvider(handle: number): void;
 	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
-	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, parentSessionID: string | undefined): Promise<boolean>;
+	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean>;
 	$setDebugSessionName(id: DebugSessionUUID, name: string): void;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$appendDebugConsole(value: string): void;
@@ -738,6 +750,7 @@ export interface IOpenUriOptions {
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): Promise<boolean>;
 	$openUri(uri: UriComponents, options: IOpenUriOptions): Promise<boolean>;
+	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
 }
 
 // -- extension host
@@ -877,7 +890,7 @@ export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
 	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	$activateByEvent(activationEvent: string): Promise<void>;
-	$activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<boolean>;
+	$activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	$setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 
 	$deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
@@ -930,21 +943,38 @@ export class IdObject {
 	}
 }
 
+export const enum ISuggestDataDtoField {
+	label = 'a',
+	kind = 'b',
+	detail = 'c',
+	documentation = 'd',
+	sortText = 'e',
+	filterText = 'f',
+	preselect = 'g',
+	insertText = 'h',
+	insertTextRules = 'i',
+	range = 'j',
+	commitCharacters = 'k',
+	additionalTextEdits = 'l',
+	command = 'm',
+	kindModifier = 'n',
+}
+
 export interface ISuggestDataDto {
-	a/* label */: string;
-	b/* kind */: modes.CompletionItemKind;
-	c/* detail */?: string;
-	d/* documentation */?: string | IMarkdownString;
-	e/* sortText */?: string;
-	f/* filterText */?: string;
-	g/* preselect */?: boolean;
-	h/* insertText */?: string;
-	i/* insertTextRules */?: modes.CompletionItemInsertTextRule;
-	j/* range */?: IRange;
-	k/* commitCharacters */?: string[];
-	l/* additionalTextEdits */?: ISingleEditOperation[];
-	m/* command */?: modes.Command;
-	n/* kindModifier */?: modes.CompletionItemTag[];
+	[ISuggestDataDtoField.label]: string;
+	[ISuggestDataDtoField.kind]: modes.CompletionItemKind;
+	[ISuggestDataDtoField.detail]?: string;
+	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
+	[ISuggestDataDtoField.sortText]?: string;
+	[ISuggestDataDtoField.filterText]?: string;
+	[ISuggestDataDtoField.preselect]?: boolean;
+	[ISuggestDataDtoField.insertText]?: string;
+	[ISuggestDataDtoField.insertTextRules]?: modes.CompletionItemInsertTextRule;
+	[ISuggestDataDtoField.range]?: IRange;
+	[ISuggestDataDtoField.commitCharacters]?: string[];
+	[ISuggestDataDtoField.additionalTextEdits]?: ISingleEditOperation[];
+	[ISuggestDataDtoField.command]?: modes.Command;
+	[ISuggestDataDtoField.kindModifier]?: modes.CompletionItemTag[];
 	// not-standard
 	x?: ChainedCacheId;
 }
@@ -1163,7 +1193,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
-	$spawnExtHostProcess(id: number, shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+	$spawnExtHostProcess(id: number, shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
 	$startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
@@ -1193,6 +1223,7 @@ export interface ExtHostTaskShape {
 	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }, variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
 	$getDefaultShellAndArgs(): Thenable<{ shell: string, args: string[] | string | undefined }>;
+	$jsonTasksSupported(): Thenable<boolean>;
 }
 
 export interface IBreakpointDto {

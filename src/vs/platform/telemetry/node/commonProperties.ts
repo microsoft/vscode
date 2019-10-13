@@ -8,7 +8,14 @@ import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
 import { readFile } from 'vs/base/node/pfs';
 
-export async function resolveCommonProperties(commit: string | undefined, version: string | undefined, machineId: string | undefined, msftInternalDomains: string[] | undefined, installSourcePath: string, product?: string): Promise<{ [name: string]: string | boolean | undefined; }> {
+export async function resolveCommonProperties(
+	commit: string | undefined,
+	version: string | undefined,
+	machineId: string | undefined,
+	msftInternalDomains: string[] | undefined,
+	installSourcePath: string,
+	product?: string
+): Promise<{ [name: string]: string | boolean | undefined; }> {
 	const result: { [name: string]: string | boolean | undefined; } = Object.create(null);
 
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
@@ -32,7 +39,7 @@ export async function resolveCommonProperties(commit: string | undefined, versio
 
 	const msftInternal = verifyMicrosoftInternalDomain(msftInternalDomains || []);
 	if (msftInternal) {
-		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		result['common.msftInternal'] = msftInternal;
 	}
 
@@ -74,17 +81,11 @@ export async function resolveCommonProperties(commit: string | undefined, versio
 	return result;
 }
 
-function verifyMicrosoftInternalDomain(domainList: string[]): boolean {
+function verifyMicrosoftInternalDomain(domainList: readonly string[]): boolean {
 	if (!process || !process.env || !process.env['USERDNSDOMAIN']) {
 		return false;
 	}
 
 	const domain = process.env['USERDNSDOMAIN']!.toLowerCase();
-	for (let msftDomain of domainList) {
-		if (domain === msftDomain) {
-			return true;
-		}
-	}
-
-	return false;
+	return domainList.some(msftDomain => domain === msftDomain);
 }

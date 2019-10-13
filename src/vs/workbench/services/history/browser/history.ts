@@ -19,7 +19,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
@@ -33,6 +32,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -120,7 +120,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private lastEditLocation: IStackEntry | undefined;
 
-	private history!: Array<IEditorInput | IResourceInput>;
+	private history: Array<IEditorInput | IResourceInput> = [];
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
@@ -138,7 +138,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -250,7 +250,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// Track the last edit location by tracking model content change events
 			// Use a debouncer to make sure to capture the correct cursor position
 			// after the model content has changed.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => this.rememberLastEditLocation(activeEditor!, activeTextEditorWidget))));
+			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
+				if (activeEditor) {
+					this.rememberLastEditLocation(activeEditor, activeTextEditorWidget);
+				}
+			})));
 		}
 	}
 
@@ -781,7 +785,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const input = arg1 as IResourceInput;
 
-		this.windowService.removeFromRecentlyOpened([input.resource]);
+		this.workspacesService.removeFromRecentlyOpened([input.resource]);
 	}
 
 	private isFileOpened(resource: URI, group: IEditorGroup): boolean {

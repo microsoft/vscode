@@ -252,7 +252,10 @@ export class TextSearchMatch implements ITextSearchMatch {
 	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions) {
 		this.ranges = range;
 
-		if (previewOptions && previewOptions.matchLines === 1 && (!Array.isArray(range) || range.length === 1)) {
+		// Trim preview if this is one match and a single-line match with a preview requested.
+		// Otherwise send the full text, like for replace or for showing multiple previews.
+		// TODO this is fishy.
+		if (previewOptions && previewOptions.matchLines === 1 && (!Array.isArray(range) || range.length === 1) && isSingleLineRange(range)) {
 			const oneRange = Array.isArray(range) ? range[0] : range;
 
 			// 1 line preview requested
@@ -273,13 +276,18 @@ export class TextSearchMatch implements ITextSearchMatch {
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
 
-			// n line, no preview requested, or multiple matches in the preview
 			this.preview = {
 				text,
 				matches: mapArrayOrNot(range, r => new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn))
 			};
 		}
 	}
+}
+
+function isSingleLineRange(range: ISearchRange | ISearchRange[]): boolean {
+	return Array.isArray(range) ?
+		range[0].startLineNumber === range[0].endLineNumber :
+		range.startLineNumber === range.endLineNumber;
 }
 
 export class SearchRange implements ISearchRange {

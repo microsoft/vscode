@@ -14,7 +14,7 @@ import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
@@ -41,7 +41,7 @@ function isAvailable(): Promise<boolean> {
 class InstallAction extends Action {
 
 	static readonly ID = 'workbench.action.installCommandLine';
-	static LABEL = nls.localize('install', "Install '{0}' command in PATH", product.applicationName);
+	static readonly LABEL = nls.localize('install', "Install '{0}' command in PATH", product.applicationName);
 
 	constructor(
 		id: string,
@@ -122,7 +122,7 @@ class InstallAction extends Action {
 class UninstallAction extends Action {
 
 	static readonly ID = 'workbench.action.uninstallCommandLine';
-	static LABEL = nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName);
+	static readonly LABEL = nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName);
 
 	constructor(
 		id: string,

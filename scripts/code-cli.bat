@@ -24,7 +24,7 @@ if "%1"=="--builtin" goto builtin
 node build\lib\builtInExtensions.js
 
 :: Build
-if not exist out node .\node_modules\gulp\bin\gulp.js compile
+if not exist out yarn compile
 
 :: Configuration
 set ELECTRON_RUN_AS_NODE=1
