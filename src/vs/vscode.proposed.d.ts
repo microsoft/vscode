@@ -59,15 +59,15 @@ declare module 'vscode' {
 	}
 
 	export class CallHierarchyIncomingCall {
-		source: CallHierarchyItem;
-		sourceRanges: Range[];
-		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
+		from: CallHierarchyItem;
+		fromRanges: Range[];
+		constructor(item: CallHierarchyItem, fromRanges: Range[]);
 	}
 
 	export class CallHierarchyOutgoingCall {
-		sourceRanges: Range[];
-		target: CallHierarchyItem;
-		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
+		fromRanges: Range[];
+		to: CallHierarchyItem;
+		constructor(item: CallHierarchyItem, fromRanges: Range[]);
 	}
 
 	export interface CallHierarchyItemProvider {
@@ -764,6 +764,35 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Joao: SCM tree rendering
+
+	/**
+	 * Options for creating a [SourceControl](#SourceControl) instance.
+	 */
+	export interface SourceControlOptions {
+
+		/**
+		 * Whether tree rendering is supported by the [SourceControl](#SourceControl) instance.
+		 */
+		readonly treeRendering?: boolean;
+	}
+
+	export namespace scm {
+
+		/**
+		 * Creates a new [source control](#SourceControl) instance.
+		 *
+		 * @param id An `id` for the source control. Something short, e.g.: `git`.
+		 * @param label A human-readable string for the source control. E.g.: `Git`.
+		 * @param rootUri An optional Uri of the root of the source control. E.g.: `Uri.parse(workspaceRoot)`.
+		 * @param options Additional options for creating the source control.
+		 * @return An instance of [source control](#SourceControl).
+		 */
+		export function createSourceControl(id: string, label: string, rootUri?: Uri, options?: SourceControlOptions): SourceControl;
+	}
+
+	//#endregion
+
 	//#region Joao: SCM Input Box
 
 	/**
@@ -913,7 +942,7 @@ declare module 'vscode' {
 	/**
 	 * Class used to execute an extension callback as a task.
 	 */
-	export class CustomExecution2 {
+	export class CustomExecution {
 		/**
 		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
 		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
@@ -942,12 +971,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's execution engine
 		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution2;
+		execution2?: ProcessExecution | ShellExecution | CustomExecution;
 	}
 	//#endregion
 

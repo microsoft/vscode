@@ -12,6 +12,7 @@ import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -29,13 +30,13 @@ export interface ILayoutContentResult {
  */
 export abstract class Part extends Component implements ISerializableView {
 
-	private _dimension: Dimension;
-	get dimension(): Dimension { return this._dimension; }
+	private _dimension: Dimension | undefined;
+	get dimension(): Dimension | undefined { return this._dimension; }
 
-	private parent: HTMLElement;
-	private titleArea: HTMLElement | null = null;
-	private contentArea: HTMLElement | null = null;
-	private partLayout: PartLayout;
+	private parent: HTMLElement | undefined;
+	private titleArea: HTMLElement | undefined;
+	private contentArea: HTMLElement | undefined;
+	private partLayout: PartLayout | undefined;
 
 	constructor(
 		id: string,
@@ -80,35 +81,35 @@ export abstract class Part extends Component implements ISerializableView {
 	/**
 	 * Returns the overall part container.
 	 */
-	getContainer(): HTMLElement {
+	getContainer(): HTMLElement | undefined {
 		return this.parent;
 	}
 
 	/**
 	 * Subclasses override to provide a title area implementation.
 	 */
-	protected createTitleArea(parent: HTMLElement, options?: object): HTMLElement | null {
-		return null;
+	protected createTitleArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
+		return undefined;
 	}
 
 	/**
 	 * Returns the title area container.
 	 */
-	protected getTitleArea(): HTMLElement | null {
+	protected getTitleArea(): HTMLElement | undefined {
 		return this.titleArea;
 	}
 
 	/**
 	 * Subclasses override to provide a content area implementation.
 	 */
-	protected createContentArea(parent: HTMLElement, options?: object): HTMLElement | null {
-		return null;
+	protected createContentArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
+		return undefined;
 	}
 
 	/**
 	 * Returns the content area container.
 	 */
-	protected getContentArea(): HTMLElement | null {
+	protected getContentArea(): HTMLElement | undefined {
 		return this.contentArea;
 	}
 
@@ -116,7 +117,9 @@ export abstract class Part extends Component implements ISerializableView {
 	 * Layout title and content area in the given dimension.
 	 */
 	protected layoutContents(width: number, height: number): ILayoutContentResult {
-		return this.partLayout.layout(width, height);
+		const partLayout = assertIsDefined(this.partLayout);
+
+		return partLayout.layout(width, height);
 	}
 
 	//#region ISerializableView
@@ -144,7 +147,7 @@ class PartLayout {
 
 	private static readonly TITLE_HEIGHT = 35;
 
-	constructor(private options: IPartOptions, private contentArea: HTMLElement | null) { }
+	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
 
 	layout(width: number, height: number): ILayoutContentResult {
 

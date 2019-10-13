@@ -425,12 +425,13 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 		args.push('--pcre2');
 	}
 
-	if (query.isRegExp) {
-		query.pattern = unicodeEscapesToPCRE2(query.pattern);
-	}
-
 	// Allow $ to match /r/n
 	args.push('--crlf');
+
+	if (query.isRegExp) {
+		query.pattern = unicodeEscapesToPCRE2(query.pattern);
+		args.push('--auto-hybrid-regex');
+	}
 
 	let searchPatternAfterDoubleDashes: Maybe<string>;
 	if (query.isWordMatch) {
@@ -441,7 +442,6 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 		let fixedRegexpQuery = fixRegexNewline(query.pattern);
 		fixedRegexpQuery = fixNewline(fixedRegexpQuery);
 		args.push('--regexp', fixedRegexpQuery);
-		args.push('--auto-hybrid-regex');
 	} else {
 		searchPatternAfterDoubleDashes = query.pattern;
 		args.push('--fixed-strings');

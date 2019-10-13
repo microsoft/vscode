@@ -291,7 +291,7 @@ export namespace MarkdownString {
 			return part;
 		}
 		data = cloneAndChange(data, value => {
-			if (value instanceof URI) {
+			if (URI.isUri(value)) {
 				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
 				bucket[key] = value;
 				return key;
@@ -303,9 +303,7 @@ export namespace MarkdownString {
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
-		const ret = new htmlContent.MarkdownString(value.value);
-		ret.isTrusted = value.isTrusted;
-		return ret;
+		return new htmlContent.MarkdownString(value.value, value.isTrusted);
 	}
 
 	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {

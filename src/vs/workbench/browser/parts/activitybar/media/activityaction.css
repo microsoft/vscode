@@ -10,6 +10,8 @@
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label {
+	position: relative;
+	z-index: 1;
 	display: flex;
 	overflow: hidden;
 	height: 40px;
@@ -20,17 +22,39 @@
 	font-size: 15px;
 }
 
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before,
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 	content: "";
 	position: absolute;
 	top: 9px;
 	height: 32px;
+	z-index: 1;
+	top: 5px;
+	height: 40px;
 	width: 0;
 	border-left: 2px solid;
 }
 
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+	top: 0;
+	height: 100%;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
+	border-left: none; /* don't show active border + focus at the same time, focus takes priority */
+}
+
+/* Hides active elements in high contrast mode */
+.hc-black .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+	display: none;
+}
+
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.clicked:focus:before {
 	border-left: none !important; /* no focus feedback when using mouse */
+}
+
+.monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before{
+	left: 0;
 }
 
 .monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
@@ -41,8 +65,20 @@
 	right: 1px;
 }
 
+.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+	right: 2px;
+}
+
+/* Hides outline on HC as focus is handled by border */
+.hc-black .monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before,
+.hc-black .monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
+	outline: none;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .active-item-indicator,
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge {
 	position: absolute;
+	z-index: 1;
 	top: 5px;
 	left: 0;
 	overflow: hidden;

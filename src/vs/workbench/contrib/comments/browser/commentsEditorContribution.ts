@@ -76,10 +76,7 @@ class CommentingRangeDecoration {
 			options: commentingOptions
 		}];
 
-		let model = this._editor.getModel();
-		if (model) {
-			this._decorationId = model.deltaDecorations([this._decorationId], commentingRangeDecorations)[0];
-		}
+		this._decorationId = this._editor.deltaDecorations([], commentingRangeDecorations)[0];
 	}
 
 	public getCommentAction(): { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges } {
@@ -152,17 +149,17 @@ class CommentingRangeDecorator {
 export class ReviewController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
-	private editor: ICodeEditor;
+	private editor!: ICodeEditor;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _commentInfos: ICommentInfo[];
-	private _commentingRangeDecorator: CommentingRangeDecorator;
+	private _commentingRangeDecorator!: CommentingRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
-	private _addInProgress: boolean;
+	private _addInProgress!: boolean;
 	private _emptyThreadsToAddQueue: [number, IEditorMouseEvent | undefined][] = [];
-	private _computeCommentingRangePromise: CancelablePromise<ICommentInfo[]> | null;
-	private _computeCommentingRangeScheduler: Delayer<Array<ICommentInfo | null>> | null;
+	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
+	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
 
 	constructor(

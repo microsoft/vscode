@@ -41,7 +41,7 @@ const webviewEditorsContribution: IJSONSchema = {
 			},
 			[WebviewEditorContribution.displayName]: {
 				type: 'string',
-				description: nls.localize('contributes.displayName', 'Name of the custom editor displayed to users.'),
+				description: nls.localize('contributes.displayName', 'Human readable name of the custom editor. This is displayed to users when selecting which editor to use.'),
 			},
 			[WebviewEditorContribution.selector]: {
 				type: 'array',

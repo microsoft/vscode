@@ -122,6 +122,7 @@ export abstract class AbstractProcess<TProgressData> {
 		}
 
 		this.childProcess = null;
+		this.childProcessPromise = null;
 		this.terminateRequested = false;
 
 		if (this.options.env) {

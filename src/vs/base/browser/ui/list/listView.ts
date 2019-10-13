@@ -686,7 +686,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return scrollPosition.scrollLeft;
 	}
 
-	setScrollLeftt(scrollLeft: number): void {
+	setScrollLeft(scrollLeft: number): void {
 		if (this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable.dispose();
 			this.scrollableElementUpdateDisposable = null;

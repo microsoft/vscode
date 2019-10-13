@@ -101,6 +101,7 @@ export interface ITerminalConfiguration {
 	detectLocale: 'auto' | 'off' | 'on';
 	scrollback: number;
 	commandsToSkipShell: string[];
+	allowChords: boolean;
 	cwd: string;
 	confirmOnExit: boolean;
 	enableBell: boolean;
@@ -341,7 +342,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 export interface ISpawnExtHostProcessRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	shellLaunchConfig: IShellLaunchConfig;
-	activeWorkspaceRootUri: URI;
+	activeWorkspaceRootUri: URI | undefined;
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;

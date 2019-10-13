@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/node/issue';
-import { BrowserWindow, ipcMain, screen, Event as IpcMainEvent, Display, shell } from 'electron';
+import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';

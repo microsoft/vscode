@@ -308,6 +308,18 @@
         "order": 24,
         "title": "%scss.title%",
         "properties": {
+          "scss.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "scss.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.completion.completePropertyWithSemicolon.desc%"
+          },
           "scss.validate": {
             "type": "boolean",
             "scope": "resource",
@@ -530,6 +542,18 @@
         "type": "object",
         "title": "%less.title%",
         "properties": {
+          "less.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "less.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.completion.completePropertyWithSemicolon.desc%"
+          },
           "less.validate": {
             "type": "boolean",
             "scope": "resource",

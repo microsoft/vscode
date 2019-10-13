@@ -14,7 +14,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 export class SaveWorkspaceAsAction extends Action {
 
 	static readonly ID = 'workbench.action.saveWorkspaceAs';
-	static LABEL = nls.localize('saveWorkspaceAsAction', "Save Workspace As...");
+	static readonly LABEL = nls.localize('saveWorkspaceAsAction', "Save Workspace As...");
 
 	constructor(
 		id: string,

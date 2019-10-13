@@ -36,6 +36,8 @@ import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/a
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
+import { assertIsDefined } from 'vs/base/common/types';
+import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -134,6 +136,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private viewletService: IViewletService;
 	private contextService: IWorkspaceContextService;
 	private backupFileService: IBackupFileService;
+	private notificationService: INotificationService;
 
 	protected readonly state = {
 		fullscreen: false,
@@ -181,7 +184,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			transitionedToCenteredEditorLayout: false,
 			wasSideBarVisible: false,
 			wasPanelVisible: false,
-			transitionDisposables: new DisposableStore()
+			transitionDisposables: new DisposableStore(),
+			setNotificationsFilter: false
 		},
 
 	};
@@ -209,6 +213,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.panelService = accessor.get(IPanelService);
 		this.viewletService = accessor.get(IViewletService);
 		this.titleService = accessor.get(ITitleService);
+		this.notificationService = accessor.get(INotificationService);
 		accessor.get(IStatusbarService); // not used, but called to ensure instantiated
 		accessor.get(IActivityBarService); // not used, but called to ensure instantiated
 
@@ -340,10 +345,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.sideBar.position = position;
 
 		// Adjust CSS
-		removeClass(activityBar.getContainer(), oldPositionValue);
-		removeClass(sideBar.getContainer(), oldPositionValue);
-		addClass(activityBar.getContainer(), newPositionValue);
-		addClass(sideBar.getContainer(), newPositionValue);
+		const activityBarContainer = assertIsDefined(activityBar.getContainer());
+		const sideBarContainer = assertIsDefined(sideBar.getContainer());
+		removeClass(activityBarContainer, oldPositionValue);
+		removeClass(sideBarContainer, oldPositionValue);
+		addClass(activityBarContainer, newPositionValue);
+		addClass(sideBarContainer, newPositionValue);
 
 		// Update Styles
 		activityBar.updateStyles();
@@ -528,10 +535,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		const container = this.getContainer(part);
 
-		return isAncestor(activeElement, container);
+		return !!container && isAncestor(activeElement, container);
 	}
 
-	getContainer(part: Parts): HTMLElement {
+	getContainer(part: Parts): HTMLElement | undefined {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				return this.getPart(Parts.TITLEBAR_PART).getContainer();
@@ -579,7 +586,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return true; // any other part cannot be hidden
 	}
 
-	getDimension(part: Parts): Dimension {
+	getDimension(part: Parts): Dimension | undefined {
 		return this.getPart(part).dimension;
 	}
 
@@ -647,6 +654,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				hideActivityBar: boolean;
 				hideStatusBar: boolean;
 				hideLineNumbers: boolean;
+				silentNotifications: boolean;
 			} = this.configurationService.getValue('zenMode');
 
 			toggleFullScreen = !this.state.fullscreen && config.fullScreen;
@@ -676,6 +684,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
 			}
 
+			this.state.zenMode.setNotificationsFilter = config.silentNotifications;
+			if (config.silentNotifications) {
+				this.notificationService.setFilter(NotificationsFilter.SILENT);
+			}
+
 			if (config.centerLayout) {
 				this.centerEditorLayout(true, true);
 			}
@@ -701,6 +714,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.doUpdateLayoutConfiguration(true);
 
 			this.editorGroupService.activeGroup.focus();
+			if (this.state.zenMode.setNotificationsFilter) {
+				this.notificationService.setFilter(NotificationsFilter.OFF);
+			}
 
 			toggleFullScreen = this.state.zenMode.transitionedToFullScreen && this.state.fullscreen;
 		}
@@ -1121,8 +1137,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.storageService.store(Storage.PANEL_POSITION, positionToString(this.state.panel.position), StorageScope.WORKSPACE);
 
 		// Adjust CSS
-		removeClass(panelPart.getContainer(), oldPositionValue);
-		addClass(panelPart.getContainer(), newPositionValue);
+		const panelContainer = assertIsDefined(panelPart.getContainer());
+		removeClass(panelContainer, oldPositionValue);
+		addClass(panelContainer, newPositionValue);
 
 		// Update Styles
 		panelPart.updateStyles();
@@ -1161,7 +1178,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, workbenchDimensions.width);
 		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, workbenchDimensions.height);
 		// At some point, we will not fall back to old keys from legacy layout, but for now, let's migrate the keys
-		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, this.storageService.getNumber('workbench.sidebar.width', StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300))!);
+		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, this.storageService.getNumber('workbench.sidebar.width', StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300)));
 		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(this.state.panel.position === Position.BOTTOM ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, workbenchDimensions.height / 3));
 
 		const titleBarHeight = this.titleBarPartView.minimumHeight;

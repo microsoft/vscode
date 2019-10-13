@@ -1115,6 +1115,20 @@ namespace ProblemMatcherConverter {
 		return result;
 	}
 
+	export function fromWithOsConfig(this: void, external: ConfigurationProperties & { [key: string]: any; }, context: ParseContext): ProblemMatcher[] | undefined {
+		let result: ProblemMatcher[] | undefined = undefined;
+		if (external.windows && external.windows.problemMatcher && context.platform === Platform.Windows) {
+			result = from(external.windows.problemMatcher, context);
+		} else if (external.osx && external.osx.problemMatcher && context.platform === Platform.Mac) {
+			result = from(external.osx.problemMatcher, context);
+		} else if (external.linux && external.linux.problemMatcher && context.platform === Platform.Linux) {
+			result = from(external.linux.problemMatcher, context);
+		} else if (external.problemMatcher) {
+			result = from(external.problemMatcher, context);
+		}
+		return result;
+	}
+
 	export function from(this: void, config: ProblemMatcherConfig.ProblemMatcherType | undefined, context: ParseContext): ProblemMatcher[] {
 		let result: ProblemMatcher[] = [];
 		if (config === undefined) {
@@ -1305,8 +1319,9 @@ namespace ConfigurationProperties {
 		if (includeCommandOptions && (external.options !== undefined)) {
 			result.options = CommandOptions.from(external.options, context);
 		}
-		if (external.problemMatcher) {
-			result.problemMatchers = ProblemMatcherConverter.from(external.problemMatcher, context);
+		const configProblemMatcher = ProblemMatcherConverter.fromWithOsConfig(external, context);
+		if (configProblemMatcher !== undefined) {
+			result.problemMatchers = configProblemMatcher;
 		}
 		return isEmpty(result) ? undefined : result;
 	}
@@ -2047,80 +2062,3 @@ export function createCustomTask(contributedTask: Tasks.ContributedTask, configu
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
 }
 
-/*
-class VersionConverter {
-	constructor(private problemReporter: IProblemReporter) {
-	}
-
-	public convert(fromConfig: ExternalTaskRunnerConfiguration): ExternalTaskRunnerConfiguration {
-		let result: ExternalTaskRunnerConfiguration;
-		result.version = '2.0.0';
-		if (Array.isArray(fromConfig.tasks)) {
-
-		} else {
-			result.tasks = [];
-		}
-
-
-		return result;
-	}
-
-	private convertGlobalTask(fromConfig: ExternalTaskRunnerConfiguration): TaskDescription {
-		let command: string = this.getGlobalCommand(fromConfig);
-		if (!command) {
-			this.problemReporter.error(nls.localize('Converter.noGlobalName', 'No global command specified. Can\'t convert to 2.0.0 version.'));
-			return undefined;
-		}
-		let result: TaskDescription = {
-			taskName: command
-		};
-		if (fromConfig.isShellCommand) {
-			result.type = 'shell';
-		} else {
-			result.type = 'process';
-			result.args = fromConfig.args;
-		}
-		if (fromConfig.)
-
-		return result;
-	}
-
-	private getGlobalCommand(fromConfig: ExternalTaskRunnerConfiguration): string {
-		if (fromConfig.command) {
-			return fromConfig.command;
-		} else if (fromConfig.windows && fromConfig.windows.command) {
-			return fromConfig.windows.command;
-		} else if (fromConfig.osx && fromConfig.osx.command) {
-			return fromConfig.osx.command;
-		} else if (fromConfig.linux && fromConfig.linux.command) {
-			return fromConfig.linux.command;
-		} else {
-			return undefined;
-		}
-	}
-
-	private createCommandLine(command: string, args: string[], isWindows: boolean): string {
-		let result: string[];
-		let commandHasSpace = false;
-		let argHasSpace = false;
-		if (TaskDescription.hasUnescapedSpaces(command)) {
-			result.push(`"${command}"`);
-			commandHasSpace = true;
-		} else {
-			result.push(command);
-		}
-		if (args) {
-			for (let arg of args) {
-				if (TaskDescription.hasUnescapedSpaces(arg)) {
-					result.push(`"${arg}"`);
-					argHasSpace= true;
-				} else {
-					result.push(arg);
-				}
-			}
-		}
-		return result.join(' ');
-	}
-
-}
-*/

@@ -38,7 +38,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly _onModelOrphanedChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
 	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent> = this._onModelOrphanedChanged.event;
 
-	private _onModelsDirty!: Event<readonly TextFileModelChangeEvent[]>;
+	private _onModelsDirty: Event<readonly TextFileModelChangeEvent[]> | undefined;
 	get onModelsDirty(): Event<readonly TextFileModelChangeEvent[]> {
 		if (!this._onModelsDirty) {
 			this._onModelsDirty = this.debounce(this.onModelDirty);
@@ -47,7 +47,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this._onModelsDirty;
 	}
 
-	private _onModelsSaveError!: Event<readonly TextFileModelChangeEvent[]>;
+	private _onModelsSaveError: Event<readonly TextFileModelChangeEvent[]> | undefined;
 	get onModelsSaveError(): Event<readonly TextFileModelChangeEvent[]> {
 		if (!this._onModelsSaveError) {
 			this._onModelsSaveError = this.debounce(this.onModelSaveError);
@@ -56,7 +56,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this._onModelsSaveError;
 	}
 
-	private _onModelsSaved!: Event<readonly TextFileModelChangeEvent[]>;
+	private _onModelsSaved: Event<readonly TextFileModelChangeEvent[]> | undefined;
 	get onModelsSaved(): Event<readonly TextFileModelChangeEvent[]> {
 		if (!this._onModelsSaved) {
 			this._onModelsSaved = this.debounce(this.onModelSaved);
@@ -65,7 +65,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this._onModelsSaved;
 	}
 
-	private _onModelsReverted!: Event<readonly TextFileModelChangeEvent[]>;
+	private _onModelsReverted: Event<readonly TextFileModelChangeEvent[]> | undefined;
 	get onModelsReverted(): Event<readonly TextFileModelChangeEvent[]> {
 		if (!this._onModelsReverted) {
 			this._onModelsReverted = this.debounce(this.onModelReverted);

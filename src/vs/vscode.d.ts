@@ -5222,7 +5222,7 @@ declare module 'vscode' {
 		/**
 		 * The shell command line. Is `undefined` if created with a command and arguments.
 		 */
-		commandLine: string;
+		commandLine: string | undefined;
 
 		/**
 		 * The shell command. Is `undefined` if created with a full command line.
@@ -7298,7 +7298,7 @@ declare module 'vscode' {
 		 * A number can be used to provide an exit code for the terminal. Exit codes must be
 		 * positive and a non-zero exit codes signals failure which shows a notification for a
 		 * regular terminal and allows dependent tasks to proceed when used with the
-		 * `CustomExecution2` API.
+		 * `CustomExecution` API.
 		 *
 		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript

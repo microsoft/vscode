@@ -54,7 +54,7 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 	private static readonly STATE_KEY = 'workbench.scm.views.state';
 
-	private el: HTMLElement;
+	private el!: HTMLElement;
 	private message: HTMLElement;
 	private menus: SCMMenus;
 	private _repositories: ISCMRepository[] = [];

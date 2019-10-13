@@ -630,7 +630,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				const options = uriOrFileNameOrOptions as { language?: string; content?: string; };
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
-				} else if (uriOrFileNameOrOptions instanceof URI) {
+				} else if (URI.isUri(uriOrFileNameOrOptions)) {
 					uriPromise = Promise.resolve(uriOrFileNameOrOptions);
 				} else if (!options || typeof options === 'object') {
 					uriPromise = extHostDocuments.createDocumentData(options);
@@ -709,8 +709,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get inputBox() {
 				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
-			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
-				return extHostSCM.createSourceControl(extension, id, label, rootUri);
+			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, opts?: vscode.SourceControlOptions) {
+				return extHostSCM.createSourceControl(extension, id, label, rootUri, opts);
 			}
 		};
 
@@ -847,7 +847,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EndOfLine: extHostTypes.EndOfLine,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
-			CustomExecution2: extHostTypes.CustomExecution2,
+			CustomExecution: extHostTypes.CustomExecution,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,

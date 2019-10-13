@@ -51,6 +51,7 @@ export function setup() {
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
 
 			await app.workbench.scm.stage('app.js');
+			await app.workbench.scm.openChange('app.js');
 			await app.workbench.scm.unstage('app.js');
 		});
 
@@ -60,6 +61,7 @@ export function setup() {
 			await app.workbench.scm.openSCMViewlet();
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
 
+			await app.workbench.scm.openChange('app.js');
 			await app.workbench.scm.stage('app.js');
 
 			await app.workbench.scm.commit('first commit');

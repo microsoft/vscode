@@ -18,7 +18,7 @@ import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { EditorInput, toResource, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
@@ -288,7 +288,15 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
 		// Otherwise: root folder of the currently active file if any
-		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER })!);
+		let folder: IWorkspaceFolder | null = null;
+		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			folder = workspace.folders[0];
+		} else {
+			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			if (resource) {
+				folder = this.contextService.getWorkspaceFolder(resource);
+			}
+		}
 
 		// Variables
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
@@ -338,6 +346,11 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private installMenubar(): void {
+		// If the menubar is already installed, skip
+		if (this.menubar) {
+			return;
+		}
+
 		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 
 		this.menubar = this.element.insertBefore($('div.menubar'), this.title);
@@ -400,17 +413,13 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.windowControls = append(this.element, $('div.window-controls-container'));
 
 			// Minimize
-			const minimizeIconContainer = append(this.windowControls, $('div.window-icon-bg'));
-			const minimizeIcon = append(minimizeIconContainer, $('div.window-icon'));
-			addClass(minimizeIcon, 'window-minimize');
+			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize.codicon.codicon-chrome-minimize'));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
 				this.electronService.minimizeWindow();
 			}));
 
 			// Restore
-			const restoreIconContainer = append(this.windowControls, $('div.window-icon-bg'));
-			this.maxRestoreControl = append(restoreIconContainer, $('div.window-icon'));
-			addClass(this.maxRestoreControl, 'window-max-restore');
+			this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore.codicon'));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
 				const maximized = await this.electronService.isMaximized();
 				if (maximized) {
@@ -421,10 +430,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			}));
 
 			// Close
-			const closeIconContainer = append(this.windowControls, $('div.window-icon-bg'));
-			addClass(closeIconContainer, 'window-close-bg');
-			const closeIcon = append(closeIconContainer, $('div.window-icon'));
-			addClass(closeIcon, 'window-close');
+			const closeIcon = append(this.windowControls, $('div.window-icon.window-close.codicon.codicon-chrome-close'));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
 				this.electronService.closeWindow();
 			}));
@@ -464,11 +470,11 @@ export class TitlebarPart extends Part implements ITitleService {
 	private onDidChangeMaximized(maximized: boolean) {
 		if (this.maxRestoreControl) {
 			if (maximized) {
-				removeClass(this.maxRestoreControl, 'window-maximize');
-				addClass(this.maxRestoreControl, 'window-unmaximize');
+				removeClass(this.maxRestoreControl, 'codicon-chrome-maximize');
+				addClass(this.maxRestoreControl, 'codicon-chrome-restore');
 			} else {
-				removeClass(this.maxRestoreControl, 'window-unmaximize');
-				addClass(this.maxRestoreControl, 'window-maximize');
+				removeClass(this.maxRestoreControl, 'codicon-chrome-restore');
+				addClass(this.maxRestoreControl, 'codicon-chrome-maximize');
 			}
 		}
 
@@ -494,7 +500,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				removeClass(this.element, 'inactive');
 			}
 
-			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
+			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND) || '';
 			this.element.style.backgroundColor = titleBackground;
 			if (titleBackground && Color.fromHex(titleBackground).isLighter()) {
 				addClass(this.element, 'light');
@@ -506,7 +512,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.element.style.color = titleForeground;
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
-			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : null;
+			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : '';
 		}
 	}
 
@@ -546,8 +552,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			// Center between menu and window controls
 			if (leftMarker > (this.element.clientWidth - this.title.clientWidth) / 2 ||
 				rightMarker < (this.element.clientWidth + this.title.clientWidth) / 2) {
-				this.title.style.position = null;
-				this.title.style.left = null;
+				this.title.style.position = '';
+				this.title.style.left = '';
 				this.title.style.transform = '';
 				return;
 			}
@@ -608,7 +614,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (titlebarActiveFg) {
 		collector.addRule(`
 		.monaco-workbench .part.titlebar > .window-controls-container .window-icon {
-			background-color: ${titlebarActiveFg};
+			color: ${titlebarActiveFg};
 		}
 		`);
 	}
@@ -617,7 +623,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (titlebarInactiveFg) {
 		collector.addRule(`
 		.monaco-workbench .part.titlebar.inactive > .window-controls-container .window-icon {
-				background-color: ${titlebarInactiveFg};
+				color: ${titlebarInactiveFg};
 			}
 		`);
 	}
