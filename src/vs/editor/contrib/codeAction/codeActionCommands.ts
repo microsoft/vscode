@@ -68,7 +68,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
 		this._ui = new Lazy(() =>
-			this._register(new CodeActionUi(editor, QuickFixAction.Id, {
+			this._register(new CodeActionUi(editor, QuickFixAction.Id, AutoFixAction.Id, {
 				applyCodeAction: async (action, retrigger) => {
 					try {
 						await this._applyCodeAction(action);
