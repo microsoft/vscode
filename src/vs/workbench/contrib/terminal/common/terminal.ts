@@ -342,7 +342,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 export interface ISpawnExtHostProcessRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	shellLaunchConfig: IShellLaunchConfig;
-	activeWorkspaceRootUri: URI | undefined;
+	activeWorkspaceRootUri: URI;
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;

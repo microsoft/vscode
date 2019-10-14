@@ -317,8 +317,8 @@
 		"build-preview": "webpack --mode production"
 	},
 	"dependencies": {
-		"highlight.js": "9.15.8",
-		"markdown-it": "^9.1.0",
+		"highlight.js": "9.15.10",
+		"markdown-it": "^10.0.0",
 		"markdown-it-front-matter": "^0.1.2",
 		"vscode-extension-telemetry": "0.1.1",
 		"vscode-nls": "^4.0.0"

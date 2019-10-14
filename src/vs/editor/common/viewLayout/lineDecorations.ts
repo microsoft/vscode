@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { equals } from 'vs/base/common/arrays';
 

@@ -1523,7 +1523,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 }
 
 class EditorOpeningEvent implements IEditorOpeningEvent {
-	private override: () => Promise<IEditor | undefined> | undefined;
+	private override: (() => Promise<IEditor | undefined>) | undefined = undefined;
 
 	constructor(
 		private _group: GroupIdentifier,
@@ -1548,7 +1548,7 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 		this.override = callback;
 	}
 
-	isPrevented(): () => Promise<IEditor | undefined> | undefined {
+	isPrevented(): (() => Promise<IEditor | undefined>) | undefined {
 		return this.override;
 	}
 }
