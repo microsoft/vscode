@@ -59,6 +59,20 @@ class WebviewHandleStore {
 	}
 }
 
+class InternalWebviewViewType {
+	private static prefix = 'mainThreadWebview-';
+
+	public static fromExternal(viewType: string): string {
+		return InternalWebviewViewType.prefix + viewType;
+	}
+
+	public static toExternal(viewType: string): string | undefined {
+		return startsWith(viewType, InternalWebviewViewType.prefix)
+			? viewType.substr(InternalWebviewViewType.prefix.length)
+			: undefined;
+	}
+}
+
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews extends Disposable implements MainThreadWebviewsShape {
 
@@ -100,7 +114,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 					return false;
 				}
 
-				const viewType = this.fromInternalWebviewViewType(webview.viewType);
+				const viewType = InternalWebviewViewType.toExternal(webview.viewType);
 				if (typeof viewType === 'string') {
 					extensionService.activateByEvent(`onWebviewPanel:${viewType}`);
 				}
@@ -125,7 +139,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
-		const webview = this._webviewWorkbenchService.createWebview(handle, this.getInternalWebviewViewType(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
+		const webview = this._webviewWorkbenchService.createWebview(handle, InternalWebviewViewType.fromExternal(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
 			location: URI.revive(extensionLocation),
 			id: extensionId
 		});
@@ -198,10 +212,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		this._revivers.set(viewType, this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewEditorInput) => {
-				return webviewEditorInput.viewType === this.getInternalWebviewViewType(viewType);
+				return webviewEditorInput.viewType === InternalWebviewViewType.fromExternal(viewType);
 			},
 			resolveWebview: async (webviewEditorInput): Promise<void> => {
-				const viewType = this.fromInternalWebviewViewType(webviewEditorInput.viewType);
+				const viewType = InternalWebviewViewType.toExternal(webviewEditorInput.viewType);
 				if (!viewType) {
 					webviewEditorInput.webview.html = MainThreadWebviews.getDeserializationFailedContents(webviewEditorInput.viewType);
 					return;
@@ -289,17 +303,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		provider.dispose();
 		this._editorProviders.delete(viewType);
-	}
-
-	private getInternalWebviewViewType(viewType: string): string {
-		return `mainThreadWebview-${viewType}`;
-	}
-
-	private fromInternalWebviewViewType(viewType: string): string | undefined {
-		if (!startsWith(viewType, 'mainThreadWebview-')) {
-			return undefined;
-		}
-		return viewType.replace(/^mainThreadWebview-/, '');
 	}
 
 	private hookupWebviewEventDelegate(handle: WebviewPanelHandle, input: WebviewInput) {
