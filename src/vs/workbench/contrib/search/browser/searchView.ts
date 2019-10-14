@@ -20,7 +20,7 @@ import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchview';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -61,6 +61,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
+import { CommonFindController } from 'vs/editor/contrib/find/findController';
 
 const $ = dom.$;
 
@@ -1535,6 +1537,30 @@ export class SearchView extends ViewletPanel {
 			} else {
 				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			}
+		}, errors.onUnexpectedError);
+	}
+
+	openEditorWithMultiCursor(element: FileMatchOrMatch): Promise<void> {
+		const selection = this.getSelectionFrom(element);
+		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
+		return this.editorService.openEditor({
+			resource: resource,
+			options: {
+				preserveFocus: false,
+				pinned: true,
+				selection,
+				revealIfVisible: true
+			}
+		}).then(editor => {
+			if (editor) {
+				let codeEditor = getCodeEditor(editor.getControl());
+				if (codeEditor) {
+					let multiCursorController = MultiCursorSelectionController.get(codeEditor);
+					let findController = CommonFindController.get(codeEditor);
+					multiCursorController.selectAll(findController);
+				}
+			}
+			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 		}, errors.onUnexpectedError);
 	}
 
