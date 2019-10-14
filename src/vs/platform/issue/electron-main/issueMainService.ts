@@ -156,6 +156,12 @@ export class IssueMainService implements IIssueService {
 			}
 		});
 
+		ipcMain.on('vscode:closeProcessExplorer', (event: IpcMainEvent) => {
+			if (this._processExplorerWindow) {
+				this._processExplorerWindow.close();
+			}
+		});
+
 		ipcMain.on('windowsInfoRequest', (event: IpcMainEvent) => {
 			this.launchMainService.getMainProcessInfo().then(info => {
 				event.sender.send('vscode:windowsInfoResponse', info.windows);
