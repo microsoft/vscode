@@ -31,6 +31,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -319,6 +321,30 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 	}
 
+
+	private registerSwipeNavigationListener(command: any, back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', config: 'actions' | 'recent-tabs' | 'tabs' | 'grouped-tabs'): void {
+		let actions = (() => {
+			let actions = (() => {
+				switch (config) {
+					case 'actions': return ['navigateBack', 'navigateForward'];
+					case 'tabs': return ['previousEditor', 'nextEditor'];
+					case 'grouped-tabs': return ['previousEditorInGroup', 'nextEditorInGroup'];
+					case 'recent-tabs': return ['openPreviousRecentlyUsedEditor', 'openNextRecentlyUsedEditor'];
+				}
+			})().map((action) => 'workbench.action.' + action);
+
+			return { back: actions[0], forward: actions[1] };
+		})();
+
+		this._win.addListener(command, (_event: Event, cmd: string) => {
+
+			switch (cmd) {
+				case back: this.sendWhenReady('vscode:runAction', { id: actions.back });
+				case forward: this.sendWhenReady('vscode:runAction', { id: actions.forward });
+			}
+
+		});
+	}
 	private registerListeners(): void {
 
 		// Crashes & Unrsponsive
@@ -372,10 +398,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._lastFocusTime = Date.now();
 		});
 
+
 		// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
 		// we need to detect when display metrics change or displays are added/removed and toggle the
 		// fullscreen manually.
 		if (isMacintosh) {
+
 			const simpleFullScreenScheduler = this._register(new RunOnceScheduler(() => {
 				if (!this._win) {
 					return; // disposed
@@ -535,6 +563,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
+		}
+
+		const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.swipeToNavigate;
+
+		this._win.removeAllListeners('swipe');
+		this._win.removeAllListeners('app-command');
+		if (config && config !== 'off') {
+			if (isMacintosh) {
+				this.registerSwipeNavigationListener('swipe', 'left', 'right', config);
+			}
+			else {
+				this.registerSwipeNavigationListener('app-command', 'browser-backward', 'browser-forward', config);
+			}
 		}
 	}
 

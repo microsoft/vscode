@@ -113,6 +113,20 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 				'default': true,
 				'included': !isMacintosh
 			},
+			'workbench.editor.swipeToNavigate': {
+				'type': 'string',
+				'enum': ['off', 'actions', 'tabs', 'recent-tabs', 'grouped-tabs'],
+				'enumDescriptions': [
+					nls.localize('workbench.editor.swipeToNavigate.off', "Swipes are disabled."),
+					nls.localize('workbench.editor.swipeToNavigate.actions', "Swipes will navigate recent action history."),
+					nls.localize('workbench.editor.swipeToNavigate.tabs', "Swipes will navigate currently opened tabs."),
+					nls.localize('workbench.editor.swipeToNavigate.recent-tabs', "Swipes will navigate recent tab history."),
+					nls.localize('workbench.editor.swipeToNavigate.grouped-tabs', "Swipes will navigate currently opened tabs in selected group."),
+				],
+				'default': 'off',
+				'description': nls.localize('swipeToNavigate', "Control what a three finger swipe will navigate between."),
+
+			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
 				'description': nls.localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening files after they have been closed."),

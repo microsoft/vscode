@@ -1023,6 +1023,7 @@ interface IEditorPartConfiguration {
 	closeEmptyGroups?: boolean;
 	revealIfOpen?: boolean;
 	mouseBackForwardToNavigate?: boolean;
+	swipeToNavigate?: 'off' | 'actions' | 'tabs' | 'recent-tabs' | 'grouped-tabs';
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
 }
