@@ -36,7 +36,7 @@
 		"ms-vscode.csharp": "{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.cshtml,**/*.sln,**/appsettings.json}",
 		"msjsdiag.debugger-for-chrome": "{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/.babelrc}",
 		"ms-vscode.Go": "**/*.go",
-		"ms-vscode.PowerShell": "{**/*.ps,**/*.ps1,**/*.ps.config,**/*.ps1.config}",
+		"ms-vscode.PowerShell-Preview": "{**/*.ps,**/*.ps1,**/*.ps.config,**/*.ps1.config}",
 		"austin.code-gnu-global": "{**/*.c,**/*.cpp,**/*.h}",
 		"Ionide.Ionide-fsharp": "{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}",
 		"dbaeumer.vscode-eslint": "{**/*.js,**/*.jsx,**/*.es6,**/.eslintrc.*,**/.eslintrc,**/.babelrc,**/jsconfig.json}",
@@ -95,8 +95,8 @@
 			"pattern": "{**/*.java}",
 			"isExtensionPack": true
 		},
-		"ms-vscode.PowerShell": {
-			"name": "PowerShell",
+		"ms-vscode.PowerShell-Preview": {
+			"name": "PowerShell Preview",
 			"pattern": "{**/*.ps,**/*.ps1}"
 		},
 		"ms-vscode.cpptools": {
