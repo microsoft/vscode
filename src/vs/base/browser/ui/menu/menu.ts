@@ -690,7 +690,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		EventHelper.stop(e, true);
 
 		this.cleanupExistingSubmenu(false);
-		this.createSubmenu(false);
+		this.createSubmenu(true);
 	}
 
 	private cleanupExistingSubmenu(force: boolean): void {

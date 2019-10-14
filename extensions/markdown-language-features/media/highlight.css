@@ -128,7 +128,9 @@ Resetting color in light theme by Gan Xianyu <ganxy1028@outlook.com>
 */ 
 
 .vscode-light .hljs-function,
-.vscode-light .hljs-params {
+.vscode-light .hljs-params,
+.vscode-light .hljs-number,
+.vscode-light .hljs-class  {
 	color: inherit;
 }
 
