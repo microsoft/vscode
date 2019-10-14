@@ -25,6 +25,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -81,10 +82,10 @@ const webviewPanelViewType = new WebviewViewTypeTransformer('mainThreadWebview-'
 export class MainThreadWebviews extends Disposable implements MainThreadWebviewsShape {
 
 	private static readonly standardSupportedLinkSchemes = new Set([
-		'http',
-		'https',
-		'mailto',
-		'vscode',
+		Schemas.http,
+		Schemas.https,
+		Schemas.mailto,
+		Schemas.vscode,
 		'vscode-insider',
 	]);
 
@@ -382,7 +383,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		if (!isWeb && this._productService.urlProtocol === link.scheme) {
 			return true;
 		}
-		return !!webview.webview.contentOptions.enableCommandUris && link.scheme === 'command';
+		return !!webview.webview.contentOptions.enableCommandUris && link.scheme === Schemas.command;
 	}
 
 	private getWebviewEditorInput(handle: WebviewPanelHandle): WebviewInput {
