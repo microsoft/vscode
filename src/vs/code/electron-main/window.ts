@@ -33,7 +33,6 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 
-
 const RUN_TEXTMATE_IN_WORKER = false;
 
 export interface IWindowCreationOptions {
@@ -398,12 +397,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._lastFocusTime = Date.now();
 		});
 
-
 		// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
 		// we need to detect when display metrics change or displays are added/removed and toggle the
 		// fullscreen manually.
 		if (isMacintosh) {
-
 			const simpleFullScreenScheduler = this._register(new RunOnceScheduler(() => {
 				if (!this._win) {
 					return; // disposed
@@ -565,16 +562,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
 
-		const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.swipeToNavigate;
-
+		const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 		this._win.removeAllListeners('swipe');
 		this._win.removeAllListeners('app-command');
-		if (config && config !== 'off') {
-			if (isMacintosh) {
-				this.registerSwipeNavigationListener('swipe', 'left', 'right', config);
-			}
-			else {
-				this.registerSwipeNavigationListener('app-command', 'browser-backward', 'browser-forward', config);
+		if (config && config.workbench && config.workbench.editor) {
+			let swipeConfig = config.workbench.editor.swipeToNavigate;
+			if (swipeConfig && swipeConfig !== 'off') {
+				if (isMacintosh) {
+					this.registerSwipeNavigationListener('swipe', 'left', 'right', swipeConfig);
+				}
+				else {
+					this.registerSwipeNavigationListener('app-command', 'browser-backward', 'browser-forward', swipeConfig);
+				}
 			}
 		}
 	}
