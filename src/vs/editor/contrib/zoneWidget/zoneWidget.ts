@@ -50,11 +50,11 @@ const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 
 export class ViewZoneDelegate implements IViewZone {
 
-	public domNode: HTMLElement;
-	public id: string = ''; // A valid zone id should be greater than 0
-	public afterLineNumber: number;
-	public afterColumn: number;
-	public heightInLines: number;
+	domNode: HTMLElement;
+	id: string = ''; // A valid zone id should be greater than 0
+	afterLineNumber: number;
+	afterColumn: number;
+	heightInLines: number;
 
 	private readonly _onDomNodeTop: (top: number) => void;
 	private readonly _onComputedHeight: (height: number) => void;
@@ -71,11 +71,11 @@ export class ViewZoneDelegate implements IViewZone {
 		this._onComputedHeight = onComputedHeight;
 	}
 
-	public onDomNodeTop(top: number): void {
+	onDomNodeTop(top: number): void {
 		this._onDomNodeTop(top);
 	}
 
-	public onComputedHeight(height: number): void {
+	onComputedHeight(height: number): void {
 		this._onComputedHeight(height);
 	}
 }
@@ -90,15 +90,15 @@ export class OverlayWidgetDelegate implements IOverlayWidget {
 		this._domNode = domNode;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return this._id;
 	}
 
-	public getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement {
 		return this._domNode;
 	}
 
-	public getPosition(): IOverlayWidgetPosition | null {
+	getPosition(): IOverlayWidgetPosition | null {
 		return null;
 	}
 }
@@ -167,10 +167,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	protected _viewZone: ViewZoneDelegate | null = null;
 	protected readonly _disposables = new DisposableStore();
 
-	public container: HTMLElement | null = null;
-	public domNode: HTMLElement;
-	public editor: ICodeEditor;
-	public options: IOptions;
+	container: HTMLElement | null = null;
+	domNode: HTMLElement;
+	editor: ICodeEditor;
+	options: IOptions;
 
 
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
@@ -191,7 +191,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}));
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this._overlayWidget) {
 			this.editor.removeOverlayWidget(this._overlayWidget);
 			this._overlayWidget = null;
@@ -212,7 +212,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._disposables.dispose();
 	}
 
-	public create(): void {
+	create(): void {
 
 		dom.addClass(this.domNode, 'zone-widget');
 		if (this.options.className) {
@@ -231,7 +231,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._applyStyles();
 	}
 
-	public style(styles: IStyles): void {
+	style(styles: IStyles): void {
 		if (styles.frameColor) {
 			this.options.frameColor = styles.frameColor;
 		}
@@ -284,7 +284,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 	}
 
-	public get position(): Position | undefined {
+	get position(): Position | undefined {
 		const [id] = this._positionMarkerId;
 		if (!id) {
 			return undefined;
@@ -304,18 +304,15 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	protected _isShowing: boolean = false;
 
-	public show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
-		const range = Range.isIRange(rangeOrPos)
-			? rangeOrPos
-			: new Range(rangeOrPos.lineNumber, rangeOrPos.column, rangeOrPos.lineNumber, rangeOrPos.column);
-
+	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
+		const range = Range.isIRange(rangeOrPos) ? Range.lift(rangeOrPos) : Range.fromPositions(rangeOrPos);
 		this._isShowing = true;
 		this._showImpl(range, heightInLines);
 		this._isShowing = false;
 		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: ModelDecorationOptions.EMPTY }]);
 	}
 
-	public hide(): void {
+	hide(): void {
 		if (this._viewZone) {
 			this.editor.changeViewZones(accessor => {
 				if (this._viewZone) {
@@ -350,12 +347,8 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		return result;
 	}
 
-	private _showImpl(where: IRange, heightInLines: number): void {
-		const position = {
-			lineNumber: where.startLineNumber,
-			column: where.startColumn
-		};
-
+	private _showImpl(where: Range, heightInLines: number): void {
+		const position = where.getStartPosition();
 		const layoutInfo = this.editor.getLayoutInfo();
 		const width = this._getWidth(layoutInfo);
 		this.domNode.style.width = `${width}px`;
