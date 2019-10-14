@@ -5,7 +5,7 @@
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope
+	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -18,6 +18,11 @@ const localize = nls.loadMessageBundle();
 export interface NpmTaskDefinition extends TaskDefinition {
 	script: string;
 	path?: string;
+}
+
+export interface FolderTaskItem extends QuickPickItem {
+	label: string;
+	task: Task;
 }
 
 type AutoDetect = 'on' | 'off';
@@ -150,6 +155,29 @@ async function detectNpmScripts(): Promise<Task[]> {
 			}
 		}
 		return allTasks;
+	} catch (error) {
+		return Promise.reject(error);
+	}
+}
+
+
+export async function detectNpmScriptsForFolder(folder: Uri): Promise<FolderTaskItem[]> {
+
+	let folderTasks: FolderTaskItem[] = [];
+
+	try {
+		let relativePattern = new RelativePattern(folder.fsPath, '**/package.json');
+		let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
+
+		let visitedPackageJsonFiles: Set<string> = new Set();
+		for (const path of paths) {
+			if (!visitedPackageJsonFiles.has(path.fsPath)) {
+				let tasks = await provideNpmScriptsForFolder(path);
+				visitedPackageJsonFiles.add(path.fsPath);
+				folderTasks.push(...tasks.map(t => ({ label: t.name, task: t })));
+			}
+		}
+		return folderTasks;
 	} catch (error) {
 		return Promise.reject(error);
 	}

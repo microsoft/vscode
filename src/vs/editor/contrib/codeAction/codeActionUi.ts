@@ -28,6 +28,7 @@ export class CodeActionUi extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		quickFixActionId: string,
+		preferredFixActionId: string,
 		private readonly delegate: {
 			applyCodeAction: (action: CodeAction, regtriggerAfterApply: boolean) => void
 		},
@@ -45,7 +46,7 @@ export class CodeActionUi extends Disposable {
 		});
 
 		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(new LightBulbWidget(this._editor, quickFixActionId, keybindingService));
+			const widget = this._register(new LightBulbWidget(this._editor, quickFixActionId, preferredFixActionId, keybindingService));
 			this._register(widget.onClick(this._handleLightBulbSelect, this));
 			return widget;
 		});

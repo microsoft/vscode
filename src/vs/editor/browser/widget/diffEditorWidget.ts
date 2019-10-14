@@ -43,6 +43,9 @@ import { ITheme, IThemeService, getThemeTypeSelector, registerThemingParticipant
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDiffLinesChange, InlineDiffMargin } from 'vs/editor/browser/widget/inlineDiffMargin';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Constants } from 'vs/base/common/uint';
+import { IDiffEditorContributionCtor, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -364,6 +367,15 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getTheme(), this._renderSideBySide);
 		}));
 
+		const contributions: IDiffEditorContributionCtor[] = EditorExtensionsRegistry.getDiffEditorContributions();
+		for (const ctor of contributions) {
+			try {
+				this._register(instantiationService.createInstance(ctor, this));
+			} catch (err) {
+				onUnexpectedError(err);
+			}
+		}
+
 		this._codeEditorService.addDiffEditor(this);
 	}
 
@@ -491,6 +503,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			}
 		}));
 
+		this._register(editor.onDidChangeModelOptions((e) => {
+			if (e.tabSize) {
+				this._updateDecorationsRunner.schedule();
+			}
+		}));
+
 		return editor;
 	}
 
@@ -558,6 +576,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			return null;
 		}
 		return this._diffComputationResult.changes;
+	}
+
+	public getDiffComputationResult(): IDiffComputationResult | null {
+		return this._diffComputationResult;
 	}
 
 	public getOriginalEditor(): editorBrowser.ICodeEditor {
@@ -645,6 +667,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.originalEditor.setModel(model ? model.original : null);
 		this.modifiedEditor.setModel(model ? model.modified : null);
 		this._updateDecorationsRunner.cancel();
+
+		// this.originalEditor.onDidChangeModelOptions
 
 		if (model) {
 			this.originalEditor.setScrollTop(0);
@@ -989,7 +1013,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _adjustOptionsForLeftHandSide(options: IDiffEditorOptions, isEditable: boolean): IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
 		result.readOnly = !isEditable;
-		result.overviewRulerLanes = 1;
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return result;
 	}
@@ -1122,7 +1145,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		while (min < max) {
 			let mid = Math.floor((min + max) / 2);
 			let midStart = startLineNumberExtractor(lineChanges[mid]);
-			let midEnd = (mid + 1 <= max ? startLineNumberExtractor(lineChanges[mid + 1]) : Number.MAX_VALUE);
+			let midEnd = (mid + 1 <= max ? startLineNumberExtractor(lineChanges[mid + 1]) : Constants.MAX_SAFE_SMALL_INTEGER);
 
 			if (lineNumber < midStart) {
 				max = mid - 1;
@@ -1682,11 +1705,11 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 
 			if (isChangeOrDelete(lineChange)) {
 				result.decorations.push({
-					range: new Range(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE),
+					range: new Range(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER),
 					options: (renderIndicators ? DECORATIONS.lineDeleteWithSign : DECORATIONS.lineDelete)
 				});
 				if (!isChangeOrInsert(lineChange) || !lineChange.charChanges) {
-					result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE, DECORATIONS.charDeleteWholeLine));
+					result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER, DECORATIONS.charDeleteWholeLine));
 				}
 
 				result.overviewZones.push(new OverviewRulerZone(
@@ -1743,11 +1766,11 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 			if (isChangeOrInsert(lineChange)) {
 
 				result.decorations.push({
-					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE),
+					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER),
 					options: (renderIndicators ? DECORATIONS.lineInsertWithSign : DECORATIONS.lineInsert)
 				});
 				if (!isChangeOrDelete(lineChange) || !lineChange.charChanges) {
-					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, DECORATIONS.charInsertWholeLine));
+					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER, DECORATIONS.charInsertWholeLine));
 				}
 				result.overviewZones.push(new OverviewRulerZone(
 					lineChange.modifiedStartLineNumber,
@@ -1861,7 +1884,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 			// Add overview zones in the overview ruler
 			if (isChangeOrDelete(lineChange)) {
 				result.decorations.push({
-					range: new Range(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE),
+					range: new Range(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER),
 					options: DECORATIONS.lineDeleteMargin
 				});
 
@@ -1892,7 +1915,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 			// Add decorations & overview zones
 			if (isChangeOrInsert(lineChange)) {
 				result.decorations.push({
-					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE),
+					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER),
 					options: (renderIndicators ? DECORATIONS.lineInsertWithSign : DECORATIONS.lineInsert)
 				});
 
@@ -1928,7 +1951,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 						}
 					}
 				} else {
-					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, DECORATIONS.charInsertWholeLine));
+					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER, DECORATIONS.charInsertWholeLine));
 				}
 			}
 		}
