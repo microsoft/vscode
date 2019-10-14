@@ -30,7 +30,7 @@
   "dependencies": {
     "applicationinsights": "1.0.8",
     "chokidar": "3.1.0",
-    "graceful-fs": "4.2.2",
+    "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.1",
     "iconv-lite": "0.5.0",
