@@ -32,7 +32,8 @@ export class MinimapCharRenderer {
 		chCode: number,
 		color: RGBA8,
 		backgroundColor: RGBA8,
-		useLighterFont: boolean
+		useLighterFont: boolean,
+		oneline: boolean
 	): void {
 		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
 		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
@@ -58,17 +59,30 @@ export class MinimapCharRenderer {
 		let sourceOffset = charIndex * charWidth * charHeight;
 
 		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		for (let y = 0; y < charHeight; y++) {
+		if (oneline) {
 			let column = row;
 			for (let x = 0; x < charWidth; x++) {
-				const c = charData[sourceOffset++] / 255;
+				const c = (charData[sourceOffset] + charData[sourceOffset + charWidth]) / (2 * 255);
+				++sourceOffset;
 				dest[column++] = backgroundR + deltaR * c;
 				dest[column++] = backgroundG + deltaG * c;
 				dest[column++] = backgroundB + deltaB * c;
 				column++;
 			}
-
-			row += destWidth;
+		} else {
+			for (let y = 0; y < charHeight; y++) {
+				let column = row;
+				for (let x = 0; x < charWidth; x++) {
+					const c = charData[sourceOffset++] / 255;
+					dest[column++] = backgroundR + deltaR * c;
+					dest[column++] = backgroundG + deltaG * c;
+					dest[column++] = backgroundB + deltaB * c;
+					column++;
+				}
+				if (!oneline) {
+					row += destWidth;
+				}
+			}
 		}
 	}
 
@@ -78,10 +92,11 @@ export class MinimapCharRenderer {
 		dy: number,
 		color: RGBA8,
 		backgroundColor: RGBA8,
-		useLighterFont: boolean
+		useLighterFont: boolean,
+		oneline: boolean
 	): void {
 		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
-		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
+		const charHeight = oneline ? 1 : Constants.BASE_CHAR_HEIGHT * this.scale;
 		if (dx + charWidth > target.width || dy + charHeight > target.height) {
 			console.warn('bad render request outside image data');
 			return;

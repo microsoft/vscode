@@ -3261,6 +3261,10 @@ declare namespace monaco.editor {
 		 * Relative size of the font in the minimap. Defaults to 1.
 		 */
 		scale?: number;
+		/**
+		* Minimap covers entire document.
+		*/
+		entireDocument?: boolean;
 	}
 
 	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;

@@ -46,7 +46,7 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 		}
 		let dx = 0;
 		for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
-			minimapCharRenderer.renderChar(x2, dx, 0, chCode, color, background, false);
+			minimapCharRenderer.renderChar(x2, dx, 0, chCode, color, background, false, false);
 			dx += Constants.BASE_CHAR_WIDTH * scale;
 		}
 		renderImageData(x2, 10, y);

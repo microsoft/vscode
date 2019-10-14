@@ -29,9 +29,10 @@ import { scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackgr
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
 import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap, scale: number): number {
 	if (renderMinimap === RenderMinimap.Text) {
@@ -102,6 +103,10 @@ class MinimapOptions {
 	 * canvas height (in CSS px)
 	 */
 	public readonly canvasOuterHeight: number;
+	/**
+	 * show the fuill document in the minimap (scale the lineheight)
+	 */
+	public readonly entireDocument: boolean;
 
 	constructor(configuration: IConfiguration) {
 		const options = configuration.options;
@@ -121,6 +126,7 @@ class MinimapOptions {
 		this.minimapLeft = layoutInfo.minimapLeft;
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
+		this.entireDocument = minimapOpts.entireDocument;
 
 		this.canvasInnerWidth = Math.max(1, Math.floor(pixelRatio * this.minimapWidth));
 		this.canvasInnerHeight = Math.max(1, Math.floor(pixelRatio * this.minimapHeight));
@@ -140,6 +146,7 @@ class MinimapOptions {
 			&& this.minimapLeft === other.minimapLeft
 			&& this.minimapWidth === other.minimapWidth
 			&& this.minimapHeight === other.minimapHeight
+			&& this.entireDocument === other.entireDocument
 			&& this.canvasInnerWidth === other.canvasInnerWidth
 			&& this.canvasInnerHeight === other.canvasInnerHeight
 			&& this.canvasOuterWidth === other.canvasOuterWidth
@@ -167,6 +174,10 @@ class MinimapLayout {
 	 */
 	public readonly sliderTop: number;
 	/**
+	 * maximum value for sliderTop
+	 */
+	public readonly maxMinimapSliderTop: number;
+	/**
 	 * slider dom node height (in CSS px)
 	 */
 	public readonly sliderHeight: number;
@@ -180,22 +191,108 @@ class MinimapLayout {
 	 */
 	public readonly endLineNumber: number;
 
+	/**
+	 * lineheight used when displaying the minimap
+	 * (can be a float value)
+	 */
+	public readonly displayLineHeight: number;
+	/**
+	 * RenderMinimap type used for rendering the lines
+	 */
+	public readonly renderMinimap: RenderMinimap;
+	/**
+	 * used line height for rendering the line data
+	 * (is not necessarily the same as getMinimapLineHeight(),
+	 * but is always an integer)
+	 */
+	public readonly renderLineHeight: number;
+	/**
+	 * used space beween the lines in line data
+	 */
+	public readonly emptySpaceBetweenLines: number;
+	/**
+	 * how many lines to skip per line rendered
+	 */
+	public readonly skipLines: number;
+	/**
+	 * used fontScaling for rendering characters
+	 */
+	public readonly fontScale: number;
+	/**
+	 * indicates if all lines are visible in the minimap
+	 * (entireDocument option is set or the file is small enough)
+	 */
+	public readonly coversAllLines: boolean;
+	/**
+	 * linecount of the file
+	 */
+	public readonly lineCount: number;
+	/**
+	 * the MinimapOptions when the layout was created
+	 */
+	public readonly options: MinimapOptions;
+
 	constructor(
 		scrollTop: number,
 		scrollHeight: number,
 		computedSliderRatio: number,
 		sliderTop: number,
+		maxMinimapSliderTop: number,
 		sliderHeight: number,
 		startLineNumber: number,
-		endLineNumber: number
+		endLineNumber: number,
+		displayLineHeight: number,
+		usedRenderMinimap: RenderMinimap,
+		usedRenderLineHeight: RenderMinimap,
+		emptySpaceBetweenLines: number,
+		skipLines: number,
+		fontScale: number,
+		coversAllLines: boolean,
+		lineCount: number,
+		options: MinimapOptions
 	) {
 		this.scrollTop = scrollTop;
 		this.scrollHeight = scrollHeight;
 		this._computedSliderRatio = computedSliderRatio;
 		this.sliderTop = sliderTop;
+		this.maxMinimapSliderTop = maxMinimapSliderTop;
 		this.sliderHeight = sliderHeight;
 		this.startLineNumber = startLineNumber;
 		this.endLineNumber = endLineNumber;
+		this.displayLineHeight = displayLineHeight;
+		this.renderMinimap = usedRenderMinimap;
+		this.renderLineHeight = usedRenderLineHeight;
+		this.emptySpaceBetweenLines = emptySpaceBetweenLines;
+		this.skipLines = skipLines;
+		this.fontScale = fontScale;
+		this.coversAllLines = coversAllLines;
+		this.lineCount = lineCount;
+		this.options = options;
+	}
+
+	/**
+	 * Clones the MinimapLayout and replaces the following value:
+	 * @param newSliderTop replacement value for sliderTop
+	 */
+	public clone_with_different_sliderTop(newSliderTop: number): MinimapLayout {
+		return new MinimapLayout(
+			this.scrollTop,
+			this.scrollHeight,
+			this._computedSliderRatio,
+			newSliderTop,
+			this.maxMinimapSliderTop,
+			this.sliderHeight,
+			this.startLineNumber,
+			this.endLineNumber,
+			this.displayLineHeight,
+			this.emptySpaceBetweenLines,
+			this.skipLines,
+			this.fontScale,
+			this.renderMinimap,
+			this.renderLineHeight,
+			this.coversAllLines,
+			this.lineCount,
+			this.options);
 	}
 
 	/**
@@ -210,6 +307,10 @@ class MinimapLayout {
 		return Math.round((pageY - this.sliderHeight / 2) / this._computedSliderRatio);
 	}
 
+	public fromRealLineNumberToImageDataLineNumer(lineNumber: number): number {
+		return Math.max(1, Math.floor((lineNumber - 1) / (1 + this.skipLines)) + 1);
+	}
+
 	public static create(
 		options: MinimapOptions,
 		viewportStartLineNumber: number,
@@ -222,9 +323,43 @@ class MinimapLayout {
 		previousLayout: MinimapLayout | null
 	): MinimapLayout {
 		const pixelRatio = options.pixelRatio;
-		const minimapLineHeight = getMinimapLineHeight(options.renderMinimap, options.fontScale);
-		const minimapLinesFitting = Math.floor(options.canvasInnerHeight / minimapLineHeight);
-		const lineHeight = options.lineHeight;
+		const expectedViewportLineCount = viewportHeight / options.lineHeight;
+		const totalLineCount = options.scrollBeyondLastLine
+			? lineCount + Math.floor(expectedViewportLineCount) - 1
+			: Math.max(expectedViewportLineCount, lineCount);
+		let renderMinimap = options.renderMinimap;
+		let fontScale = options.fontScale;
+		let renderLineHeight = getMinimapLineHeight(renderMinimap, fontScale);
+		let emptySpaceBetweenLines = 0;
+		let minimapLinesFitting = Math.floor(options.canvasInnerHeight / renderLineHeight);
+		const coversAllLines = minimapLinesFitting >= lineCount || options.entireDocument;
+		if (options.entireDocument) {
+			// adjust the used rendering size according to the available space and the linecount
+			if (minimapLinesFitting > totalLineCount) {
+				renderLineHeight = getMinimapLineHeight(renderMinimap, fontScale);
+				minimapLinesFitting = Math.floor(options.canvasInnerHeight / renderLineHeight);
+				emptySpaceBetweenLines = Math.max(0, Math.floor((minimapLinesFitting - totalLineCount) / totalLineCount));
+				if (emptySpaceBetweenLines > 0) {
+					minimapLinesFitting = Math.floor(options.canvasInnerHeight / (renderLineHeight + emptySpaceBetweenLines));
+				}
+			} else {
+				while (fontScale >= 1) {
+					renderLineHeight = getMinimapLineHeight(renderMinimap, fontScale);
+					minimapLinesFitting = Math.floor(options.canvasInnerHeight / renderLineHeight);
+					if (minimapLinesFitting >= totalLineCount) {
+						break;
+					} else {
+						if (fontScale === 1) {
+							// we can't reduce the fontScale anymore, so we need to shrink the lineheight
+							renderLineHeight = 1;
+							break;
+						} else {
+							--fontScale;
+						}
+					}
+				}
+			}
+		}
 
 		// The visible line count in a viewport can change due to a number of reasons:
 		//  a) with the same viewport width, different scroll positions can result in partial lines being visible:
@@ -237,35 +372,39 @@ class MinimapLayout {
 
 		// We must first establish a desirable slider height.
 		let sliderHeight: number;
+		let displayLineHeight = renderLineHeight;
+		if (options.entireDocument) {
+			minimapLinesFitting = lineCount;
+			displayLineHeight = options.canvasInnerHeight / totalLineCount;
+		}
 		if (viewportContainsWhitespaceGaps && viewportEndLineNumber !== lineCount) {
 			// case b) from above: there are whitespace gaps in the viewport.
 			// In this case, the height of the slider directly reflects the visible line count.
 			const viewportLineCount = viewportEndLineNumber - viewportStartLineNumber + 1;
-			sliderHeight = Math.floor(viewportLineCount * minimapLineHeight / pixelRatio);
+			sliderHeight = Math.floor(viewportLineCount * displayLineHeight / pixelRatio);
 		} else {
 			// The slider has a stable height
-			const expectedViewportLineCount = viewportHeight / lineHeight;
-			sliderHeight = Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio);
+			sliderHeight = Math.floor(expectedViewportLineCount * displayLineHeight / pixelRatio);
 		}
+		sliderHeight = Math.min(sliderHeight, options.minimapHeight);
 
 		let maxMinimapSliderTop: number;
 		if (options.scrollBeyondLastLine) {
 			// The minimap slider, when dragged all the way down, will contain the last line at its top
-			maxMinimapSliderTop = (lineCount - 1) * minimapLineHeight / pixelRatio;
+			maxMinimapSliderTop = (lineCount - 1) * displayLineHeight / pixelRatio;
 		} else {
 			// The minimap slider, when dragged all the way down, will contain the last line at its bottom
-			maxMinimapSliderTop = Math.max(0, lineCount * minimapLineHeight / pixelRatio - sliderHeight);
+			maxMinimapSliderTop = Math.max(0, lineCount * displayLineHeight / pixelRatio - sliderHeight);
 		}
 		maxMinimapSliderTop = Math.min(options.minimapHeight - sliderHeight, maxMinimapSliderTop);
 
 		// The slider can move from 0 to `maxMinimapSliderTop`
 		// in the same way `scrollTop` can move from 0 to `scrollHeight` - `viewportHeight`.
-		const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
+		const computedSliderRatio = (maxMinimapSliderTop) / Math.max(1, scrollHeight - viewportHeight);
 		const sliderTop = (scrollTop * computedSliderRatio);
 
 		let extraLinesAtTheBottom = 0;
 		if (options.scrollBeyondLastLine) {
-			const expectedViewportLineCount = viewportHeight / lineHeight;
 			extraLinesAtTheBottom = expectedViewportLineCount;
 		}
 		if (minimapLinesFitting >= lineCount + extraLinesAtTheBottom) {
@@ -273,9 +412,13 @@ class MinimapLayout {
 			const startLineNumber = 1;
 			const endLineNumber = lineCount;
 
-			return new MinimapLayout(scrollTop, scrollHeight, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
+			return new MinimapLayout(scrollTop, scrollHeight
+				, computedSliderRatio, sliderTop, maxMinimapSliderTop, sliderHeight
+				, startLineNumber, endLineNumber, displayLineHeight
+				, renderMinimap, renderLineHeight, emptySpaceBetweenLines, 0, fontScale
+				, coversAllLines, lineCount, options);
 		} else {
-			let startLineNumber = Math.max(1, Math.floor(viewportStartLineNumber - sliderTop * pixelRatio / minimapLineHeight));
+			let startLineNumber = Math.max(1, Math.floor(viewportStartLineNumber - sliderTop * pixelRatio / displayLineHeight));
 
 			// Avoid flickering caused by a partial viewport start line
 			// by being consistent w.r.t. the previous layout decision
@@ -291,8 +434,13 @@ class MinimapLayout {
 			}
 
 			const endLineNumber = Math.min(lineCount, startLineNumber + minimapLinesFitting - 1);
+			const skipLines = Math.max(0, Math.floor(1 / displayLineHeight) - 1);
 
-			return new MinimapLayout(scrollTop, scrollHeight, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
+			return new MinimapLayout(scrollTop, scrollHeight
+				, computedSliderRatio, sliderTop, maxMinimapSliderTop, sliderHeight
+				, startLineNumber, endLineNumber, displayLineHeight
+				, renderMinimap, renderLineHeight, emptySpaceBetweenLines, skipLines, fontScale
+				, coversAllLines, lineCount, options);
 		}
 	}
 }
@@ -323,11 +471,13 @@ class RenderData {
 	public readonly renderedLayout: MinimapLayout;
 	private readonly _imageData: ImageData;
 	private readonly _renderedLines: RenderedLinesCollection<MinimapLine>;
+	private _lineOverflow: number = 0;
 
 	constructor(
 		renderedLayout: MinimapLayout,
 		imageData: ImageData,
-		lines: MinimapLine[]
+		lines: MinimapLine[],
+		lineOverflow: number
 	) {
 		this.renderedLayout = renderedLayout;
 		this._imageData = imageData;
@@ -335,6 +485,7 @@ class RenderData {
 			() => MinimapLine.INVALID
 		);
 		this._renderedLines._set(renderedLayout.startLineNumber, lines);
+		this._lineOverflow = lineOverflow;
 	}
 
 	/**
@@ -365,26 +516,54 @@ class RenderData {
 			&& this.renderedLayout.endLineNumber === layout.endLineNumber;
 	}
 
-	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[]; } {
+	public getLineOverflow(): number {
+		return this._lineOverflow;
+	}
+
+	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[]; lineOverflow: number; } {
 		const tmp = this._renderedLines._get();
 		return {
 			imageData: this._imageData,
 			rendLineNumberStart: tmp.rendLineNumberStart,
-			lines: tmp.lines
+			lines: tmp.lines,
+			lineOverflow: this._lineOverflow
 		};
 	}
 
 	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return this._renderedLines.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+		return this._renderedLines.onLinesChanged(
+			this.renderedLayout.fromRealLineNumberToImageDataLineNumer(e.fromLineNumber),
+			this.renderedLayout.fromRealLineNumberToImageDataLineNumer(e.toLineNumber));
 	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
-		this._renderedLines.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
+		const count = (e.toLineNumber - e.fromLineNumber + 1) / (1 + this.renderedLayout.skipLines);
+		this._lineOverflow -= count;
+		const count2 = Math.round(this._lineOverflow);
+		if (count2 < 0) {
+			const startLine = this.renderedLayout.fromRealLineNumberToImageDataLineNumer(e.fromLineNumber);
+			this._renderedLines.onLinesDeleted(startLine, startLine - count2 - 1);
+			this._lineOverflow -= count2;
+		}
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
-		this._renderedLines.onLinesInserted(e.fromLineNumber, e.toLineNumber);
+		const count = (e.toLineNumber - e.fromLineNumber + 1) / (1 + this.renderedLayout.skipLines);
+		this._lineOverflow += count;
+		const count2 = Math.round(this._lineOverflow);
+		if (count2 > 0) {
+			const startLine = this.renderedLayout.fromRealLineNumberToImageDataLineNumer(e.fromLineNumber);
+			this._renderedLines.onLinesInserted(startLine, startLine + count2 - 1);
+			this._lineOverflow -= count2;
+		}
 	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		return this._renderedLines.onTokensChanged(e.ranges);
+		const ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+		for (let i = 0; i < e.ranges.length; ++i) {
+			ranges[i] = {
+				fromLineNumber: this.renderedLayout.fromRealLineNumberToImageDataLineNumer(e.ranges[i].fromLineNumber),
+				toLineNumber: this.renderedLayout.fromRealLineNumberToImageDataLineNumer(e.ranges[i].toLineNumber)
+			};
+		}
+		return this._renderedLines.onTokensChanged(ranges);
 	}
 }
 
@@ -408,6 +587,9 @@ class MinimapBuffers {
 		];
 		this._lastUsedBuffer = 0;
 	}
+
+	public getWidth(): number { return this._buffers[1 - this._lastUsedBuffer].width; }
+	public getHeight(): number { return this._buffers[1 - this._lastUsedBuffer].height; }
 
 	public getBuffer(): ImageData {
 		// rotate buffers
@@ -521,9 +703,8 @@ export class Minimap extends ViewPart {
 			if (!this._lastRenderData) {
 				return;
 			}
-			const minimapLineHeight = getMinimapLineHeight(renderMinimap, this._options.fontScale);
 			const internalOffsetY = this._options.pixelRatio * e.browserEvent.offsetY;
-			const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
+			const lineIndex = Math.floor(internalOffsetY / this._lastRenderData.renderedLayout.displayLineHeight);
 
 			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
 			lineNumber = Math.min(lineNumber, this._context.model.getLineCount());
@@ -535,6 +716,13 @@ export class Minimap extends ViewPart {
 				false,
 				ScrollType.Smooth
 			));
+			if (e.leftButton && this._lastRenderData.renderedLayout && this._lastRenderData.renderedLayout.coversAllLines) {
+				const halfSlider = Math.floor(this._lastRenderData.renderedLayout.sliderHeight / 2);
+				const newSliderTop = Math.min(this._lastRenderData.renderedLayout.maxMinimapSliderTop,
+					Math.max(0, (internalOffsetY - halfSlider) / this._options.pixelRatio));
+				const initialSliderState = this._lastRenderData.renderedLayout.clone_with_different_sliderTop(newSliderTop);
+				this._dragSlider(e, initialSliderState);
+			}
 		});
 
 		this._sliderMouseMoveMonitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
@@ -543,34 +731,7 @@ export class Minimap extends ViewPart {
 			e.preventDefault();
 			e.stopPropagation();
 			if (e.leftButton && this._lastRenderData) {
-
-				const initialMousePosition = e.posy;
-				const initialMouseOrthogonalPosition = e.posx;
-				const initialSliderState = this._lastRenderData.renderedLayout;
-				this._slider.toggleClassName('active', true);
-
-				this._sliderMouseMoveMonitor.startMonitoring(
-					standardMouseMoveMerger,
-					(mouseMoveData: IStandardMouseMoveEventData) => {
-						const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
-
-						if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
-							// The mouse has wondered away from the scrollbar => reset dragging
-							this._context.viewLayout.setScrollPositionNow({
-								scrollTop: initialSliderState.scrollTop
-							});
-							return;
-						}
-
-						const mouseDelta = mouseMoveData.posy - initialMousePosition;
-						this._context.viewLayout.setScrollPositionNow({
-							scrollTop: initialSliderState.getDesiredScrollTopFromDelta(mouseDelta)
-						});
-					},
-					() => {
-						this._slider.toggleClassName('active', false);
-					}
-				);
+				this._dragSlider(e, this._lastRenderData.renderedLayout);
 			}
 		});
 
@@ -599,6 +760,35 @@ export class Minimap extends ViewPart {
 			this._gestureInProgress = false;
 			this._slider.toggleClassName('active', false);
 		});
+	}
+
+	private _dragSlider(e: IMouseEvent, initialSliderState: MinimapLayout): void {
+		const initialMousePosition = e.posy;
+		const initialMouseOrthogonalPosition = e.posx;
+		this._slider.toggleClassName('active', true);
+
+		this._sliderMouseMoveMonitor.startMonitoring(
+			standardMouseMoveMerger,
+			(mouseMoveData: IStandardMouseMoveEventData) => {
+				const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
+
+				if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
+					// The mouse has wondered away from the scrollbar => reset dragging
+					this._context.viewLayout.setScrollPositionNow({
+						scrollTop: initialSliderState.scrollTop
+					});
+					return;
+				}
+
+				const mouseDelta = mouseMoveData.posy - initialMousePosition;
+				this._context.viewLayout.setScrollPositionNow({
+					scrollTop: initialSliderState.getDesiredScrollTopFromDelta(mouseDelta)
+				});
+			},
+			() => {
+				this._slider.toggleClassName('active', false);
+			}
+		);
 	}
 
 	private scrollDueToTouchEvent(touch: GestureEvent) {
@@ -650,12 +840,14 @@ export class Minimap extends ViewPart {
 		this._slider.setWidth(this._options.minimapWidth);
 	}
 
-	private _getBuffer(): ImageData {
-		if (!this._buffers) {
+	private _getBuffer(WIDTH: number, HEIGHT: number): ImageData {
+		if (!this._buffers
+			|| (this._buffers.getWidth() !== WIDTH)
+			|| (this._buffers.getHeight() < HEIGHT)) {
 			this._buffers = new MinimapBuffers(
 				this._canvas.domNode.getContext('2d')!,
-				this._options.canvasInnerWidth,
-				this._options.canvasInnerHeight,
+				WIDTH,
+				HEIGHT + 64, // overallocate so, chances are we won't need a new buffer soon
 				this._tokensColorTracker.getColor(ColorId.DefaultBackground)
 			);
 		}
@@ -668,6 +860,11 @@ export class Minimap extends ViewPart {
 			return false;
 		}
 		this._options = opts;
+		// this reset is currently also triggered if the display size of minimap changes
+		// but this does not necessarily invalid the already rendered content
+		// so we could keep the old content data here
+		// this would be very easy with the "Entire Document" option enabled
+		// because the content image buffer is independent from the display height
 		this._lastRenderData = null;
 		this._buffers = null;
 		this._applyLayout();
@@ -770,12 +967,19 @@ export class Minimap extends ViewPart {
 			renderingCtx.scrollHeight,
 			this._lastRenderData ? this._lastRenderData.renderedLayout : null
 		);
-		this._slider.setTop(layout.sliderTop);
-		this._slider.setHeight(layout.sliderHeight);
+		this._slider.setTop(Math.round(layout.sliderTop));
+		this._slider.setHeight(Math.max(1, Math.round(layout.sliderHeight)));
+
+		if (layout.displayLineHeight < 0.01) {
+			this._shadow.setClassName('minimap-shadow-hidden');
+			this._sliderHorizontal.setWidth(0);
+			this._sliderHorizontal.setHeight(0);
+			return;
+		}
 
 		// Compute horizontal slider coordinates
 		const scrollLeftChars = renderingCtx.scrollLeft / this._options.typicalHalfwidthCharacterWidth;
-		const horizontalSliderLeft = Math.min(this._options.minimapWidth, Math.round(scrollLeftChars * getMinimapCharWidth(this._options.renderMinimap, this._options.fontScale) / this._options.pixelRatio));
+		const horizontalSliderLeft = Math.min(this._options.minimapWidth, Math.round(scrollLeftChars * getMinimapCharWidth(this._options.renderMinimap, layout.fontScale) / this._options.pixelRatio));
 		this._sliderHorizontal.setLeft(horizontalSliderLeft);
 		this._sliderHorizontal.setWidth(this._options.minimapWidth - horizontalSliderLeft);
 		this._sliderHorizontal.setTop(0);
@@ -788,25 +992,32 @@ export class Minimap extends ViewPart {
 	private renderDecorations(layout: MinimapLayout) {
 		if (this._renderDecorations) {
 			this._renderDecorations = false;
-			const decorations = this._context.model.getDecorationsInViewport(new Range(layout.startLineNumber, 1, layout.endLineNumber, this._context.model.getLineMaxColumn(layout.endLineNumber)));
 
-			const { renderMinimap, canvasInnerWidth, canvasInnerHeight } = this._options;
-			const lineHeight = getMinimapLineHeight(renderMinimap, this._options.fontScale);
-			const characterWidth = getMinimapCharWidth(renderMinimap, this._options.fontScale);
+			const { canvasInnerWidth, canvasInnerHeight } = this._options;
+			const displayLineHeight = layout.displayLineHeight;
+			const renderLineHeight = Math.max(1, displayLineHeight);
+			const characterWidth = getMinimapCharWidth(layout.renderMinimap, layout.fontScale);
 			const tabSize = this._context.model.getOptions().tabSize;
 			const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
 
 			canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
 
+			let lastY = -100000000;
 			const lineOffsetMap = new Map<number, number[]>();
 			for (let i = 0; i < this._selections.length; i++) {
 				const selection = this._selections[i];
 
 				for (let line = selection.startLineNumber; line <= selection.endLineNumber; line++) {
-					this.renderDecorationOnLine(canvasContext, lineOffsetMap, selection, this._selectionColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
+					const y = Math.round((line - layout.startLineNumber) * displayLineHeight);
+					if (y > lastY) {
+						lastY = y;
+						this.renderDecorationOnLine(canvasContext, lineOffsetMap, selection, this._selectionColor, line, renderLineHeight, y, tabSize, characterWidth);
+					}
 				}
 			}
 
+			lastY = -100000000;
+			const decorations = this._context.model.getDecorationsInViewport(new Range(layout.startLineNumber, 1, layout.endLineNumber, this._context.model.getLineMaxColumn(layout.endLineNumber)));
 			// Loop over decorations, ignoring those that don't have the minimap property set and rendering rectangles for each line the decoration spans
 			for (let i = 0; i < decorations.length; i++) {
 				const decoration = decorations[i];
@@ -816,8 +1027,12 @@ export class Minimap extends ViewPart {
 				}
 
 				for (let line = decoration.range.startLineNumber; line <= decoration.range.endLineNumber; line++) {
-					const decorationColor = (<ModelDecorationMinimapOptions>decoration.options.minimap).getColor(this._context.theme);
-					this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
+					const y = (line - layout.startLineNumber) * displayLineHeight;
+					if (y > lastY) {
+						lastY = y;
+						const decorationColor = (<ModelDecorationMinimapOptions>decoration.options.minimap).getColor(this._context.theme);
+						this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, line, renderLineHeight, y, tabSize, characterWidth);
+					}
 				}
 			}
 		}
@@ -827,13 +1042,11 @@ export class Minimap extends ViewPart {
 		lineOffsetMap: Map<number, number[]>,
 		decorationRange: Range,
 		decorationColor: Color | undefined,
-		layout: MinimapLayout,
 		lineNumber: number,
 		height: number,
-		lineHeight: number,
+		y: number,
 		tabSize: number,
 		charWidth: number): void {
-		const y = (lineNumber - layout.startLineNumber) * lineHeight;
 
 		// Cache line offset data so that it is only read once per line
 		let lineIndexToXOffset = lineOffsetMap.get(lineNumber);
@@ -884,41 +1097,67 @@ export class Minimap extends ViewPart {
 	}
 
 	private renderLines(layout: MinimapLayout): RenderData {
-		const renderMinimap = this._options.renderMinimap;
-		const startLineNumber = layout.startLineNumber;
-		const endLineNumber = layout.endLineNumber;
-		const minimapLineHeight = getMinimapLineHeight(renderMinimap, this._options.fontScale);
+		const renderMinimap = layout.renderMinimap;
+		const startLineNumber2 = layout.fromRealLineNumberToImageDataLineNumer(layout.startLineNumber);
+		const endLineNumber2 = layout.fromRealLineNumberToImageDataLineNumer(layout.endLineNumber);
+		const minimapLineHeight = layout.renderLineHeight;
+
+		if (this._lastRenderData
+			&& ((this._lastRenderData.renderedLayout.renderLineHeight !== layout.renderLineHeight)
+				|| (this._lastRenderData.renderedLayout.emptySpaceBetweenLines !== layout.emptySpaceBetweenLines)
+				|| (this._lastRenderData.renderedLayout.skipLines !== layout.skipLines))) {
+			// the line layout in the imageData has changed
+			// we could still use the data in case only the renderLineHeight changed
+			// but this would require tweaking _renderUntouchedLines(...) a lot
+			// so for now just drop everything
+			this._lastRenderData = null;
+		}
 
 		// Check if nothing changed w.r.t. lines from last frame
 		if (this._lastRenderData && this._lastRenderData.linesEquals(layout)) {
 			const _lastData = this._lastRenderData._get();
 			// Nice!! Nothing changed from last frame
-			return new RenderData(layout, _lastData.imageData, _lastData.lines);
+			return new RenderData(layout, _lastData.imageData, _lastData.lines, _lastData.lineOverflow);
 		}
 
 		// Oh well!! We need to repaint some lines...
 
-		const imageData = this._getBuffer();
+		const width = this._options.canvasInnerWidth;
+		let height = this._options.canvasInnerHeight;
+		if (layout.options.entireDocument) {
+			height = Math.floor(layout.lineCount * (minimapLineHeight + layout.emptySpaceBetweenLines) / (1 + layout.skipLines));
+		}
+		const imageData = this._getBuffer(width, height);
 
 		// Render untouched lines by using last rendered data.
 		let [_dirtyY1, _dirtyY2, needed] = Minimap._renderUntouchedLines(
 			imageData,
-			startLineNumber,
-			endLineNumber,
-			minimapLineHeight,
+			startLineNumber2,
+			endLineNumber2,
+			minimapLineHeight + layout.emptySpaceBetweenLines,
 			this._lastRenderData
 		);
 
+		const needed2: boolean[] = [];
+		for (let i = 0; i < needed.length; ++i) {
+			let i2 = i * (1 + layout.skipLines);
+			needed2[i2] = needed[i];
+			for (let j = 1; j <= layout.skipLines; ++j) {
+				needed2[i2 + j] = false;
+			}
+		}
+
 		// Fetch rendering info from view model for rest of lines that need rendering.
-		const lineInfo = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
+		const lineInfo = this._context.model.getMinimapLinesRenderingData(layout.startLineNumber, layout.endLineNumber, needed2);
 		const tabSize = lineInfo.tabSize;
 		const background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
 		const useLighterFont = this._tokensColorTracker.backgroundIsLight();
+		const oneline = layout.renderLineHeight <= 1;
 
 		// Render the rest of lines
 		let dy = 0;
 		const renderedLines: MinimapLine[] = [];
-		for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
+		for (let lineIndex = 0, lineCount = endLineNumber2 - startLineNumber2 + 1; lineIndex < lineCount; lineIndex++) {
 			if (needed[lineIndex]) {
 				Minimap._renderLine(
 					imageData,
@@ -927,29 +1166,48 @@ export class Minimap extends ViewPart {
 					renderMinimap,
 					this._tokensColorTracker,
 					this._options.charRenderer,
-					dy,
+					dy + layout.emptySpaceBetweenLines,
 					tabSize,
-					lineInfo.data[lineIndex]!,
-					this._options.fontScale
+					oneline,
+					lineInfo.data[lineIndex * (1 + layout.skipLines)]!,
+					layout.fontScale
 				);
 			}
 			renderedLines[lineIndex] = new MinimapLine(dy);
-			dy += minimapLineHeight;
+			dy += minimapLineHeight + layout.emptySpaceBetweenLines;
 		}
-
-		const dirtyY1 = (_dirtyY1 === -1 ? 0 : _dirtyY1);
-		const dirtyY2 = (_dirtyY2 === -1 ? imageData.height : _dirtyY2);
-		const dirtyHeight = dirtyY2 - dirtyY1;
 
 		// Finally, paint to the canvas
 		const ctx = this._canvas.domNode.getContext('2d')!;
-		ctx.putImageData(imageData, 0, 0, 0, dirtyY1, imageData.width, dirtyHeight);
-
+		if (layout.options.entireDocument) {
+			ctx.fillStyle = Color.Format.CSS.formatHex(
+				new Color(new RGBA(background.r, background.g, background.b, background.a)));
+			// this fill rect could be reduced to only the empty part below the minimap
+			// and droped completely if "Scroll Beyond Last Line" is disabled
+			ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+			let bitmap = createImageBitmap(imageData, 0, 0, width, height);
+			bitmap.then((bitmap: ImageBitmap) => {
+				ctx.drawImage(bitmap,
+					0, 0,
+					width,
+					height,
+					0, 0,
+					width,
+					Math.min(this._options.canvasInnerHeight, layout.displayLineHeight * layout.endLineNumber));
+				bitmap.close();
+			});
+		} else {
+			const dirtyY1 = (_dirtyY1 === -1 ? 0 : _dirtyY1);
+			const dirtyY2 = (_dirtyY2 === -1 ? imageData.height : _dirtyY2);
+			const dirtyHeight = dirtyY2 - dirtyY1;
+			ctx.putImageData(imageData, 0, 0, 0, dirtyY1, imageData.width, dirtyHeight);
+		}
 		// Save rendered data for reuse on next frame if possible
 		return new RenderData(
 			layout,
 			imageData,
-			renderedLines
+			renderedLines,
+			this._lastRenderData ? this._lastRenderData.getLineOverflow() : 0
 		);
 	}
 
@@ -1054,6 +1312,7 @@ export class Minimap extends ViewPart {
 		minimapCharRenderer: MinimapCharRenderer,
 		dy: number,
 		tabSize: number,
+		oneline: boolean,
 		lineData: ViewLineData,
 		fontScale: number
 	): void {
@@ -1092,9 +1351,9 @@ export class Minimap extends ViewPart {
 
 					for (let i = 0; i < count; i++) {
 						if (renderMinimap === RenderMinimap.Blocks) {
-							minimapCharRenderer.blockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
+							minimapCharRenderer.blockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont, oneline);
 						} else { // RenderMinimap.Text
-							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
+							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont, oneline);
 						}
 
 						dx += charWidth;
