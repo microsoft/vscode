@@ -16,3 +16,5 @@ jobs:
     vmImage: macOS 10.13
   steps:
   - template: build/azure-pipelines/darwin/continuous-build-darwin.yml
+    steps:
+  - template: build/azure-pipelines/darwin/continuous-build-darwin.yml
