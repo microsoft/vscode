@@ -19,8 +19,8 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerColor, listErrorForeground, listWarningForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IdleValue } from 'vs/base/common/async';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
@@ -273,3 +273,145 @@ export class OutlineDataSource implements IDataSource<OutlineModel, OutlineItem>
 		return values(element.children);
 	}
 }
+
+
+export const OUTLINE_DEFAULT_ICON_FOREGROUND = registerColor('outlineDefaultIcon.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineDefaultIcon.foreground', ''));
+
+export const OUTLINE_METHOD_ICON_FOREGROUND = registerColor('outlineMethodIcon.foreground', {
+	dark: '#B180D7',
+	light: '#652D90',
+	hc: '#B180D7'
+}, localize('outlineMethodIcon.foreground', ''));
+
+export const OUTLINE_CLASS_ICON_FOREGROUND = registerColor('outlineClassIcon.foreground', {
+	dark: '#EE9D28',
+	light: '#D67E00',
+	hc: '#EE9D28'
+}, localize('outlineClassIcon.foreground', ''));
+
+export const OUTLINE_ENUMERATOR_ICON_FOREGROUND = registerColor('outlineEnumeratorIcon.foreground', {
+	dark: '#EE9D28',
+	light: '#D67E00',
+	hc: '#EE9D28'
+}, localize('outlineEnumeratorIcon.foreground', ''));
+
+export const OUTLINE_ENUMERATOR_MEMBER_ICON_FOREGROUND = registerColor('outlineEnumeratorMemberIcon.foreground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('outlineEnumeratorMemberIcon.foreground', ''));
+
+export const OUTLINE_EVENT_ICON_FOREGROUND = registerColor('outlineEventIcon.foreground', {
+	dark: '#EE9D28',
+	light: '#D67E00',
+	hc: '#EE9D28'
+}, localize('outlineEventIcon.foreground', ''));
+
+export const OUTLINE_FIELD_ICON_FOREGROUND = registerColor('outlineFieldIcon.foreground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('outlineFieldIcon.foreground', ''));
+
+export const OUTLINE_INTERFACE_ICON_FOREGROUND = registerColor('outlineInterfaceIcon.foreground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('outlineInterfaceIcon.foreground', ''));
+
+export const OUTLINE_VARIABLE_ICON_FOREGROUND = registerColor('outlineVariableIcon.foreground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('outlineVariableIcon.foreground', ''));
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	const outlineDefaultIconColor = theme.getColor(OUTLINE_DEFAULT_ICON_FOREGROUND);
+	if (outlineDefaultIconColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon[class*='codicon-symbol-']:before {
+				color: ${outlineDefaultIconColor};
+			}
+		`);
+	}
+
+	const outlineMethodIconColor = theme.getColor(OUTLINE_METHOD_ICON_FOREGROUND);
+	if (outlineMethodIconColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-method:before,
+			.monaco-workbench .codicon-symbol-function:before,
+			.monaco-workbench .codicon-symbol-constructor:before {
+				color: ${outlineMethodIconColor} !important;
+			}
+		`);
+	}
+
+	const outlineClassIconColor = theme.getColor(OUTLINE_CLASS_ICON_FOREGROUND);
+	if (outlineClassIconColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-class:before {
+				color: ${outlineClassIconColor} !important;
+			}
+		`);
+	}
+
+	const outlineEnumeratorIconColor = theme.getColor(OUTLINE_ENUMERATOR_ICON_FOREGROUND);
+	if (outlineEnumeratorIconColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-enum:before {
+				color: ${outlineEnumeratorIconColor} !important;
+			}
+		`);
+	}
+
+	const outlineEnumeratorMemberIconColor = theme.getColor(OUTLINE_ENUMERATOR_MEMBER_ICON_FOREGROUND);
+	if (outlineEnumeratorMemberIconColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-enum-member:before {
+				color: ${outlineEnumeratorMemberIconColor} !important;
+			}
+		`);
+	}
+
+	const outlineEventIconColor = theme.getColor(OUTLINE_EVENT_ICON_FOREGROUND);
+	if (outlineEventIconColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-event:before {
+				color: ${outlineEventIconColor} !important;
+			}
+		`);
+	}
+
+	const outlineFieldIconColor = theme.getColor(OUTLINE_FIELD_ICON_FOREGROUND);
+	if (outlineFieldIconColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-field:before {
+				color: ${outlineFieldIconColor} !important;
+			}
+		`);
+	}
+
+	const outlineInterfaceIconColor = theme.getColor(OUTLINE_INTERFACE_ICON_FOREGROUND);
+	if (outlineInterfaceIconColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-interface:before {
+				color: ${outlineInterfaceIconColor} !important;
+			}
+		`);
+	}
+
+	const outlineVariableIconColor = theme.getColor(OUTLINE_VARIABLE_ICON_FOREGROUND);
+	if (outlineVariableIconColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-variable:before {
+				color: ${outlineVariableIconColor} !important;
+			}
+		`);
+	}
+
+});

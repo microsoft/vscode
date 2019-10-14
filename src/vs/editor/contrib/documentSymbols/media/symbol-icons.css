@@ -9,9 +9,9 @@
 }
 
 .monaco-workbench .symbol-icon.inline {
-	background-position: left center;
-	padding-left: 20px;
-	background-size: 16px 16px;
+	display: flex;
+	align-items: center;
+	padding-left: 0;
 }
 
 .monaco-workbench .symbol-icon.block {
@@ -21,16 +21,6 @@
 	min-height: 14px;
 	min-width: 16px;
 	background-position: center;
-}
-
-/* default icons */
-.monaco-workbench .symbol-icon {
-	background-image: url('field-light.svg');
-	background-repeat: no-repeat;
-}
-.vs-dark .monaco-workbench .symbol-icon,
-.hc-black .monaco-workbench .symbol-icon {
-	background-image: url('field-dark.svg');
 }
 
 /* constant */

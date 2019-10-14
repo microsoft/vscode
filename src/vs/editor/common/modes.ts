@@ -878,60 +878,60 @@ export const enum SymbolTag {
 export namespace SymbolKinds {
 
 	const byName = new Map<string, SymbolKind>();
-	byName.set('file', SymbolKind.File);
-	byName.set('module', SymbolKind.Module);
-	byName.set('namespace', SymbolKind.Namespace);
-	byName.set('package', SymbolKind.Package);
-	byName.set('class', SymbolKind.Class);
-	byName.set('method', SymbolKind.Method);
-	byName.set('property', SymbolKind.Property);
-	byName.set('field', SymbolKind.Field);
-	byName.set('constructor', SymbolKind.Constructor);
-	byName.set('enum', SymbolKind.Enum);
-	byName.set('interface', SymbolKind.Interface);
-	byName.set('function', SymbolKind.Function);
-	byName.set('variable', SymbolKind.Variable);
-	byName.set('constant', SymbolKind.Constant);
-	byName.set('string', SymbolKind.String);
-	byName.set('number', SymbolKind.Number);
-	byName.set('boolean', SymbolKind.Boolean);
-	byName.set('array', SymbolKind.Array);
-	byName.set('object', SymbolKind.Object);
-	byName.set('key', SymbolKind.Key);
-	byName.set('null', SymbolKind.Null);
-	byName.set('enum-member', SymbolKind.EnumMember);
-	byName.set('struct', SymbolKind.Struct);
-	byName.set('event', SymbolKind.Event);
-	byName.set('operator', SymbolKind.Operator);
-	byName.set('type-parameter', SymbolKind.TypeParameter);
+	byName.set('symbol-file', SymbolKind.File);
+	byName.set('symbol-module', SymbolKind.Module);
+	byName.set('symbol-namespace', SymbolKind.Namespace);
+	byName.set('symbol-package', SymbolKind.Package);
+	byName.set('symbol-class', SymbolKind.Class);
+	byName.set('symbol-method', SymbolKind.Method);
+	byName.set('symbol-property', SymbolKind.Property);
+	byName.set('symbol-field', SymbolKind.Field);
+	byName.set('symbol-constructor', SymbolKind.Constructor);
+	byName.set('symbol-enum', SymbolKind.Enum);
+	byName.set('symbol-interface', SymbolKind.Interface);
+	byName.set('symbol-function', SymbolKind.Function);
+	byName.set('symbol-variable', SymbolKind.Variable);
+	byName.set('symbol-constant', SymbolKind.Constant);
+	byName.set('symbol-string', SymbolKind.String);
+	byName.set('symbol-number', SymbolKind.Number);
+	byName.set('symbol-boolean', SymbolKind.Boolean);
+	byName.set('symbol-array', SymbolKind.Array);
+	byName.set('symbol-object', SymbolKind.Object);
+	byName.set('symbol-key', SymbolKind.Key);
+	byName.set('symbol-null', SymbolKind.Null);
+	byName.set('symbol-enum-member', SymbolKind.EnumMember);
+	byName.set('symbol-struct', SymbolKind.Struct);
+	byName.set('symbol-event', SymbolKind.Event);
+	byName.set('symbol-operator', SymbolKind.Operator);
+	byName.set('symbol-type-parameter', SymbolKind.TypeParameter);
 
 	const byKind = new Map<SymbolKind, string>();
-	byKind.set(SymbolKind.File, 'file');
-	byKind.set(SymbolKind.Module, 'module');
-	byKind.set(SymbolKind.Namespace, 'namespace');
-	byKind.set(SymbolKind.Package, 'package');
-	byKind.set(SymbolKind.Class, 'class');
-	byKind.set(SymbolKind.Method, 'method');
-	byKind.set(SymbolKind.Property, 'property');
-	byKind.set(SymbolKind.Field, 'field');
-	byKind.set(SymbolKind.Constructor, 'constructor');
-	byKind.set(SymbolKind.Enum, 'enum');
-	byKind.set(SymbolKind.Interface, 'interface');
-	byKind.set(SymbolKind.Function, 'function');
-	byKind.set(SymbolKind.Variable, 'variable');
-	byKind.set(SymbolKind.Constant, 'constant');
-	byKind.set(SymbolKind.String, 'string');
-	byKind.set(SymbolKind.Number, 'number');
-	byKind.set(SymbolKind.Boolean, 'boolean');
-	byKind.set(SymbolKind.Array, 'array');
-	byKind.set(SymbolKind.Object, 'object');
-	byKind.set(SymbolKind.Key, 'key');
-	byKind.set(SymbolKind.Null, 'null');
-	byKind.set(SymbolKind.EnumMember, 'enum-member');
-	byKind.set(SymbolKind.Struct, 'struct');
-	byKind.set(SymbolKind.Event, 'event');
-	byKind.set(SymbolKind.Operator, 'operator');
-	byKind.set(SymbolKind.TypeParameter, 'type-parameter');
+	byKind.set(SymbolKind.File, 'symbol-file');
+	byKind.set(SymbolKind.Module, 'symbol-module');
+	byKind.set(SymbolKind.Namespace, 'symbol-namespace');
+	byKind.set(SymbolKind.Package, 'symbol-package');
+	byKind.set(SymbolKind.Class, 'symbol-class');
+	byKind.set(SymbolKind.Method, 'symbol-method');
+	byKind.set(SymbolKind.Property, 'symbol-property');
+	byKind.set(SymbolKind.Field, 'symbol-field');
+	byKind.set(SymbolKind.Constructor, 'symbol-constructor');
+	byKind.set(SymbolKind.Enum, 'symbol-enum');
+	byKind.set(SymbolKind.Interface, 'symbol-interface');
+	byKind.set(SymbolKind.Function, 'symbol-function');
+	byKind.set(SymbolKind.Variable, 'symbol-variable');
+	byKind.set(SymbolKind.Constant, 'symbol-constant');
+	byKind.set(SymbolKind.String, 'symbol-string');
+	byKind.set(SymbolKind.Number, 'symbol-number');
+	byKind.set(SymbolKind.Boolean, 'symbol-boolean');
+	byKind.set(SymbolKind.Array, 'symbol-array');
+	byKind.set(SymbolKind.Object, 'symbol-object');
+	byKind.set(SymbolKind.Key, 'symbol-key');
+	byKind.set(SymbolKind.Null, 'symbol-null');
+	byKind.set(SymbolKind.EnumMember, 'symbol-enum-member');
+	byKind.set(SymbolKind.Struct, 'symbol-struct');
+	byKind.set(SymbolKind.Event, 'symbol-event');
+	byKind.set(SymbolKind.Operator, 'symbol-operator');
+	byKind.set(SymbolKind.TypeParameter, 'symbol-type-parameter');
 	/**
 	 * @internal
 	 */
@@ -954,7 +954,7 @@ export namespace SymbolKinds {
 	 * @internal
 	 */
 	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		return `symbol-icon ${inline ? 'inline' : 'block'} ${byKind.get(kind) || 'property'}`;
+		return `symbol-icon codicon ${inline ? 'inline' : 'block'} codicon-${byKind.get(kind) || 'property'}`;
 	}
 }
 

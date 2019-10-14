@@ -70,7 +70,8 @@
 	width: 16px;
 	height: 16px;
 	margin-right: 4px;
-	display: inline-block;
+	display: flex;
+	align-items: center;
 	vertical-align: middle;
 	flex-shrink: 0;
 }
