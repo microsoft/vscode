@@ -98,6 +98,10 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 			}
 		}
 	}
+
+	public cursorRedo(): void {
+		throw new Error('Not implemented!');
+	}
 }
 
 export class CursorUndo extends EditorAction {
@@ -120,5 +124,21 @@ export class CursorUndo extends EditorAction {
 	}
 }
 
+export class CursorRedo extends EditorAction {
+	constructor() {
+		super({
+			id: 'cursorRedo',
+			label: nls.localize('cursor.redo', "Soft Redo"),
+			alias: 'Soft Redo',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		CursorUndoController.get(editor).cursorRedo();
+	}
+}
+
 registerEditorContribution(CursorUndoController.ID, CursorUndoController);
 registerEditorAction(CursorUndo);
+registerEditorAction(CursorRedo);
