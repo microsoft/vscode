@@ -106,6 +106,7 @@
 	height: 100%;
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
+	margin-right: 8px;
 }
 
 .scm-viewlet .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {

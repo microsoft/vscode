@@ -60,8 +60,9 @@ export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
 export const STOP_LABEL = nls.localize('stop', "Stop");
 export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
 
-function getThreadAndRun(accessor: ServicesAccessor, threadId: number | undefined, run: (thread: IThread) => Promise<void>): void {
+function getThreadAndRun(accessor: ServicesAccessor, threadIdArg: number | any, run: (thread: IThread) => Promise<void>): void {
 	const debugService = accessor.get(IDebugService);
+	const threadId = typeof threadIdArg === 'number' ? threadIdArg : undefined;
 	let thread: IThread | undefined;
 	if (threadId) {
 		debugService.getModel().getSessions().forEach(s => {
@@ -119,21 +120,21 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: REVERSE_CONTINUE_ID,
-		handler: (accessor: ServicesAccessor, threadId: number | undefined) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, thread => thread.reverseContinue());
 		}
 	});
 
 	CommandsRegistry.registerCommand({
 		id: STEP_BACK_ID,
-		handler: (accessor: ServicesAccessor, threadId: number | undefined) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, thread => thread.stepBack());
 		}
 	});
 
 	CommandsRegistry.registerCommand({
 		id: TERMINATE_THREAD_ID,
-		handler: (accessor: ServicesAccessor, threadId: number | undefined) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, thread => thread.terminate());
 		}
 	});
@@ -213,7 +214,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F10,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-		handler: (accessor: ServicesAccessor, threadId: number) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, (thread: IThread) => thread.next());
 		}
 	});
@@ -223,7 +224,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
 		primary: KeyCode.F11,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, threadId: number) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, (thread: IThread) => thread.stepIn());
 		}
 	});
@@ -233,7 +234,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F11,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-		handler: (accessor: ServicesAccessor, threadId: number) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, (thread: IThread) => thread.stepOut());
 		}
 	});
@@ -243,7 +244,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F6,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
-		handler: (accessor: ServicesAccessor, threadId: number) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, thread => thread.pause());
 		}
 	});
@@ -292,7 +293,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, threadId: number | undefined) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, thread => thread.continue());
 		}
 	});
