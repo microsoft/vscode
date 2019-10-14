@@ -114,13 +114,16 @@ export class ExpressionContainer implements IExpressionContainer {
 		return !!this.reference && this.reference > 0;
 	}
 
-	private fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
-		return this.session!.variables(this.reference || 0, this.threadId, filter, start, count).then(response => {
+	private async fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
+		try {
+			const response = await this.session!.variables(this.reference || 0, this.threadId, filter, start, count);
 			return response && response.body && response.body.variables
 				? distinct(response.body.variables.filter(v => !!v && isString(v.name)), (v: DebugProtocol.Variable) => v.name).map((v: DebugProtocol.Variable) =>
 					new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
 				: [];
-		}, (e: Error) => [new Variable(this.session, this.threadId, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, undefined, false)]);
+		} catch (e) {
+			return [new Variable(this.session, this.threadId, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, undefined, false)];
+		}
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.

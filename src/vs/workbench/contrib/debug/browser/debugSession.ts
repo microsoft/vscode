@@ -718,8 +718,7 @@ export class DebugSession implements IDebugSession {
 			// Send all breakpoints
 			try {
 				await this.debugService.sendAllBreakpoints(this);
-				await sendConfigurationDone();
-			} catch {
+			} finally {
 				await sendConfigurationDone();
 			}
 			await this.fetchThreads();
