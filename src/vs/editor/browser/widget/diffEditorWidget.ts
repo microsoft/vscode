@@ -167,6 +167,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	public readonly onDidUpdateDiff: Event<void> = this._onDidUpdateDiff.event;
 
 	private readonly id: number;
+	private _state: editorBrowser.DiffEditorState;
 
 	private readonly _domElement: HTMLElement;
 	protected readonly _containerDomElement: HTMLElement;
@@ -236,6 +237,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._notificationService = notificationService;
 
 		this.id = (++DIFF_EDITOR_ID);
+		this._state = editorBrowser.DiffEditorState.Idle;
 
 		this._domElement = domElement;
 		options = options || {};
@@ -389,6 +391,13 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	public get renderIndicators(): boolean {
 		return this._renderIndicators;
+	}
+
+	private _setState(newState: editorBrowser.DiffEditorState): void {
+		if (this._state !== newState) {
+			return;
+		}
+		this._state = newState;
 	}
 
 	public hasWidgetFocus(): boolean {
@@ -678,14 +687,13 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		// Disable any diff computations that will come in
 		this._diffComputationResult = null;
 		this._diffComputationToken++;
+		this._setState(editorBrowser.DiffEditorState.Idle);
 
 		if (model) {
 			this._recreateOverviewRulers();
 
 			// Begin comparing
 			this._beginUpdateDecorations();
-		} else {
-			this._diffComputationResult = null;
 		}
 
 		this._layoutOverviewViewport();
@@ -933,6 +941,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		// yet supported, so using tokens for now.
 		this._diffComputationToken++;
 		let currentToken = this._diffComputationToken;
+		this._setState(editorBrowser.DiffEditorState.ComputingDiff);
 
 		if (!this._editorWorkerService.canComputeDiff(currentOriginalModel.uri, currentModifiedModel.uri)) {
 			if (
@@ -951,6 +960,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				&& currentOriginalModel === this.originalEditor.getModel()
 				&& currentModifiedModel === this.modifiedEditor.getModel()
 			) {
+				this._setState(editorBrowser.DiffEditorState.DiffComputed);
 				this._diffComputationResult = result;
 				this._updateDecorationsRunner.schedule();
 				this._onDidUpdateDiff.fire();
@@ -960,6 +970,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				&& currentOriginalModel === this.originalEditor.getModel()
 				&& currentModifiedModel === this.modifiedEditor.getModel()
 			) {
+				this._setState(editorBrowser.DiffEditorState.DiffComputed);
 				this._diffComputationResult = null;
 				this._updateDecorationsRunner.schedule();
 			}
