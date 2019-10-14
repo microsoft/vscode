@@ -1249,7 +1249,7 @@ export function defaultKeybindingsContents(keybindingService: IKeybindingService
 
 export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
-	private _content: string;
+	private _content: string | undefined;
 
 	constructor(private _uri: URI,
 		@IKeybindingService private readonly keybindingService: IKeybindingService) {

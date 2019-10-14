@@ -242,8 +242,7 @@ export class SuggestController implements IEditorContribution {
 		const model = this._editor.getModel();
 		const modelVersionNow = model.getAlternativeVersionId();
 		const { completion: suggestion, position } = event.item;
-		const editorPosition = this._editor.getPosition();
-		const columnDelta = editorPosition.column - position.column;
+		const columnDelta = this._editor.getPosition().column - position.column;
 
 		// pushing undo stops *before* additional text edits and
 		// *after* the main edit
@@ -256,7 +255,7 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		// keep item in memory
-		this._memoryService.memorize(model, editorPosition, event.item);
+		this._memoryService.memorize(model, this._editor.getPosition(), event.item);
 
 		let { insertText } = suggestion;
 		if (!(suggestion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)) {
@@ -265,7 +264,7 @@ export class SuggestController implements IEditorContribution {
 
 		let overwriteBefore = position.column - suggestion.range.startColumn;
 		let overwriteAfter = suggestion.range.endColumn - position.column;
-		let suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(editorPosition) : 0;
+		let suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(this._editor.getPosition()) : 0;
 		let word: IWordAtPosition | null;
 		if (!keepSuffix) {
 			// don't overwrite anything right of the cursor
@@ -273,7 +272,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else if (overwriteAfter === 0 && (word = model.getWordAtPosition(position))) {
 			// compute fallback overwrite length
-			overwriteAfter = word.endColumn - editorPosition.column;
+			overwriteAfter = word.endColumn - this._editor.getPosition().column;
 		}
 
 		SnippetController2.get(this._editor).insert(insertText, {
