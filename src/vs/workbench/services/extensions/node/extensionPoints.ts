@@ -51,7 +51,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
 			const manifest = json.parse(manifestContents.toString(), errors);
-			if (errors.length === 0) {
+			if (!!manifest && errors.length === 0) {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
 				}
