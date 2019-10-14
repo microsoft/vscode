@@ -425,14 +425,23 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		const model = this.editor.getModel();
 		if (model) {
-			// Reveal the line above or below the zone widget, to get the zone widget in the viewport
-			const revealLineNumber = Math.min(model.getLineCount(), Math.max(1, where.endLineNumber + 1));
-			this.revealLine(revealLineNumber);
+			const revealLine = where.endLineNumber + 1;
+			if (revealLine <= model.getLineCount()) {
+				// reveal line below the zone widget
+				this.revealLine(revealLine, false);
+			} else {
+				// reveal last line atop
+				this.revealLine(model.getLineCount(), true);
+			}
 		}
 	}
 
-	protected revealLine(lineNumber: number) {
-		this.editor.revealLine(lineNumber, ScrollType.Smooth);
+	protected revealLine(lineNumber: number, isLastLine: boolean) {
+		if (isLastLine) {
+			this.editor.revealLineInCenter(lineNumber, ScrollType.Smooth);
+		} else {
+			this.editor.revealLine(lineNumber, ScrollType.Smooth);
+		}
 	}
 
 	protected setCssClass(className: string, classToReplace?: string): void {
