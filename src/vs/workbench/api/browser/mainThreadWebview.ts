@@ -318,13 +318,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				this._webviewEditorInputs.delete(handle);
 			});
 		});
-		input.webview.onDidUpdateState((newState: any) => {
-			const webview = this.tryGetWebviewEditorInput(handle);
-			if (!webview || webview.isDisposed()) {
-				return;
-			}
-			webview.webview.state = newState;
-		});
 		input.webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value));
 	}
 
