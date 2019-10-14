@@ -31,7 +31,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
@@ -74,7 +73,6 @@ export class DebugSession implements IDebugSession {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IOpenerService private readonly openerService: IOpenerService
