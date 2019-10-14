@@ -283,7 +283,7 @@ export namespace MarkdownString {
 		}
 		let data: any;
 		try {
-			data = parse(decodeURIComponent(part));
+			data = parse(part);
 		} catch (e) {
 			// ignore
 		}
