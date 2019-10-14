@@ -73,7 +73,7 @@ export interface ServerParsedArgs {
 }
 
 export class ServerEnvironmentService extends EnvironmentService {
-	readonly args: ServerParsedArgs;
+	readonly args!: ServerParsedArgs;
 }
 
 const errorReporter: ErrorReporter = {
