@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory } from 'vs/workbench/contrib/debug/common/debug';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { URI as uri, UriComponents } from 'vs/base/common/uri';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
+	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration
 } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import severity from 'vs/base/common/severity';
@@ -20,8 +20,8 @@ import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/contrib/debug/
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
 
 	private readonly _proxy: ExtHostDebugServiceShape;
-	private _toDispose: IDisposable[];
-	private _breakpointEventsActive: boolean;
+	private readonly _toDispose = new DisposableStore();
+	private _breakpointEventsActive: boolean | undefined;
 	private readonly _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
 	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
@@ -33,19 +33,21 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		@IDebugService private readonly debugService: IDebugService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
-		this._toDispose = [];
-		this._toDispose.push(debugService.onDidNewSession(session => {
+		this._toDispose.add(debugService.onDidNewSession(session => {
 			this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
+			this._toDispose.add(session.onDidChangeName(name => {
+				this._proxy.$acceptDebugSessionNameChanged(this.getSessionDto(session), name);
+			}));
 		}));
 		// Need to start listening early to new session events because a custom event can come while a session is initialising
-		this._toDispose.push(debugService.onWillNewSession(session => {
-			this._toDispose.push(session.onDidCustomEvent(event => this._proxy.$acceptDebugSessionCustomEvent(this.getSessionDto(session), event)));
+		this._toDispose.add(debugService.onWillNewSession(session => {
+			this._toDispose.add(session.onDidCustomEvent(event => this._proxy.$acceptDebugSessionCustomEvent(this.getSessionDto(session), event)));
 		}));
-		this._toDispose.push(debugService.onDidEndSession(session => {
+		this._toDispose.add(debugService.onDidEndSession(session => {
 			this._proxy.$acceptDebugSessionTerminated(this.getSessionDto(session));
 			this._sessions.delete(session.getId());
 		}));
-		this._toDispose.push(debugService.getViewModel().onDidFocusSession(session => {
+		this._toDispose.add(debugService.getViewModel().onDidFocusSession(session => {
 			this._proxy.$acceptDebugSessionActiveChanged(this.getSessionDto(session));
 		}));
 
@@ -56,7 +58,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	// interface IDebugAdapterProvider
@@ -72,14 +74,14 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
-		return Promise.resolve(this._proxy.$runInTerminal(args, config));
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
+		return Promise.resolve(this._proxy.$runInTerminal(args));
 	}
 
 	// RPC methods (MainThreadDebugServiceShape)
 
 	public $registerDebugTypes(debugTypes: string[]) {
-		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterFactory(debugTypes, this));
+		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugAdapterFactory(debugTypes, this));
 	}
 
 	public $startBreakpointEvents(): void {
@@ -88,7 +90,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			this._breakpointEventsActive = true;
 
 			// set up a handler to send more
-			this._toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
+			this._toDispose.add(this.debugService.getModel().onDidChangeBreakpoints(e => {
 				// Ignore session only breakpoint events since they should only reflect in the UI
 				if (e && !e.sessionOnly) {
 					const delta: IBreakpointsDeltaDto = {};
@@ -111,15 +113,16 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			// send all breakpoints
 			const bps = this.debugService.getModel().getBreakpoints();
 			const fbps = this.debugService.getModel().getFunctionBreakpoints();
+			const dbps = this.debugService.getModel().getDataBreakpoints();
 			if (bps.length > 0 || fbps.length > 0) {
 				this._proxy.$acceptBreakpointsDelta({
-					added: this.convertToDto(bps).concat(this.convertToDto(fbps))
+					added: this.convertToDto(bps).concat(this.convertToDto(fbps)).concat(this.convertToDto(dbps))
 				});
 			}
 		}
 	}
 
-	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto>): Promise<void> {
+	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void> {
 
 		for (let dto of DTOs) {
 			if (dto.type === 'sourceMulti') {
@@ -137,14 +140,17 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps, 'extension');
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
+			} else if (dto.type === 'data') {
+				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist);
 			}
 		}
 		return Promise.resolve();
 	}
 
-	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Promise<void> {
+	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]): Promise<void> {
 		breakpointIds.forEach(id => this.debugService.removeBreakpoints(id));
 		functionBreakpointIds.forEach(id => this.debugService.removeFunctionBreakpoints(id));
+		dataBreakpointIds.forEach(id => this.debugService.removeDataBreakpoints(id));
 		return Promise.resolve();
 	}
 
@@ -154,13 +160,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			type: debugType
 		};
 		if (hasProvide) {
-			provider.provideDebugConfigurations = (folder) => {
-				return this._proxy.$provideDebugConfigurations(handle, folder);
+			provider.provideDebugConfigurations = (folder, token) => {
+				return this._proxy.$provideDebugConfigurations(handle, folder, token);
 			};
 		}
 		if (hasResolve) {
-			provider.resolveDebugConfiguration = (folder, config) => {
-				return this._proxy.$resolveDebugConfiguration(handle, folder, config);
+			provider.resolveDebugConfiguration = (folder, config, token) => {
+				return this._proxy.$resolveDebugConfiguration(handle, folder, config, token);
 			};
 		}
 		if (hasProvideDebugAdapter) {
@@ -170,7 +176,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			};
 		}
 		this._debugConfigurationProviders.set(handle, provider);
-		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugConfigurationProvider(provider));
+		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugConfigurationProvider(provider));
 
 		return Promise.resolve(undefined);
 	}
@@ -192,7 +198,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			}
 		};
 		this._debugAdapterDescriptorFactories.set(handle, provider);
-		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterDescriptorFactory(provider));
+		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugAdapterDescriptorFactory(provider));
 
 		return Promise.resolve(undefined);
 	}
@@ -212,14 +218,26 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return undefined;
 	}
 
-	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig, parentSessionID: DebugSessionUUID | undefined): Promise<boolean> {
-		const folderUri = _folderUri ? uri.revive(_folderUri) : undefined;
+	public $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
+		const folderUri = folder ? uri.revive(folder) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
-		return this.debugService.startDebugging(launch, nameOrConfiguration, false, this.getSession(parentSessionID)).then(success => {
+		const debugOptions: IDebugSessionOptions = {
+			noDebug: false,
+			parentSession: this.getSession(options.parentSessionID),
+			repl: options.repl
+		};
+		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
 			return success;
 		}, err => {
 			return Promise.reject(new Error(err && err.message ? err.message : 'cannot start debugging'));
 		});
+	}
+
+	public $setDebugSessionName(sessionId: DebugSessionUUID, name: string): void {
+		const session = this.debugService.getModel().getSession(sessionId);
+		if (session) {
+			session.setName(name);
+		}
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
@@ -295,7 +313,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return undefined;
 	}
 
-	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint>)): Array<ISourceBreakpointDto | IFunctionBreakpointDto> {
+	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>)): Array<ISourceBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto> {
 		return bps.map(bp => {
 			if ('name' in bp) {
 				const fbp = <IFunctionBreakpoint>bp;
@@ -307,6 +325,19 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					hitCondition: fbp.hitCondition,
 					logMessage: fbp.logMessage,
 					functionName: fbp.name
+				};
+			} else if ('dataId' in bp) {
+				const dbp = <IDataBreakpoint>bp;
+				return <IDataBreakpointDto>{
+					type: 'data',
+					id: dbp.getId(),
+					dataId: dbp.dataId,
+					enabled: dbp.enabled,
+					condition: dbp.condition,
+					hitCondition: dbp.hitCondition,
+					logMessage: dbp.logMessage,
+					label: dbp.label,
+					canPersist: dbp.canPersist
 				};
 			} else {
 				const sbp = <IBreakpoint>bp;
@@ -335,23 +366,24 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 		super();
 	}
 
-	public fireError(handle: number, err: Error) {
+	fireError(handle: number, err: Error) {
 		this._onError.fire(err);
 	}
 
-	public fireExit(handle: number, code: number, signal: string) {
+	fireExit(handle: number, code: number, signal: string) {
 		this._onExit.fire(code);
 	}
 
-	public startSession(): Promise<void> {
+	startSession(): Promise<void> {
 		return Promise.resolve(this._proxy.$startDASession(this._handle, this._ds.getSessionDto(this._session)));
 	}
 
-	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
+	sendMessage(message: DebugProtocol.ProtocolMessage): void {
 		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, true));
 	}
 
-	public stopSession(): Promise<void> {
+	async stopSession(): Promise<void> {
+		await this.cancelPendingRequests();
 		return Promise.resolve(this._proxy.$stopDASession(this._handle));
 	}
 }

@@ -17,9 +17,9 @@ export class ExtensionDescriptionRegistry {
 	public readonly onDidChange = this._onDidChange.event;
 
 	private _extensionDescriptions: IExtensionDescription[];
-	private _extensionsMap: Map<string, IExtensionDescription>;
-	private _extensionsArr: IExtensionDescription[];
-	private _activationMap: Map<string, IExtensionDescription[]>;
+	private _extensionsMap!: Map<string, IExtensionDescription>;
+	private _extensionsArr!: IExtensionDescription[];
+	private _activationMap!: Map<string, IExtensionDescription[]>;
 
 	constructor(extensionDescriptions: IExtensionDescription[]) {
 		this._extensionDescriptions = extensionDescriptions;
@@ -118,12 +118,7 @@ export class ExtensionDescriptionRegistry {
 
 			hasOnlyGoodArcs(id: string, good: Set<string>): boolean {
 				const dependencies = G.getArcs(id);
-				for (let i = 0; i < dependencies.length; i++) {
-					if (!good.has(dependencies[i])) {
-						return false;
-					}
-				}
-				return true;
+				return dependencies.every(dependency => good.has(dependency));
 			}
 
 			getNodes(): string[] {

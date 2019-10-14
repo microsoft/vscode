@@ -9,7 +9,7 @@ const { join } = require('path');
 const path = require('path');
 const mocha = require('mocha');
 const events = require('events');
-const MochaJUnitReporter = require('mocha-junit-reporter');
+// const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
@@ -100,20 +100,29 @@ function parseReporterOption(value) {
 
 app.on('ready', () => {
 
+	ipcMain.on('error', (_, err) => {
+		if (!argv.debug) {
+			console.error(err);
+			app.exit(1);
+		}
+	});
+
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
 		show: false,
 		webPreferences: {
 			backgroundThrottling: false,
-			webSecurity: false
+			nodeIntegration: true,
+			webSecurity: false,
+			webviewTag: true
 		}
 	});
 
 	win.webContents.on('did-finish-load', () => {
 		if (argv.debug) {
 			win.show();
-			win.webContents.openDevTools({ mode: 'right' });
+			win.webContents.openDevTools();
 		}
 		win.webContents.send('run', argv);
 	});
@@ -124,12 +133,13 @@ app.on('ready', () => {
 
 	if (argv.tfs) {
 		new mocha.reporters.Spec(runner);
-		new MochaJUnitReporter(runner, {
-			reporterOptions: {
-				testsuitesTitle: `${argv.tfs} ${process.platform}`,
-				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
-			}
-		});
+		// TODO@deepak the mocha Junit reporter seems to cause a hang when running with Electron 6 inside docker container
+		// new MochaJUnitReporter(runner, {
+		// 	reporterOptions: {
+		// 		testsuitesTitle: `${argv.tfs} ${process.platform}`,
+		// 		mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+		// 	}
+		// });
 	} else {
 		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
 		let Reporter;

@@ -9,14 +9,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { language } from 'vs/base/common/platform';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { joinPath } from 'vs/base/common/resources';
 
 export class ConfigureLocaleAction extends Action {
 	public static readonly ID = 'workbench.action.configureLocale';
@@ -27,7 +26,7 @@ export class ConfigureLocaleAction extends Action {
 		@ILocalizationsService private readonly localizationService: ILocalizationsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
-		@IWindowsService private readonly windowsService: IWindowsService,
+		@IHostService private readonly hostService: IHostService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IDialogService private readonly dialogService: IDialogService
@@ -66,8 +65,7 @@ export class ConfigureLocaleAction extends Action {
 			}
 
 			if (selectedLanguage) {
-				const file = joinPath(this.environmentService.appSettingsHome, 'locale.json');
-				await this.jsonEditingService.write(file, { key: 'locale', value: selectedLanguage.label }, true);
+				await this.jsonEditingService.write(this.environmentService.argvResource, [{ key: 'locale', value: selectedLanguage.label }], true);
 				const restart = await this.dialogService.confirm({
 					type: 'info',
 					message: localize('relaunchDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
@@ -76,7 +74,7 @@ export class ConfigureLocaleAction extends Action {
 				});
 
 				if (restart.confirmed) {
-					this.windowsService.relaunch({});
+					this.hostService.restart();
 				}
 			}
 		} catch (e) {

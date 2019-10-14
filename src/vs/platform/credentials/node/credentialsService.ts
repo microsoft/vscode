@@ -6,16 +6,10 @@
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IdleValue } from 'vs/base/common/async';
 
-type KeytarModule = {
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-	deletePassword(service: string, account: string): Promise<boolean>;
-	findPassword(service: string): Promise<string | null>;
-};
-
+type KeytarModule = typeof import('keytar');
 export class KeytarCredentialsService implements ICredentialsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _keytar = new IdleValue<Promise<KeytarModule>>(() => import('keytar'));
 
@@ -37,5 +31,10 @@ export class KeytarCredentialsService implements ICredentialsService {
 	async findPassword(service: string): Promise<string | null> {
 		const keytar = await this._keytar.getValue();
 		return keytar.findPassword(service);
+	}
+
+	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+		const keytar = await this._keytar.getValue();
+		return keytar.findCredentials(service);
 	}
 }

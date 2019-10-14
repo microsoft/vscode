@@ -6,9 +6,10 @@
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITerminalNativeService, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Emitter, Event } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TerminalNativeService implements ITerminalNativeService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public get linuxDistro(): LinuxDistro { return LinuxDistro.Unknown; }
 
@@ -17,13 +18,7 @@ export class TerminalNativeService implements ITerminalNativeService {
 	private readonly _onOsResume = new Emitter<void>();
 	public get onOsResume(): Event<void> { return this._onOsResume.event; }
 
-	constructor() { }
-
 	public whenFileDeleted(): Promise<void> {
-		throw new Error('Not implemented');
-	}
-
-	public selectDefaultWindowsShell(): Promise<string | undefined> {
 		throw new Error('Not implemented');
 	}
 
@@ -35,3 +30,5 @@ export class TerminalNativeService implements ITerminalNativeService {
 		throw new Error('Not implemented');
 	}
 }
+
+registerSingleton(ITerminalNativeService, TerminalNativeService, true);

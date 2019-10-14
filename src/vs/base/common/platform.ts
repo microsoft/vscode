@@ -13,6 +13,7 @@ let _isWeb = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
+let _userAgent: string | undefined = undefined;
 
 interface NLSConfig {
 	locale: string;
@@ -48,10 +49,10 @@ const isElectronRenderer = (typeof process !== 'undefined' && typeof process.ver
 
 // OS detection
 if (typeof navigator === 'object' && !isElectronRenderer) {
-	const userAgent = navigator.userAgent;
-	_isWindows = userAgent.indexOf('Windows') >= 0;
-	_isMacintosh = userAgent.indexOf('Macintosh') >= 0;
-	_isLinux = userAgent.indexOf('Linux') >= 0;
+	_userAgent = navigator.userAgent;
+	_isWindows = _userAgent.indexOf('Windows') >= 0;
+	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
+	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
 	_locale = navigator.language;
 	_language = _locale;
@@ -92,14 +93,12 @@ export function PlatformToString(platform: Platform) {
 }
 
 let _platform: Platform = Platform.Web;
-if (_isNative) {
-	if (_isMacintosh) {
-		_platform = Platform.Mac;
-	} else if (_isWindows) {
-		_platform = Platform.Windows;
-	} else if (_isLinux) {
-		_platform = Platform.Linux;
-	}
+if (_isMacintosh) {
+	_platform = Platform.Mac;
+} else if (_isWindows) {
+	_platform = Platform.Windows;
+} else if (_isLinux) {
+	_platform = Platform.Linux;
 }
 
 export const isWindows = _isWindows;
@@ -108,6 +107,7 @@ export const isLinux = _isLinux;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
 export const platform = _platform;
+export const userAgent = _userAgent;
 
 export function isRootUser(): boolean {
 	return _isNative && !_isWindows && (process.getuid() === 0);
@@ -156,19 +156,20 @@ export const translationsConfigFile = _translationsConfigFile;
 const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
 export const globals: any = _globals;
 
-let _setImmediate: ((callback: (...args: any[]) => void) => number) | null = null;
-export function setImmediate(callback: (...args: any[]) => void): number {
-	if (_setImmediate === null) {
-		if (globals.setImmediate) {
-			_setImmediate = globals.setImmediate.bind(globals);
-		} else if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
-			_setImmediate = process.nextTick.bind(process);
-		} else {
-			_setImmediate = globals.setTimeout.bind(globals);
-		}
-	}
-	return _setImmediate!(callback);
+interface ISetImmediate {
+	(callback: (...args: any[]) => void): void;
 }
+
+export const setImmediate: ISetImmediate = (function defineSetImmediate() {
+	if (globals.setImmediate) {
+		return globals.setImmediate.bind(globals);
+	}
+	if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
+		return process.nextTick.bind(process);
+	}
+	const _promise = Promise.resolve();
+	return (callback: (...args: any[]) => void) => _promise.then(callback);
+})();
 
 export const enum OperatingSystem {
 	Windows = 1,

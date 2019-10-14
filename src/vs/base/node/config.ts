@@ -42,11 +42,11 @@ export interface IConfigOptions<T> {
  * - configurable defaults
  */
 export class ConfigWatcher<T> extends Disposable implements IConfigWatcher<T> {
-	private cache: T;
-	private parseErrors: json.ParseError[];
-	private disposed: boolean;
-	private loaded: boolean;
-	private timeoutHandle: NodeJS.Timer | null;
+	private cache: T | undefined;
+	private parseErrors: json.ParseError[] | undefined;
+	private disposed: boolean | undefined;
+	private loaded: boolean | undefined;
+	private timeoutHandle: NodeJS.Timer | null | undefined;
 	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 
 	constructor(private _path: string, private options: IConfigOptions<T> = { defaultConfig: Object.create(null), onError: error => console.error(error) }) {
@@ -62,7 +62,7 @@ export class ConfigWatcher<T> extends Disposable implements IConfigWatcher<T> {
 	}
 
 	get hasParseErrors(): boolean {
-		return this.parseErrors && this.parseErrors.length > 0;
+		return !!this.parseErrors && this.parseErrors.length > 0;
 	}
 
 	get onDidUpdateConfiguration(): Event<IConfigurationChangeEvent<T>> {
@@ -161,7 +161,7 @@ export class ConfigWatcher<T> extends Disposable implements IConfigWatcher<T> {
 			if (!objects.equals(currentConfig, this.cache)) {
 				this.updateCache(currentConfig);
 
-				this._onDidUpdateConfiguration.fire({ config: this.cache });
+				this._onDidUpdateConfiguration.fire({ config: currentConfig });
 			}
 
 			if (callback) {
@@ -173,7 +173,7 @@ export class ConfigWatcher<T> extends Disposable implements IConfigWatcher<T> {
 	getConfig(): T {
 		this.ensureLoaded();
 
-		return this.cache;
+		return this.cache!;
 	}
 
 	private ensureLoaded(): void {

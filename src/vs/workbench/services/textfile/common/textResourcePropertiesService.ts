@@ -13,11 +13,10 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class TextResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: ServiceIdentifier<ITextResourcePropertiesService>;
+	_serviceBrand: undefined;
 
 	private remoteEnvironment: IRemoteAgentEnvironment | null = null;
 
@@ -30,21 +29,21 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 		remoteAgentService.getEnvironment().then(remoteEnv => this.remoteEnvironment = remoteEnv);
 	}
 
-	getEOL(resource: URI, language?: string): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files', { overrideIdentifier: language, resource });
-		if (filesConfiguration && filesConfiguration.eol && filesConfiguration.eol !== 'auto') {
-			return filesConfiguration.eol;
+	getEOL(resource?: URI, language?: string): string {
+		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
+		if (eol && eol !== 'auto') {
+			return eol;
 		}
 		const os = this.getOS(resource);
 		return os === OperatingSystem.Linux || os === OperatingSystem.Macintosh ? '\n' : '\r\n';
 	}
 
-	private getOS(resource: URI): OperatingSystem {
+	private getOS(resource?: URI): OperatingSystem {
 		let os = OS;
 
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		if (remoteAuthority) {
-			if (resource.scheme !== Schemas.file) {
+			if (resource && resource.scheme !== Schemas.file) {
 				const osCacheKey = `resource.authority.os.${remoteAuthority}`;
 				os = this.remoteEnvironment ? this.remoteEnvironment.os : /* Get it from cache */ this.storageService.getNumber(osCacheKey, StorageScope.WORKSPACE, OS);
 				this.storageService.store(osCacheKey, os, StorageScope.WORKSPACE);

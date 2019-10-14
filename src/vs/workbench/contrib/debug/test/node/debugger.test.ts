@@ -151,7 +151,7 @@ suite('Debug - Debugger', () => {
 		const schemaAttribute = _debugger.getSchemaAttributes()![0];
 		assert.notDeepEqual(schemaAttribute, debuggerContribution.configurationAttributes);
 		Object.keys(debuggerContribution.configurationAttributes.launch).forEach(key => {
-			assert.deepEqual(schemaAttribute[key], debuggerContribution.configurationAttributes.launch[key]);
+			assert.deepEqual((<any>schemaAttribute)[key], (<any>debuggerContribution.configurationAttributes.launch)[key]);
 		});
 
 		assert.equal(schemaAttribute['additionalProperties'], false);

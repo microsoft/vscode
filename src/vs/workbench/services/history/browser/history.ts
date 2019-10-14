@@ -19,12 +19,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -32,6 +31,8 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { coalesce } from 'vs/base/common/arrays';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -98,7 +99,7 @@ interface IRecentlyClosedFile {
 
 export class HistoryService extends Disposable implements IHistoryService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private static readonly STORAGE_KEY = 'history.entries';
 	private static readonly MAX_HISTORY_ITEMS = 200;
@@ -114,12 +115,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private stack: IStackEntry[];
 	private index: number;
 	private lastIndex: number;
-	private navigatingInStack: boolean;
-	private currentTextEditorState: TextEditorState | null;
+	private navigatingInStack = false;
+	private currentTextEditorState: TextEditorState | null = null;
 
-	private lastEditLocation: IStackEntry;
+	private lastEditLocation: IStackEntry | undefined;
 
-	private history: Array<IEditorInput | IResourceInput>;
+	private history: Array<IEditorInput | IResourceInput> = [];
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
@@ -137,10 +138,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
-		@IWindowsService private readonly windowService: IWindowsService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -184,6 +185,39 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (this.editorService.activeControl) {
 			this.onActiveEditorChanged();
 		}
+
+		// Mouse back/forward support
+		const mouseBackForwardSupportListener = this._register(new DisposableStore());
+		const handleMouseBackForwardSupport = () => {
+			mouseBackForwardSupportListener.clear();
+
+			if (this.configurationService.getValue('workbench.editor.mouseBackForwardToNavigate')) {
+				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.getWorkbenchElement(), EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+			}
+		};
+
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration('workbench.editor.mouseBackForwardToNavigate')) {
+				handleMouseBackForwardSupport();
+			}
+		}));
+
+		handleMouseBackForwardSupport();
+	}
+
+	private onMouseDown(e: MouseEvent): void {
+
+		// Support to navigate in history when mouse buttons 4/5 are pressed
+		switch (e.button) {
+			case 3:
+				EventHelper.stop(e);
+				this.back();
+				break;
+			case 4:
+				EventHelper.stop(e);
+				this.forward();
+				break;
+		}
 	}
 
 	private onActiveEditorChanged(): void {
@@ -216,7 +250,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// Track the last edit location by tracking model content change events
 			// Use a debouncer to make sure to capture the correct cursor position
 			// after the model content has changed.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => this.rememberLastEditLocation(activeEditor!, activeTextEditorWidget))));
+			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
+				if (activeEditor) {
+					this.rememberLastEditLocation(activeEditor, activeTextEditorWidget);
+				}
+			})));
 		}
 	}
 
@@ -419,7 +457,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.doNavigate(this.stack[this.index], !acrossEditors).finally(() => this.navigatingInStack = false);
 	}
 
-	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor | null> {
+	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor | undefined> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true // support to navigate across editor groups
 		};
@@ -747,7 +785,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const input = arg1 as IResourceInput;
 
-		this.windowService.removeFromRecentlyOpened([input.resource]);
+		this.workspacesService.removeFromRecentlyOpened([input.resource]);
 	}
 
 	private isFileOpened(resource: URI, group: IEditorGroup): boolean {

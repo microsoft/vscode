@@ -10,26 +10,33 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
+	private _contentWidth: number;
 	private _selectionIsEmpty: boolean;
 	private _primaryCursorLineNumber: number;
 	private _scrollWidth: number;
-	private _contentWidth: number;
 
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
+
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
+		this._contentWidth = layoutInfo.contentWidth;
 
 		this._selectionIsEmpty = true;
 		this._primaryCursorLineNumber = 1;
 		this._scrollWidth = 0;
-		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+
 
 		this._context.addEventHandler(this);
 	}
@@ -42,15 +49,12 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.viewInfo) {
-			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
-		}
-		if (e.layoutInfo) {
-			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-		}
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
+		this._contentWidth = layoutInfo.contentWidth;
 		return true;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {

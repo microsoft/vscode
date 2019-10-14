@@ -8,8 +8,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
-import { FileFilter } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+
+export interface FileFilter {
+	extensions: string[];
+	name: string;
+}
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 
@@ -41,6 +45,22 @@ export interface IConfirmationResult {
 	checkboxChecked?: boolean;
 }
 
+export interface IShowResult {
+
+	/**
+	 * Selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned.
+	 */
+	choice: number;
+
+	/**
+	 * This will only be defined if the confirmation was created
+	 * with the checkbox option defined.
+	 */
+	checkboxChecked?: boolean;
+}
+
 export interface IPickAndOpenOptions {
 	forceNewWindow?: boolean;
 	defaultUri?: URI;
@@ -60,11 +80,6 @@ export interface ISaveDialogOptions {
 	defaultUri?: URI;
 
 	/**
-	 * If the defaultUri is not provided use the default file name.
-	 */
-	defaultFileName?: string;
-
-	/**
 	 * A set of file filters that are used by the dialog. Each entry is a human readable label,
 	 * like "TypeScript", and an array of extensions.
 	 */
@@ -79,7 +94,7 @@ export interface ISaveDialogOptions {
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
 	 * the schema of the current window.
 	 */
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
 export interface IOpenDialogOptions {
@@ -123,7 +138,7 @@ export interface IOpenDialogOptions {
 	 * Specifies a list of schemas for the file systems the user can load from. If not specified, uses the schema of the defaultURI or, if also not available,
 	 * the schema of the current window.
 	 */
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
 
@@ -132,6 +147,10 @@ export const IDialogService = createDecorator<IDialogService>('dialogService');
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
+	checkbox?: {
+		label: string;
+		checked?: boolean;
+	};
 }
 
 /**
@@ -142,7 +161,7 @@ export interface IDialogOptions {
  */
 export interface IDialogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.
@@ -156,7 +175,12 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number>;
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+
+	/**
+	 * Present the about dialog to the user.
+	 */
+	about(): Promise<void>;
 }
 
 export const IFileDialogService = createDecorator<IFileDialogService>('fileDialogService');
@@ -166,7 +190,7 @@ export const IFileDialogService = createDecorator<IFileDialogService>('fileDialo
  */
 export interface IFileDialogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * The default path for a new file based on previously used files.
@@ -220,11 +244,10 @@ export interface IFileDialogService {
 	 * Shows a open file dialog and returns the chosen file URI.
 	 */
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
-
 }
 
 const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, resourcesToConfirm: URI[]): string {
+export function getConfirmMessage(start: string, resourcesToConfirm: readonly URI[]): string {
 	const message = [start];
 	message.push('');
 	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r)));

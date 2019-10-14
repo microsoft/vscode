@@ -15,7 +15,7 @@ import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTr
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './codeActionTrigger';
 import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 export interface CodeActionSet extends IDisposable {
 	readonly actions: readonly CodeAction[];
@@ -117,8 +117,8 @@ function getCodeActionProviders(
 }
 
 registerLanguageCommand('_executeCodeActionProvider', async function (accessor, args): Promise<ReadonlyArray<CodeAction>> {
-	const { resource, range, kind } = args;
-	if (!(resource instanceof URI) || !Range.isIRange(range)) {
+	const { resource, rangeOrSelection, kind } = args;
+	if (!(resource instanceof URI)) {
 		throw illegalArgument();
 	}
 
@@ -127,12 +127,22 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 		throw illegalArgument();
 	}
 
+	const validatedRangeOrSelection = Selection.isISelection(rangeOrSelection)
+		? Selection.liftSelection(rangeOrSelection)
+		: Range.isIRange(rangeOrSelection)
+			? model.validateRange(rangeOrSelection)
+			: undefined;
+
+	if (!validatedRangeOrSelection) {
+		throw illegalArgument();
+	}
+
 	const codeActionSet = await getCodeActions(
 		model,
-		model.validateRange(range),
+		validatedRangeOrSelection,
 		{ type: 'manual', filter: { includeSourceActions: true, kind: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
 		CancellationToken.None);
 
-	setTimeout(() => codeActionSet.dispose(), 0);
+	setTimeout(() => codeActionSet.dispose(), 100);
 	return codeActionSet.actions;
 });

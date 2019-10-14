@@ -5,6 +5,7 @@
 
 import './menuPreventer';
 import './accessibility/accessibility';
+import './diffEditorHelper';
 import './inspectKeybindings';
 import './largeFileOptimizations';
 import './selectionClipboard';

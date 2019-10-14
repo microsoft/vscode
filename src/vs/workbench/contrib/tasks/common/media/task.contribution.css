@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .quick-open-task-configure {
-	background-image: url('configure.svg');
+	background-image: url('configure-light.svg');
 }
 
-.vs-dark .monaco-workbench .quick-open-task-configure,
+.vs-dark .monaco-workbench .quick-open-task-configure {
+	background-image: url('configure-dark.svg');
+}
+
 .hc-black .monaco-workbench .quick-open-task-configure {
-	background-image: url('configure-inverse.svg');
+	background-image: url('configure-hc.svg');
 }

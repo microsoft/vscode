@@ -24,11 +24,11 @@
           ".bowerrc",
           ".jshintrc",
           ".jscsrc",
-          ".eslintrc",
           ".swcrc",
           ".webmanifest",
           ".js.map",
-          ".css.map"
+          ".css.map",
+          ".har"
         ],
         "filenames": [
           "composer.lock",
@@ -49,7 +49,9 @@
         "extensions": [
           ".hintrc",
           ".babelrc",
-          ".jsonc"
+          ".jsonc",
+          ".eslintrc",
+          ".eslintrc.json"
         ],
         "configuration": "./language-configuration.json"
       }

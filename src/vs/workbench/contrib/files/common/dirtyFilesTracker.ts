@@ -7,32 +7,26 @@ import * as nls from 'vs/nls';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
 import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { platform, Platform } from 'vs/base/common/platform';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import * as arrays from 'vs/base/common/arrays';
-import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class DirtyFilesTracker extends Disposable implements IWorkbenchContribution {
-	private isDocumentedEdited: boolean;
-	private lastDirtyCount: number;
+	private lastKnownDirtyCount: number | undefined;
 	private readonly badgeHandle = this._register(new MutableDisposable());
 
 	constructor(
-		@ITextFileService private readonly textFileService: ITextFileService,
+		@ITextFileService protected readonly textFileService: ITextFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IWindowService private readonly windowService: IWindowService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService protected readonly untitledEditorService: IUntitledEditorService
 	) {
 		super();
-
-		this.isDocumentedEdited = false;
 
 		this.registerListeners();
 	}
@@ -50,23 +44,19 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private onUntitledDidChangeDirty(resource: URI): void {
+	private get hasDirtyCount(): boolean {
+		return typeof this.lastKnownDirtyCount === 'number' && this.lastKnownDirtyCount > 0;
+	}
+
+	protected onUntitledDidChangeDirty(resource: URI): void {
 		const gotDirty = this.untitledEditorService.isDirty(resource);
 
-		if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
-			this.updateDocumentEdited();
-		}
-
-		if (gotDirty || this.lastDirtyCount > 0) {
+		if (gotDirty || this.hasDirtyCount) {
 			this.updateActivityBadge();
 		}
 	}
 
-	private onTextFilesDirty(e: TextFileModelChangeEvent[]): void {
-		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
-			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
-		}
-
+	protected onTextFilesDirty(e: readonly TextFileModelChangeEvent[]): void {
 		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
 			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
 		}
@@ -84,7 +74,6 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 	}
 
 	private doOpenDirtyResources(resources: URI[]): void {
-		const activeEditor = this.editorService.activeControl;
 
 		// Open
 		this.editorService.openEditors(resources.map(resource => {
@@ -92,52 +81,33 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 				resource,
 				options: { inactive: true, pinned: true, preserveFocus: true }
 			};
-		}), activeEditor ? activeEditor.group : ACTIVE_GROUP);
+		}));
 	}
 
-	private onTextFilesSaved(e: TextFileModelChangeEvent[]): void {
-		if (this.isDocumentedEdited) {
-			this.updateDocumentEdited();
-		}
-
-		if (this.lastDirtyCount > 0) {
+	protected onTextFilesSaved(e: readonly TextFileModelChangeEvent[]): void {
+		if (this.hasDirtyCount) {
 			this.updateActivityBadge();
 		}
 	}
 
-	private onTextFilesSaveError(e: TextFileModelChangeEvent[]): void {
-		if (!this.isDocumentedEdited) {
-			this.updateDocumentEdited();
-		}
-
+	protected onTextFilesSaveError(e: readonly TextFileModelChangeEvent[]): void {
 		this.updateActivityBadge();
 	}
 
-	private onTextFilesReverted(e: TextFileModelChangeEvent[]): void {
-		if (this.isDocumentedEdited) {
-			this.updateDocumentEdited();
-		}
-
-		if (this.lastDirtyCount > 0) {
+	protected onTextFilesReverted(e: readonly TextFileModelChangeEvent[]): void {
+		if (this.hasDirtyCount) {
 			this.updateActivityBadge();
 		}
 	}
 
 	private updateActivityBadge(): void {
 		const dirtyCount = this.textFileService.getDirty().length;
-		this.lastDirtyCount = dirtyCount;
+		this.lastKnownDirtyCount = dirtyCount;
+
 		this.badgeHandle.clear();
+
 		if (dirtyCount > 0) {
 			this.badgeHandle.value = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
-		}
-	}
-
-	private updateDocumentEdited(): void {
-		if (platform === Platform.Mac) {
-			const hasDirtyFiles = this.textFileService.isDirty();
-			this.isDocumentedEdited = hasDirtyFiles;
-
-			this.windowService.setDocumentEdited(hasDirtyFiles);
 		}
 	}
 }

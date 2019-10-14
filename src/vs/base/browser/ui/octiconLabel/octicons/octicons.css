@@ -1,7 +1,6 @@
 @font-face {
     font-family: "octicons";
-    src: url("./octicons.ttf?1b0f2a9535896866c74dd24eedeb4374") format("truetype"),
-url("./octicons.svg?1b0f2a9535896866c74dd24eedeb4374#octicons") format("svg");
+    src: url("./octicons.ttf?1829db8570ee0fa5a4bef3bb41d5f62e") format("truetype");
 }
 
 .octicon, .mega-octicon {
@@ -137,11 +136,11 @@ url("./octicons.svg?1b0f2a9535896866c74dd24eedeb4374#octicons") format("svg");
 .octicon-lock:before { content: "\f06a" }
 .octicon-log-in:before { content: "\f036" }
 .octicon-log-out:before { content: "\f032" }
-.octicon-logo-gist:before { content: "\f288" }
-.octicon-logo-github:before { content: "\f092" }
 .octicon-mail-read:before { content: "\f03c" }
 .octicon-mail-reply:before { content: "\f28c" }
 .octicon-mail:before { content: "\f03b" }
+.octicon-logo-gist:before { content: "\f00a" }
+.octicon-logo-github:before { content: "\f00a" }
 .octicon-mark-github:before { content: "\f00a" }
 .octicon-markdown:before { content: "\f0c9" }
 .octicon-megaphone:before { content: "\f077" }
@@ -157,7 +156,7 @@ url("./octicons.svg?1b0f2a9535896866c74dd24eedeb4374#octicons") format("svg");
 .octicon-note:before { content: "\f289" }
 .octicon-octoface:before { content: "\f008" }
 .octicon-organization:before { content: "\f037" }
-.octicon-organization-filled:before { content: "\26a2" }
+.octicon-organization-filled:before { content: "\f037" }
 .octicon-organization-outline:before { content: "\f037" }
 .octicon-package:before { content: "\f0c4" }
 .octicon-paintcan:before { content: "\f0d1" }
@@ -165,7 +164,7 @@ url("./octicons.svg?1b0f2a9535896866c74dd24eedeb4374#octicons") format("svg");
 .octicon-person-add:before { content: "\f018" }
 .octicon-person-follow:before { content: "\f018" }
 .octicon-person:before { content: "\f018" }
-.octicon-person-filled:before { content: "\26a3" }
+.octicon-person-filled:before { content: "\f018" }
 .octicon-person-outline:before { content: "\f018" }
 .octicon-pin:before { content: "\f041" }
 .octicon-plug:before { content: "\f0d4" }
@@ -202,7 +201,7 @@ url("./octicons.svg?1b0f2a9535896866c74dd24eedeb4374#octicons") format("svg");
 .octicon-shield:before { content: "\f0e1" }
 .octicon-sign-in:before { content: "\f036" }
 .octicon-sign-out:before { content: "\f032" }
-.octicon-smiley:before { content: "\f27d" }
+.octicon-smiley:before { content: "\26b2" }
 .octicon-squirrel:before { content: "\f0b2" }
 .octicon-star-add:before { content: "\f02a" }
 .octicon-star-delete:before { content: "\f02a" }
@@ -233,16 +232,20 @@ url("./octicons.svg?1b0f2a9535896866c74dd24eedeb4374#octicons") format("svg");
 .octicon-watch:before { content: "\f0e0" }
 .octicon-x:before { content: "\f081" }
 .octicon-zap:before { content: "\26a1" }
-.octicon-archive:before { content: "\f101" }
-.octicon-arrow-both:before { content: "\f102" }
-.octicon-error:before { content: "\f103" }
-.octicon-eye-closed:before { content: "\f104" }
-.octicon-fold-down:before { content: "\f105" }
-.octicon-fold-up:before { content: "\f106" }
-.octicon-github-action:before { content: "\f107" }
-.octicon-info-outline:before { content: "\f108" }
-.octicon-play:before { content: "\f109" }
-.octicon-remote:before { content: "\f10a" }
-.octicon-request-changes:before { content: "\f10b" }
-.octicon-smiley-outline:before { content: "\f10c" }
-.octicon-warning:before { content: "\f10d" }
+.octicon-error:before { content: "\26b1" }
+.octicon-eye-closed:before { content: "\26a3" }
+.octicon-fold-down:before { content: "\26a4" }
+.octicon-fold-up:before { content: "\26a5" }
+.octicon-github-action:before { content: "\26a6" }
+.octicon-info-outline:before { content: "\26a7" }
+.octicon-play:before { content: "\26a8" }
+.octicon-remote:before { content: "\26a9" }
+.octicon-request-changes:before { content: "\26aa" }
+.octicon-smiley-outline:before { content: "\26b2" }
+.octicon-warning:before { content: "\f02d" }
+.octicon-controls:before { content: "\26ad" }
+.octicon-event:before { content: "\26ae" }
+.octicon-record-keys:before { content: "\26af" }
+.octicon-Vector:before { content: "\f101" }
+.octicon-archive:before { content: "\f102" }
+.octicon-arrow-both:before { content: "\f103" }

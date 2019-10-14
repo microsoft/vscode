@@ -22,25 +22,25 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeContent(): Event<void> { return this._onDidChangeContent.event; }
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeDirty(): Event<void> { return this._onDidChangeDirty.event; }
+	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 
 	private readonly _onDidChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeEncoding(): Event<void> { return this._onDidChangeEncoding.event; }
+	readonly onDidChangeEncoding: Event<void> = this._onDidChangeEncoding.event;
 
 	private dirty: boolean = false;
 	private versionId: number = 0;
 	private readonly contentChangeEventScheduler: RunOnceScheduler;
-	private configuredEncoding: string;
+	private configuredEncoding?: string;
 
 	constructor(
-		private readonly preferredMode: string,
+		private readonly preferredMode: string | undefined,
 		private readonly resource: URI,
 		private _hasAssociatedFilePath: boolean,
-		private readonly initialValue: string,
-		private preferredEncoding: string,
+		private readonly initialValue: string | undefined,
+		private preferredEncoding: string | undefined,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -87,7 +87,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.preferredMode;
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		return this.preferredEncoding || this.configuredEncoding;
 	}
 
@@ -131,6 +131,10 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		}
 
 		return Promise.resolve();
+	}
+
+	hasBackup(): boolean {
+		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
 	}
 
 	async load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {

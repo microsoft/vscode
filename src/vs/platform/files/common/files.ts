@@ -6,8 +6,7 @@
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
-import { isLinux } from 'vs/base/common/platform';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -19,7 +18,7 @@ export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event that is fired when a file system provider is added or removed
@@ -105,7 +104,7 @@ export interface IFileService {
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
+	writeFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Moves the file/folder to a new path identified by the resource.
@@ -127,7 +126,7 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, bufferOrReadable?: VSBuffer | VSBufferReadable, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
+	createFile(resource: URI, bufferOrReadableOrStream?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
@@ -208,9 +207,9 @@ export interface IFileSystemProvider {
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void>;
 
-	readonly onDidErrorOccur?: Event<Error>; // TODO@ben remove once file watchers are solid
+	readonly onDidErrorOccur?: Event<string>; // TODO@ben remove once file watchers are solid
 
-	readonly onDidChangeFile: Event<IFileChange[]>;
+	readonly onDidChangeFile: Event<readonly IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
 	stat(resource: URI): Promise<IStat>;
@@ -390,19 +389,19 @@ export interface IFileChange {
 	/**
 	 * The type of change that occurred to the file.
 	 */
-	type: FileChangeType;
+	readonly type: FileChangeType;
 
 	/**
 	 * The unified resource identifier of the file that changed.
 	 */
-	resource: URI;
+	readonly resource: URI;
 }
 
 export class FileChangesEvent {
 
-	private _changes: IFileChange[];
+	private readonly _changes: readonly IFileChange[];
 
-	constructor(changes: IFileChange[]) {
+	constructor(changes: readonly IFileChange[]) {
 		this._changes = changes;
 	}
 
@@ -429,10 +428,10 @@ export class FileChangesEvent {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (change.type === FileChangeType.DELETED) {
-				return isEqualOrParent(resource, change.resource, !isLinux /* ignorecase */);
+				return isEqualOrParent(resource, change.resource);
 			}
 
-			return isEqual(resource, change.resource, !isLinux /* ignorecase */);
+			return isEqual(resource, change.resource);
 		});
 	}
 
@@ -621,26 +620,26 @@ export interface IReadFileOptions {
 	 * that have been read already with the same etag.
 	 * It is the task of the caller to makes sure to handle this error case from the promise.
 	 */
-	etag?: string;
+	readonly etag?: string;
 
 	/**
 	 * Is an integer specifying where to begin reading from in the file. If position is null,
 	 * data will be read from the current file position.
 	 */
-	position?: number;
+	readonly position?: number;
 
 	/**
 	 * Is an integer specifying how many bytes to read from the file. By default, all bytes
 	 * will be read.
 	 */
-	length?: number;
+	readonly length?: number;
 
 	/**
 	 * If provided, the size of the file will be checked against the limits.
 	 */
 	limits?: {
-		size?: number;
-		memory?: number;
+		readonly size?: number;
+		readonly memory?: number;
 	};
 }
 
@@ -649,12 +648,12 @@ export interface IWriteFileOptions {
 	/**
 	 * The last known modification time of the file. This can be used to prevent dirty writes.
 	 */
-	mtime?: number;
+	readonly mtime?: number;
 
 	/**
 	 * The etag of the file. This can be used to prevent dirty writes.
 	 */
-	etag?: string;
+	readonly etag?: string;
 }
 
 export interface IResolveFileOptions {
@@ -663,22 +662,22 @@ export interface IResolveFileOptions {
 	 * Automatically continue resolving children of a directory until the provided resources
 	 * are found.
 	 */
-	resolveTo?: URI[];
+	readonly resolveTo?: readonly URI[];
 
 	/**
 	 * Automatically continue resolving children of a directory if the number of children is 1.
 	 */
-	resolveSingleChildDescendants?: boolean;
+	readonly resolveSingleChildDescendants?: boolean;
 
 	/**
 	 * Will resolve mtime, size and etag of files if enabled. This can have a negative impact
 	 * on performance and thus should only be used when these values are required.
 	 */
-	resolveMetadata?: boolean;
+	readonly resolveMetadata?: boolean;
 }
 
 export interface IResolveMetadataFileOptions extends IResolveFileOptions {
-	resolveMetadata: true;
+	readonly resolveMetadata: true;
 }
 
 export interface ICreateFileOptions {
@@ -687,7 +686,7 @@ export interface ICreateFileOptions {
 	 * Overwrite the file to create if it already exists on disk. Otherwise
 	 * an error will be thrown (FILE_MODIFIED_SINCE).
 	 */
-	overwrite?: boolean;
+	readonly overwrite?: boolean;
 }
 
 export class FileOperationError extends Error {
@@ -754,9 +753,6 @@ export enum FileKind {
 	FOLDER,
 	ROOT_FOLDER
 }
-
-export const MIN_MAX_MEMORY_SIZE_MB = 2048;
-export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
 
 /**
  * A hint to disable etag checking for reading/writing.

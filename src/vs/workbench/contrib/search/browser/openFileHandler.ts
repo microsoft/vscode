@@ -44,13 +44,13 @@ export class FileQuickOpenModel extends QuickOpenModel {
 }
 
 export class FileEntry extends EditorQuickOpenEntry {
-	private range: IRange | null;
+	private range: IRange | null = null;
 
 	constructor(
 		private resource: URI,
 		private name: string,
 		private description: string,
-		private icon: string,
+		private icon: string | undefined,
 		@IEditorService editorService: IEditorService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
@@ -78,7 +78,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return this.description;
 	}
 
-	getIcon(): string {
+	getIcon(): string | undefined {
 		return this.icon;
 	}
 
@@ -112,9 +112,9 @@ export interface IOpenFileOptions {
 }
 
 export class OpenFileHandler extends QuickOpenHandler {
-	private options: IOpenFileOptions;
+	private options: IOpenFileOptions | undefined;
 	private queryBuilder: QueryBuilder;
-	private cacheState: CacheState;
+	private cacheState: CacheState | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -143,7 +143,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		}
 
 		// Do find results
-		return this.doFindResults(query, token, this.cacheState.cacheKey, maxSortedResults);
+		return this.doFindResults(query, token, this.cacheState ? this.cacheState.cacheKey : undefined, maxSortedResults);
 	}
 
 	private async doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): Promise<FileQuickOpenModel> {
@@ -246,7 +246,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	get isCacheLoaded(): boolean {
-		return this.cacheState && this.cacheState.isLoaded;
+		return !!this.cacheState && this.cacheState.isLoaded;
 	}
 
 	getGroupLabel(): string {
@@ -277,16 +277,16 @@ export class CacheState {
 	private query: IFileQuery;
 
 	private loadingPhase = LoadingPhase.Created;
-	private promise: Promise<void>;
+	private promise: Promise<void> | undefined;
 
-	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState | null) {
+	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState | undefined) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });
 			const previous = objects.assign({}, this.previous.query, { cacheKey: null });
 			if (!objects.equals(current, previous)) {
 				this.previous.dispose();
-				this.previous = null;
+				this.previous = undefined;
 			}
 		}
 	}
@@ -315,7 +315,7 @@ export class CacheState {
 				this.loadingPhase = LoadingPhase.Loaded;
 				if (this.previous) {
 					this.previous.dispose();
-					this.previous = null;
+					this.previous = undefined;
 				}
 			}, err => {
 				this.loadingPhase = LoadingPhase.Errored;
@@ -337,7 +337,7 @@ export class CacheState {
 		}
 		if (this.previous) {
 			this.previous.dispose();
-			this.previous = null;
+			this.previous = undefined;
 		}
 	}
 }

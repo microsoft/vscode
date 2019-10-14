@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDriver, DriverChannel, IElement, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver, IDriverOptions } from 'vs/platform/driver/node/driver';
+import { DriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IDriverOptions } from 'vs/platform/driver/node/driver';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -17,6 +17,10 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';
+import { IDriver, IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { NativeImage } from 'electron';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { IElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 
 function isSilentKeyCode(keyCode: KeyCode) {
 	return keyCode < KeyCode.KEY_0;
@@ -24,16 +28,18 @@ function isSilentKeyCode(keyCode: KeyCode) {
 
 export class Driver implements IDriver, IWindowDriverRegistry {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private registeredWindowIds = new Set<number>();
 	private reloadingWindowIds = new Set<number>();
-	private onDidReloadingChange = new Emitter<void>();
+	private readonly onDidReloadingChange = new Emitter<void>();
 
 	constructor(
 		private windowServer: IPCServer,
 		private options: IDriverOptions,
-		@IWindowsMainService private readonly windowsService: IWindowsMainService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IElectronMainService private readonly electronMainService: IElectronMainService
 	) { }
 
 	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
@@ -48,7 +54,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	async getWindowIds(): Promise<number[]> {
-		return this.windowsService.getWindows()
+		return this.windowsMainService.getWindows()
 			.map(w => w.id)
 			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id));
 	}
@@ -56,28 +62,28 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async capturePage(windowId: number): Promise<string> {
 		await this.whenUnfrozen(windowId);
 
-		const window = this.windowsService.getWindowById(windowId);
+		const window = this.windowsMainService.getWindowById(windowId);
 		if (!window) {
 			throw new Error('Invalid window');
 		}
 		const webContents = window.win.webContents;
-		const image = await new Promise<Electron.NativeImage>(c => webContents.capturePage(c));
+		const image = await new Promise<NativeImage>(c => webContents.capturePage(c));
 		return image.toPNG().toString('base64');
 	}
 
 	async reloadWindow(windowId: number): Promise<void> {
 		await this.whenUnfrozen(windowId);
 
-		const window = this.windowsService.getWindowById(windowId);
+		const window = this.windowsMainService.getWindowById(windowId);
 		if (!window) {
 			throw new Error('Invalid window');
 		}
 		this.reloadingWindowIds.add(windowId);
-		this.windowsService.reload(window);
+		this.lifecycleMainService.reload(window);
 	}
 
 	async exitApplication(): Promise<void> {
-		return this.windowsService.quit();
+		return this.electronMainService.quit(undefined);
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
@@ -95,7 +101,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 			throw new Error('ScanCodeBindings not supported');
 		}
 
-		const window = this.windowsService.getWindowById(windowId);
+		const window = this.windowsMainService.getWindowById(windowId);
 		if (!window) {
 			throw new Error('Invalid window');
 		}
@@ -161,6 +167,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async getElements(windowId: number, selector: string, recursive: boolean): Promise<IElement[]> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		return await windowDriver.getElements(selector, recursive);
+	}
+
+	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return await windowDriver.getElementXY(selector, xoffset, yoffset);
 	}
 
 	async typeInEditor(windowId: number, selector: string, text: string): Promise<void> {

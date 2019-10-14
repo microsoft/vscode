@@ -52,6 +52,15 @@ suite('Workspace', () => {
 		assert.equal(actual, expected);
 	});
 
+	test('getFolder returns the folder even if the uri has query path', () => {
+		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 2 });
+		let testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 }), expected]);
+
+		const actual = testObject.getFolder(URI.file(path.join(fileFolder, 'test/a')).with({ query: 'somequery' }));
+
+		assert.equal(actual, expected);
+	});
+
 	test('getFolder returns null if the uri is not sub', () => {
 		let testObject = new Workspace('', [new WorkspaceFolder({ uri: testFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 })]);
 

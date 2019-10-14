@@ -10,7 +10,7 @@ import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionba
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
@@ -22,6 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -31,7 +32,7 @@ export class ContextMenuController implements IEditorContribution {
 		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);
 	}
 
-	private _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 	private _contextMenuIsBeingShownCount: number = 0;
 	private readonly _editor: ICodeEditor;
 
@@ -45,13 +46,13 @@ export class ContextMenuController implements IEditorContribution {
 	) {
 		this._editor = editor;
 
-		this._toDispose.push(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
-		this._toDispose.push(this._editor.onMouseWheel((e: IMouseWheelEvent) => {
+		this._toDispose.add(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
+		this._toDispose.add(this._editor.onMouseWheel((e: IMouseWheelEvent) => {
 			if (this._contextMenuIsBeingShownCount > 0) {
 				this._contextViewService.hideContextView();
 			}
 		}));
-		this._toDispose.push(this._editor.onKeyDown((e: IKeyboardEvent) => {
+		this._toDispose.add(this._editor.onKeyDown((e: IKeyboardEvent) => {
 			if (e.keyCode === KeyCode.ContextMenu) {
 				// Chrome is funny like that
 				e.preventDefault();
@@ -66,7 +67,7 @@ export class ContextMenuController implements IEditorContribution {
 			return;
 		}
 
-		if (!this._editor.getConfiguration().contribInfo.contextmenu) {
+		if (!this._editor.getOption(EditorOption.contextmenu)) {
 			this._editor.focus();
 			// Ensure the cursor is at the position of the mouse click
 			if (e.target.position && !this._editor.getSelection().containsPosition(e.target.position)) {
@@ -104,7 +105,7 @@ export class ContextMenuController implements IEditorContribution {
 	}
 
 	public showContextMenu(anchor?: IAnchor | null): void {
-		if (!this._editor.getConfiguration().contribInfo.contextmenu) {
+		if (!this._editor.getOption(EditorOption.contextmenu)) {
 			return; // Context menu is turned off through configuration
 		}
 		if (!this._editor.hasModel()) {
@@ -147,7 +148,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Disable hover
-		const oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
+		const oldHoverSetting = this._editor.getOption(EditorOption.hover);
 		this._editor.updateOptions({
 			hover: {
 				enabled: false
@@ -217,7 +218,7 @@ export class ContextMenuController implements IEditorContribution {
 			this._contextViewService.hideContextView();
 		}
 
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 }
 

@@ -115,16 +115,52 @@ const schema: IJSONSchema = {
 					$ref: '#/definitions/options'
 				},
 				windows: {
-					$ref: '#/definitions/commandConfiguration',
-					description: nls.localize('JsonSchema.tasks.windows', 'Windows specific command configuration')
+					anyOf: [
+						{
+							$ref: '#/definitions/commandConfiguration',
+							description: nls.localize('JsonSchema.tasks.windows', 'Windows specific command configuration'),
+						},
+						{
+							properties: {
+								problemMatcher: {
+									$ref: '#/definitions/problemMatcherType',
+									description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+								}
+							}
+						}
+					]
 				},
 				osx: {
-					$ref: '#/definitions/commandConfiguration',
-					description: nls.localize('JsonSchema.tasks.mac', 'Mac specific command configuration')
+					anyOf: [
+						{
+							$ref: '#/definitions/commandConfiguration',
+							description: nls.localize('JsonSchema.tasks.mac', 'Mac specific command configuration')
+						},
+						{
+							properties: {
+								problemMatcher: {
+									$ref: '#/definitions/problemMatcherType',
+									description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+								}
+							}
+						}
+					]
 				},
 				linux: {
-					$ref: '#/definitions/commandConfiguration',
-					description: nls.localize('JsonSchema.tasks.linux', 'Linux specific command configuration')
+					anyOf: [
+						{
+							$ref: '#/definitions/commandConfiguration',
+							description: nls.localize('JsonSchema.tasks.linux', 'Linux specific command configuration')
+						},
+						{
+							properties: {
+								problemMatcher: {
+									$ref: '#/definitions/problemMatcherType',
+									description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+								}
+							}
+						}
+					]
 				},
 				suppressTaskName: {
 					type: 'boolean',

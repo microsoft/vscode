@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
-	{ id: 'com.apple.inputmethod.Kotoeri.Japanese', lang: 'ja' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.apple.inputmethod.Kotoeri.Japanese', lang: 'ja', localizedName: 'Hiragana' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['a', 'A', 'å', 'Å', 0],
 		KeyB: ['b', 'B', '∫', 'ı', 0],
 		KeyC: ['c', 'C', 'ç', 'Ç', 0],
@@ -128,4 +129,4 @@ KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-));
+});

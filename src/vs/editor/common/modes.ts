@@ -17,8 +17,9 @@ import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/t
 import * as model from 'vs/editor/common/model';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { keys } from 'vs/base/common/map';
 
 /**
  * Open ended enum at runtime
@@ -367,6 +368,10 @@ export let completionKindFromString: {
 	};
 })();
 
+export const enum CompletionItemTag {
+	Deprecated = 1
+}
+
 export const enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
@@ -396,6 +401,11 @@ export interface CompletionItem {
 	 * an icon is chosen by the editor.
 	 */
 	kind: CompletionItemKind;
+	/**
+	 * A modifier to the `kind` which affect how the item
+	 * is rendered, e.g. Deprecated is rendered with a strikeout
+	 */
+	tags?: ReadonlyArray<CompletionItemTag>;
 	/**
 	 * A human-readable string with additional information
 	 * about this item, like type or symbol information.
@@ -464,7 +474,7 @@ export interface CompletionItem {
 	/**
 	 * @internal
 	 */
-	[key: string]: any;
+	_id?: [number, number];
 }
 
 export interface CompletionList {
@@ -509,6 +519,11 @@ export interface CompletionContext {
  * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
  */
 export interface CompletionItemProvider {
+
+	/**
+	 * @internal
+	 */
+	_debugDisplayName?: string;
 
 	triggerCharacters?: string[];
 	/**
@@ -853,49 +868,101 @@ export const enum SymbolKind {
 	TypeParameter = 25
 }
 
+export const enum SymbolTag {
+	Deprecated = 1,
+}
 
 /**
  * @internal
  */
-export const symbolKindToCssClass = (function () {
+export namespace SymbolKinds {
 
-	const _fromMapping: { [n: number]: string } = Object.create(null);
-	_fromMapping[SymbolKind.File] = 'file';
-	_fromMapping[SymbolKind.Module] = 'module';
-	_fromMapping[SymbolKind.Namespace] = 'namespace';
-	_fromMapping[SymbolKind.Package] = 'package';
-	_fromMapping[SymbolKind.Class] = 'class';
-	_fromMapping[SymbolKind.Method] = 'method';
-	_fromMapping[SymbolKind.Property] = 'property';
-	_fromMapping[SymbolKind.Field] = 'field';
-	_fromMapping[SymbolKind.Constructor] = 'constructor';
-	_fromMapping[SymbolKind.Enum] = 'enum';
-	_fromMapping[SymbolKind.Interface] = 'interface';
-	_fromMapping[SymbolKind.Function] = 'function';
-	_fromMapping[SymbolKind.Variable] = 'variable';
-	_fromMapping[SymbolKind.Constant] = 'constant';
-	_fromMapping[SymbolKind.String] = 'string';
-	_fromMapping[SymbolKind.Number] = 'number';
-	_fromMapping[SymbolKind.Boolean] = 'boolean';
-	_fromMapping[SymbolKind.Array] = 'array';
-	_fromMapping[SymbolKind.Object] = 'object';
-	_fromMapping[SymbolKind.Key] = 'key';
-	_fromMapping[SymbolKind.Null] = 'null';
-	_fromMapping[SymbolKind.EnumMember] = 'enum-member';
-	_fromMapping[SymbolKind.Struct] = 'struct';
-	_fromMapping[SymbolKind.Event] = 'event';
-	_fromMapping[SymbolKind.Operator] = 'operator';
-	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
+	const byName = new Map<string, SymbolKind>();
+	byName.set('file', SymbolKind.File);
+	byName.set('module', SymbolKind.Module);
+	byName.set('namespace', SymbolKind.Namespace);
+	byName.set('package', SymbolKind.Package);
+	byName.set('class', SymbolKind.Class);
+	byName.set('method', SymbolKind.Method);
+	byName.set('property', SymbolKind.Property);
+	byName.set('field', SymbolKind.Field);
+	byName.set('constructor', SymbolKind.Constructor);
+	byName.set('enum', SymbolKind.Enum);
+	byName.set('interface', SymbolKind.Interface);
+	byName.set('function', SymbolKind.Function);
+	byName.set('variable', SymbolKind.Variable);
+	byName.set('constant', SymbolKind.Constant);
+	byName.set('string', SymbolKind.String);
+	byName.set('number', SymbolKind.Number);
+	byName.set('boolean', SymbolKind.Boolean);
+	byName.set('array', SymbolKind.Array);
+	byName.set('object', SymbolKind.Object);
+	byName.set('key', SymbolKind.Key);
+	byName.set('null', SymbolKind.Null);
+	byName.set('enum-member', SymbolKind.EnumMember);
+	byName.set('struct', SymbolKind.Struct);
+	byName.set('event', SymbolKind.Event);
+	byName.set('operator', SymbolKind.Operator);
+	byName.set('type-parameter', SymbolKind.TypeParameter);
 
-	return function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		return `symbol-icon ${inline ? 'inline' : 'block'} ${_fromMapping[kind] || 'property'}`;
-	};
-})();
+	const byKind = new Map<SymbolKind, string>();
+	byKind.set(SymbolKind.File, 'file');
+	byKind.set(SymbolKind.Module, 'module');
+	byKind.set(SymbolKind.Namespace, 'namespace');
+	byKind.set(SymbolKind.Package, 'package');
+	byKind.set(SymbolKind.Class, 'class');
+	byKind.set(SymbolKind.Method, 'method');
+	byKind.set(SymbolKind.Property, 'property');
+	byKind.set(SymbolKind.Field, 'field');
+	byKind.set(SymbolKind.Constructor, 'constructor');
+	byKind.set(SymbolKind.Enum, 'enum');
+	byKind.set(SymbolKind.Interface, 'interface');
+	byKind.set(SymbolKind.Function, 'function');
+	byKind.set(SymbolKind.Variable, 'variable');
+	byKind.set(SymbolKind.Constant, 'constant');
+	byKind.set(SymbolKind.String, 'string');
+	byKind.set(SymbolKind.Number, 'number');
+	byKind.set(SymbolKind.Boolean, 'boolean');
+	byKind.set(SymbolKind.Array, 'array');
+	byKind.set(SymbolKind.Object, 'object');
+	byKind.set(SymbolKind.Key, 'key');
+	byKind.set(SymbolKind.Null, 'null');
+	byKind.set(SymbolKind.EnumMember, 'enum-member');
+	byKind.set(SymbolKind.Struct, 'struct');
+	byKind.set(SymbolKind.Event, 'event');
+	byKind.set(SymbolKind.Operator, 'operator');
+	byKind.set(SymbolKind.TypeParameter, 'type-parameter');
+	/**
+	 * @internal
+	 */
+	export function fromString(value: string): SymbolKind | undefined {
+		return byName.get(value);
+	}
+	/**
+	 * @internal
+	 */
+	export function names(): readonly string[] {
+		return keys(byName);
+	}
+	/**
+	 * @internal
+	 */
+	export function toString(kind: SymbolKind): string | undefined {
+		return byKind.get(kind);
+	}
+	/**
+	 * @internal
+	 */
+	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
+		return `symbol-icon ${inline ? 'inline' : 'block'} ${byKind.get(kind) || 'property'}`;
+	}
+}
 
 export interface DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
+	tags: ReadonlyArray<SymbolTag>;
 	containerName?: string;
 	range: IRange;
 	selectionRange: IRange;
@@ -904,7 +971,7 @@ export interface DocumentSymbol {
 
 /**
  * The document symbol provider interface defines the contract between extensions and
- * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
+ * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
  */
 export interface DocumentSymbolProvider {
 
@@ -1236,19 +1303,7 @@ export interface CommentThreadTemplate {
 export interface CommentInfo {
 	extensionId?: string;
 	threads: CommentThread[];
-	commentingRanges?: (IRange[] | CommentingRanges);
-	reply?: Command;
-	draftMode?: DraftMode;
-	template?: CommentThreadTemplate;
-}
-
-/**
- * @internal
- */
-export enum DraftMode {
-	NotSupported,
-	InDraft,
-	NotInDraft
+	commentingRanges: CommentingRanges;
 }
 
 /**
@@ -1288,27 +1343,22 @@ export interface CommentInput {
 /**
  * @internal
  */
-export interface CommentThread2 {
+export interface CommentThread {
 	commentThreadHandle: number;
 	controllerHandle: number;
 	extensionId?: string;
-	threadId: string | null;
+	threadId: string;
 	resource: string | null;
 	range: IRange;
-	label: string;
+	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	acceptInputCommand?: Command;
-	additionalCommands?: Command[];
-	deleteCommand?: Command;
-	onDidChangeAcceptInputCommand: Event<Command | undefined>;
-	onDidChangeAdditionalCommands: Event<Command[] | undefined>;
 	onDidChangeRange: Event<IRange>;
-	onDidChangeLabel: Event<string>;
+	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
 	isDisposed: boolean;
 }
@@ -1320,30 +1370,6 @@ export interface CommentThread2 {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
-	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => Promise<CommentThread | undefined>;
-}
-
-/**
- * @internal
- */
-export interface CommentThread {
-	extensionId?: string;
-	threadId: string | null;
-	resource: string | null;
-	range: IRange;
-	comments: Comment[] | undefined;
-	collapsibleState?: CommentThreadCollapsibleState;
-	reply?: Command;
-	isDisposed?: boolean;
-	contextValue?: string;
-}
-
-/**
- * @internal
- */
-export interface NewCommentAction {
-	ranges: IRange[];
-	actions: Command[];
 }
 
 /**
@@ -1369,18 +1395,11 @@ export enum CommentMode {
  * @internal
  */
 export interface Comment {
-	readonly commentId: string;
-	readonly uniqueIdInThread?: number;
+	readonly uniqueIdInThread: number;
 	readonly body: IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;
 	readonly contextValue?: string;
-	readonly canEdit?: boolean;
-	readonly canDelete?: boolean;
-	readonly selectCommand?: Command;
-	readonly editCommand?: Command;
-	readonly deleteCommand?: Command;
-	readonly isDraft?: boolean;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
@@ -1393,54 +1412,17 @@ export interface CommentThreadChangedEvent {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: (CommentThread | CommentThread2)[];
+	readonly added: CommentThread[];
 
 	/**
 	 * Removed comment threads.
 	 */
-	readonly removed: (CommentThread | CommentThread2)[];
+	readonly removed: CommentThread[];
 
 	/**
 	 * Changed comment threads.
 	 */
-	readonly changed: (CommentThread | CommentThread2)[];
-
-	/**
-	 * changed draft mode.
-	 */
-	readonly draftMode?: DraftMode;
-}
-
-/**
- * @internal
- */
-export interface DocumentCommentProvider {
-	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo | null>;
-	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread | null>;
-	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread | null>;
-	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
-	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
-	startDraft?(resource: URI, token: CancellationToken): Promise<void>;
-	deleteDraft?(resource: URI, token: CancellationToken): Promise<void>;
-	finishDraft?(resource: URI, token: CancellationToken): Promise<void>;
-
-	startDraftLabel?: string;
-	deleteDraftLabel?: string;
-	finishDraftLabel?: string;
-
-	addReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
-	deleteReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
-	reactionGroup?: CommentReaction[];
-
-	onDidChangeCommentThreads?(): Event<CommentThreadChangedEvent>;
-}
-
-/**
- * @internal
- */
-export interface WorkspaceCommentProvider {
-	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
+	readonly changed: CommentThread[];
 }
 
 /**
@@ -1467,6 +1449,15 @@ export interface IWebviewOptions {
 export interface IWebviewPanelOptions {
 	readonly enableFindWidget?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+}
+
+/**
+ * @internal
+ */
+export const enum WebviewContentState {
+	Readonly = 1,
+	Unchanged = 2,
+	Dirty = 3,
 }
 
 export interface CodeLens {
@@ -1626,9 +1617,9 @@ export interface ITokenizationRegistry {
 
 	/**
 	 * Get the tokenization support for a language.
-	 * Returns `null` if not found.
+	 * Returns `undefined` if not found.
 	 */
-	get(language: string): ITokenizationSupport | null;
+	get(language: string): ITokenizationSupport | undefined;
 
 	/**
 	 * Get the promise of a tokenization support for a language.
@@ -1641,9 +1632,9 @@ export interface ITokenizationRegistry {
 	 */
 	setColorMap(colorMap: Color[]): void;
 
-	getColorMap(): Color[] | null;
+	getColorMap(): Color[] | undefined;
 
-	getDefaultBackground(): Color | null;
+	getDefaultBackground(): Color | undefined;
 }
 
 /**

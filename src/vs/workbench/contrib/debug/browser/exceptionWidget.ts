@@ -8,13 +8,14 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IExceptionInfo } from 'vs/workbench/contrib/debug/common/debug';
+import { IExceptionInfo, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 const $ = dom.$;
 
 // theming
@@ -26,7 +27,7 @@ export class ExceptionWidget extends ZoneWidget {
 
 	private _backgroundColor?: Color;
 
-	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo,
+	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo, private debugSession: IDebugSession | undefined,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -62,9 +63,9 @@ export class ExceptionWidget extends ZoneWidget {
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('exception-widget');
 		// Set the font size and line height to the one from the editor configuration.
-		const fontInfo = this.editor.getConfiguration().fontInfo;
-		this.container.style.fontSize = `${fontInfo.fontSize}px`;
-		this.container.style.lineHeight = `${fontInfo.lineHeight}px`;
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+		container.style.fontSize = `${fontInfo.fontSize}px`;
+		container.style.lineHeight = `${fontInfo.lineHeight}px`;
 
 		let title = $('.title');
 		title.textContent = this.exceptionInfo.id ? nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id) : nls.localize('exceptionThrown', 'Exception has occurred.');
@@ -79,7 +80,7 @@ export class ExceptionWidget extends ZoneWidget {
 		if (this.exceptionInfo.details && this.exceptionInfo.details.stackTrace) {
 			let stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
-			const linkedStackTrace = linkDetector.handleLinks(this.exceptionInfo.details.stackTrace);
+			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, true, this.debugSession ? this.debugSession.root : undefined);
 			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 		}
@@ -87,11 +88,11 @@ export class ExceptionWidget extends ZoneWidget {
 
 	protected _doLayout(_heightInPixel: number | undefined, _widthInPixel: number | undefined): void {
 		// Reload the height with respect to the exception text content and relayout it to match the line count.
-		this.container.style.height = 'initial';
+		this.container!.style.height = 'initial';
 
-		const lineHeight = this.editor.getConfiguration().lineHeight;
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const arrowHeight = Math.round(lineHeight / 3);
-		const computedLinesNumber = Math.ceil((this.container.offsetHeight + arrowHeight) / lineHeight);
+		const computedLinesNumber = Math.ceil((this.container!.offsetHeight + arrowHeight) / lineHeight);
 
 		this._relayout(computedLinesNumber);
 	}

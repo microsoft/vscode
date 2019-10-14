@@ -3,6 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
+
+/**
+ * @typedef {{
+ *   postMessage: (channel: string, data?: any) => void,
+ *   onMessage: (channel: string, handler: any) => void,
+ *   focusIframeOnCreate?: boolean,
+ *   ready?: Promise<void>,
+ *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
+ *   fakeLoad: boolean
+ * }} WebviewHost
+ */
+
 (function () {
 	'use strict';
 
@@ -95,49 +107,57 @@
 	}`;
 
 	/**
-	 * @typedef {{
-	 *   postMessage: (channel: string, data?: any) => void,
-	 *   onMessage: (channel: string, handler: any) => void,
-	 *   injectHtml?: (document: HTMLDocument) => void,
-	 *   focusIframeOnCreate?: boolean
-	 * }} HostCommunications
+	 * @param {*} [state]
+	 * @return {string}
 	 */
+	function getVsCodeApiScript(state) {
+		return `
+			const acquireVsCodeApi = (function() {
+				const originalPostMessage = window.parent.postMessage.bind(window.parent);
+				const targetOrigin = '*';
+				let acquired = false;
+
+				let state = ${state ? `JSON.parse(${JSON.stringify(state)})` : undefined};
+
+				return () => {
+					if (acquired) {
+						throw new Error('An instance of the VS Code API has already been acquired');
+					}
+					acquired = true;
+					return Object.freeze({
+						postMessage: function(msg) {
+							return originalPostMessage({ command: 'onmessage', data: msg }, targetOrigin);
+						},
+						setState: function(newState) {
+							state = newState;
+							originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, targetOrigin);
+							return newState;
+						},
+						getState: function() {
+							return state;
+						}
+					});
+				};
+			})();
+			delete window.parent;
+			delete window.top;
+			delete window.frameElement;
+		`;
+	}
 
 	/**
-	 * @param {HostCommunications} host
+	 * @param {WebviewHost} host
 	 */
 	function createWebviewManager(host) {
 		// state
 		let firstLoad = true;
 		let loadTimeout;
 		let pendingMessages = [];
-		let isInDevelopmentMode = false;
 
 		const initData = {
 			initialScrollProgress: undefined
 		};
 
-		// Service worker for resource loading
-		const FAKE_LOAD = !!navigator.serviceWorker;
-		if (navigator.serviceWorker) {
-			navigator.serviceWorker.register('service-worker.js');
-
-			navigator.serviceWorker.ready.then(registration => {
-				registration.active.postMessage('ping');
-
-				host.onMessage('loaded-resource', event => {
-					registration.active.postMessage({ channel: 'loaded-resource', data: event.data.args });
-				});
-			});
-
-			navigator.serviceWorker.addEventListener('message', event => {
-				switch (event.data.channel) {
-					case 'load-resource':
-						host.postMessage('load-resource', { path: event.data.path });
-						return;
-				}
-			});
-		}
 
 		/**
 		 * @param {HTMLDocument?} document
@@ -191,6 +211,27 @@
 		};
 
 		/**
+		 * @param {MouseEvent} event
+		 */
+		const handleAuxClick = (event) => {
+			// Prevent middle clicks opening a broken link in the browser
+			if (!event.view || !event.view.document) {
+				return;
+			}
+
+			if (event.button === 1) {
+				let node = /** @type {any} */ (event.target);
+				while (node) {
+					if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+						event.preventDefault();
+						break;
+					}
+					node = node.parentNode;
+				}
+			}
+		};
+
+		/**
 		 * @param {KeyboardEvent} e
 		 */
 		const handleInnerKeydown = (e) => {
@@ -231,7 +272,54 @@
 			});
 		};
 
+		/**
+		 * @return {string}
+		 */
+		function toContentHtml(data) {
+			const options = data.options;
+			const text = data.contents;
+			const newDocument = new DOMParser().parseFromString(text, 'text/html');
+
+			newDocument.querySelectorAll('a').forEach(a => {
+				if (!a.title) {
+					a.title = a.getAttribute('href');
+				}
+			});
+
+			// apply default script
+			if (options.allowScripts) {
+				const defaultScript = newDocument.createElement('script');
+				defaultScript.textContent = getVsCodeApiScript(data.state);
+				newDocument.head.prepend(defaultScript);
+			}
+
+			// apply default styles
+			const defaultStyles = newDocument.createElement('style');
+			defaultStyles.id = '_defaultStyles';
+			defaultStyles.innerHTML = defaultCssRules;
+			newDocument.head.prepend(defaultStyles);
+
+			applyStyles(newDocument, newDocument.body);
+
+			// Check for CSP
+			const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
+			if (!csp) {
+				host.postMessage('no-csp-found');
+			} else {
+				// Rewrite vscode-resource in csp
+				if (data.endpoint) {
+					csp.setAttribute('content', csp.getAttribute('content').replace(/vscode-resource:/g, data.endpoint));
+				}
+			}
+
+			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
+			// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
+			return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;
+		}
+
 		document.addEventListener('DOMContentLoaded', () => {
+			const idMatch = document.location.search.match(/\bid=([\w-]+)/);
+			const ID = idMatch ? idMatch[1] : undefined;
 			if (!document.body) {
 				return;
 			}
@@ -259,68 +347,16 @@
 			});
 
 			// update iframe-contents
-			host.onMessage('content', (_event, data) => {
+			let updateId = 0;
+			host.onMessage('content', async (_event, data) => {
+				const currentUpdateId = ++updateId;
+				await host.ready;
+				if (currentUpdateId !== updateId) {
+					return;
+				}
+
 				const options = data.options;
-
-				const text = data.contents;
-				const newDocument = new DOMParser().parseFromString(text, 'text/html');
-
-				newDocument.querySelectorAll('a').forEach(a => {
-					if (!a.title) {
-						a.title = a.getAttribute('href');
-					}
-				});
-
-				// apply default script
-				if (options.allowScripts) {
-					const defaultScript = newDocument.createElement('script');
-					defaultScript.textContent = `
-					const acquireVsCodeApi = (function() {
-						const originalPostMessage = window.parent.postMessage.bind(window.parent);
-						const targetOrigin = '*';
-						let acquired = false;
-
-						let state = ${data.state ? `JSON.parse(${JSON.stringify(data.state)})` : undefined};
-
-						return () => {
-							if (acquired) {
-								throw new Error('An instance of the VS Code API has already been acquired');
-							}
-							acquired = true;
-							return Object.freeze({
-								postMessage: function(msg) {
-									return originalPostMessage({ command: 'onmessage', data: msg }, targetOrigin);
-								},
-								setState: function(newState) {
-									state = newState;
-									originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, targetOrigin);
-									return newState;
-								},
-								getState: function() {
-									return state;
-								}
-							});
-						};
-					})();
-					delete window.parent;
-					delete window.top;
-					delete window.frameElement;
-				`;
-
-					newDocument.head.prepend(defaultScript);
-				}
-
-				// apply default styles
-				const defaultStyles = newDocument.createElement('style');
-				defaultStyles.id = '_defaultStyles';
-				defaultStyles.innerHTML = defaultCssRules;
-				newDocument.head.prepend(defaultStyles);
-
-				applyStyles(newDocument, newDocument.body);
-
-				if (host.injectHtml) {
-					host.injectHtml(newDocument);
-				}
+				const newDocument = toContentHtml(data);
 
 				const frame = getActiveFrame();
 				const wasFirstLoad = firstLoad;
@@ -358,17 +394,17 @@
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
 				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
-				if (FAKE_LOAD) {
+				if (host.fakeLoad) {
 					// We should just be able to use srcdoc, but I wasn't
 					// seeing the service worker applying properly.
 					// Fake load an empty on the correct origin and then write real html
 					// into it to get around this.
-					newFrame.src = '/fake.html';
+					newFrame.src = `./fake.html?id=${ID}`;
 				}
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
 
-				if (!FAKE_LOAD) {
+				if (!host.fakeLoad) {
 					// write new content onto iframe
 					newFrame.contentDocument.open();
 				}
@@ -376,17 +412,19 @@
 				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 
 				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
-					if (FAKE_LOAD) {
-						newFrame.contentDocument.open();
-						newFrame.contentDocument.write('<!DOCTYPE html>');
-						newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
-						newFrame.contentDocument.close();
-						hookupOnLoadHandlers(newFrame);
-					}
-					const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
-					if (contentDocument) {
-						applyStyles(contentDocument, contentDocument.body);
-					}
+					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
+					setTimeout(() => {
+						if (host.fakeLoad) {
+							newFrame.contentDocument.open();
+							newFrame.contentDocument.write(newDocument);
+							newFrame.contentDocument.close();
+							hookupOnLoadHandlers(newFrame);
+						}
+						const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
+						if (contentDocument) {
+							applyStyles(contentDocument, contentDocument.body);
+						}
+					}, 0);
 				});
 
 				const onLoad = (contentDocument, contentWindow) => {
@@ -419,6 +457,9 @@
 					}
 				};
 
+				/**
+				 * @param {HTMLIFrameElement} newFrame
+				 */
 				function hookupOnLoadHandlers(newFrame) {
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
@@ -436,30 +477,21 @@
 						}
 					});
 
-					newFrame.contentWindow.onbeforeunload = () => {
-						if (isInDevelopmentMode) { // Allow reloads while developing a webview
-							host.postMessage('do-reload');
-							return false;
-						}
-
-						// Block navigation when not in development mode
-						console.log('prevented webview navigation');
-						return false;
-					};
-
 					// Bubble out link clicks
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
+					newFrame.contentWindow.addEventListener('auxclick', handleAuxClick);
+
+					if (host.onIframeLoaded) {
+						host.onIframeLoaded(newFrame);
+					}
 				}
 
-				if (!FAKE_LOAD) {
+				if (!host.fakeLoad) {
 					hookupOnLoadHandlers(newFrame);
 				}
 
-				// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
-				// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
-				if (!FAKE_LOAD) {
-					newFrame.contentDocument.write('<!DOCTYPE html>');
-					newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+				if (!host.fakeLoad) {
+					newFrame.contentDocument.write(newDocument);
 					newFrame.contentDocument.close();
 				}
 
@@ -483,9 +515,6 @@
 				initData.initialScrollProgress = progress;
 			});
 
-			host.onMessage('devtools-opened', () => {
-				isInDevelopmentMode = true;
-			});
 
 			trackFocus({
 				onFocus: () => host.postMessage('did-focus'),

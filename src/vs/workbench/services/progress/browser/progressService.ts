@@ -7,9 +7,9 @@ import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, ILocalProgressService } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
@@ -23,12 +23,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export class ProgressService extends Disposable implements IProgressService {
 
-	_serviceBrand: ServiceIdentifier<IProgressService>;
+	_serviceBrand: undefined;
 
 	private readonly stack: [IProgressOptions, Progress<IProgressStep>][] = [];
 	private readonly globalStatusEntry = this._register(new MutableDisposable());
@@ -46,7 +45,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		super();
 	}
 
-	withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
+	withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
 		const { location } = options;
 		if (typeof location === 'string') {
 			if (this.viewletService.getProgressIndicator(location)) {
@@ -142,7 +141,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		}
 	}
 
-	private withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressNotificationOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
+	private withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressNotificationOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: (choice?: number) => void): P {
 		const toDispose = new DisposableStore();
 
 		const createNotification = (message: string | undefined, increment?: number): INotificationHandle | undefined => {
@@ -152,6 +151,29 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			const primaryActions = options.primaryActions ? Array.from(options.primaryActions) : [];
 			const secondaryActions = options.secondaryActions ? Array.from(options.secondaryActions) : [];
+
+			if (options.buttons) {
+				options.buttons.forEach((button, index) => {
+					const buttonAction = new class extends Action {
+						constructor() {
+							super(`progress.button.${button}`, button, undefined, true);
+						}
+
+						run(): Promise<any> {
+							if (typeof onDidCancel === 'function') {
+								onDidCancel(index);
+							}
+
+							return Promise.resolve(undefined);
+						}
+					};
+
+					toDispose.add(buttonAction);
+
+					primaryActions.push(buttonAction);
+				});
+			}
+
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
@@ -286,7 +308,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		return this.withCompositeProgress(this.panelService.getProgressIndicator(panelid), task, options);
 	}
 
-	private withCompositeProgress<P extends Promise<R>, R = unknown>(compositeProgressService: ILocalProgressService | null, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
+	private withCompositeProgress<P extends Promise<R>, R = unknown>(progressIndicator: IProgressIndicator | undefined, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
 		let progressRunner: IProgressRunner | undefined = undefined;
 
 		const promise = task({
@@ -305,34 +327,41 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 		});
 
-		if (compositeProgressService) {
+		if (progressIndicator) {
 			if (typeof options.total === 'number') {
-				progressRunner = compositeProgressService.show(options.total, options.delay);
+				progressRunner = progressIndicator.show(options.total, options.delay);
 				promise.catch(() => undefined /* ignore */).finally(() => progressRunner ? progressRunner.done() : undefined);
 			} else {
-				compositeProgressService.showWhile(promise, options.delay);
+				progressIndicator.showWhile(promise, options.delay);
 			}
 		}
 
 		return promise;
 	}
 
-	private withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P {
+	private withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: (choice?: number) => void): P {
 		const disposables = new DisposableStore();
 		const allowableCommands = [
 			'workbench.action.quit',
-			'workbench.action.reloadWindow'
+			'workbench.action.reloadWindow',
+			'copy',
+			'cut'
 		];
 
 		let dialog: Dialog;
 
 		const createDialog = (message: string) => {
+
+			const buttons = options.buttons || [];
+			buttons.push(options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss"));
+
 			dialog = new Dialog(
 				this.layoutService.container,
 				message,
-				[options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss")],
+				buttons,
 				{
 					type: 'pending',
+					cancelId: buttons.length - 1,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
 						if (resolved && resolved.commandId) {
@@ -347,9 +376,9 @@ export class ProgressService extends Disposable implements IProgressService {
 			disposables.add(dialog);
 			disposables.add(attachDialogStyler(dialog, this.themeService));
 
-			dialog.show().then(() => {
+			dialog.show().then((dialogResult) => {
 				if (typeof onDidCancel === 'function') {
-					onDidCancel();
+					onDidCancel(dialogResult.button);
 				}
 
 				dispose(dialog);

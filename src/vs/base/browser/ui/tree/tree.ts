@@ -81,7 +81,6 @@ export interface ITreeElement<T> {
 
 export interface ITreeNode<T, TFilterData = void> {
 	readonly element: T;
-	readonly parent: ITreeNode<T, TFilterData> | undefined;
 	readonly children: ITreeNode<T, TFilterData>[];
 	readonly depth: number;
 	readonly visibleChildrenCount: number;
@@ -113,17 +112,18 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getListRenderCount(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
-	getParentNodeLocation(location: TRef): TRef;
+	getParentNodeLocation(location: TRef): TRef | undefined;
 
-	getParentElement(location: TRef): T;
 	getFirstElementChild(location: TRef): T | undefined;
 	getLastElementAncestor(location?: TRef): T | undefined;
 
 	isCollapsible(location: TRef): boolean;
+	setCollapsible(location: TRef, collapsible?: boolean): boolean;
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
 	expandTo(location: TRef): void;
 
+	rerender(location: TRef): void;
 	refilter(): void;
 }
 
@@ -158,13 +158,13 @@ export interface ITreeContextMenuEvent<T> {
 export interface ITreeNavigator<T> {
 	current(): T | null;
 	previous(): T | null;
-	parent(): T | null;
 	first(): T | null;
 	last(): T | null;
 	next(): T | null;
 }
 
 export interface IDataSource<TInput, T> {
+	hasChildren?(element: TInput | T): boolean;
 	getChildren(element: TInput | T): T[];
 }
 
@@ -192,4 +192,29 @@ export const TreeDragOverReactions = {
 
 export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
+}
+
+export class TreeError extends Error {
+
+	constructor(user: string, message: string) {
+		super(`TreeError [${user}] ${message}`);
+	}
+}
+
+export class WeakMapper<K extends object, V> {
+
+	constructor(private fn: (k: K) => V) { }
+
+	private _map = new WeakMap<K, V>();
+
+	map(key: K): V {
+		let result = this._map.get(key);
+
+		if (!result) {
+			result = this.fn(key);
+			this._map.set(key, result);
+		}
+
+		return result;
+	}
 }

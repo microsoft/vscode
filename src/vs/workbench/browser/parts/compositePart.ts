@@ -14,17 +14,17 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionViewItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { prepareActions } from 'vs/workbench/browser/actions';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
-import { ScopedProgressService } from 'vs/workbench/services/progress/browser/localProgressService';
+import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILocalProgressService } from 'vs/platform/progress/common/progress';
+import { IProgressIndicator, IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -32,7 +32,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, append, $, addClass, hide, show, addClasses } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export interface ICompositeTitleLabel {
 
@@ -50,7 +50,7 @@ export interface ICompositeTitleLabel {
 interface CompositeItem {
 	composite: Composite;
 	disposable: IDisposable;
-	localProgressService: ILocalProgressService;
+	progress: IProgressIndicator;
 }
 
 export abstract class CompositePart<T extends Composite> extends Part {
@@ -58,18 +58,18 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
-	protected toolBar: ToolBar;
+	protected toolBar: ToolBar | undefined;
 
 	private mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
 	private mapActionsBindingToComposite = new Map<string, () => void>();
-	private activeComposite: Composite | null;
+	private activeComposite: Composite | undefined;
 	private lastActiveCompositeId: string;
 	private instantiatedCompositeItems: Map<string, CompositeItem>;
-	private titleLabel: ICompositeTitleLabel;
-	private progressBar: ProgressBar;
-	private contentAreaSize: Dimension;
+	private titleLabel: ICompositeTitleLabel | undefined;
+	private progressBar: ProgressBar | undefined;
+	private contentAreaSize: Dimension | undefined;
 	private readonly telemetryActionsListener = this._register(new MutableDisposable());
-	private currentCompositeOpenToken: string;
+	private currentCompositeOpenToken: string | undefined;
 
 	constructor(
 		private notificationService: INotificationService,
@@ -91,7 +91,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	) {
 		super(id, options, themeService, storageService, layoutService);
 
-		this.activeComposite = null;
 		this.instantiatedCompositeItems = new Map<string, CompositeItem>();
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 	}
@@ -169,17 +168,19 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Instantiate composite from registry otherwise
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
-			const localProgressService = this.instantiationService.createInstance(ScopedProgressService, this.progressBar, compositeDescriptor.id, isActive);
-			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection([ILocalProgressService, localProgressService]));
+			const compositeProgressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, this.progressBar, compositeDescriptor.id, !!isActive);
+			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+				[IEditorProgressService, compositeProgressIndicator] // provide the editor progress service for any editors instantiated within the composite
+			));
 
 			const composite = compositeDescriptor.instantiate(compositeInstantiationService);
-			const disposables = new DisposableStore();
+			const disposable = new DisposableStore();
 
 			// Remember as Instantiated
-			this.instantiatedCompositeItems.set(id, { composite, disposable: disposables, localProgressService });
+			this.instantiatedCompositeItems.set(id, { composite, disposable, progress: compositeProgressIndicator });
 
 			// Register to title area update events from the composite
-			disposables.add(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
+			disposable.add(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
 
 			return composite;
 		}
@@ -233,12 +234,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		show(compositeContainer);
 
 		// Setup action runner
-		this.toolBar.actionRunner = composite.getActionRunner();
+		const toolBar = assertIsDefined(this.toolBar);
+		toolBar.actionRunner = composite.getActionRunner();
 
 		// Update title with composite title if it differs from descriptor
 		const descriptor = this.registry.getComposite(composite.getId());
 		if (descriptor && descriptor.name !== composite.getTitle()) {
-			this.updateTitle(composite.getId(), withNullAsUndefined(composite.getTitle()));
+			this.updateTitle(composite.getId(), composite.getTitle());
 		}
 
 		// Handle Composite Actions
@@ -250,7 +252,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		actionsBinding();
 
 		// Action Run Handling
-		this.telemetryActionsListener.value = this.toolBar.actionRunner.onDidRun(e => {
+		this.telemetryActionsListener.value = toolBar.actionRunner.onDidRun(e => {
 
 			// Check for Error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -259,13 +261,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Log in telemetry
 			if (this.telemetryService) {
-				/* __GDPR__
-					"workbenchActionExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
 			}
 		});
 
@@ -317,7 +313,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		this.titleLabel.updateTitle(compositeId, compositeTitle, (keybinding && keybinding.getLabel()) || undefined);
 
-		this.toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
+		const toolBar = assertIsDefined(this.toolBar);
+		toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
 
 	private collectCompositeActions(composite: Composite): () => void {
@@ -331,13 +328,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		secondaryActions.push(...this.getSecondaryActions());
 
 		// Update context
-		this.toolBar.context = this.actionsContextProvider();
+		const toolBar = assertIsDefined(this.toolBar);
+		toolBar.context = this.actionsContextProvider();
 
 		// Return fn to set into toolbar
-		return this.toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
+		return toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
-	protected getActiveComposite(): IComposite | null {
+	protected getActiveComposite(): IComposite | undefined {
 		return this.activeComposite;
 	}
 
@@ -351,7 +349,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		const composite = this.activeComposite;
-		this.activeComposite = null;
+		this.activeComposite = undefined;
 
 		const compositeContainer = this.mapCompositeToCompositeContainer.get(composite.getId());
 
@@ -365,10 +363,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		// Clear any running Progress
-		this.progressBar.stop().hide();
+		if (this.progressBar) {
+			this.progressBar.stop().hide();
+		}
 
 		// Empty Actions
-		this.toolBar.setActions([])();
+		if (this.toolBar) {
+			this.toolBar.setActions([])();
+		}
 		this.onDidCompositeClose.fire(composite);
 
 		return composite;
@@ -418,7 +420,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		super.updateStyles();
 
 		// Forward to title label
-		this.titleLabel.updateStyles();
+		const titleLabel = assertIsDefined(this.titleLabel);
+		titleLabel.updateStyles();
 	}
 
 	protected actionViewItemProvider(action: IAction): IActionViewItem | undefined {
@@ -451,10 +454,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return contentContainer;
 	}
 
-	getProgressIndicator(id: string): ILocalProgressService | null {
+	getProgressIndicator(id: string): IProgressIndicator | undefined {
 		const compositeItem = this.instantiatedCompositeItems.get(id);
 
-		return compositeItem ? compositeItem.localProgressService : null;
+		return compositeItem ? compositeItem.progress : undefined;
 	}
 
 	protected getActions(): ReadonlyArray<IAction> {
@@ -470,6 +473,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	layout(width: number, height: number): void {
+		super.layout(width, height);
 
 		// Layout contents
 		this.contentAreaSize = super.layoutContents(width, height).contentSize;

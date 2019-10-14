@@ -12,6 +12,7 @@ import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
+import { find } from 'vs/base/common/arrays';
 
 export interface ICreateData {
 	workspaceFolders: string[];
@@ -44,15 +45,9 @@ export class OutputLinkComputer {
 		});
 	}
 
-	private getModel(uri: string): IMirrorModel | null {
+	private getModel(uri: string): IMirrorModel | undefined {
 		const models = this.ctx.getMirrorModels();
-		for (const model of models) {
-			if (model.uri.toString() === uri) {
-				return model;
-			}
-		}
-
-		return null;
+		return find(models, model => model.uri.toString() === uri);
 	}
 
 	public computeLinks(uri: string): Promise<ILink[]> {

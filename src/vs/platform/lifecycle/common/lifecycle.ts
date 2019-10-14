@@ -123,7 +123,7 @@ export function LifecyclePhaseToString(phase: LifecyclePhase) {
  */
 export interface ILifecycleService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Value indicates how this window got loaded.
@@ -166,12 +166,16 @@ export interface ILifecycleService {
 }
 
 export const NullLifecycleService: ILifecycleService = {
-	_serviceBrand: null,
+
+	_serviceBrand: undefined,
+
 	onBeforeShutdown: Event.None,
 	onWillShutdown: Event.None,
 	onShutdown: Event.None,
+
 	phase: LifecyclePhase.Restored,
 	startupKind: StartupKind.NewWindow,
+
 	when() { return Promise.resolve(); }
 };
 

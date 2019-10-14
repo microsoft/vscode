@@ -8,17 +8,19 @@ import * as fs from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { IStateService } from 'vs/platform/state/common/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { ILogService } from 'vs/platform/log/common/log';
+
+type StorageDatebase = { [key: string]: any; };
 
 export class FileStorage {
 
-	private _database: object | null = null;
+	private _database: StorageDatebase | null = null;
 	private lastFlushedSerializedDatabase: string | null = null;
 
 	constructor(private dbPath: string, private onError: (error: Error) => void) { }
 
-	private get database(): object {
+	private get database(): StorageDatebase {
 		if (!this._database) {
 			this._database = this.loadSync();
 		}
@@ -40,7 +42,7 @@ export class FileStorage {
 		this._database = database;
 	}
 
-	private loadSync(): object {
+	private loadSync(): StorageDatebase {
 		try {
 			this.lastFlushedSerializedDatabase = fs.readFileSync(this.dbPath).toString();
 
@@ -54,7 +56,7 @@ export class FileStorage {
 		}
 	}
 
-	private async loadAsync(): Promise<object> {
+	private async loadAsync(): Promise<StorageDatebase> {
 		try {
 			this.lastFlushedSerializedDatabase = (await readFile(this.dbPath)).toString();
 
@@ -123,9 +125,9 @@ export class FileStorage {
 
 export class StateService implements IStateService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	private static STATE_FILE = 'storage.json';
+	private static readonly STATE_FILE = 'storage.json';
 
 	private fileStorage: FileStorage;
 

@@ -9,29 +9,51 @@ import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { formatPII } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger, IDebugHelperService, ILaunchVSCodeArguments } from 'vs/workbench/contrib/debug/common/debug';
+import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { ISignService } from 'vs/platform/sign/common/sign';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
+import { URI } from 'vs/base/common/uri';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { env as processEnv } from 'vs/base/common/process';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
+
+/**
+ * This interface represents a single command line argument split into a "prefix" and a "path" half.
+ * The optional "prefix" contains arbitrary text and the optional "path" contains a file system path.
+ * Concatenating both results in the original command line argument.
+ */
+interface ILaunchVSCodeArgument {
+	prefix?: string;
+	path?: string;
+}
+
+interface ILaunchVSCodeArguments {
+	args: ILaunchVSCodeArgument[];
+	env?: { [key: string]: string | null; };
+}
 
 /**
  * Encapsulates the DebugAdapter lifecycle and some idiosyncrasies of the Debug Adapter Protocol.
  */
-export class RawDebugSession {
+export class RawDebugSession implements IDisposable {
 
-	private allThreadsContinued: boolean;
-	private _readyForBreakpoints: boolean;
+	private allThreadsContinued = true;
+	private _readyForBreakpoints = false;
 	private _capabilities: DebugProtocol.Capabilities;
 
 	// shutdown
-	private debugAdapterStopped: boolean;
-	private inShutdown: boolean;
-	private terminated: boolean;
-	private firedAdapterExitEvent: boolean;
+	private debugAdapterStopped = false;
+	private inShutdown = false;
+	private terminated = false;
+	private firedAdapterExitEvent = false;
 
 	// telemetry
-	private startTime: number;
-	private didReceiveStoppedEvent: boolean;
+	private startTime = 0;
+	private didReceiveStoppedEvent = false;
 
 	// DAP events
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
@@ -50,23 +72,19 @@ export class RawDebugSession {
 	private readonly _onDidExitAdapter: Emitter<AdapterEndEvent>;
 	private debugAdapter: IDebugAdapter | null;
 
+	private toDispose: IDisposable[] = [];
+
 	constructor(
 		debugAdapter: IDebugAdapter,
 		dbgr: IDebugger,
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
-		private readonly signService: ISignService,
-		private readonly debugUIService: IDebugHelperService
+		private readonly extensionHostDebugService: IExtensionHostDebugService,
+		private readonly openerService: IOpenerService
+
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
-		this._readyForBreakpoints = false;
-		this.inShutdown = false;
-		this.debugAdapterStopped = false;
-		this.firedAdapterExitEvent = false;
-		this.didReceiveStoppedEvent = false;
-
-		this.allThreadsContinued = true;
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
@@ -82,18 +100,18 @@ export class RawDebugSession {
 
 		this._onDidExitAdapter = new Emitter<AdapterEndEvent>();
 
-		this.debugAdapter.onError(err => {
+		this.toDispose.push(this.debugAdapter.onError(err => {
 			this.shutdown(err);
-		});
+		}));
 
-		this.debugAdapter.onExit(code => {
+		this.toDispose.push(this.debugAdapter.onExit(code => {
 			if (code !== 0) {
 				this.shutdown(new Error(`exit code: ${code}`));
 			} else {
 				// normal exit
 				this.shutdown();
 			}
-		});
+		}));
 
 		this.debugAdapter.onEvent(event => {
 			switch (event.event) {
@@ -106,8 +124,8 @@ export class RawDebugSession {
 					break;
 				case 'capabilities':
 					if (event.body) {
-						const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
-						this.mergeCapabilities(capabilites);
+						const capabilities = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
+						this.mergeCapabilities(capabilities);
 					}
 					break;
 				case 'stopped':
@@ -210,25 +228,23 @@ export class RawDebugSession {
 	/**
 	 * Starts the underlying debug adapter and tracks the session time for telemetry.
 	 */
-	start(): Promise<void> {
+	async start(): Promise<void> {
 		if (!this.debugAdapter) {
 			return Promise.reject(new Error('no debug adapter'));
 		}
-		return this.debugAdapter.startSession().then(() => {
-			this.startTime = new Date().getTime();
-		}, err => {
-			return Promise.reject(err);
-		});
+
+		await this.debugAdapter.startSession();
+		this.startTime = new Date().getTime();
 	}
 
 	/**
 	 * Send client capabilities to the debug adapter and receive DA capabilities in return.
 	 */
-	initialize(args: DebugProtocol.InitializeRequestArguments): Promise<DebugProtocol.InitializeResponse> {
-		return this.send('initialize', args).then((response: DebugProtocol.InitializeResponse) => {
-			this.mergeCapabilities(response.body);
-			return response;
-		});
+	async initialize(args: DebugProtocol.InitializeRequestArguments): Promise<DebugProtocol.InitializeResponse> {
+		const response = await this.send('initialize', args);
+		this.mergeCapabilities(response.body);
+
+		return response;
 	}
 
 	/**
@@ -240,11 +256,11 @@ export class RawDebugSession {
 
 	//---- DAP requests
 
-	launchOrAttach(config: IConfig): Promise<DebugProtocol.Response> {
-		return this.send(config.request, config).then(response => {
-			this.mergeCapabilities(response.body);
-			return response;
-		});
+	async launchOrAttach(config: IConfig): Promise<DebugProtocol.Response> {
+		const response = await this.send(config.request, config);
+		this.mergeCapabilities(response.body);
+
+		return response;
 	}
 
 	/**
@@ -268,35 +284,32 @@ export class RawDebugSession {
 		return Promise.reject(new Error('restart not supported'));
 	}
 
-	next(args: DebugProtocol.NextArguments): Promise<DebugProtocol.NextResponse> {
-		return this.send('next', args).then(response => {
-			this.fireSimulatedContinuedEvent(args.threadId);
-			return response;
-		});
+	async next(args: DebugProtocol.NextArguments): Promise<DebugProtocol.NextResponse> {
+		const response = await this.send('next', args);
+		this.fireSimulatedContinuedEvent(args.threadId);
+		return response;
 	}
 
-	stepIn(args: DebugProtocol.StepInArguments): Promise<DebugProtocol.StepInResponse> {
-		return this.send('stepIn', args).then(response => {
-			this.fireSimulatedContinuedEvent(args.threadId);
-			return response;
-		});
+	async stepIn(args: DebugProtocol.StepInArguments): Promise<DebugProtocol.StepInResponse> {
+		const response = await this.send('stepIn', args);
+		this.fireSimulatedContinuedEvent(args.threadId);
+		return response;
 	}
 
-	stepOut(args: DebugProtocol.StepOutArguments): Promise<DebugProtocol.StepOutResponse> {
-		return this.send('stepOut', args).then(response => {
-			this.fireSimulatedContinuedEvent(args.threadId);
-			return response;
-		});
+	async stepOut(args: DebugProtocol.StepOutArguments): Promise<DebugProtocol.StepOutResponse> {
+		const response = await this.send('stepOut', args);
+		this.fireSimulatedContinuedEvent(args.threadId);
+		return response;
 	}
 
-	continue(args: DebugProtocol.ContinueArguments): Promise<DebugProtocol.ContinueResponse> {
-		return this.send<DebugProtocol.ContinueResponse>('continue', args).then(response => {
-			if (response && response.body && response.body.allThreadsContinued !== undefined) {
-				this.allThreadsContinued = response.body.allThreadsContinued;
-			}
-			this.fireSimulatedContinuedEvent(args.threadId, this.allThreadsContinued);
-			return response;
-		});
+	async continue(args: DebugProtocol.ContinueArguments): Promise<DebugProtocol.ContinueResponse> {
+		const response = await this.send<DebugProtocol.ContinueResponse>('continue', args);
+		if (response && response.body && response.body.allThreadsContinued !== undefined) {
+			this.allThreadsContinued = response.body.allThreadsContinued;
+		}
+		this.fireSimulatedContinuedEvent(args.threadId, this.allThreadsContinued);
+
+		return response;
 	}
 
 	pause(args: DebugProtocol.PauseArguments): Promise<DebugProtocol.PauseResponse> {
@@ -317,19 +330,18 @@ export class RawDebugSession {
 		return Promise.reject(new Error('setVariable not supported'));
 	}
 
-	restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): Promise<DebugProtocol.RestartFrameResponse> {
+	async restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): Promise<DebugProtocol.RestartFrameResponse> {
 		if (this.capabilities.supportsRestartFrame) {
-			return this.send('restartFrame', args).then(response => {
-				this.fireSimulatedContinuedEvent(threadId);
-				return response;
-			});
+			const response = await this.send('restartFrame', args);
+			this.fireSimulatedContinuedEvent(threadId);
+			return response;
 		}
 		return Promise.reject(new Error('restartFrame not supported'));
 	}
 
-	completions(args: DebugProtocol.CompletionsArguments): Promise<DebugProtocol.CompletionsResponse> {
+	completions(args: DebugProtocol.CompletionsArguments, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
 		if (this.capabilities.supportsCompletionsRequest) {
-			return this.send<DebugProtocol.CompletionsResponse>('completions', args);
+			return this.send<DebugProtocol.CompletionsResponse>('completions', args, token);
 		}
 		return Promise.reject(new Error('completions not supported'));
 	}
@@ -345,8 +357,29 @@ export class RawDebugSession {
 		return Promise.reject(new Error('setFunctionBreakpoints not supported'));
 	}
 
+	dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<DebugProtocol.DataBreakpointInfoResponse> {
+		if (this.capabilities.supportsDataBreakpoints) {
+			return this.send<DebugProtocol.DataBreakpointInfoResponse>('dataBreakpointInfo', args);
+		}
+		return Promise.reject(new Error('dataBreakpointInfo not supported'));
+	}
+
+	setDataBreakpoints(args: DebugProtocol.SetDataBreakpointsArguments): Promise<DebugProtocol.SetDataBreakpointsResponse> {
+		if (this.capabilities.supportsDataBreakpoints) {
+			return this.send<DebugProtocol.SetDataBreakpointsResponse>('setDataBreakpoints', args);
+		}
+		return Promise.reject(new Error('setDataBreakpoints not supported'));
+	}
+
 	setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): Promise<DebugProtocol.SetExceptionBreakpointsResponse> {
 		return this.send<DebugProtocol.SetExceptionBreakpointsResponse>('setExceptionBreakpoints', args);
+	}
+
+	breakpointLocations(args: DebugProtocol.BreakpointLocationsArguments): Promise<DebugProtocol.BreakpointLocationsResponse> {
+		if (this.capabilities.supportsBreakpointLocationsRequest) {
+			return this.send('breakpointLocations', args);
+		}
+		return Promise.reject(new Error('breakpointLocations is not supported'));
 	}
 
 	configurationDone(): Promise<DebugProtocol.ConfigurationDoneResponse> {
@@ -356,8 +389,8 @@ export class RawDebugSession {
 		return Promise.reject(new Error('configurationDone not supported'));
 	}
 
-	stackTrace(args: DebugProtocol.StackTraceArguments): Promise<DebugProtocol.StackTraceResponse> {
-		return this.send<DebugProtocol.StackTraceResponse>('stackTrace', args);
+	stackTrace(args: DebugProtocol.StackTraceArguments, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse> {
+		return this.send<DebugProtocol.StackTraceResponse>('stackTrace', args, token);
 	}
 
 	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): Promise<DebugProtocol.ExceptionInfoResponse> {
@@ -367,12 +400,12 @@ export class RawDebugSession {
 		return Promise.reject(new Error('exceptionInfo not supported'));
 	}
 
-	scopes(args: DebugProtocol.ScopesArguments): Promise<DebugProtocol.ScopesResponse> {
-		return this.send<DebugProtocol.ScopesResponse>('scopes', args);
+	scopes(args: DebugProtocol.ScopesArguments, token: CancellationToken): Promise<DebugProtocol.ScopesResponse> {
+		return this.send<DebugProtocol.ScopesResponse>('scopes', args, token);
 	}
 
-	variables(args: DebugProtocol.VariablesArguments): Promise<DebugProtocol.VariablesResponse> {
-		return this.send<DebugProtocol.VariablesResponse>('variables', args);
+	variables(args: DebugProtocol.VariablesArguments, token?: CancellationToken): Promise<DebugProtocol.VariablesResponse> {
+		return this.send<DebugProtocol.VariablesResponse>('variables', args, token);
 	}
 
 	source(args: DebugProtocol.SourceArguments): Promise<DebugProtocol.SourceResponse> {
@@ -394,26 +427,24 @@ export class RawDebugSession {
 		return this.send<DebugProtocol.EvaluateResponse>('evaluate', args);
 	}
 
-	stepBack(args: DebugProtocol.StepBackArguments): Promise<DebugProtocol.StepBackResponse> {
+	async stepBack(args: DebugProtocol.StepBackArguments): Promise<DebugProtocol.StepBackResponse> {
 		if (this.capabilities.supportsStepBack) {
-			return this.send('stepBack', args).then(response => {
-				if (response.body === undefined) {	// TODO@AW why this check?
-					this.fireSimulatedContinuedEvent(args.threadId);
-				}
-				return response;
-			});
+			const response = await this.send('stepBack', args);
+			if (response.body === undefined) {	// TODO@AW why this check?
+				this.fireSimulatedContinuedEvent(args.threadId);
+			}
+			return response;
 		}
 		return Promise.reject(new Error('stepBack not supported'));
 	}
 
-	reverseContinue(args: DebugProtocol.ReverseContinueArguments): Promise<DebugProtocol.ReverseContinueResponse> {
+	async reverseContinue(args: DebugProtocol.ReverseContinueArguments): Promise<DebugProtocol.ReverseContinueResponse> {
 		if (this.capabilities.supportsStepBack) {
-			return this.send('reverseContinue', args).then(response => {
-				if (response.body === undefined) {	// TODO@AW why this check?
-					this.fireSimulatedContinuedEvent(args.threadId);
-				}
-				return response;
-			});
+			const response = await this.send('reverseContinue', args);
+			if (response.body === undefined) {	// TODO@AW why this check?
+				this.fireSimulatedContinuedEvent(args.threadId);
+			}
+			return response;
 		}
 		return Promise.reject(new Error('reverseContinue not supported'));
 	}
@@ -425,14 +456,18 @@ export class RawDebugSession {
 		return Promise.reject(new Error('gotoTargets is not supported'));
 	}
 
-	goto(args: DebugProtocol.GotoArguments): Promise<DebugProtocol.GotoResponse> {
+	async goto(args: DebugProtocol.GotoArguments): Promise<DebugProtocol.GotoResponse> {
 		if (this.capabilities.supportsGotoTargetsRequest) {
-			return this.send('goto', args).then(res => {
-				this.fireSimulatedContinuedEvent(args.threadId);
-				return res;
-			});
+			const response = await this.send('goto', args);
+			this.fireSimulatedContinuedEvent(args.threadId);
+			return response;
 		}
+
 		return Promise.reject(new Error('goto is not supported'));
+	}
+
+	cancel(args: DebugProtocol.CancelArguments): Promise<DebugProtocol.CancelResponse> {
+		return this.send('cancel', args);
 	}
 
 	custom(request: string, args: any): Promise<DebugProtocol.Response> {
@@ -441,37 +476,32 @@ export class RawDebugSession {
 
 	//---- private
 
-
-	private shutdown(error?: Error, restart = false): Promise<any> {
+	private async shutdown(error?: Error, restart = false): Promise<any> {
 		if (!this.inShutdown) {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
-				return this.send('disconnect', { restart }, 500).then(() => {
+				try {
+					await this.send('disconnect', { restart }, undefined, 500);
+				} finally {
 					this.stopAdapter(error);
-				}, () => {
-					// ignore error
-					this.stopAdapter(error);
-				});
+				}
+			} else {
+				return this.stopAdapter(error);
 			}
-			return this.stopAdapter(error);
 		}
-		return Promise.resolve(undefined);
 	}
 
-	private stopAdapter(error?: Error): Promise<any> {
-		if (this.debugAdapter) {
-			const da = this.debugAdapter;
-			this.debugAdapter = null;
-			return da.stopSession().then(_ => {
+	private async stopAdapter(error?: Error): Promise<any> {
+		try {
+			if (this.debugAdapter) {
+				const da = this.debugAdapter;
+				this.debugAdapter = null;
+				await da.stopSession();
 				this.debugAdapterStopped = true;
-				this.fireAdapterExitEvent(error);
-			}, err => {
-				this.fireAdapterExitEvent(error);
-			});
-		} else {
+			}
+		} finally {
 			this.fireAdapterExitEvent(error);
 		}
-		return Promise.resolve(undefined);
 	}
 
 	private fireAdapterExitEvent(error?: Error): void {
@@ -503,9 +533,9 @@ export class RawDebugSession {
 
 		switch (request.command) {
 			case 'launchVSCode':
-				this.debugUIService.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(pid => {
+				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(_ => {
 					response.body = {
-						processId: pid
+						//processId: pid
 					};
 					safeSendResponse(response);
 				}, err => {
@@ -515,29 +545,17 @@ export class RawDebugSession {
 				});
 				break;
 			case 'runInTerminal':
-				dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments).then(shellProcessId => {
+				try {
+					const shellProcessId = await dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments);
 					const resp = response as DebugProtocol.RunInTerminalResponse;
 					resp.body = {};
 					if (typeof shellProcessId === 'number') {
 						resp.body.shellProcessId = shellProcessId;
 					}
 					safeSendResponse(resp);
-				}, err => {
+				} catch (err) {
 					response.success = false;
 					response.message = err.message;
-					safeSendResponse(response);
-				});
-				break;
-			case 'handshake':
-				try {
-					const signature = await this.signService.sign(request.arguments.value);
-					response.body = {
-						signature: signature
-					};
-					safeSendResponse(response);
-				} catch (e) {
-					response.success = false;
-					response.message = e.message;
 					safeSendResponse(response);
 				}
 				break;
@@ -549,20 +567,91 @@ export class RawDebugSession {
 		}
 	}
 
-	private send<R extends DebugProtocol.Response>(command: string, args: any, timeout?: number): Promise<R> {
+	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<void> {
+
+		let args: ParsedArgs = {
+			_: []
+		};
+
+		for (let arg of vscodeArgs.args) {
+			if (arg.prefix) {
+				const a2 = (arg.prefix || '') + (arg.path || '');
+				const match = /^--(.+)=(.+)$/.exec(a2);
+				if (match && match.length === 3) {
+					const key = match[1];
+					let value = match[2];
+
+					if ((key === 'file-uri' || key === 'folder-uri') && !isUri(arg.path)) {
+						value = URI.file(value).toString();
+
+						const v = args[key];
+						if (v) {
+							v.push(value);
+						} else {
+							args[key] = [value];
+						}
+					} else if (key === 'extensionDevelopmentPath' || key === 'enable-proposed-api') {
+						const v = args[key];
+						if (v) {
+							v.push(value);
+						} else {
+							args[key] = [value];
+						}
+					} else {
+						(<any>args)[key] = value;
+					}
+
+				} else {
+					const match = /^--(.+)$/.exec(a2);
+					if (match && match.length === 2) {
+						const key = match[1];
+						(<any>args)[key] = true;
+					} else {
+						args._.push(a2);
+					}
+				}
+			}
+		}
+
+		let env: IProcessEnvironment = {};
+		if (vscodeArgs.env) {
+			// merge environment variables into a copy of the process.env
+			env = objects.mixin(processEnv, vscodeArgs.env);
+			// and delete some if necessary
+			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
+		}
+
+		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, env);
+	}
+
+	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R> {
 		return new Promise<R>((completeDispatch, errorDispatch) => {
 			if (!this.debugAdapter) {
 				errorDispatch(new Error('no debug adapter found'));
 				return;
 			}
-			this.debugAdapter.sendRequest(command, args, (response: R) => {
+			let cancelationListener: IDisposable;
+			const requestId = this.debugAdapter.sendRequest(command, args, (response: R) => {
+				if (cancelationListener) {
+					cancelationListener.dispose();
+				}
+
 				if (response.success) {
 					completeDispatch(response);
 				} else {
 					errorDispatch(response);
 				}
 			}, timeout);
-		}).then(response => response, err => Promise.reject(this.handleErrorResponse(err)));
+
+			if (token) {
+				cancelationListener = token.onCancellationRequested(() => {
+					cancelationListener.dispose();
+					if (this.capabilities.supportsCancelRequest) {
+						this.cancel({ requestId });
+					}
+				});
+			}
+		}).then(undefined, err => Promise.reject(this.handleErrorResponse(err)));
 	}
 
 	private handleErrorResponse(errorResponse: DebugProtocol.Response): Error {
@@ -584,7 +673,7 @@ export class RawDebugSession {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 			return createErrorWithActions(userMessage, {
 				actions: [new Action('debug.moreInfo', label, undefined, true, () => {
-					window.open(error.url);
+					this.openerService.open(URI.parse(error.url));
 					return Promise.resolve(null);
 				})]
 			});
@@ -625,5 +714,9 @@ export class RawDebugSession {
 			*/
 			this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 		}
+	}
+
+	dispose(): void {
+		dispose(this.toDispose);
 	}
 }

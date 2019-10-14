@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { memoize } from 'vs/base/common/decorators';
-import { basename } from 'vs/base/common/path';
+import { createMemoizer } from 'vs/base/common/decorators';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
@@ -19,18 +18,25 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 
+const enum ForceOpenAs {
+	None,
+	Text,
+	Binary
+}
+
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
 export class FileEditorInput extends EditorInput implements IFileEditorInput {
-	private preferredEncoding: string;
-	private preferredMode: string;
 
-	private forceOpenAsBinary: boolean;
-	private forceOpenAsText: boolean;
+	private static readonly MEMOIZER = createMemoizer();
 
-	private textModelReference: Promise<IReference<ITextEditorModel>> | null;
-	private name: string;
+	private preferredEncoding: string | undefined;
+	private preferredMode: string | undefined;
+
+	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
+
+	private textModelReference: Promise<IReference<ITextEditorModel>> | null = null;
 
 	/**
 	 * An editor input who's contents are retrieved from file services.
@@ -65,6 +71,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		this._register(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
+		this._register(this.labelService.onDidChangeFormatters(() => FileEditorInput.MEMOIZER.clear()));
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
@@ -75,6 +82,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private onModelOrphanedChanged(e: TextFileModelChangeEvent): void {
 		if (e.resource.toString() === this.resource.toString()) {
+			FileEditorInput.MEMOIZER.clear();
 			this._onDidChangeLabel.fire();
 		}
 	}
@@ -83,7 +91,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.resource;
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		const textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			return textModel.getEncoding();
@@ -92,7 +100,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.preferredEncoding;
 	}
 
-	getPreferredEncoding(): string {
+	getPreferredEncoding(): string | undefined {
 		return this.preferredEncoding;
 	}
 
@@ -107,7 +115,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
-		this.forceOpenAsText = true; // encoding is a good hint to open the file as text
+		this.setForceOpenAsText(); // encoding is a good hint to open the file as text
 	}
 
 	getPreferredMode(): string | undefined {
@@ -125,99 +133,84 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredMode(mode: string): void {
 		this.preferredMode = mode;
-		this.forceOpenAsText = true; // mode is a good hint to open the file as text
+		this.setForceOpenAsText(); // mode is a good hint to open the file as text
 	}
 
 	setForceOpenAsText(): void {
-		this.forceOpenAsText = true;
-		this.forceOpenAsBinary = false;
+		this.forceOpenAs = ForceOpenAs.Text;
 	}
 
 	setForceOpenAsBinary(): void {
-		this.forceOpenAsBinary = true;
-		this.forceOpenAsText = false;
+		this.forceOpenAs = ForceOpenAs.Binary;
 	}
 
 	getTypeId(): string {
 		return FILE_EDITOR_INPUT_ID;
 	}
 
+	@FileEditorInput.MEMOIZER
 	getName(): string {
-		if (!this.name) {
-			this.name = basename(this.labelService.getUriLabel(this.resource));
-		}
-
-		return this.decorateLabel(this.name);
+		return this.decorateLabel(this.labelService.getUriBasenameLabel(this.resource));
 	}
 
-	@memoize
+	@FileEditorInput.MEMOIZER
 	private get shortDescription(): string {
-		return basename(this.labelService.getUriLabel(dirname(this.resource)));
+		return this.labelService.getUriBasenameLabel(dirname(this.resource));
 	}
 
-	@memoize
+	@FileEditorInput.MEMOIZER
 	private get mediumDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
 	}
 
-	@memoize
+	@FileEditorInput.MEMOIZER
 	private get longDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource));
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
-		let description: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				description = this.shortDescription;
-				break;
+				return this.shortDescription;
 			case Verbosity.LONG:
-				description = this.longDescription;
-				break;
+				return this.longDescription;
 			case Verbosity.MEDIUM:
 			default:
-				description = this.mediumDescription;
-				break;
+				return this.mediumDescription;
 		}
-
-		return description;
 	}
 
-	@memoize
+	@FileEditorInput.MEMOIZER
 	private get shortTitle(): string {
 		return this.getName();
 	}
 
-	@memoize
+	@FileEditorInput.MEMOIZER
 	private get mediumTitle(): string {
 		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
-	@memoize
+	@FileEditorInput.MEMOIZER
 	private get longTitle(): string {
 		return this.labelService.getUriLabel(this.resource);
 	}
 
 	getTitle(verbosity: Verbosity): string {
-		let title: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				title = this.shortTitle;
-				break;
+				// already decorated by getName()
+				return this.shortTitle;
 			default:
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle;
-				break;
+				return this.decorateLabel(this.mediumTitle);
 			case Verbosity.LONG:
-				title = this.longTitle;
-				break;
+				return this.decorateLabel(this.longTitle);
 		}
-
-		return this.decorateLabel(title);
 	}
 
 	private decorateLabel(label: string): string {
 		const model = this.textFileService.models.get(this.resource);
+
 		if (model && model.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted)", label);
 		}
@@ -259,13 +252,13 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	getPreferredEditorId(candidates: string[]): string {
-		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
+		return this.forceOpenAs === ForceOpenAs.Binary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
 	resolve(): Promise<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
-		if (this.forceOpenAsBinary) {
+		if (this.forceOpenAs === ForceOpenAs.Binary) {
 			return this.doResolveAsBinary();
 		}
 
@@ -281,7 +274,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 				mode: this.preferredMode,
 				encoding: this.preferredEncoding,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
-				allowBinary: this.forceOpenAsText,
+				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
 				reason: LoadReason.EDITOR
 			});
 

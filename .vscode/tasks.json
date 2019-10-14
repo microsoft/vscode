@@ -5,7 +5,10 @@
 			"type": "npm",
 			"script": "watch",
 			"label": "Build VS Code",
-			"group": "build",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never"
@@ -81,6 +84,6 @@
 			"type": "gulp",
 			"task": "hygiene",
 			"problemMatcher": []
-		}
+		},
 	]
 }

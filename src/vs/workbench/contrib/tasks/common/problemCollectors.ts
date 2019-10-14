@@ -6,7 +6,7 @@
 import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -43,11 +43,11 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	private buffer: string[];
 	private bufferLength: number;
 	private openModels: IStringDictionary<boolean>;
-	private modelListeners: IDisposable[];
-	private tail: Promise<void>;
+	private readonly modelListeners = new DisposableStore();
+	private tail: Promise<void> | undefined;
 
 	// [owner] -> ApplyToKind
-	private applyToByOwner: Map<string, ApplyToKind>;
+	protected applyToByOwner: Map<string, ApplyToKind>;
 	// [owner] -> [resource] -> URI
 	private resourcesToClean: Map<string, Map<string, URI>>;
 	// [owner] -> [resource] -> [markerkey] -> markerData
@@ -77,7 +77,6 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		this._numberOfMatches = 0;
 		this._maxMarkerSeverity = undefined;
 		this.openModels = Object.create(null);
-		this.modelListeners = [];
 		this.applyToByOwner = new Map<string, ApplyToKind>();
 		for (let problemMatcher of problemMatchers) {
 			let current = this.applyToByOwner.get(problemMatcher.owner);
@@ -119,7 +118,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	protected abstract async processLineInternal(line: string): Promise<void>;
 
 	public dispose() {
-		this.modelListeners.forEach(disposable => disposable.dispose());
+		this.modelListeners.dispose();
 	}
 
 	public get numberOfMatches(): number {
@@ -279,8 +278,13 @@ export abstract class AbstractProblemCollector implements IDisposable {
 			markersPerResource = new Map<string, IMarkerData>();
 			markersPerOwner.set(resourceAsString, markersPerResource);
 		}
-		let key = IMarkerData.makeKey(marker);
+		let key = IMarkerData.makeKeyOptionalMessage(marker, false);
+		let existingMarker;
 		if (!markersPerResource.has(key)) {
+			markersPerResource.set(key, marker);
+		} else if (((existingMarker = markersPerResource.get(key)) !== undefined) && existingMarker.message.length < marker.message.length) {
+			// Most likely https://github.com/microsoft/vscode/issues/77475
+			// Heuristic dictates that when the key is the same and message is smaller, we have hit this limitation.
 			markersPerResource.set(key, marker);
 		}
 	}
@@ -345,8 +349,8 @@ export const enum ProblemHandlingStrategy {
 export class StartStopProblemCollector extends AbstractProblemCollector implements IProblemMatcher {
 	private owners: string[];
 
-	private currentOwner: string;
-	private currentResource: string;
+	private currentOwner: string | undefined;
+	private currentResource: string | undefined;
 
 	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, _strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean, fileService?: IFileService) {
 		super(problemMatchers, markerService, modelService, fileService);
@@ -398,8 +402,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	private _activeBackgroundMatchers: Set<string>;
 
 	// Current State
-	private currentOwner: string | null;
-	private currentResource: string | null;
+	private currentOwner: string | undefined;
+	private currentResource: string | undefined;
 
 	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, fileService?: IFileService) {
 		super(problemMatchers, markerService, modelService, fileService);
@@ -504,13 +508,24 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 
 	private resetCurrentResource(): void {
 		this.reportMarkersForCurrentResource();
-		this.currentOwner = null;
-		this.currentResource = null;
+		this.currentOwner = undefined;
+		this.currentResource = undefined;
 	}
 
 	private reportMarkersForCurrentResource(): void {
 		if (this.currentOwner && this.currentResource) {
 			this.deliverMarkersPerOwnerAndResource(this.currentOwner, this.currentResource);
 		}
+	}
+
+	public done(): void {
+		[...this.applyToByOwner.keys()].forEach(owner => {
+			this.recordResourcesToClean(owner);
+		});
+		super.done();
+	}
+
+	public isWatching(): boolean {
+		return this.backgroundPatterns.length > 0;
 	}
 }

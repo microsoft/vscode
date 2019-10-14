@@ -34,6 +34,15 @@
         "id": "css",
         "title": "%css.title%",
         "properties": {
+          "css.customData": {
+            "type": "array",
+            "markdownDescription": "%css.customData.desc%",
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource"
+          },
           "css.experimental.customData": {
             "type": "array",
             "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",
@@ -41,13 +50,20 @@
             "items": {
               "type": "string"
             },
-            "scope": "resource"
+            "scope": "resource",
+            "deprecationMessage": "This setting is no longe experimental. Use `css.customData` instead."
           },
           "css.completion.triggerPropertyValueCompletion": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%css.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "css.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.completion.completePropertyWithSemicolon.desc%"
           },
           "css.validate": {
             "type": "boolean",
@@ -292,6 +308,18 @@
         "order": 24,
         "title": "%scss.title%",
         "properties": {
+          "scss.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "scss.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.completion.completePropertyWithSemicolon.desc%"
+          },
           "scss.validate": {
             "type": "boolean",
             "scope": "resource",
@@ -514,6 +542,18 @@
         "type": "object",
         "title": "%less.title%",
         "properties": {
+          "less.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "less.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.completion.completePropertyWithSemicolon.desc%"
+          },
           "less.validate": {
             "type": "boolean",
             "scope": "resource",
@@ -730,14 +770,24 @@
           }
         }
       }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "*.css-data.json",
+        "url": "https://raw.githubusercontent.com/Microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
+      },
+      {
+        "fileMatch": "package.json",
+        "url": "./schemas/package.schema.json"
+      }
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^5.3.0-next.6",
+    "vscode-languageclient": "^6.0.0-next.1",
     "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
     "@types/node": "^10.14.8",
-    "mocha": "^5.2.0"
+    "mocha": "^6.1.4"
   }
 }

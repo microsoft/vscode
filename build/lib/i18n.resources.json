@@ -107,6 +107,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/userData",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/remote",
 			"project": "vscode-workbench"
 		},
@@ -171,11 +175,19 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/customEditor",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/welcome",
 			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/outline",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/userDataSync",
 			"project": "vscode-workbench"
 		},
 		{
@@ -231,6 +243,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/lifecycle",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/mode",
 			"project": "vscode-workbench"
 		},
@@ -255,7 +271,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/workspace",
+			"name": "vs/workbench/services/workspaces",
 			"project": "vscode-workbench"
 		},
 		{
@@ -269,6 +285,14 @@
 		{
 			"name": "vs/workbench/services/preferences",
 			"project": "vscode-preferences"
+		},
+		{
+			"name": "vs/workbench/services/notification",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/userData",
+			"project": "vscode-workbench"
 		}
 	]
 }

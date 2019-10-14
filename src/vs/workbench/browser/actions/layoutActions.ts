@@ -12,13 +12,12 @@ import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
@@ -119,7 +118,7 @@ export class ToggleEditorLayoutAction extends Action {
 	) {
 		super(id, label);
 
-		this.class = 'flip-editor-layout';
+		this.class = 'codicon-editor-layout';
 		this.updateEnablement();
 
 		this.registerListeners();
@@ -141,15 +140,6 @@ export class ToggleEditorLayoutAction extends Action {
 		return Promise.resolve();
 	}
 }
-
-CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', function (accessor: ServicesAccessor, args: [GroupOrientation]) {
-	const editorGroupService = accessor.get(IEditorGroupsService);
-	const [orientation] = args;
-
-	editorGroupService.setGroupOrientation(orientation);
-
-	return Promise.resolve();
-});
 
 const group = viewCategory;
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', group);
@@ -234,14 +224,13 @@ export class ToggleEditorVisibilityAction extends Action {
 	}
 
 	run(): Promise<any> {
-		const hideEditor = this.layoutService.isVisible(Parts.EDITOR_PART);
-		this.layoutService.setEditorHidden(hideEditor);
+		this.layoutService.toggleMaximizedPanel();
 
 		return Promise.resolve();
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory, ContextKeyExpr.equals('config.workbench.useExperimentalGridLayout', true));
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory);
 
 export class ToggleSidebarVisibilityAction extends Action {
 
@@ -351,7 +340,7 @@ class ToggleTabsVisibilityAction extends Action {
 }
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTabsVisibilityAction, ToggleTabsVisibilityAction.ID, ToggleTabsVisibilityAction.LABEL, {
-	primary: undefined!,
+	primary: undefined,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, },
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
 }), 'View: Toggle Tab Visibility', viewCategory);
@@ -407,7 +396,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 export class ToggleMenuBarAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleMenuBar';
-	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
+	static readonly LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
 	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
 
@@ -438,7 +427,7 @@ export class ToggleMenuBarAction extends Action {
 	}
 }
 
-if (isWindows || isLinux) {
+if (isWindows || isLinux || isWeb) {
 	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
 
@@ -457,7 +446,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 export abstract class BaseResizeViewAction extends Action {
 
-	protected static RESIZE_INCREMENT = 6.5; // This is a media-size percentage
+	protected static readonly RESIZE_INCREMENT = 6.5; // This is a media-size percentage
 
 	constructor(
 		id: string,

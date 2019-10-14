@@ -20,6 +20,7 @@ export const ITaskService = createDecorator<ITaskService>('taskService');
 
 export interface ITaskProvider {
 	provideTasks(validTypes: IStringDictionary<boolean>): Promise<TaskSet>;
+	resolveTask(task: ConfiguringTask): Promise<ContributedTask | undefined>;
 }
 
 export interface ProblemMatcherRunOptions {
@@ -50,7 +51,7 @@ export interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
 }
 
 export interface ITaskService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onDidStateChange: Event<TaskEvent>;
 	supportsMultipleTaskExecutions: boolean;
 
@@ -61,6 +62,7 @@ export interface ITaskService {
 	inTerminal(): boolean;
 	isActive(): Promise<boolean>;
 	getActiveTasks(): Promise<Task[]>;
+	getBusyTasks(): Promise<Task[]>;
 	restart(task: Task): void;
 	terminate(task: Task): Promise<TaskTerminateResponse>;
 	terminateAll(): Promise<TaskTerminateResponse[]>;
@@ -79,9 +81,10 @@ export interface ITaskService {
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): Promise<void>;
 	openConfig(task: CustomTask | undefined): Promise<void>;
 
-	registerTaskProvider(taskProvider: ITaskProvider): IDisposable;
+	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
+	setJsonTasksSupported(areSuppored: Promise<boolean>): void;
 
 	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
 }

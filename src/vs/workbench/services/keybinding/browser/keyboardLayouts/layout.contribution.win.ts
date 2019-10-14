@@ -25,3 +25,5 @@ import 'vs/workbench/services/keybinding/browser/keyboardLayouts/hu.win';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de-swiss.win';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en-belgian.win';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/cz.win';
+
+export { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';

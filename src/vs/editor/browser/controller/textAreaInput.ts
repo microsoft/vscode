@@ -54,6 +54,11 @@ const enum TextAreaInputEventType {
 	blur
 }
 
+interface CompositionEvent extends UIEvent {
+	readonly data: string;
+	readonly locale: string;
+}
+
 /**
  * Writes screen reader content to the textarea and is able to analyze its input events to generate:
  *  - onCut
@@ -119,6 +124,7 @@ export class TextAreaInput extends Disposable {
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
 
 		this._textAreaState = TextAreaState.EMPTY;
+		this._selectionChangeListener = null;
 		this.writeScreenReaderContent('ctor');
 
 		this._hasFocus = false;

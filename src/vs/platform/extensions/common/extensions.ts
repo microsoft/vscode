@@ -106,7 +106,7 @@ export interface IExtensionContributions {
 	localizations?: ILocalization[];
 }
 
-export type ExtensionKind = 'ui' | 'workspace';
+export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -140,6 +140,7 @@ export interface IExtensionManifest {
 	readonly bugs?: { url: string; };
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
+	readonly scripts?: { [key: string]: string; };
 }
 
 export const enum ExtensionType {

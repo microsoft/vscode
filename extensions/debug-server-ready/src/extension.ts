@@ -10,7 +10,8 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 const PATTERN = 'listening on.* (https?://\\S+|[0-9]+)'; // matches "listening on port 3000" or "Now listening on: https://localhost:5001"
-const URI_FORMAT = 'http://localhost:%s';
+const URI_PORT_FORMAT = 'http://localhost:%s';
+const URI_FORMAT = '%s';
 const WEB_ROOT = '${workspaceFolder}';
 
 interface ServerReadyAction {
@@ -21,7 +22,9 @@ interface ServerReadyAction {
 }
 
 class ServerReadyDetector extends vscode.Disposable {
-	static detectors = new Map<vscode.DebugSession, ServerReadyDetector>();
+
+	private static detectors = new Map<vscode.DebugSession, ServerReadyDetector>();
+	private static terminalDataListener: vscode.Disposable | undefined;
 
 	private hasFired = false;
 	private shellPid?: number;
@@ -55,6 +58,29 @@ class ServerReadyDetector extends vscode.Disposable {
 		}
 	}
 
+	static async startListeningTerminalData() {
+		if (!this.terminalDataListener) {
+			this.terminalDataListener = vscode.window.onDidWriteTerminalData(async e => {
+
+				// first find the detector with a matching pid
+				const pid = await e.terminal.processId;
+				for (let [, detector] of this.detectors) {
+					if (detector.shellPid === pid) {
+						detector.detectPattern(e.data);
+						return;
+					}
+				}
+
+				// if none found, try all detectors until one matches
+				for (let [, detector] of this.detectors) {
+					if (detector.detectPattern(e.data)) {
+						return;
+					}
+				}
+			});
+		}
+	}
+
 	private constructor(private session: vscode.DebugSession) {
 		super(() => this.internalDispose());
 
@@ -66,53 +92,37 @@ class ServerReadyDetector extends vscode.Disposable {
 		this.disposables = [];
 	}
 
-	async trackTerminals() {
-
-		let terminals: vscode.Terminal[] = [];
-
-		// either find the terminal where the debug is started with "runInTerminal" or use all terminals
-		for (let terminal of vscode.window.terminals) {
-			if (!this.shellPid || await terminal.processId === this.shellPid) {
-				terminals.push(terminal);
-			}
-		}
-		this.shellPid = undefined;
-
-		terminals.forEach(terminal => {
-			this.disposables.push(terminal.onDidWriteData(s => {
-				this.detectPattern(s);
-			}));
-		});
-	}
-
-	detectPattern(s: string): void {
-
+	detectPattern(s: string): boolean {
 		if (!this.hasFired) {
 			const matches = this.regexp.exec(s);
 			if (matches && matches.length >= 1) {
 				this.openExternalWithString(this.session, matches.length > 1 ? matches[1] : '');
 				this.hasFired = true;
 				this.internalDispose();
+				return true;
 			}
 		}
+		return false;
 	}
 
 	private openExternalWithString(session: vscode.DebugSession, captureString: string) {
 
 		const args: ServerReadyAction = session.configuration.serverReadyAction;
-		const format = args.uriFormat || URI_FORMAT;
 
+		let uri;
 		if (captureString === '') {
-			// nothing captured by reg exp -> use the uriFormat as the target url without substitution
+			// nothing captured by reg exp -> use the uriFormat as the target uri without substitution
 			// verify that format does not contain '%s'
+			const format = args.uriFormat || '';
 			if (format.indexOf('%s') >= 0) {
 				const errMsg = localize('server.ready.nocapture.error', "Format uri ('{0}') uses a substitution placeholder but pattern did not capture anything.", format);
 				vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
 				return;
 			}
-			captureString = format;
-		} else if (/^[0-9]+$/.test(captureString)) {
-			// looks like a port number -> use the uriFormat and substitute a single "%s" with the port
+			uri = format;
+		} else {
+			// if no uriFormat is specified guess the appropriate format based on the captureString
+			const format = args.uriFormat || (/^[0-9]+$/.test(captureString) ? URI_PORT_FORMAT : URI_FORMAT);
 			// verify that format only contains a single '%s'
 			const s = format.split('%s');
 			if (s.length !== 2) {
@@ -120,25 +130,23 @@ class ServerReadyDetector extends vscode.Disposable {
 				vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
 				return;
 			}
-			captureString = util.format(format, captureString);
-		} else {
-			// use the string as is
+			uri = util.format(format, captureString);
 		}
 
-		this.openExternalWithUri(session, captureString);
+		this.openExternalWithUri(session, uri);
 	}
 
 	private openExternalWithUri(session: vscode.DebugSession, uri: string) {
 
 		const args: ServerReadyAction = session.configuration.serverReadyAction;
 		switch (args.action || 'openExternally') {
+
 			case 'openExternally':
 				vscode.env.openExternal(vscode.Uri.parse(uri));
 				break;
-			case 'debugWithChrome':
 
-				const chrome = vscode.extensions.getExtension('msjsdiag.debugger-for-chrome');
-				if (chrome) {
+			case 'debugWithChrome':
+				if (vscode.env.remoteName === 'wsl' || !!vscode.extensions.getExtension('msjsdiag.debugger-for-chrome')) {
 					vscode.debug.startDebugging(session.workspaceFolder, {
 						type: 'chrome',
 						name: 'Chrome Debug',
@@ -151,6 +159,7 @@ class ServerReadyDetector extends vscode.Disposable {
 					vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
 				}
 				break;
+
 			default:
 				// not supported
 				break;
@@ -164,7 +173,7 @@ export function activate(context: vscode.ExtensionContext) {
 		if (session && session.configuration.serverReadyAction) {
 			const detector = ServerReadyDetector.start(session);
 			if (detector) {
-				detector.trackTerminals();
+				ServerReadyDetector.startListeningTerminalData();
 			}
 		}
 	}));

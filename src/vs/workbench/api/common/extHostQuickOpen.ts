@@ -246,10 +246,10 @@ class ExtHostQuickInput implements QuickInput {
 	private _placeholder: string;
 	private _buttons: QuickInputButton[] = [];
 	private _handlesToButtons = new Map<number, QuickInputButton>();
-	private _onDidAcceptEmitter = new Emitter<void>();
-	private _onDidChangeValueEmitter = new Emitter<string>();
-	private _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
-	private _onDidHideEmitter = new Emitter<void>();
+	private readonly _onDidAcceptEmitter = new Emitter<void>();
+	private readonly _onDidChangeValueEmitter = new Emitter<string>();
+	private readonly _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
+	private readonly _onDidHideEmitter = new Emitter<void>();
 	private _updateTimeout: any;
 	private _pendingUpdate: TransferQuickInput = { id: this._id };
 
@@ -455,23 +455,23 @@ function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light
 function getLightIconUri(iconPath: QuickInputButton['iconPath']) {
 	if (iconPath && !(iconPath instanceof ThemeIcon)) {
 		if (typeof iconPath === 'string'
-			|| iconPath instanceof URI) {
+			|| URI.isUri(iconPath)) {
 			return getIconUri(iconPath);
 		}
-		return getIconUri(iconPath['light']);
+		return getIconUri((iconPath as any).light);
 	}
 	return undefined;
 }
 
 function getDarkIconUri(iconPath: QuickInputButton['iconPath']) {
-	if (iconPath && !(iconPath instanceof ThemeIcon) && iconPath['dark']) {
-		return getIconUri(iconPath['dark']);
+	if (iconPath && !(iconPath instanceof ThemeIcon) && (iconPath as any).dark) {
+		return getIconUri((iconPath as any).dark);
 	}
 	return undefined;
 }
 
 function getIconUri(iconPath: string | URI) {
-	if (iconPath instanceof URI) {
+	if (URI.isUri(iconPath)) {
 		return iconPath;
 	}
 	return URI.file(iconPath);
@@ -486,9 +486,9 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
 	private _activeItems: T[] = [];
-	private _onDidChangeActiveEmitter = new Emitter<T[]>();
+	private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
 	private _selectedItems: T[] = [];
-	private _onDidChangeSelectionEmitter = new Emitter<T[]>();
+	private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 
 	constructor(proxy: MainThreadQuickOpenShape, extensionId: ExtensionIdentifier, enableProposedApi: boolean, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);

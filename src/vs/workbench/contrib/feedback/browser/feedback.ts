@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/feedback';
 import * as nls from 'vs/nls';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import * as dom from 'vs/base/browser/dom';
@@ -13,13 +13,14 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IProductService } from 'vs/platform/product/common/product';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface IFeedback {
 	feedback: string;
@@ -27,7 +28,7 @@ export interface IFeedback {
 }
 
 export interface IFeedbackDelegate {
-	submitFeedback(feedback: IFeedback): void;
+	submitFeedback(feedback: IFeedback, openerService: IOpenerService): void;
 	getCharacterLimit(sentiment: number): number;
 }
 
@@ -46,13 +47,13 @@ export class FeedbackDropdown extends Dropdown {
 
 	private readonly feedbackDelegate: IFeedbackDelegate;
 
-	private feedbackForm: HTMLFormElement | null;
-	private feedbackDescriptionInput: HTMLTextAreaElement | null;
-	private smileyInput: HTMLElement | null;
-	private frownyInput: HTMLElement | null;
-	private sendButton: Button;
-	private hideButton: HTMLInputElement;
-	private remainingCharacterCount: HTMLElement;
+	private feedbackForm: HTMLFormElement | null = null;
+	private feedbackDescriptionInput: HTMLTextAreaElement | null = null;
+	private smileyInput: HTMLElement | null = null;
+	private frownyInput: HTMLElement | null = null;
+	private sendButton: Button | null = null;
+	private hideButton: HTMLInputElement | null = null;
+	private remainingCharacterCount: HTMLElement | null = null;
 
 	private requestFeatureLink: string | undefined;
 
@@ -66,17 +67,10 @@ export class FeedbackDropdown extends Dropdown {
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
-		super(container, {
-			contextViewProvider: options.contextViewProvider,
-			labelRenderer: (container: HTMLElement): IDisposable => {
-				const label = new OcticonLabel(container);
-				label.text = '$(smiley)';
-
-				return Disposable.None;
-			}
-		});
+		super(container, options);
 
 		this.feedbackDelegate = options.feedbackService;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
@@ -148,7 +142,7 @@ export class FeedbackDropdown extends Dropdown {
 		}));
 
 		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OUT, () => {
-			closeBtn.style.backgroundColor = null;
+			closeBtn.style.backgroundColor = '';
 		}));
 
 		this.invoke(closeBtn, disposables, () => this.hide());
@@ -221,14 +215,7 @@ export class FeedbackDropdown extends Dropdown {
 			const actionId = 'workbench.action.openIssueReporter';
 			this.commandService.executeCommand(actionId);
 			this.hide();
-
-			/* __GDPR__
-				"workbenchActionExecuted" : {
-					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('workbenchActionExecuted', { id: actionId, from: 'feedback' });
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionId, from: 'feedback' });
 		}));
 
 		// Contact: Request a Feature
@@ -268,7 +255,7 @@ export class FeedbackDropdown extends Dropdown {
 		// Checkbox: Hide Feedback Smiley
 		const hideButtonContainer = dom.append(buttonsContainer, dom.$('div.hide-button-container'));
 
-		this.hideButton = dom.append(hideButtonContainer, dom.$('input.hide-button'));
+		this.hideButton = dom.append(hideButtonContainer, dom.$('input.hide-button')) as HTMLInputElement;
 		this.hideButton.type = 'checkbox';
 		this.hideButton.checked = true;
 		this.hideButton.id = 'hide-button';
@@ -287,18 +274,19 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.sendButton.onDidClick(() => this.onSubmit());
 
-		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
+		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, editorWidgetForeground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
 			if (this.feedbackForm) {
-				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : null;
-				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null;
+				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : '';
+				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : null;
+				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : '';
 			}
 			if (this.feedbackDescriptionInput) {
-				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
+				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
 				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
 				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
 			}
 
-			contactUsContainer.style.backgroundColor = colors.editorBackground ? colors.editorBackground.toString() : null;
+			contactUsContainer.style.backgroundColor = colors.editorBackground ? colors.editorBackground.toString() : '';
 			contactUsContainer.style.border = `1px solid ${colors.contrastBorder || 'transparent'}`;
 		}));
 
@@ -330,7 +318,7 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	private updateCharCountText(): void {
-		if (this.feedbackDescriptionInput) {
+		if (this.feedbackDescriptionInput && this.remainingCharacterCount && this.sendButton) {
 			this.remainingCharacterCount.innerText = this.getCharCountText(this.feedbackDescriptionInput.value.length);
 			this.sendButton.enabled = this.feedbackDescriptionInput.value.length > 0;
 		}
@@ -429,7 +417,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.feedbackDelegate.submitFeedback({
 			feedback: this.feedbackDescriptionInput.value,
 			sentiment: this.sentiment
-		});
+		}, this.openerService);
 
 		this.hide();
 	}

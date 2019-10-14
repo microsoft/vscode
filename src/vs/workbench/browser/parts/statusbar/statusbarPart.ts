@@ -8,16 +8,14 @@ import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
-import { IStatusbarRegistry, Extensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -29,11 +27,12 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, find } from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { values } from 'vs/base/common/map';
+import { assertIsDefined } from 'vs/base/common/types';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -59,7 +58,7 @@ class StatusbarViewModel extends Disposable {
 	private readonly _entries: IStatusbarViewModelEntry[] = [];
 	get entries(): IStatusbarViewModelEntry[] { return this._entries; }
 
-	private hidden: Set<string>;
+	private hidden!: Set<string>;
 
 	constructor(private storageService: IStorageService) {
 		super();
@@ -177,13 +176,7 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	findEntry(container: HTMLElement): IStatusbarViewModelEntry | undefined {
-		for (const entry of this._entries) {
-			if (entry.container === container) {
-				return entry;
-			}
-		}
-
-		return undefined;
+		return find(this._entries, entry => entry.container === container);
 	}
 
 	getEntries(alignment: StatusbarAlignment): IStatusbarViewModelEntry[] {
@@ -231,9 +224,19 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	private sort(): void {
+		const mapEntryToIndex = new Map<IStatusbarViewModelEntry, number>();
+		this._entries.forEach((entry, index) => mapEntryToIndex.set(entry, index));
+
 		this._entries.sort((entryA, entryB) => {
 			if (entryA.alignment === entryB.alignment) {
-				return entryB.priority - entryA.priority; // higher priority towards the left
+				if (entryA.priority !== entryB.priority) {
+					return entryB.priority - entryA.priority; // higher priority towards the left
+				}
+
+				const indexA = mapEntryToIndex.get(entryA);
+				const indexB = mapEntryToIndex.get(entryB);
+
+				return indexA! - indexB!; // otherwise maintain stable order (both values known to be in map)
 			}
 
 			if (entryA.alignment === StatusbarAlignment.LEFT) {
@@ -305,8 +308,8 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 
 class HideStatusbarEntryAction extends Action {
 
-	constructor(id: string, private model: StatusbarViewModel) {
-		super(id, nls.localize('hide', "Hide"), undefined, true);
+	constructor(id: string, name: string, private model: StatusbarViewModel) {
+		super(id, nls.localize('hide', "Hide '{0}'", name), undefined, true);
 	}
 
 	run(): Promise<any> {
@@ -318,7 +321,7 @@ class HideStatusbarEntryAction extends Action {
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	_serviceBrand: ServiceIdentifier<IStatusbarService>;
+	_serviceBrand: undefined;
 
 	//#region IView
 
@@ -329,14 +332,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	//#endregion
 
-	private styleElement: HTMLStyleElement;
+	private styleElement: HTMLStyleElement | undefined;
 
 	private pendingEntries: IPendingStatusbarEntry[] = [];
 
 	private readonly viewModel: StatusbarViewModel;
 
-	private leftItemsContainer: HTMLElement;
-	private rightItemsContainer: HTMLElement;
+	private leftItemsContainer: HTMLElement | undefined;
+	private rightItemsContainer: HTMLElement | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -397,7 +400,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
 
 		// Create item
-		const itemContainer = this.doCreateStatusItem(id, name, alignment, priority, ...coalesce(['statusbar-entry', entry.showBeak ? 'has-beak' : undefined]));
+		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
 		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry);
 
 		// Append to parent
@@ -450,20 +453,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	private createInitialStatusbarEntries(): void {
-		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
-
-		// Create initial items that were contributed from the registry
-		for (const { id, name, alignment, priority, syncDescriptor } of registry.items) {
-
-			// Create item
-			const item = this.instantiationService.createInstance(syncDescriptor);
-			const itemContainer = this.doCreateStatusItem(id, name, alignment, priority);
-			this._register(item.render(itemContainer));
-
-			// Add to view model
-			const viewModelEntry: IStatusbarViewModelEntry = { id, name, alignment, priority, container: itemContainer };
-			this.viewModel.add(viewModelEntry);
-		}
 
 		// Add items in order according to alignment
 		this.appendAllStatusbarEntries();
@@ -484,7 +473,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			...this.viewModel.getEntries(StatusbarAlignment.LEFT),
 			...this.viewModel.getEntries(StatusbarAlignment.RIGHT).reverse() // reversing due to flex: row-reverse
 		].forEach(entry => {
-			const target = entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer;
+			const target = assertIsDefined(entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
 
 			target.appendChild(entry.container);
 		});
@@ -497,7 +486,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			entries.reverse(); // reversing due to flex: row-reverse
 		}
 
-		const target = alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer;
+		const target = assertIsDefined(alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
 
 		// find an entry that has lower priority than the new one
 		// and then insert the item before that one
@@ -571,7 +560,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		if (statusEntryUnderMouse) {
 			actions.push(new Separator());
-			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, this.viewModel));
+			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, statusEntryUnderMouse.name, this.viewModel));
 		}
 
 		return actions;
@@ -580,18 +569,22 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = assertIsDefined(this.getContainer());
 
 		// Background colors
-		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);
+		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND) || '';
 		container.style.backgroundColor = backgroundColor;
 		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
 
 		// Border color
 		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
-		container.style.borderTopWidth = borderColor ? '1px' : null;
-		container.style.borderTopStyle = borderColor ? 'solid' : null;
-		container.style.borderTopColor = borderColor;
+		if (borderColor) {
+			addClass(container, 'status-border-top');
+			container.style.setProperty('--status-border-top-color', borderColor.toString());
+		} else {
+			removeClass(container, 'status-border-top');
+			container.style.removeProperty('--status-border-top-color');
+		}
 
 		// Notification Beak
 		if (!this.styleElement) {
@@ -601,9 +594,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
 	}
 
-	private doCreateStatusItem(id: string, name: string, alignment: StatusbarAlignment, priority: number = 0, ...extraClasses: string[]): HTMLElement {
+	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
 		const itemContainer = document.createElement('div');
-		itemContainer.title = name;
+		itemContainer.id = id;
 
 		addClass(itemContainer, 'statusbar-item');
 		if (extraClasses) {
@@ -620,6 +613,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	layout(width: number, height: number): void {
+		super.layout(width, height);
 		super.layoutContents(width, height);
 	}
 
@@ -631,10 +625,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 }
 
 class StatusbarEntryItem extends Disposable {
-	private entry: IStatusbarEntry;
+	private entry!: IStatusbarEntry;
 
-	private labelContainer: HTMLElement;
-	private label: OcticonLabel;
+	private labelContainer!: HTMLElement;
+	private label!: OcticonLabel;
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());
@@ -660,6 +654,7 @@ class StatusbarEntryItem extends Disposable {
 
 		// Label Container
 		this.labelContainer = document.createElement('a');
+		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 
 		// Label
 		this.label = new OcticonLabel(this.labelContainer);
@@ -681,12 +676,12 @@ class StatusbarEntryItem extends Disposable {
 			}
 		}
 
-		// Update: Tooltip
+		// Update: Tooltip (on the container, because label can be disabled)
 		if (!this.entry || entry.tooltip !== this.entry.tooltip) {
 			if (entry.tooltip) {
-				this.labelContainer.title = entry.tooltip;
+				this.container.title = entry.tooltip;
 			} else {
-				delete this.labelContainer.title;
+				delete this.container.title;
 			}
 		}
 
@@ -694,8 +689,9 @@ class StatusbarEntryItem extends Disposable {
 		if (!this.entry || entry.command !== this.entry.command) {
 			this.commandListener.clear();
 
-			if (entry.command) {
-				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(entry.command!, entry.arguments));
+			const command = entry.command;
+			if (command) {
+				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command, entry.arguments));
 
 				removeClass(this.labelContainer, 'disabled');
 			} else {
@@ -717,7 +713,7 @@ class StatusbarEntryItem extends Disposable {
 			this.applyColor(this.labelContainer, entry.color);
 		}
 
-		// Update: Backgroud
+		// Update: Background
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
 			if (entry.backgroundColor) {
 				this.applyColor(this.container, entry.backgroundColor, true);
@@ -740,13 +736,7 @@ class StatusbarEntryItem extends Disposable {
 			activeTextEditorWidget.focus();
 		}
 
-		/* __GDPR__
-			"workbenchActionExecuted" : {
-				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'status bar' });
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'status bar' });
 		try {
 			await this.commandService.executeCommand(id, ...args);
 		} catch (error) {
@@ -788,7 +778,7 @@ class StatusbarEntryItem extends Disposable {
 		}
 
 		if (isBackground) {
-			container.style.backgroundColor = colorResult;
+			container.style.backgroundColor = colorResult || '';
 		} else {
 			container.style.color = colorResult;
 		}

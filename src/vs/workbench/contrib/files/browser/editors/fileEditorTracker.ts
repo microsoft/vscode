@@ -16,22 +16,22 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isLinux } from 'vs/base/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
-	private closeOnFileDelete: boolean;
+	private closeOnFileDelete: boolean | undefined;
 	private modelLoadQueue = new ResourceQueue();
 	private activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
 
@@ -44,7 +44,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWindowService private readonly windowService: IWindowService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -65,7 +65,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.handleOutOfWorkspaceWatchers()));
 
 		// Update visible editors when focus is gained
-		this._register(this.windowService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
+		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
@@ -221,7 +221,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
-							const index = this.getIndexOfPath(resource.path, oldResource.path);
+							const index = this.getIndexOfPath(resource.path, oldResource.path, resources.hasToIgnoreCase(resource));
 							reopenFileResource = resources.joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
 						}
 
@@ -244,7 +244,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		});
 	}
 
-	private getIndexOfPath(path: string, candidate: string): number {
+	private getIndexOfPath(path: string, candidate: string, ignoreCase: boolean): number {
 		if (candidate.length > path.length) {
 			return -1;
 		}
@@ -253,7 +253,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 			return 0;
 		}
 
-		if (!isLinux /* ignore case */) {
+		if (ignoreCase) {
 			path = path.toLowerCase();
 			candidate = candidate.toLowerCase();
 		}
@@ -327,7 +327,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 			// Binary editor that should reload from event
 			if (resource && editor.input && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
-				this.editorService.openEditor(editor.input, { forceReload: true, preserveFocus: true }, editor.group);
+				this.editorService.openEditor(editor.input, { forceReload: true, preserveFocus: true, activation: EditorActivation.PRESERVE }, editor.group);
 			}
 		});
 	}

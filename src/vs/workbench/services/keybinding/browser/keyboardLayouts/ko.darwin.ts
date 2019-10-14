@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
 
-	{ id: 'com.apple.inputmethod.Korean.2SetKorean', lang: 'ko' },
-	[],
-	{
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.apple.inputmethod.Korean.2SetKorean', lang: 'ko', localizedName: '2-Set Korean' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['ㅁ', 'ㅁ', 'a', 'A', 0],
 		KeyB: ['ㅠ', 'ㅠ', 'b', 'B', 0],
 		KeyC: ['ㅊ', 'ㅊ', 'c', 'C', 0],
@@ -129,5 +129,4 @@ KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-
-));
+});

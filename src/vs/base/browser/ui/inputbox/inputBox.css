@@ -58,7 +58,18 @@
 
 .monaco-inputbox > .wrapper > textarea.input {
 	display: block;
-	overflow: hidden;
+	-ms-overflow-style: none; /* IE 10+ */
+	overflow: -moz-scrollbars-none; /* Firefox */
+	scrollbar-width: none; /* Firefox ^64 */
+	outline: none;
+}
+
+.monaco-inputbox > .wrapper > textarea.input.empty {
+	white-space: nowrap;
+}
+
+.monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
+	display: none;
 }
 
 .monaco-inputbox > .wrapper > .mirror {
@@ -112,7 +123,7 @@
 	margin-left: 2px;
 }
 
-.monaco-inputbox .monaco-action-bar .action-item .icon {
+.monaco-inputbox .monaco-action-bar .action-item .codicon {
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
