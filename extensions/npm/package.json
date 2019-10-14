@@ -183,7 +183,7 @@
       ],
       "explorer/context": [
 				{
-					"when": "config.npm.enableRunFromFolderContextMenu && explorerViewletVisible && explorerResourceIsFolder",
+					"when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder",
           "command": "npm.runScriptFromFolder",
 					"group": "2_workspace"
 				}
@@ -237,11 +237,11 @@
           "scope": "resource",
           "description": "%config.npm.enableScriptExplorer%"
         },
-        "npm.enableRunFromFolderContextMenu": {
+        "npm.enableRunFromFolder": {
           "type": "boolean",
           "default": false,
           "scope": "resource",
-          "description": "%config.npm.enableRunFromFolderContextMenu%"
+          "description": "%config.npm.enableRunFromFolder%"
         },
         "npm.scriptExplorerAction": {
           "type": "string",

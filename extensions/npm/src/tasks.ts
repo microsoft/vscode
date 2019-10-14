@@ -5,7 +5,7 @@
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope
+	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -18,6 +18,11 @@ const localize = nls.loadMessageBundle();
 export interface NpmTaskDefinition extends TaskDefinition {
 	script: string;
 	path?: string;
+}
+
+export interface FolderTaskItem extends QuickPickItem {
+	label: string;
+	task: Task;
 }
 
 type AutoDetect = 'on' | 'off';
@@ -156,39 +161,22 @@ async function detectNpmScripts(): Promise<Task[]> {
 }
 
 
-export async function detectNpmScriptsForFolder(folder: Uri): Promise<{ label: string, task: Task }[]> {
+export async function detectNpmScriptsForFolder(folder: Uri): Promise<FolderTaskItem[]> {
 
-	let folderTasks: { label: string, task: Task }[] = [];
+	let folderTasks: FolderTaskItem[] = [];
 
 	try {
 		let relativePattern = new RelativePattern(folder.fsPath, '**/package.json');
 		let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
 
-		if (cachedTasks) {
-			let workspaceFolder = workspace.getWorkspaceFolder(folder);
-			if (workspaceFolder) {
-				let rootUri = workspaceFolder.uri.path;
-				if (rootUri === folder.path) {
-					return cachedTasks.map(t => ({ label: t.name, task: t }));
-				}
-
-				let relativePaths = paths.map(p => ' - ' + p.path.substring(rootUri.length + 1, p.path.length - '/package.json'.length));
-				for (const relativePath of relativePaths) {
-					folderTasks.push(...cachedTasks.filter(t => t.name.endsWith(relativePath)).map(t => ({ label: t.name, task: t })));
-				}
+		let visitedPackageJsonFiles: Set<string> = new Set();
+		for (const path of paths) {
+			if (!visitedPackageJsonFiles.has(path.fsPath)) {
+				let tasks = await provideNpmScriptsForFolder(path);
+				visitedPackageJsonFiles.add(path.fsPath);
+				folderTasks.push(...tasks.map(t => ({ label: t.name, task: t })));
 			}
 		}
-		else {
-			let visitedPackageJsonFiles: Set<string> = new Set();
-			for (const path of paths) {
-				if (!visitedPackageJsonFiles.has(path.fsPath)) {
-					let tasks = await provideNpmScriptsForFolder(path);
-					visitedPackageJsonFiles.add(path.fsPath);
-					folderTasks.push(...tasks.map(t => ({ label: t.name, task: t })));
-				}
-			}
-		}
-
 		return folderTasks;
 	} catch (error) {
 		return Promise.reject(error);
