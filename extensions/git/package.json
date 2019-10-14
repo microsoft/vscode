@@ -1133,7 +1133,7 @@
         },
         "git.restoreCommitTemplateOnRefresh": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%config.restoreCommitTemplateOnRefresh%"
         },
         "git.autofetch": {
