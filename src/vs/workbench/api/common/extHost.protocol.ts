@@ -550,14 +550,13 @@ export interface MainThreadWebviewsShape extends IDisposable {
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void;
-	$setExtension(handle: WebviewPanelHandle, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
 
 	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
 
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 
-	$registerEditorProvider(viewType: string): void;
+	$registerEditorProvider(viewType: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
 	$unregisterEditorProvider(viewType: string): void;
 }
 
@@ -575,7 +574,7 @@ export interface ExtHostWebviewsShape {
 	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
-	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$save(handle: WebviewPanelHandle): Promise<boolean>;
 }
 

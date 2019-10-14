@@ -114,7 +114,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
-		showOptions: { viewColumn?: EditorViewColumn, preserveFocus?: boolean },
+		showOptions: { viewColumn?: EditorViewColumn, preserveFocus?: boolean; },
 		options: WebviewInputOptions,
 		extensionId: ExtensionIdentifier,
 		extensionLocation: UriComponents
@@ -158,7 +158,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 	}
 
-	public $setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void {
+	public $setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
 		const webview = this.getWebviewEditorInput(handle);
 		webview.iconPath = reviveWebviewIcon(value);
 	}
@@ -171,11 +171,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	public $setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void {
 		const webview = this.getWebviewEditorInput(handle);
 		webview.webview.contentOptions = reviveWebviewOptions(options as any /*todo@mat */);
-	}
-
-	public $setExtension(handle: WebviewPanelHandle, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void {
-		const webview = this.getWebviewEditorInput(handle);
-		webview.webview.extension = { id: extensionId, location: URI.revive(extensionLocation) };
 	}
 
 	public $reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void {
@@ -245,10 +240,12 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		this._revivers.delete(viewType);
 	}
 
-	public $registerEditorProvider(viewType: string): void {
+	public $registerEditorProvider(viewType: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
+
+		const extension = { id: extensionId, location: URI.revive(extensionLocation) };
 
 		this._editorProviders.set(viewType, this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewEditorInput) => {
@@ -258,6 +255,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				const handle = webview.id;
 				this._webviewEditorInputs.add(handle, webview);
 				this.hookupWebviewEventDelegate(handle, webview);
+
+				webview.webview.extension = extension;
 
 				if (webview instanceof CustomFileEditorInput) {
 					webview.onWillSave(e => {
@@ -271,7 +270,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 						handle,
 						viewType,
 						webview.getTitle(),
-						webview.webview.state,
 						editorGroupToViewColumn(this._editorGroupService, webview.group || 0),
 						webview.webview.options
 					);
@@ -414,8 +412,8 @@ function reviveWebviewOptions(options: modes.IWebviewOptions): WebviewInputOptio
 
 
 function reviveWebviewIcon(
-	value: { light: UriComponents, dark: UriComponents } | undefined
-): { light: URI, dark: URI } | undefined {
+	value: { light: UriComponents, dark: UriComponents; } | undefined
+): { light: URI, dark: URI; } | undefined {
 	if (!value) {
 		return undefined;
 	}

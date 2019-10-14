@@ -320,7 +320,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 
 		this._editorProviders.set(viewType, { extension, provider, });
-		this._proxy.$registerEditorProvider(viewType);
+		this._proxy.$registerEditorProvider(viewType, extension.identifier, extension.extensionLocation);
 
 		return new Disposable(() => {
 			this._editorProviders.delete(viewType);
@@ -417,7 +417,6 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
-		state: any,
 		position: EditorViewColumn,
 		options: modes.IWebviewOptions & modes.IWebviewPanelOptions
 	): Promise<void> {
@@ -426,9 +425,6 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			return Promise.reject(new Error(`No provider found for '${viewType}'`));
 		}
 		const { provider, extension } = entry;
-
-		this._proxy.$setExtension(handle, extension.identifier, extension.extensionLocation);
-
 		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, extension.identifier);
 		const revivedPanel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(handle, revivedPanel);
