@@ -477,9 +477,11 @@ export class MenuBar extends Disposable {
 				this.overflowMenu.actions.push(new SubmenuAction(this.menuCache[idx].label, this.menuCache[idx].actions || []));
 			}
 
-			DOM.removeNode(this.overflowMenu.buttonElement);
-			this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
-			this.overflowMenu.buttonElement.style.visibility = 'visible';
+			if (this.overflowMenu.buttonElement.nextElementSibling !== this.menuCache[this.numMenusShown].buttonElement) {
+				DOM.removeNode(this.overflowMenu.buttonElement);
+				this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
+				this.overflowMenu.buttonElement.style.visibility = 'visible';
+			}
 		} else {
 			DOM.removeNode(this.overflowMenu.buttonElement);
 			this.container.appendChild(this.overflowMenu.buttonElement);
