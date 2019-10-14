@@ -701,13 +701,10 @@ export class DebugSession implements IDebugSession {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
 				if (this.raw && this.raw.capabilities.supportsConfigurationDoneRequest) {
-					return this.raw.configurationDone().then(undefined, e => {
+					return this.raw.configurationDone().then(undefined, () => {
 						// Disconnect the debug session on configuration done error #10596
 						if (this.raw) {
 							this.raw.disconnect();
-						}
-						if (e.command !== 'canceled' && e.message !== 'canceled') {
-							this.notificationService.error(e);
 						}
 					});
 				}
