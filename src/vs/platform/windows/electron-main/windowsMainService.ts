@@ -1381,6 +1381,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
 			else {
 				allowFullscreen = this.lifecycleMainService.wasRestarted || (windowConfig && windowConfig.restoreFullscreen);
+
+				if (allowFullscreen && isMacintosh && WindowsMainService.WINDOWS.some(win => win.isFullScreen)) {
+					// macOS: Electron does not allow to restore multiple windows in
+					// fullscreen. As such, if we already restored a window in that
+					// state, we cannot allow more fullscreen windows. See
+					// https://github.com/microsoft/vscode/issues/41691 and
+					// https://github.com/electron/electron/issues/13077
+					allowFullscreen = false;
+				}
 			}
 
 			if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {

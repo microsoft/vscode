@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir, open, close, read, write, fdatasync } from 'fs';
+import { mkdir, open, close, read, write, fdatasync, Dirent, Stats } from 'fs';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { statLink, readdir, unlink, move, copy, readFile, truncate, rimraf, RimRafMode, exists } from 'vs/base/node/pfs';
+import { statLink, unlink, move, copy, readFile, truncate, rimraf, RimRafMode, exists, readdirWithFileTypes } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -62,15 +62,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 			const { stat, isSymbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
-			let type: number;
-			if (isSymbolicLink) {
-				type = FileType.SymbolicLink | (stat.isDirectory() ? FileType.Directory : FileType.File);
-			} else {
-				type = stat.isFile() ? FileType.File : stat.isDirectory() ? FileType.Directory : FileType.Unknown;
-			}
-
 			return {
-				type,
+				type: this.toType(stat, isSymbolicLink),
 				ctime: stat.ctime.getTime(),
 				mtime: stat.mtime.getTime(),
 				size: stat.size
@@ -82,13 +75,19 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		try {
-			const children = await readdir(this.toFilePath(resource));
+			const children = await readdirWithFileTypes(this.toFilePath(resource));
 
 			const result: [string, FileType][] = [];
 			await Promise.all(children.map(async child => {
 				try {
-					const stat = await this.stat(joinPath(resource, child));
-					result.push([child, stat.type]);
+					let type: FileType;
+					if (child.isSymbolicLink()) {
+						type = (await this.stat(joinPath(resource, child.name))).type; // always resolve target the link points to if any
+					} else {
+						type = this.toType(child);
+					}
+
+					result.push([child.name, type]);
 				} catch (error) {
 					this.logService.trace(error); // ignore errors for individual entries that can arise from permission denied
 				}
@@ -98,6 +97,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
+	}
+
+	private toType(entry: Stats | Dirent, isSymbolicLink = entry.isSymbolicLink()): FileType {
+		if (isSymbolicLink) {
+			return FileType.SymbolicLink | (entry.isDirectory() ? FileType.Directory : FileType.File);
+		}
+
+		return entry.isFile() ? FileType.File : entry.isDirectory() ? FileType.Directory : FileType.Unknown;
 	}
 
 	//#endregion

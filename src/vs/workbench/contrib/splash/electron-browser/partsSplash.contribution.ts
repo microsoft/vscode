@@ -60,6 +60,8 @@ class PartsSplash {
 			if (e.affectsConfiguration('window.titleBarStyle')) {
 				this._didChangeTitleBarStyle = true;
 				this._savePartsSplash();
+			} else if (e.affectsConfiguration('workbench.colorTheme') || e.affectsConfiguration('workbench.colorCustomizations')) {
+				this._savePartsSplash();
 			}
 		}, this, this._disposables);
 	}
