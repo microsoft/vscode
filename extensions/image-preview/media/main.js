@@ -174,9 +174,7 @@
 			return;
 		}
 
-		if (document.hasFocus()) {
-			consumeClick = false;
-		}
+		consumeClick = false;
 	});
 
 	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
