@@ -7,6 +7,7 @@
 	"config.npm.exclude": "Configure glob patterns for folders that should be excluded from automatic script detection.",
 	"config.npm.enableScriptExplorer": "Enable an explorer view for npm scripts when there is no top-level 'package.json' file.",
 	"config.npm.scriptExplorerAction": "The default click action used in the scripts explorer: `open` or `run`, the default is `open`.",
+	"config.npm.enableRunFromFolderContextMenu": "Enable running scripts from the context menu of a folder in Explorer",
 	"config.npm.fetchOnlinePackageInfo": "Fetch data from https://registry.npmjs.org and https://registry.bower.io to provide auto-completion and information on hover features on npm dependencies.",
 	"npm.parseError": "Npm task detection: failed to parse the file {0}",
 	"taskdef.script": "The npm script to customize.",
@@ -17,5 +18,6 @@
 	"command.debug": "Debug",
 	"command.openScript": "Open",
 	"command.runInstall": "Run Install",
-	"command.runSelectedScript": "Run Script"
+	"command.runSelectedScript": "Run Script",
+	"command.runScriptFromFolder": "Run npm Script in Folder..."
 }
