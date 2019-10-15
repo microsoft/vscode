@@ -115,8 +115,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		// This should trigger the real reviver to be registered from the extension host side.
 		this._register(_webviewWorkbenchService.registerResolver({
 			canResolve: (webview: WebviewInput) => {
-				if (webview.getTypeId() === CustomFileEditorInput.typeId) {
-					extensionService.activateByEvent(`onWebviewEditor:${(webview as CustomFileEditorInput).viewType}`);
+				if (webview instanceof CustomFileEditorInput) {
+					extensionService.activateByEvent(`onWebviewEditor:${webview.viewType}`);
 					return false;
 				}
 
@@ -187,7 +187,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 	public $setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void {
 		const webview = this.getWebviewInput(handle);
-		webview.webview.contentOptions = reviveWebviewOptions(options as any /*todo@mat */);
+		webview.webview.contentOptions = reviveWebviewOptions(options);
 	}
 
 	public $reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void {
@@ -266,7 +266,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		this._editorProviders.set(viewType, this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewInput) => {
-				return webviewInput.getTypeId() !== WebviewInput.typeId && webviewInput.viewType === viewType;
+				return webviewInput instanceof CustomFileEditorInput && webviewInput.viewType === viewType;
 			},
 			resolveWebview: async (webviewInput) => {
 				const handle = webviewInput.id;
