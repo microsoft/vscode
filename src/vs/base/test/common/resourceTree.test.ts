@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { URI } from 'vs/base/common/uri';
 
-suite.only('ResourceTree', function () {
+suite('ResourceTree', function () {
 	test('ctor', function () {
 		const tree = new ResourceTree<string, null>(null);
 		assert.equal(tree.root.childrenCount, 0);
