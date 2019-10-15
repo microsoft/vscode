@@ -46,6 +46,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { Constants } from 'vs/base/common/uint';
 import { IDiffEditorContributionCtor, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -168,6 +169,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly id: number;
 	private _state: editorBrowser.DiffEditorState;
+	private _updatingDiffProgress: IProgressRunner | null;
 
 	private readonly _domElement: HTMLElement;
 	protected readonly _containerDomElement: HTMLElement;
@@ -226,6 +228,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService
 	) {
 		super();
 
@@ -238,6 +241,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this.id = (++DIFF_EDITOR_ID);
 		this._state = editorBrowser.DiffEditorState.Idle;
+		this._updatingDiffProgress = null;
 
 		this._domElement = domElement;
 		options = options || {};
@@ -394,10 +398,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _setState(newState: editorBrowser.DiffEditorState): void {
-		if (this._state !== newState) {
+		if (this._state === newState) {
 			return;
 		}
 		this._state = newState;
+
+		if (this._updatingDiffProgress) {
+			this._updatingDiffProgress.done();
+			this._updatingDiffProgress = null;
+		}
+
+		if (this._state === editorBrowser.DiffEditorState.ComputingDiff) {
+			this._updatingDiffProgress = this._editorProgressService.show(true, 1000);
+		}
 	}
 
 	public hasWidgetFocus(): boolean {
