@@ -94,22 +94,23 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
 			this._webview.value.mountTo(this.container);
+
+			// Forward events from inner webview to outer listeners
 			this._webviewEvents.clear();
+			this._webviewEvents.add(webview.onDidFocus(() => { this._onDidFocus.fire(); }));
+			this._webviewEvents.add(webview.onDidClickLink(x => { this._onDidClickLink.fire(x); }));
+			this._webviewEvents.add(webview.onMessage(x => { this._onMessage.fire(x); }));
+			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
 
-			webview.onDidFocus(() => { this._onDidFocus.fire(); }, undefined, this._webviewEvents);
-			webview.onDidClickLink(x => { this._onDidClickLink.fire(x); }, undefined, this._webviewEvents);
-			webview.onMessage(x => { this._onMessage.fire(x); }, undefined, this._webviewEvents);
-			webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }, undefined, this._webviewEvents);
-
-			webview.onDidScroll(x => {
+			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
 				this._onDidScroll.fire(x);
-			}, undefined, this._webviewEvents);
+			}));
 
-			webview.onDidUpdateState(state => {
+			this._webviewEvents.add(webview.onDidUpdateState(state => {
 				this._state = state;
 				this._onDidUpdateState.fire(state);
-			}, undefined, this._webviewEvents);
+			}));
 
 			this._pendingMessages.forEach(msg => webview.sendMessage(msg));
 			this._pendingMessages.clear();
