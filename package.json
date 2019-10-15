@@ -25,7 +25,8 @@
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
-    "update-distro": "node build/npm/update-distro.js"
+    "update-distro": "node build/npm/update-distro.js",
+    "web": "node scripts/code-web.js"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
