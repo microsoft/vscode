@@ -1233,7 +1233,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	}
 
 	private onDidChangeDiffVisibiltiyConfiguration(): void {
-		let visibility = this.configurationService.getValue<string>('scm.diffDecorationsGutterVisibility');
+		const visibility = this.configurationService.getValue<string>('scm.diffDecorationsGutterVisibility');
 
 		this.stylesheet.innerHTML = `
 			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
