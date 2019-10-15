@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scrollbars';
-import { isEdgeOrIE } from 'vs/base/browser/browser';
+import { getPixelRatio, isEdgeOrIE } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent, StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -331,8 +331,15 @@ export abstract class AbstractScrollableElement extends Widget {
 		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
 
 		if (e.deltaY || e.deltaX) {
-			let deltaY = e.deltaY * this._options.mouseWheelScrollSensitivity;
-			let deltaX = e.deltaX * this._options.mouseWheelScrollSensitivity;
+			let deltaY = e.deltaY;
+			let deltaX = e.deltaX;
+			if (platform.isWindows) {
+				const dpr = getPixelRatio();
+				deltaY /= dpr;
+				deltaX /= dpr;
+			}
+			deltaY *= this._options.mouseWheelScrollSensitivity;
+			deltaX *= this._options.mouseWheelScrollSensitivity;
 
 			if (this._options.flipAxes) {
 				[deltaY, deltaX] = [deltaX, deltaY];
