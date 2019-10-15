@@ -152,7 +152,7 @@ export class TypeScriptServiceConfiguration {
 
 	private static readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {
 		const memoryInMB = configuration.get<number>('typescript.tsserver.maxTsServerMemory', 0);
-		if (!Number.isSafeInteger(memoryInMB) || memoryInMB < 0) {
+		if (!Number.isSafeInteger(memoryInMB) || memoryInMB < 128) {
 			return 0;
 		}
 		return memoryInMB;
