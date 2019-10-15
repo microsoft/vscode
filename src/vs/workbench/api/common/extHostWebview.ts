@@ -452,19 +452,9 @@ function convertWebviewOptions(
 ): modes.IWebviewOptions {
 	return {
 		...options,
-		portMapping: options.portMapping
-			? options.portMapping.map((x): modes.IWebviewPortMapping => {
-				// Handle old proposed api
-				if ('port' in x) {
-					return { webviewPort: (x as any).port, extensionHostPort: (x as any).resolvedPort };
-				}
-				return { webviewPort: x.webviewPort, extensionHostPort: x.extensionHostPort };
-			})
-			: undefined,
 		localResourceRoots: options.localResourceRoots || getDefaultLocalResourceRoots(extension, workspace)
 	};
 }
-
 
 function getDefaultLocalResourceRoots(
 	extension: IExtensionDescription,
