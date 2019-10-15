@@ -72,7 +72,7 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions(kind));
+		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions(kind, configuration));
 		this._logger.info(`<${kind}> Starting...`);
 
 		return new ProcessBasedTsServer(
