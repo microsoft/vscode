@@ -26,6 +26,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { Schemas } from 'vs/base/common/network';
+import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -144,10 +145,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
-		const webview = this._webviewWorkbenchService.createWebview(handle, webviewPanelViewType.fromExternal(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
-			location: URI.revive(extensionLocation),
-			id: extensionId
-		});
+		const webview = this._webviewWorkbenchService.createWebview(handle, webviewPanelViewType.fromExternal(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), reviveWebviewExtension(extensionId, extensionLocation));
 		this.hookupWebviewEventDelegate(handle, webview);
 
 		this._webviewInputs.add(handle, webview);
@@ -264,7 +262,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
 
-		const extension = { id: extensionId, location: URI.revive(extensionLocation) };
+		const extension = reviveWebviewExtension(extensionId, extensionLocation);
 
 		this._editorProviders.set(viewType, this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewInput) => {
@@ -403,6 +401,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	}
 }
 
+function reviveWebviewExtension(extensionId: ExtensionIdentifier, extensionLocation: UriComponents): WebviewExtensionDescription {
+	return { id: extensionId, location: URI.revive(extensionLocation) };
+}
+
 function reviveWebviewOptions(options: modes.IWebviewOptions): WebviewInputOptions {
 	return {
 		...options,
@@ -410,7 +412,6 @@ function reviveWebviewOptions(options: modes.IWebviewOptions): WebviewInputOptio
 		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(r => URI.revive(r)) : undefined,
 	};
 }
-
 
 function reviveWebviewIcon(
 	value: { light: UriComponents, dark: UriComponents; } | undefined
