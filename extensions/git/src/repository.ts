@@ -695,9 +695,7 @@ export class Repository implements Disposable {
 		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, onDotGitFileChange, outputChannel));
 
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root, {
-			treeRendering: true
-		});
+		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
