@@ -628,6 +628,10 @@ function registerCloseEditorCommands() {
 
 			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 			if (group && editor) {
+				if (group.activeEditor) {
+					group.pinEditor(group.activeEditor);
+				}
+
 				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor });
 			}
 
