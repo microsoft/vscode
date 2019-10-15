@@ -6333,7 +6333,7 @@ declare module 'vscode' {
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
 
 		/**
-		 * Retrieve the list of all available commands. Commands starting an underscore are
+		 * Retrieve the list of all available commands. Commands starting with an underscore are
 		 * treated as internal commands.
 		 *
 		 * @param filterInternal Set `true` to not see internal commands (starting with an underscore)

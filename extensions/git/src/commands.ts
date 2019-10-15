@@ -1361,37 +1361,38 @@ export class CommandCenter {
 	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
 		const message = repository.inputBox.value;
 		const getCommitMessage = async () => {
-			if (message) {
-				return message;
+			let _message: string | undefined = message;
+			if (!_message) {
+				let value: string | undefined = undefined;
+
+				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
+					value = (await repository.getCommit(repository.HEAD.commit)).message;
+				}
+
+				const branchName = repository.headShortName;
+				let placeHolder: string;
+
+				if (branchName) {
+					placeHolder = localize('commitMessageWithHeadLabel2', "Message (commit on '{0}')", branchName);
+				} else {
+					placeHolder = localize('commit message', "Commit message");
+				}
+
+				_message = await window.showInputBox({
+					value,
+					placeHolder,
+					prompt: localize('provide commit message', "Please provide a commit message"),
+					ignoreFocusOut: true
+				});
 			}
 
-			let value: string | undefined = undefined;
-
-			if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-				value = (await repository.getCommit(repository.HEAD.commit)).message;
-			}
-
-			const branchName = repository.headShortName;
-			let placeHolder: string;
-
-			if (branchName) {
-				placeHolder = localize('commitMessageWithHeadLabel2', "Message (commit on '{0}')", branchName);
-			} else {
-				placeHolder = localize('commit message', "Commit message");
-			}
-
-			return await window.showInputBox({
-				value,
-				placeHolder,
-				prompt: localize('provide commit message', "Please provide a commit message"),
-				ignoreFocusOut: true
-			});
+			return _message ? repository.cleanUpCommitEditMessage(_message) : _message;
 		};
 
 		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);
 
 		if (message && didCommit) {
-			repository.inputBox.value = await repository.getCommitTemplate();
+			repository.inputBox.value = await repository.getInputTemplate();
 		}
 	}
 

@@ -1748,6 +1748,23 @@ export class Repository {
 		}
 	}
 
+	cleanupCommitEditMessage(message: string): string {
+		//TODO: Support core.commentChar
+		return message.replace(/^\s*#.*$\n?/gm, '').trim();
+	}
+
+
+	async getMergeMessage(): Promise<string | undefined> {
+		const mergeMsgPath = path.join(this.repositoryRoot, '.git', 'MERGE_MSG');
+
+		try {
+			const raw = await readfile(mergeMsgPath, 'utf8');
+			return raw.trim();
+		} catch {
+			return undefined;
+		}
+	}
+
 	async getCommitTemplate(): Promise<string> {
 		try {
 			const result = await this.run(['config', '--get', 'commit.template']);
@@ -1766,7 +1783,7 @@ export class Repository {
 			}
 
 			const raw = await readfile(templatePath, 'utf8');
-			return raw.replace(/^\s*#.*$\n?/gm, '');
+			return raw.trim();
 
 		} catch (err) {
 			return '';
