@@ -21,9 +21,9 @@ const server = http.createServer((req, res) => {
 	const pathname = parsedUrl.pathname;
 
 	try {
-		if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code.png') {
-			// icons/manifest
-			return serveFile(req, res, path.join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
+		if (pathname === '/favicon.ico') {
+			// favicon
+			return serveFile(req, res, path.join(APP_ROOT, 'resources', 'win32', 'code.ico'));
 		}
 		if (/^\/static\//.test(pathname)) {
 			// static requests
