@@ -185,7 +185,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const elementDisposables = new DisposableStore();
 		const resourceOrFolder = node.element;
 		const theme = this.themeService.getTheme();
-		const icon = !ResourceTree.isResourceNode(resourceOrFolder) && (theme.type === LIGHT ? resourceOrFolder.decorations.icon : resourceOrFolder.decorations.iconDark);
+		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
+		const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
 
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
@@ -202,9 +203,15 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.actionBar.context = resourceOrFolder;
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
-			elementDisposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
-			removeClass(template.name, 'strike-through');
-			removeClass(template.element, 'faded');
+			if (resourceOrFolder.element) {
+				elementDisposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resourceOrFolder.element.resourceGroup), template.actionBar));
+				toggleClass(template.name, 'strike-through', resourceOrFolder.element.decorations.strikeThrough);
+				toggleClass(template.element, 'faded', resourceOrFolder.element.decorations.faded);
+			} else {
+				elementDisposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
+				removeClass(template.name, 'strike-through');
+				removeClass(template.element, 'faded');
+			}
 		} else {
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resourceOrFolder.resourceGroup), template.actionBar));
 			toggleClass(template.name, 'strike-through', resourceOrFolder.decorations.strikeThrough);
@@ -378,14 +385,10 @@ function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode): ICompres
 }
 
 function asTreeElement(node: IResourceNode<ISCMResource, ISCMResourceGroup>, forceIncompressible: boolean): ICompressedTreeElement<TreeElement> {
-	if (node.childrenCount === 0 && node.element) {
-		return { element: node.element, incompressible: true };
-	}
-
 	return {
-		element: node,
+		element: (node.childrenCount === 0 && node.element) ? node.element : node,
 		children: Iterator.map(node.children, node => asTreeElement(node, false)),
-		incompressible: forceIncompressible
+		incompressible: !!node.element || forceIncompressible
 	};
 }
 
@@ -897,7 +900,11 @@ export class RepositoryPanel extends ViewletPanel {
 		if (isSCMResourceGroup(element)) {
 			actions = this.menus.getResourceGroupContextActions(element);
 		} else if (ResourceTree.isResourceNode(element)) {
-			actions = this.menus.getResourceFolderContextActions(element.context);
+			if (element.element) {
+				actions = this.menus.getResourceContextActions(element.element);
+			} else {
+				actions = this.menus.getResourceFolderContextActions(element.context);
+			}
 		} else {
 			actions = this.menus.getResourceContextActions(element);
 		}
