@@ -1760,8 +1760,7 @@ export class Repository {
 		try {
 			const raw = await readfile(mergeMsgPath, 'utf8');
 			return raw.trim();
-		}
-		catch {
+		} catch {
 			return undefined;
 		}
 	}

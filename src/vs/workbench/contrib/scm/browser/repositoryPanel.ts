@@ -596,6 +596,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private menus: SCMMenus;
 	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 	protected contextKeyService: IContextKeyService;
+	private commitTemplate = '';
 
 	constructor(
 		readonly repository: ISCMRepository,
@@ -698,10 +699,10 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.inputBox.onDidHeightChange(() => this.layoutBody()));
 
 		if (this.repository.provider.onDidChangeCommitTemplate) {
-			this._register(this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this));
+			this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
 		}
 
-		this.updateInputBox();
+		this.onDidChangeCommitTemplate();
 
 		// Input box visibility
 		this._register(this.repository.input.onDidChangeVisibility(this.updateInputBoxVisibility, this));
@@ -922,12 +923,19 @@ export class RepositoryPanel extends ViewletPanel {
 			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
 	}
 
-	private updateInputBox(): void {
-		if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.repository.input.visible || this.inputBox.value) {
+	private onDidChangeCommitTemplate(): void {
+		if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.repository.input.visible) {
 			return;
 		}
 
-		this.inputBox.value = this.repository.provider.commitTemplate;
+		const oldCommitTemplate = this.commitTemplate;
+		this.commitTemplate = this.repository.provider.commitTemplate;
+
+		if (this.inputBox.value && this.inputBox.value !== oldCommitTemplate) {
+			return;
+		}
+
+		this.inputBox.value = this.commitTemplate;
 	}
 
 	private updateInputBoxVisibility(): void {
