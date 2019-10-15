@@ -11,7 +11,6 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { Dimension } from 'vs/base/browser/dom';
-import { assertIsDefined } from 'vs/base/common/types';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
