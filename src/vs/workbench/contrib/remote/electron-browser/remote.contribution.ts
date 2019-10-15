@@ -6,42 +6,41 @@
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from 'vs/workbench/common/theme';
-
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-
-import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
+import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { DialogChannel } from 'vs/platform/dialogs/electron-browser/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
-import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer as ipc } from 'electron';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProgressService, IProgress, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { PersistentConnectionEventType, ReconnectionWaitEvent } from 'vs/platform/remote/common/remoteAgentConnection';
+import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import Severity from 'vs/base/common/severity';
-import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { RemoteConnectionState, Deprecated_RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { RemoteConnectionState, Deprecated_RemoteAuthorityContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
+import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 
-const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
-const CLOSE_REMOTE_COMMAND_ID = 'remote.closeRemote';
+const WINDOW_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
+const CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
 
 export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -62,20 +61,39 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		@IExtensionService extensionService: IExtensionService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IWindowsService windowService: IWindowsService
+		@IHostService hostService: IHostService
 	) {
 		super();
 
 		this.windowCommandMenu = this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService);
 		this._register(this.windowCommandMenu);
 
-		this._register(CommandsRegistry.registerCommand(WINDOW_ACTIONS_COMMAND_ID, _ => this.showIndicatorActions(this.windowCommandMenu)));
-		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && windowService.openNewWindow({ reuseWindow: true })));
+		const category = nls.localize('remote.category', "Remote");
+
+		registerAction({
+			id: WINDOW_ACTIONS_COMMAND_ID,
+			category,
+			title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
+			menu: {
+				menuId: MenuId.CommandPalette
+			},
+			handler: (_accessor) => this.showIndicatorActions(this.windowCommandMenu)
+		});
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.remoteAuthority || '');
 
 		if (this.remoteAuthority) {
+			registerAction({
+				id: CLOSE_REMOTE_COMMAND_ID,
+				category,
+				title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
+				menu: {
+					menuId: MenuId.CommandPalette
+				},
+				handler: (_accessor) => this.remoteAuthority && hostService.openWindow({ forceReuseWindow: true })
+			});
+
 			// Pending entry until extensions are ready
 			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
 			this.connectionState = 'initializing';
@@ -228,7 +246,7 @@ class RemoteChannelsContribution implements IWorkbenchContribution {
 		if (connection) {
 			connection.registerChannel('dialog', new DialogChannel(dialogService));
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
+			connection.registerChannel('logger', new LoggerChannel(logService));
 		}
 	}
 }
@@ -261,29 +279,6 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	}
 }
 
-class ProgressReporter {
-	private _currentProgress: IProgress<IProgressStep> | null = null;
-	private lastReport: string | null = null;
-
-	constructor(currentProgress: IProgress<IProgressStep> | null) {
-		this._currentProgress = currentProgress;
-	}
-
-	set currentProgress(progress: IProgress<IProgressStep>) {
-		this._currentProgress = progress;
-	}
-
-	report(message?: string) {
-		if (message) {
-			this.lastReport = message;
-		}
-
-		if (this.lastReport && this._currentProgress) {
-			this._currentProgress.report({ message: this.lastReport });
-		}
-	}
-}
-
 class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -300,165 +295,6 @@ class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
 					}
 				}
 			});
-		}
-	}
-}
-
-class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IProgressService progressService: IProgressService,
-		@IDialogService dialogService: IDialogService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
-	) {
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			let currentProgressPromiseResolve: (() => void) | null = null;
-			let progressReporter: ProgressReporter | null = null;
-			let lastLocation: ProgressLocation | null = null;
-			let currentTimer: ReconnectionTimer | null = null;
-			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
-			let disposableListener: IDisposable | null = null;
-
-			function showProgress(location: ProgressLocation, buttons?: string[]) {
-				if (currentProgressPromiseResolve) {
-					currentProgressPromiseResolve();
-				}
-
-				const promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
-				lastLocation = location;
-
-				if (location === ProgressLocation.Dialog) {
-					// Show dialog
-					progressService!.withProgress(
-						{ location: ProgressLocation.Dialog, buttons },
-						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
-						(choice?) => {
-							// Handle choice from dialog
-							if (choice === 0 && buttons && reconnectWaitEvent) {
-								reconnectWaitEvent.skipWait();
-							} else {
-								showProgress(ProgressLocation.Notification, buttons);
-							}
-
-							progressReporter!.report();
-						});
-				} else {
-					// Show notification
-					progressService!.withProgress(
-						{ location: ProgressLocation.Notification, buttons },
-						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
-						(choice?) => {
-							// Handle choice from notification
-							if (choice === 0 && buttons && reconnectWaitEvent) {
-								reconnectWaitEvent.skipWait();
-							} else {
-								hideProgress();
-							}
-						});
-				}
-			}
-
-			function hideProgress() {
-				if (currentProgressPromiseResolve) {
-					currentProgressPromiseResolve();
-				}
-
-				currentProgressPromiseResolve = null;
-			}
-
-			connection.onDidStateChange((e) => {
-				if (currentTimer) {
-					currentTimer.dispose();
-					currentTimer = null;
-				}
-
-				if (disposableListener) {
-					disposableListener.dispose();
-					disposableListener = null;
-				}
-				switch (e.type) {
-					case PersistentConnectionEventType.ConnectionLost:
-						if (!currentProgressPromiseResolve) {
-							progressReporter = new ProgressReporter(null);
-							showProgress(ProgressLocation.Dialog, [nls.localize('reconnectNow', "Reconnect Now")]);
-						}
-
-						progressReporter!.report(nls.localize('connectionLost', "Connection Lost"));
-						break;
-					case PersistentConnectionEventType.ReconnectionWait:
-						hideProgress();
-						reconnectWaitEvent = e;
-						showProgress(lastLocation || ProgressLocation.Notification, [nls.localize('reconnectNow', "Reconnect Now")]);
-						currentTimer = new ReconnectionTimer(progressReporter!, Date.now() + 1000 * e.durationSeconds);
-						break;
-					case PersistentConnectionEventType.ReconnectionRunning:
-						hideProgress();
-						showProgress(lastLocation || ProgressLocation.Notification);
-						progressReporter!.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
-
-						// Register to listen for quick input is opened
-						disposableListener = contextKeyService.onDidChangeContext((contextKeyChangeEvent) => {
-							const reconnectInteraction = new Set<string>(['inQuickOpen']);
-							if (contextKeyChangeEvent.affectsSome(reconnectInteraction)) {
-								// Need to move from dialog if being shown and user needs to type in a prompt
-								if (lastLocation === ProgressLocation.Dialog && progressReporter !== null) {
-									hideProgress();
-									showProgress(ProgressLocation.Notification);
-									progressReporter.report();
-								}
-							}
-						});
-
-						break;
-					case PersistentConnectionEventType.ReconnectionPermanentFailure:
-						hideProgress();
-						progressReporter = null;
-
-						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(choice => {
-							// Reload the window
-							if (choice === 0) {
-								commandService.executeCommand(ReloadWindowAction.ID);
-							}
-						});
-						break;
-					case PersistentConnectionEventType.ConnectionGain:
-						hideProgress();
-						progressReporter = null;
-						break;
-				}
-			});
-		}
-	}
-}
-
-class ReconnectionTimer implements IDisposable {
-	private readonly _progressReporter: ProgressReporter;
-	private readonly _completionTime: number;
-	private readonly _token: NodeJS.Timeout;
-
-	constructor(progressReporter: ProgressReporter, completionTime: number) {
-		this._progressReporter = progressReporter;
-		this._completionTime = completionTime;
-		this._token = setInterval(() => this._render(), 1000);
-		this._render();
-	}
-
-	public dispose(): void {
-		clearInterval(this._token);
-	}
-
-	private _render() {
-		const remainingTimeMs = this._completionTime - Date.now();
-		if (remainingTimeMs < 0) {
-			return;
-		}
-		const remainingTime = Math.ceil(remainingTimeMs / 1000);
-		if (remainingTime === 1) {
-			this._progressReporter.report(nls.localize('reconnectionWaitOne', "Attempting to reconnect in {0} second...", remainingTime));
-		} else {
-			this._progressReporter.report(nls.localize('reconnectionWaitMany', "Attempting to reconnect in {0} seconds...", remainingTime));
 		}
 	}
 }
@@ -487,6 +323,7 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 		return Promise.resolve();
 	}
 }
+
 
 class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchContribution {
 	constructor(
@@ -523,7 +360,6 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
@@ -558,3 +394,40 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			}
 		}
 	});
+
+if (isMacintosh) {
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: OpenLocalFileFolderCommand.ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_O,
+		when: RemoteFileDialogContext,
+		description: { description: OpenLocalFileFolderCommand.LABEL, args: [] },
+		handler: OpenLocalFileFolderCommand.handler()
+	});
+} else {
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: OpenLocalFileCommand.ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_O,
+		when: RemoteFileDialogContext,
+		description: { description: OpenLocalFileCommand.LABEL, args: [] },
+		handler: OpenLocalFileCommand.handler()
+	});
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: OpenLocalFolderCommand.ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O),
+		when: RemoteFileDialogContext,
+		description: { description: OpenLocalFolderCommand.LABEL, args: [] },
+		handler: OpenLocalFolderCommand.handler()
+	});
+}
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: SaveLocalFileCommand.ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
+	when: RemoteFileDialogContext,
+	description: { description: SaveLocalFileCommand.LABEL, args: [] },
+	handler: SaveLocalFileCommand.handler()
+});

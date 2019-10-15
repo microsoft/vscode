@@ -18,7 +18,11 @@ suite('ExtHostWebview', () => {
 		const viewType = 'view.type';
 
 		const shape = createNoopMainThreadWebviews();
-		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), { webviewCspSource: '', webviewResourceRoot: '' });
+		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
+			webviewCspSource: '',
+			webviewResourceRoot: '',
+			isExtensionDevelopmentDebug: false,
+		});
 
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
@@ -52,37 +56,38 @@ suite('ExtHostWebview', () => {
 		const shape = createNoopMainThreadWebviews();
 		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
 			webviewCspSource: '',
-			webviewResourceRoot: 'vscode-resource:{{resource}}'
+			webviewResourceRoot: 'vscode-resource://{{resource}}',
+			isExtensionDevelopmentDebug: false,
 		});
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		assert.strictEqual(
 			webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString(),
-			'vscode-resource:/Users/codey/file.html',
+			'vscode-resource://file///Users/codey/file.html',
 			'Unix basic'
 		);
 
 		assert.strictEqual(
 			webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString(),
-			'vscode-resource:/Users/codey/file.html#frag',
+			'vscode-resource://file///Users/codey/file.html#frag',
 			'Unix should preserve fragment'
 		);
 
 		assert.strictEqual(
 			webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString(),
-			'vscode-resource:/Users/codey/f%20ile.html',
+			'vscode-resource://file///Users/codey/f%20ile.html',
 			'Unix with encoding'
 		);
 
 		assert.strictEqual(
 			webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString(),
-			'vscode-resource://localhost/Users/codey/file.html',
+			'vscode-resource://file//localhost/Users/codey/file.html',
 			'Unix should preserve authority'
 		);
 
 		assert.strictEqual(
 			webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString(),
-			'vscode-resource:/c%3A/codey/file.txt',
+			'vscode-resource://file///c%3A/codey/file.txt',
 			'Windows C drive'
 		);
 	});
@@ -92,7 +97,8 @@ suite('ExtHostWebview', () => {
 
 		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
 			webviewCspSource: '',
-			webviewResourceRoot: `https://{{uuid}}.webview.contoso.com/commit{{resource}}`
+			webviewResourceRoot: `https://{{uuid}}.webview.contoso.com/commit/{{resource}}`,
+			isExtensionDevelopmentDebug: false,
 		});
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
@@ -102,31 +108,31 @@ suite('ExtHostWebview', () => {
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
-			'webview.contoso.com/commit///Users/codey/file.html',
+			'webview.contoso.com/commit/file///Users/codey/file.html',
 			'Unix basic'
 		);
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString()),
-			'webview.contoso.com/commit///Users/codey/file.html#frag',
+			'webview.contoso.com/commit/file///Users/codey/file.html#frag',
 			'Unix should preserve fragment'
 		);
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString()),
-			'webview.contoso.com/commit///Users/codey/f%20ile.html',
+			'webview.contoso.com/commit/file///Users/codey/f%20ile.html',
 			'Unix with encoding'
 		);
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString()),
-			'webview.contoso.com/commit//localhost/Users/codey/file.html',
+			'webview.contoso.com/commit/file//localhost/Users/codey/file.html',
 			'Unix should preserve authority'
 		);
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString()),
-			'webview.contoso.com/commit///c%3A/codey/file.txt',
+			'webview.contoso.com/commit/file///c%3A/codey/file.txt',
 			'Windows C drive'
 		);
 	});

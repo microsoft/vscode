@@ -32,6 +32,7 @@ import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -58,7 +59,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		}
 
 		const width = viewlet.getOptimalWidth();
-
 		if (typeof width !== 'number') {
 			return;
 		}
@@ -173,19 +173,19 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
+		const container = assertIsDefined(this.getContainer());
 
-		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND);
+		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND);
 
 		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
-		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
-		container.style.borderRightColor = isPositionLeft ? borderColor : null;
-		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : null;
-		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : null;
-		container.style.borderLeftColor = !isPositionLeft ? borderColor : null;
+		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '';
+		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : '';
+		container.style.borderRightColor = isPositionLeft ? borderColor || '' : '';
+		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
+		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
+		container.style.borderLeftColor = !isPositionLeft ? borderColor || '' : '';
 	}
 
 	layout(width: number, height: number): void {
@@ -198,7 +198,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	// Viewlet service
 
-	getActiveViewlet(): IViewlet | null {
+	getActiveViewlet(): IViewlet | undefined {
 		return <IViewlet>this.getActiveComposite();
 	}
 
@@ -210,7 +210,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		this.hideActiveComposite();
 	}
 
-	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null> {
+	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | undefined> {
 		if (typeof id === 'string' && this.getViewlet(id)) {
 			return this.doOpenViewlet(id, focus);
 		}
@@ -221,12 +221,21 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			return this.doOpenViewlet(id, focus);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getViewlets(): ViewletDescriptor[] {
-		return this.viewletRegistry.getViewlets()
-			.sort((v1, v2) => v1.order! - v2.order!);
+		return this.viewletRegistry.getViewlets().sort((v1, v2) => {
+			if (typeof v1.order !== 'number') {
+				return -1;
+			}
+
+			if (typeof v2.order !== 'number') {
+				return 1;
+			}
+
+			return v1.order - v2.order;
+		});
 	}
 
 	getDefaultViewletId(): string {
@@ -237,9 +246,9 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
 	}
 
-	private doOpenViewlet(id: string, focus?: boolean): Viewlet | null {
+	private doOpenViewlet(id: string, focus?: boolean): Viewlet | undefined {
 		if (this.blockOpeningViewlet) {
-			return null; // Workaround against a potential race condition
+			return undefined; // Workaround against a potential race condition
 		}
 
 		// First check if sidebar is hidden and show if so
@@ -308,7 +317,7 @@ class FocusSideBarAction extends Action {
 		}
 
 		// Focus into active viewlet
-		let viewlet = this.viewletService.getActiveViewlet();
+		const viewlet = this.viewletService.getActiveViewlet();
 		if (viewlet) {
 			viewlet.focus();
 		}

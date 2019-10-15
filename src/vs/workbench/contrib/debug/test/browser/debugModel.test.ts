@@ -12,11 +12,11 @@ import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
-import { IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpointUpdateData, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 
-function createMockSession(model: DebugModel, name = 'mockSession', parentSession?: DebugSession | undefined): DebugSession {
-	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, parentSession, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
+function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
+	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
 }
 
 suite('Debug - Model', () => {
@@ -108,6 +108,44 @@ suite('Debug - Model', () => {
 
 		model.removeFunctionBreakpoints();
 		assert.equal(model.getFunctionBreakpoints().length, 0);
+	});
+
+	test('breakpoints multiple sessions', () => {
+		const modelUri = uri.file('/myfolder/myfile.js');
+		const breakpoints = model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true, condition: 'x > 5' }, { lineNumber: 10, enabled: false }]);
+		const session = createMockSession(model);
+		const data = new Map<string, DebugProtocol.Breakpoint>();
+
+		assert.equal(breakpoints[0].lineNumber, 5);
+		assert.equal(breakpoints[1].lineNumber, 10);
+
+		data.set(breakpoints[0].getId(), { verified: false, line: 10 });
+		data.set(breakpoints[1].getId(), { verified: true, line: 50 });
+		model.setBreakpointSessionData(session.getId(), {}, data);
+		assert.equal(breakpoints[0].lineNumber, 5);
+		assert.equal(breakpoints[1].lineNumber, 50);
+
+		const session2 = createMockSession(model);
+		const data2 = new Map<string, DebugProtocol.Breakpoint>();
+		data2.set(breakpoints[0].getId(), { verified: true, line: 100 });
+		data2.set(breakpoints[1].getId(), { verified: true, line: 500 });
+		model.setBreakpointSessionData(session2.getId(), {}, data2);
+
+		// Breakpoint is verified only once, show that line
+		assert.equal(breakpoints[0].lineNumber, 100);
+		// Breakpoint is verified two times, show the original line
+		assert.equal(breakpoints[1].lineNumber, 10);
+
+		model.setBreakpointSessionData(session.getId(), {}, undefined);
+		// No more double session verification
+		assert.equal(breakpoints[0].lineNumber, 100);
+		assert.equal(breakpoints[1].lineNumber, 500);
+
+		assert.equal(breakpoints[0].supported, false);
+		const data3 = new Map<string, DebugProtocol.Breakpoint>();
+		data3.set(breakpoints[0].getId(), { verified: true, line: 500 });
+		model.setBreakpointSessionData(session2.getId(), { supportsConditionalBreakpoints: true }, data2);
+		assert.equal(breakpoints[0].supported, true);
 	});
 
 	// Threads
@@ -341,10 +379,10 @@ suite('Debug - Model', () => {
 		session['raw'] = <any>rawSession;
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, <any>undefined, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-		const replModel = new ReplModel(session);
-		replModel.addReplExpression(stackFrame, 'myVariable').then();
-		replModel.addReplExpression(stackFrame, 'myVariable').then();
-		replModel.addReplExpression(stackFrame, 'myVariable').then();
+		const replModel = new ReplModel();
+		replModel.addReplExpression(session, stackFrame, 'myVariable').then();
+		replModel.addReplExpression(session, stackFrame, 'myVariable').then();
+		replModel.addReplExpression(session, stackFrame, 'myVariable').then();
 
 		assert.equal(replModel.getReplElements().length, 3);
 		replModel.getReplElements().forEach(re => {
@@ -405,13 +443,13 @@ suite('Debug - Model', () => {
 		model.addSession(session);
 		const secondSession = createMockSession(model, 'mockSession2');
 		model.addSession(secondSession);
-		const firstChild = createMockSession(model, 'firstChild', session);
+		const firstChild = createMockSession(model, 'firstChild', { parentSession: session });
 		model.addSession(firstChild);
-		const secondChild = createMockSession(model, 'secondChild', session);
+		const secondChild = createMockSession(model, 'secondChild', { parentSession: session });
 		model.addSession(secondChild);
 		const thirdSession = createMockSession(model, 'mockSession3');
 		model.addSession(thirdSession);
-		const anotherChild = createMockSession(model, 'secondChild', secondSession);
+		const anotherChild = createMockSession(model, 'secondChild', { parentSession: secondSession });
 		model.addSession(anotherChild);
 
 		const sessions = model.getSessions();
@@ -426,12 +464,12 @@ suite('Debug - Model', () => {
 	// Repl output
 
 	test('repl output', () => {
-		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
-		const repl = new ReplModel(session);
-		repl.appendToRepl('first line\n', severity.Error);
-		repl.appendToRepl('second line ', severity.Error);
-		repl.appendToRepl('third line ', severity.Error);
-		repl.appendToRepl('fourth line', severity.Error);
+		const session = createMockSession(model);
+		const repl = new ReplModel();
+		repl.appendToRepl(session, 'first line\n', severity.Error);
+		repl.appendToRepl(session, 'second line ', severity.Error);
+		repl.appendToRepl(session, 'third line ', severity.Error);
+		repl.appendToRepl(session, 'fourth line', severity.Error);
 
 		let elements = <SimpleReplElement[]>repl.getReplElements();
 		assert.equal(elements.length, 2);
@@ -440,14 +478,14 @@ suite('Debug - Model', () => {
 		assert.equal(elements[1].value, 'second line third line fourth line');
 		assert.equal(elements[1].severity, severity.Error);
 
-		repl.appendToRepl('1', severity.Warning);
+		repl.appendToRepl(session, '1', severity.Warning);
 		elements = <SimpleReplElement[]>repl.getReplElements();
 		assert.equal(elements.length, 3);
 		assert.equal(elements[2].value, '1');
 		assert.equal(elements[2].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
-		repl.appendToRepl(new RawObjectReplElement('fakeid', 'fake', keyValueObject), severity.Info);
+		repl.appendToRepl(session, new RawObjectReplElement('fakeid', 'fake', keyValueObject), severity.Info);
 		const element = <RawObjectReplElement>repl.getReplElements()[3];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
@@ -455,15 +493,59 @@ suite('Debug - Model', () => {
 		repl.removeReplExpressions();
 		assert.equal(repl.getReplElements().length, 0);
 
-		repl.appendToRepl('1\n', severity.Info);
-		repl.appendToRepl('2', severity.Info);
-		repl.appendToRepl('3\n4', severity.Info);
-		repl.appendToRepl('5\n', severity.Info);
-		repl.appendToRepl('6', severity.Info);
+		repl.appendToRepl(session, '1\n', severity.Info);
+		repl.appendToRepl(session, '2', severity.Info);
+		repl.appendToRepl(session, '3\n4', severity.Info);
+		repl.appendToRepl(session, '5\n', severity.Info);
+		repl.appendToRepl(session, '6', severity.Info);
 		elements = <SimpleReplElement[]>repl.getReplElements();
 		assert.equal(elements.length, 3);
 		assert.equal(elements[0], '1\n');
 		assert.equal(elements[1], '23\n45\n');
 		assert.equal(elements[2], '6');
+	});
+
+	test('repl merging', () => {
+		// 'mergeWithParent' should be ignored when there is no parent.
+		const parent = createMockSession(model, 'parent', { repl: 'mergeWithParent' });
+		const child1 = createMockSession(model, 'child1', { parentSession: parent, repl: 'separate' });
+		const child2 = createMockSession(model, 'child2', { parentSession: parent, repl: 'mergeWithParent' });
+		const grandChild = createMockSession(model, 'grandChild', { parentSession: child2, repl: 'mergeWithParent' });
+		const child3 = createMockSession(model, 'child3', { parentSession: parent });
+
+		let parentChanges = 0;
+		parent.onDidChangeReplElements(() => ++parentChanges);
+
+		parent.appendToRepl('1\n', severity.Info);
+		assert.equal(parentChanges, 1);
+		assert.equal(parent.getReplElements().length, 1);
+		assert.equal(child1.getReplElements().length, 0);
+		assert.equal(child2.getReplElements().length, 1);
+		assert.equal(grandChild.getReplElements().length, 1);
+		assert.equal(child3.getReplElements().length, 0);
+
+		grandChild.appendToRepl('1\n', severity.Info);
+		assert.equal(parentChanges, 2);
+		assert.equal(parent.getReplElements().length, 2);
+		assert.equal(child1.getReplElements().length, 0);
+		assert.equal(child2.getReplElements().length, 2);
+		assert.equal(grandChild.getReplElements().length, 2);
+		assert.equal(child3.getReplElements().length, 0);
+
+		child3.appendToRepl('1\n', severity.Info);
+		assert.equal(parentChanges, 2);
+		assert.equal(parent.getReplElements().length, 2);
+		assert.equal(child1.getReplElements().length, 0);
+		assert.equal(child2.getReplElements().length, 2);
+		assert.equal(grandChild.getReplElements().length, 2);
+		assert.equal(child3.getReplElements().length, 1);
+
+		child1.appendToRepl('1\n', severity.Info);
+		assert.equal(parentChanges, 2);
+		assert.equal(parent.getReplElements().length, 2);
+		assert.equal(child1.getReplElements().length, 1);
+		assert.equal(child2.getReplElements().length, 2);
+		assert.equal(grandChild.getReplElements().length, 2);
+		assert.equal(child3.getReplElements().length, 1);
 	});
 });

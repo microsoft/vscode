@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { find } from 'vs/base/common/arrays';
 
 export interface ICredentialsProvider {
 	getPassword(service: string, account: string): Promise<string | null>;
 	setPassword(service: string, account: string, password: string): Promise<void>;
+
 	deletePassword(service: string, account: string): Promise<boolean>;
+
 	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
+	findCredentials(service: string): Promise<Array<{ account: string, password: string; }>>;
 }
 
 export class BrowserCredentialsService implements ICredentialsService {
@@ -45,7 +48,7 @@ export class BrowserCredentialsService implements ICredentialsService {
 		return this.credentialsProvider.findPassword(service);
 	}
 
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+	findCredentials(service: string): Promise<Array<{ account: string, password: string; }>> {
 		return this.credentialsProvider.findCredentials(service);
 	}
 }
@@ -86,17 +89,12 @@ class InMemoryCredentialsProvider implements ICredentialsProvider {
 		return credential ? credential.password : null;
 	}
 
-	private doFindPassword(service: string, account?: string): ICredential | null {
-		for (const credential of this.credentials) {
-			if (credential.service === service && (typeof account !== 'string' || credential.account === account)) {
-				return credential;
-			}
-		}
-
-		return null;
+	private doFindPassword(service: string, account?: string): ICredential | undefined {
+		return find(this.credentials, credential =>
+			credential.service === service && (typeof account !== 'string' || credential.account === account));
 	}
 
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+	async findCredentials(service: string): Promise<Array<{ account: string, password: string; }>> {
 		return this.credentials
 			.filter(credential => credential.service === service)
 			.map(({ account, password }) => ({ account, password }));

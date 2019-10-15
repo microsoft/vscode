@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { ITreeNode, ITreeFilter, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator } from 'vs/base/common/iterator';
-import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IndexTreeModel, IIndexTreeNode } from 'vs/base/browser/ui/tree/indexTreeModel';
 
 function toSpliceable<T>(arr: T[]): ISpliceable<T> {
 	return {
@@ -637,7 +637,7 @@ suite('IndexTreeModel', function () {
 	suite('getNodeLocation', function () {
 
 		test('simple', function () {
-			const list: ITreeNode<number>[] = [];
+			const list: IIndexTreeNode<number>[] = [];
 			const model = new IndexTreeModel<number>('test', toSpliceable(list), -1);
 
 			model.splice([0], 0, Iterator.fromArray([
@@ -661,7 +661,7 @@ suite('IndexTreeModel', function () {
 		});
 
 		test('with filter', function () {
-			const list: ITreeNode<number>[] = [];
+			const list: IIndexTreeNode<number>[] = [];
 			const filter = new class implements ITreeFilter<number> {
 				filter(element: number): TreeVisibility {
 					return element % 2 === 0 ? TreeVisibility.Visible : TreeVisibility.Hidden;
@@ -689,5 +689,39 @@ suite('IndexTreeModel', function () {
 			assert.deepEqual(model.getNodeLocation(list[2]), [0, 3]);
 			assert.deepEqual(model.getNodeLocation(list[3]), [0, 5]);
 		});
+	});
+
+	test('refilter with filtered out nodes', function () {
+		const list: ITreeNode<string>[] = [];
+		let query = new RegExp('');
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): boolean {
+				return query.test(element);
+			}
+		};
+
+		const model = new IndexTreeModel<string>('test', toSpliceable(list), 'root', { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{ element: 'silver' },
+			{ element: 'gold' },
+			{ element: 'platinum' }
+		]));
+
+		assert.deepEqual(toArray(list), ['silver', 'gold', 'platinum']);
+
+		query = /platinum/;
+		model.refilter();
+		assert.deepEqual(toArray(list), ['platinum']);
+
+		model.splice([0], Number.POSITIVE_INFINITY, Iterator.fromArray([
+			{ element: 'silver' },
+			{ element: 'gold' },
+			{ element: 'platinum' }
+		]));
+		assert.deepEqual(toArray(list), ['platinum']);
+
+		model.refilter();
+		assert.deepEqual(toArray(list), ['platinum']);
 	});
 });

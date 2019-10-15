@@ -27,7 +27,7 @@ export function startDebugging(debugService: IDebugService, historyService: IHis
 		configurationManager.selectConfiguration(launch);
 	}
 
-	return debugService.startDebugging(launch, undefined, noDebug);
+	return debugService.startDebugging(launch, undefined, { noDebug });
 }
 
 export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
@@ -195,6 +195,9 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 			switch (request.command) {
 				case 'setBreakpoints':
 					fixSourcePath(true, (<DebugProtocol.SetBreakpointsArguments>request.arguments).source);
+					break;
+				case 'breakpointLocations':
+					fixSourcePath(true, (<DebugProtocol.BreakpointLocationsArguments>request.arguments).source);
 					break;
 				case 'source':
 					fixSourcePath(true, (<DebugProtocol.SourceArguments>request.arguments).source);

@@ -36,8 +36,6 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 
 	get templateId(): string { return SELECT_OPTION_ENTRY_TEMPLATE_ID; }
 
-	constructor() { }
-
 	renderTemplate(container: HTMLElement): ISelectListTemplateData {
 		const data: ISelectListTemplateData = Object.create(null);
 		data.disposables = [];
@@ -376,9 +374,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		// Style parent select
 
 		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
-			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : null;
-			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : null;
+			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : '';
+			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : '';
+			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : '';
 
 			this.selectElement.style.backgroundColor = background;
 			this.selectElement.style.color = foreground;
@@ -394,10 +392,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	private styleList() {
 		if (this.selectList) {
-			let background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
+			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : '';
 			this.selectList.style({});
 
-			let listBackground = this.styles.selectListBackground ? this.styles.selectListBackground.toString() : background;
+			const listBackground = this.styles.selectListBackground ? this.styles.selectListBackground.toString() : background;
 			this.selectDropDownListContainer.style.backgroundColor = listBackground;
 			this.selectionDetailsPane.style.backgroundColor = listBackground;
 			const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder.toString() : '';

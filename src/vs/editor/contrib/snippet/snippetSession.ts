@@ -392,7 +392,7 @@ export class SnippetSession {
 		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService, optional), model));
 
 		const clipboardService = editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional));
-		clipboardText = clipboardText || clipboardService && clipboardService.readTextSync();
+		const readClipboardText = () => clipboardText || clipboardService && clipboardService.readTextSync();
 
 		let delta = 0;
 
@@ -445,7 +445,7 @@ export class SnippetSession {
 
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
-				new ClipboardBasedVariableResolver(clipboardText, idx, indexedSelections.length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
+				new ClipboardBasedVariableResolver(readClipboardText, idx, indexedSelections.length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
 				new SelectionBasedVariableResolver(model, selection),
 				new CommentBasedVariableResolver(model),
 				new TimeBasedVariableResolver,

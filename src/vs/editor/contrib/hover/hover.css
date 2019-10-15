@@ -37,6 +37,10 @@
 	margin: 8px 0;
 }
 
+.monaco-editor-hover code {
+	font-family: var(--monaco-monospace-font);
+}
+
 .monaco-editor-hover hr {
 	margin-top: 4px;
 	margin-bottom: -6px;

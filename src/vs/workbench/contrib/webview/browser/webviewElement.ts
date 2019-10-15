@@ -6,17 +6,17 @@
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
-import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface WebviewContent {
@@ -35,25 +35,28 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
+	public extension: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	} | undefined;
+
 	constructor(
 		private readonly id: string,
-		private _options: WebviewOptions,
+		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		@IThemeService themeService: IThemeService,
+		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@ITunnelService tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
-
-		if (!useExternalEndpoint && (!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string')) {
-			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
+		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.webviewExternalEndpoint !== 'string')) {
+			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewExternalEndpoint`');
 		}
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
-			this._options.extension ? this._options.extension.location : undefined,
+			() => this.extension ? this.extension.location : undefined,
 			() => this.content.options.portMapping || [],
 			tunnelService
 		));
@@ -65,8 +68,9 @@ export class IFrameWebview extends Disposable implements Webview {
 		};
 
 		this.element = document.createElement('iframe');
+		this.element.className = `webview ${options.customClasses}`;
 		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
-		this.element.setAttribute('src', `${this.endpoint}/index.html?id=${this.id}`);
+		this.element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
@@ -114,9 +118,10 @@ export class IFrameWebview extends Disposable implements Webview {
 
 				case 'load-resource':
 					{
-						const requestPath = e.data.data.path;
-						const uri = URI.file(decodeURIComponent(requestPath));
-						this.loadResource(requestPath, uri);
+						const rawPath = e.data.data.path;
+						const normalizedPath = decodeURIComponent(rawPath);
+						const uri = URI.parse(normalizedPath.replace(/^\/(\w+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
+						this.loadResource(rawPath, uri);
 						return;
 					}
 
@@ -140,18 +145,20 @@ export class IFrameWebview extends Disposable implements Webview {
 			}));
 		});
 
-		this.style(themeService.getTheme());
-		this._register(themeService.onThemeChange(this.style, this));
+		this.style();
+		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
 
-	private get endpoint(): string {
-		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
-		const baseEndpoint = useExternalEndpoint ? 'https://{{uuid}}.vscode-webview-test.com/8fa811108f0f0524c473020ef57b6620f6c201e1' : this.environmentService.options!.webviewEndpoint!;
-		const endpoint = baseEndpoint.replace('{{uuid}}', this.id);
+	private get externalEndpoint(): string {
+		const endpoint = this.environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}
 		return endpoint;
+	}
+
+	private get useExternalEndpoint(): boolean {
+		return isWeb || this._configurationService.getValue<boolean>('webview.experimental.useExternalEndpoint');
 	}
 
 	public mountTo(parent: HTMLElement) {
@@ -184,19 +191,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private preprocessHtml(value: string): string {
 		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
-			`${startQuote}${this.endpoint}/vscode-resource${path}${endQuote}`);
-	}
-
-	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
-		if (retainContextWhenHidden && html === this.content.html && areWebviewInputOptionsEqual(options, this.content.options)) {
-			return;
-		}
-		this.content = {
-			html: this.preprocessHtml(html),
-			options: options,
-			state: this.content.state,
-		};
-		this.doUpdateContent();
+			`${startQuote}${this.externalEndpoint}/vscode-resource/file${path}${endQuote}`);
 	}
 
 	private doUpdateContent() {
@@ -204,7 +199,7 @@ export class IFrameWebview extends Disposable implements Webview {
 			contents: this.content.html,
 			options: this.content.options,
 			state: this.content.state,
-			endpoint: this.endpoint,
+			endpoint: this.externalEndpoint,
 		});
 	}
 
@@ -299,14 +294,14 @@ export class IFrameWebview extends Disposable implements Webview {
 			.catch(err => console.error(err));
 	}
 
-	private style(theme: ITheme): void {
-		const { styles, activeTheme } = getWebviewThemeData(theme, this._configurationService);
+	private style(): void {
+		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
 		this._send('styles', { styles, activeTheme });
 	}
 
 	private async loadResource(requestPath: string, uri: URI) {
 		try {
-			const result = await loadLocalResource(uri, this.fileService, this._options.extension ? this._options.extension.location : undefined,
+			const result = await loadLocalResource(uri, this.fileService, this.extension ? this.extension.location : undefined,
 				() => (this.content.options.localResourceRoots || []));
 
 			if (result.type === 'success') {

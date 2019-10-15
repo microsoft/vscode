@@ -10,7 +10,7 @@ suite('workspace-namespace', () => {
 
 	suite('Tasks', () => {
 
-		test('CustomExecution2 task should start and shutdown successfully', (done) => {
+		test('CustomExecution task should start and shutdown successfully', (done) => {
 			interface CustomTestingTaskDefinition extends vscode.TaskDefinition {
 				/**
 				 * One of the task properties. This can be used to customize the task in the tasks.json
@@ -21,9 +21,9 @@ suite('workspace-namespace', () => {
 			const taskName = 'First custom task';
 			const reg1 = vscode.window.onDidOpenTerminal(term => {
 				reg1.dispose();
-				const reg2 = term.onDidWriteData(e => {
+				const reg2 = vscode.window.onDidWriteTerminalData(e => {
 					reg2.dispose();
-					assert.equal(e, 'testing\r\n');
+					assert.equal(e.data, 'testing\r\n');
 					term.dispose();
 				});
 			});
@@ -35,7 +35,7 @@ suite('workspace-namespace', () => {
 						customProp1: 'testing task one'
 					};
 					const writeEmitter = new vscode.EventEmitter<string>();
-					const execution = new vscode.CustomExecution2((): Thenable<vscode.Pseudoterminal> => {
+					const execution = new vscode.CustomExecution((): Thenable<vscode.Pseudoterminal> => {
 						const pty: vscode.Pseudoterminal = {
 							onDidWrite: writeEmitter.event,
 							open: () => {

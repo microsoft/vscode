@@ -224,7 +224,7 @@ export class SearchView extends ViewletPanel {
 
 		// Toggle query details button
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
-			$('.more', { tabindex: 0, role: 'button', title: nls.localize('moreSearch', "Toggle Search Details") }));
+			$('.more.codicon.codicon-ellipsis', { tabindex: 0, role: 'button', title: nls.localize('moreSearch', "Toggle Search Details") }));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -298,7 +298,7 @@ export class SearchView extends ViewletPanel {
 		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
 
 		this._register(this.searchWidget.searchInput.onInput(() => this.updateActions()));
-		this._register(this.searchWidget.replaceInput.onDidChange(() => this.updateActions()));
+		this._register(this.searchWidget.replaceInput.onInput(() => this.updateActions()));
 
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
@@ -554,7 +554,7 @@ export class SearchView extends ViewletPanel {
 					return nls.localize('replaceAll.occurrence.file.message', "Replaced {0} occurrence across {1} file with '{2}'.", occurrences, fileCount, replaceValue);
 				}
 
-				return nls.localize('removeAll.occurrence.file.message', "Replaced {0} occurrence across {1} file'.", occurrences, fileCount);
+				return nls.localize('removeAll.occurrence.file.message', "Replaced {0} occurrence across {1} file.", occurrences, fileCount);
 			}
 
 			if (replaceValue) {
@@ -569,7 +569,7 @@ export class SearchView extends ViewletPanel {
 				return nls.localize('replaceAll.occurrences.file.message', "Replaced {0} occurrences across {1} file with '{2}'.", occurrences, fileCount, replaceValue);
 			}
 
-			return nls.localize('removeAll.occurrences.file.message', "Replaced {0} occurrences across {1} file'.", occurrences, fileCount);
+			return nls.localize('removeAll.occurrences.file.message', "Replaced {0} occurrences across {1} file.", occurrences, fileCount);
 		}
 
 		if (replaceValue) {
@@ -586,7 +586,7 @@ export class SearchView extends ViewletPanel {
 					return nls.localize('removeAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
 				}
 
-				return nls.localize('replaceAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file'?", occurrences, fileCount);
+				return nls.localize('replaceAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file?", occurrences, fileCount);
 			}
 
 			if (replaceValue) {
@@ -601,7 +601,7 @@ export class SearchView extends ViewletPanel {
 				return nls.localize('removeAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
 			}
 
-			return nls.localize('replaceAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file'?", occurrences, fileCount);
+			return nls.localize('replaceAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file?", occurrences, fileCount);
 		}
 
 		if (replaceValue) {
@@ -930,6 +930,8 @@ export class SearchView extends ViewletPanel {
 		this.searchWidget.clear();
 		this.viewModel.cancelSearch();
 		this.updateActions();
+
+		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
 	}
 
 	cancelSearch(): boolean {
@@ -1048,10 +1050,10 @@ export class SearchView extends ViewletPanel {
 			this.searchWidget.searchInput.setValue(args.query);
 		}
 		if (typeof args.replace === 'string') {
-			this.searchWidget.replaceInput.value = args.replace;
+			this.searchWidget.replaceInput.setValue(args.replace);
 		} else {
-			if (this.searchWidget.replaceInput.value !== '') {
-				this.searchWidget.replaceInput.value = '';
+			if (this.searchWidget.replaceInput.getValue() !== '') {
+				this.searchWidget.replaceInput.setValue('');
 			}
 		}
 		if (typeof args.triggerSearch === 'boolean' && args.triggerSearch) {

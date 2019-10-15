@@ -8,14 +8,14 @@ import { WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platf
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import * as electron from 'electron';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { timeout } from 'vs/base/common/async';
 import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 class WindowDriver extends BaseWindowDriver {
 
 	constructor(
-		@IWindowService private readonly windowService: IWindowService
+		@IElectronService private readonly electronService: IElectronService
 	) {
 		super();
 	}
@@ -41,14 +41,13 @@ class WindowDriver extends BaseWindowDriver {
 	}
 
 	async openDevTools(): Promise<void> {
-		await this.windowService.openDevTools({ mode: 'detach' });
+		await this.electronService.openDevTools({ mode: 'detach' });
 	}
 }
 
-export async function registerWindowDriver(accessor: ServicesAccessor): Promise<IDisposable> {
+export async function registerWindowDriver(accessor: ServicesAccessor, windowId: number): Promise<IDisposable> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const mainProcessService = accessor.get(IMainProcessService);
-	const windowService = accessor.get(IWindowService);
 
 	const windowDriver = instantiationService.createInstance(WindowDriver);
 	const windowDriverChannel = new WindowDriverChannel(windowDriver);
@@ -57,12 +56,12 @@ export async function registerWindowDriver(accessor: ServicesAccessor): Promise<
 	const windowDriverRegistryChannel = mainProcessService.getChannel('windowDriverRegistry');
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
-	await windowDriverRegistry.registerWindowDriver(windowService.windowId);
+	await windowDriverRegistry.registerWindowDriver(windowId);
 	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
 
 	// if (options.verbose) {
 	// 	windowDriver.openDevTools();
 	// }
 
-	return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowService.windowId));
+	return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
 }

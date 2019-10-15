@@ -58,7 +58,8 @@
 		20
 	];
 
-	const isMac = getSettings().isMac;
+	const settings = getSettings();
+	const isMac = settings.isMac;
 
 	const vscode = acquireVsCodeApi();
 
@@ -68,13 +69,14 @@
 	let scale = initialState.scale;
 	let ctrlPressed = false;
 	let altPressed = false;
+	let hasLoadedImage = false;
 
 	// Elements
-	const container =  /** @type {HTMLElement} */(document.querySelector('body'));
-	const image = document.querySelector('img');
+	const container = document.body;
+	const image = document.createElement('img');
 
 	function updateScale(newScale) {
-		if (!image || !image.parentElement) {
+		if (!image || !hasLoadedImage || !image.parentElement) {
 			return;
 		}
 
@@ -86,9 +88,6 @@
 			image.style.width = 'auto';
 			vscode.setState(undefined);
 		} else {
-			const oldWidth = image.width;
-			const oldHeight = image.height;
-
 			scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
 			if (scale >= PIXELATION_THRESHOLD) {
 				image.classList.add('pixelated');
@@ -96,25 +95,19 @@
 				image.classList.remove('pixelated');
 			}
 
-			const { scrollTop, scrollLeft } = image.parentElement;
-			const dx = (scrollLeft + image.parentElement.clientWidth / 2) / image.parentElement.scrollWidth;
-			const dy = (scrollTop + image.parentElement.clientHeight / 2) / image.parentElement.scrollHeight;
+			const dx = (window.scrollX + container.clientWidth / 2) / container.scrollWidth;
+			const dy = (window.scrollY + container.clientHeight / 2) / container.scrollHeight;
 
 			image.classList.remove('scale-to-fit');
 			image.style.minWidth = `${(image.naturalWidth * scale)}px`;
 			image.style.width = `${(image.naturalWidth * scale)}px`;
 
-			const newWidth = image.width;
-			const scaleFactor = (newWidth - oldWidth) / oldWidth;
+			const newScrollX = container.scrollWidth * dx - container.clientWidth / 2;
+			const newScrollY = container.scrollHeight * dy - container.clientHeight / 2;
 
-			const newScrollLeft = ((oldWidth * scaleFactor * dx) + scrollLeft);
-			const newScrollTop = ((oldHeight * scaleFactor * dy) + scrollTop);
-			// scrollbar.setScrollPosition({
-			// 	scrollLeft: newScrollLeft,
-			// 	scrollTop: newScrollTop,
-			// });
+			window.scrollTo(newScrollX, newScrollY);
 
-			vscode.setState({ scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
+			vscode.setState({ scale: scale, offsetX: newScrollX, offsetY: newScrollY });
 		}
 
 		vscode.postMessage({
@@ -124,7 +117,7 @@
 	}
 
 	function firstZoom() {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -133,7 +126,7 @@
 	}
 
 	window.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 		ctrlPressed = e.ctrlKey;
@@ -146,7 +139,7 @@
 	});
 
 	window.addEventListener('keyup', (/** @type {KeyboardEvent} */ e) => {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -160,7 +153,7 @@
 	});
 
 	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -193,7 +186,7 @@
 	});
 
 	container.addEventListener('wheel', (/** @type {WheelEvent} */ e) => {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -214,7 +207,7 @@
 	});
 
 	window.addEventListener('scroll', () => {
-		if (!image || !image.parentElement || scale === 'fit') {
+		if (!image || !hasLoadedImage || !image.parentElement || scale === 'fit') {
 			return;
 		}
 
@@ -228,25 +221,33 @@
 	container.classList.add('zoom-in');
 
 	image.classList.add('scale-to-fit');
-	image.style.visibility = 'hidden';
 
 	image.addEventListener('load', () => {
-		if (!image) {
-			return;
-		}
+		hasLoadedImage = true;
 
 		vscode.postMessage({
 			type: 'size',
 			value: `${image.naturalWidth}x${image.naturalHeight}`,
 		});
 
-		image.style.visibility = 'visible';
+		document.body.classList.remove('loading');
+		document.body.classList.add('ready');
+		document.body.append(image);
+
 		updateScale(scale);
 
 		if (initialState.scale !== 'fit') {
 			window.scrollTo(initialState.offsetX, initialState.offsetY);
 		}
 	});
+
+	image.addEventListener('error', () => {
+		hasLoadedImage = true;
+		document.body.classList.add('error');
+		document.body.classList.remove('loading');
+	});
+
+	image.src = decodeURI(settings.src);
 
 	window.addEventListener('message', e => {
 		switch (e.data.type) {

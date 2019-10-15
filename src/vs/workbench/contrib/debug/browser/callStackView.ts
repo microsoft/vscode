@@ -317,7 +317,7 @@ export class CallStackView extends ViewletPanel {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => element,
+			getActionsContext: () => element && element instanceof StackFrame ? element.getId() : undefined,
 			onHide: () => dispose(actionsDisposable)
 		});
 	}

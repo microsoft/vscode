@@ -9,11 +9,12 @@ import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { mergeSort } from 'vs/base/common/arrays';
 
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 
 export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
-	setChildren(element: T | null, children: ISequence<ITreeElement<T>> | undefined): Iterator<ITreeElement<T>>;
+	setChildren(element: T | null, children: ISequence<ITreeElement<T>> | undefined): void;
 	resort(element?: T | null, recursive?: boolean): void;
 }
 
@@ -64,9 +65,9 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
 		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
-	): Iterator<ITreeElement<T>> {
+	): void {
 		const location = this.getElementLocation(element);
-		return this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
+		this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
 	}
 
 	private _setChildren(
@@ -74,7 +75,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
 		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
-	): Iterator<ITreeElement<T>> {
+	): void {
 		const insertedElements = new Set<T | null>();
 		const insertedElementIds = new Set<string>();
 
@@ -110,22 +111,20 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			}
 		};
 
-		const result = this.model.splice(
+		this.model.splice(
 			[...location, 0],
 			Number.MAX_VALUE,
 			children,
 			_onDidCreateNode,
 			_onDidDeleteNode
 		);
-
-		return result as Iterator<ITreeElement<T>>;
 	}
 
 	private preserveCollapseState(elements: ISequence<ITreeElement<T>> | undefined): ISequence<ITreeElement<T>> {
 		let iterator = elements ? getSequenceIterator(elements) : Iterator.empty<ITreeElement<T>>();
 
 		if (this.sorter) {
-			iterator = Iterator.fromArray(Iterator.collect(iterator).sort(this.sorter.compare.bind(this.sorter)));
+			iterator = Iterator.fromArray(mergeSort(Iterator.collect(iterator), this.sorter.compare.bind(this.sorter)));
 		}
 
 		return Iterator.map(iterator, treeElement => {
@@ -184,11 +183,6 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			collapsed: node.collapsed,
 			children: this.resortChildren(node, recursive, false)
 		}));
-	}
-
-	getParentElement(ref: T | null = null): T | null {
-		const location = this.getElementLocation(ref);
-		return this.model.getParentElement(location);
 	}
 
 	getFirstElementChild(ref: T | null = null): T | null | undefined {
@@ -263,13 +257,12 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			throw new TreeError(this.user, `Invalid getParentNodeLocation call`);
 		}
 
-		const node = this.nodes.get(element);
+		const node = this.nodes.get(element)!;
+		const location = this.model.getNodeLocation(node);
+		const parentLocation = this.model.getParentNodeLocation(location);
+		const parent = this.model.getNode(parentLocation);
 
-		if (!node) {
-			throw new TreeError(this.user, `Tree element not found: ${element}`);
-		}
-
-		return node.parent!.element;
+		return parent.element;
 	}
 
 	private getElementLocation(element: T | null): number[] {

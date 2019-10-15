@@ -109,7 +109,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
-	'disable-inspect': { type: 'boolean' },
+	'force-user-env': { type: 'boolean' },
 
 	'js-flags': { type: 'string' }, // chrome js flags
 	'nolazy': { type: 'boolean' }, // node inspect
@@ -302,7 +302,6 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
-
 
 export function addArg(argv: string[], ...args: string[]): string[] {
 	const endOfArgsMarkerIndex = argv.indexOf('--');

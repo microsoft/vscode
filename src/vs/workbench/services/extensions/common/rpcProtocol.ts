@@ -58,7 +58,7 @@ const noop = () => { };
 
 export class RPCProtocol extends Disposable implements IRPCProtocol {
 
-	private static UNRESPONSIVE_TIME = 3 * 1000; // 3s
+	private static readonly UNRESPONSIVE_TIME = 3 * 1000; // 3s
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
@@ -364,12 +364,16 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		const pendingReply = this._pendingRPCReplies[callId];
 		delete this._pendingRPCReplies[callId];
 
-		let err: Error | null = null;
-		if (value && value.$isError) {
-			err = new Error();
-			err.name = value.name;
-			err.message = value.message;
-			err.stack = value.stack;
+		let err: any = undefined;
+		if (value) {
+			if (value.$isError) {
+				err = new Error();
+				err.name = value.name;
+				err.message = value.message;
+				err.stack = value.stack;
+			} else {
+				err = value;
+			}
 		}
 		pendingReply.resolveErr(err);
 	}
@@ -584,12 +588,7 @@ class MessageBuffer {
 class MessageIO {
 
 	private static _arrayContainsBuffer(arr: any[]): boolean {
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (arr[i] instanceof VSBuffer) {
-				return true;
-			}
-		}
-		return false;
+		return arr.some(value => value instanceof VSBuffer);
 	}
 
 	public static serializeRequest(req: number, rpcId: number, method: string, args: any[], usesCancellationToken: boolean, replacer: JSONStringifyReplacer | null): VSBuffer {
@@ -725,7 +724,7 @@ class MessageIO {
 	}
 
 	public static serializeReplyErr(req: number, err: any): VSBuffer {
-		if (err instanceof Error) {
+		if (err) {
 			return this._serializeReplyErrEror(req, err);
 		}
 		return this._serializeReplyErrEmpty(req);

@@ -13,7 +13,7 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,7 +37,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
-const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakopintWidgetService');
+const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
 export interface IPrivateBreakpointWidgetService {
 	_serviceBrand: undefined;
 	close(success: boolean): void;
@@ -54,8 +54,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private hitCountInput = '';
 	private logMessageInput = '';
 	private breakpoint: IBreakpoint | undefined;
+	private context: Context;
 
-	constructor(editor: ICodeEditor, private lineNumber: number, private context: Context,
+	constructor(editor: ICodeEditor, private lineNumber: number, private column: number | undefined, context: Context | undefined,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -70,11 +71,11 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const model = this.editor.getModel();
 		if (model) {
 			const uri = model.uri;
-			const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber: this.lineNumber, uri });
+			const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber: this.lineNumber, column: this.column, uri });
 			this.breakpoint = breakpoints.length ? breakpoints[0] : undefined;
 		}
 
-		if (this.context === undefined) {
+		if (context === undefined) {
 			if (this.breakpoint && !this.breakpoint.condition && !this.breakpoint.hitCondition && this.breakpoint.logMessage) {
 				this.context = Context.LOG_MESSAGE;
 			} else if (this.breakpoint && !this.breakpoint.condition && this.breakpoint.hitCondition) {
@@ -82,6 +83,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			} else {
 				this.context = Context.CONDITION;
 			}
+		} else {
+			this.context = context;
 		}
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
@@ -130,12 +133,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
-	show(rangeOrPos: IRange | IPosition, heightInLines: number) {
+	show(rangeOrPos: IRange | IPosition): void {
 		const lineNum = this.input.getModel().getLineCount();
 		super.show(rangeOrPos, lineNum + 1);
 	}
 
-	fitHeightToContent() {
+	fitHeightToContent(): void {
 		const lineNum = this.input.getModel().getLineCount();
 		this._relayout(lineNum + 1);
 	}
@@ -152,6 +155,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 			const value = this.getInputValue(this.breakpoint);
 			this.input.getModel().setValue(value);
+			this.input.focus();
 		});
 
 		this.createBreakpointInput(dom.append(container, $('.inputContainer')));
@@ -293,6 +297,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				if (model) {
 					this.debugService.addBreakpoints(model.uri, [{
 						lineNumber: this.lineNumber,
+						column: this.column,
 						enabled: true,
 						condition,
 						hitCondition,
@@ -348,7 +353,7 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 	}
 
 	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const debugContribution = editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
+		const debugContribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
 		if (debugContribution) {
 			// if focus is in outer editor we need to use the debug contribution to close
 			return debugContribution.closeBreakpointWidget();

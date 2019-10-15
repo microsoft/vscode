@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ProblemSeverity, Problems } from 'vscode-automation';
+import { Application, ProblemSeverity, Problems } from '../../../../automation';
 
 export function setup() {
 	describe('CSS', () => {

@@ -53,8 +53,8 @@ import { IFilterResult, IPreferencesService, ISetting, ISettingsEditorModel, ISe
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -683,7 +683,7 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	private _updatePreference(key: string, value: any, source: ISetting, fromEditableSettings?: boolean): void {
-		const data: { [key: string]: any } = {
+		const data: { [key: string]: any; } = {
 			userConfigurationKeys: [key]
 		};
 
@@ -718,7 +718,7 @@ class PreferencesRenderersController extends Disposable {
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', data);
 	}
 
-	private _findSetting(filterResult: IFilterResult, key: string): { groupIdx: number, settingIdx: number, overallSettingIdx: number } | undefined {
+	private _findSetting(filterResult: IFilterResult, key: string): { groupIdx: number, settingIdx: number, overallSettingIdx: number; } | undefined {
 		let overallSettingIdx = 0;
 
 		for (let groupIdx = 0; groupIdx < filterResult.filteredGroups.length; groupIdx++) {
@@ -826,11 +826,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this._register(attachStylerCallback(this.themeService, { scrollbarShadow }, colors => {
 			const shadow = colors.scrollbarShadow ? colors.scrollbarShadow.toString() : null;
 
-			if (shadow) {
-				this.editablePreferencesEditorContainer.style.boxShadow = `-6px 0 5px -5px ${shadow}`;
-			} else {
-				this.editablePreferencesEditorContainer.style.boxShadow = null;
-			}
+			this.editablePreferencesEditorContainer.style.boxShadow = shadow ? `-6px 0 5px -5px ${shadow}` : '';
 		}));
 
 		this.splitview.addView({
@@ -845,7 +841,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 	}
 
-	setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting> }> {
+	setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting>; }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
 		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.getResource()!);
 		return Promise.all([
@@ -985,9 +981,9 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
-		@IWindowService windowService: IWindowService
+		@IHostService hostService: IHostService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService);
 	}
 
 	private static _getContributions(): IEditorContributionCtor[] {
@@ -1049,20 +1045,25 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 						return;
 					}
 
-					this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel);
+					const editor = assertIsDefined(this.getControl());
+					editor.setModel((<ResourceEditorModel>editorModel).textEditorModel);
 				}));
 	}
 
 	clearInput(): void {
 		// Clear Model
-		this.getControl().setModel(null);
+		const editor = this.getControl();
+		if (editor) {
+			editor.setModel(null);
+		}
 
 		// Pass to super
 		super.clearInput();
 	}
 
 	layout(dimension: DOM.Dimension) {
-		this.getControl().layout(dimension);
+		const editor = assertIsDefined(this.getControl());
+		editor.layout(dimension);
 	}
 
 	protected getAriaLabel(): string {

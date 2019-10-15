@@ -196,14 +196,14 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private createBadge(container: HTMLElement): void {
 		const filterBadge = this.filterBadge = DOM.append(container, DOM.$('.markers-panel-filter-badge'));
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
 			filterBadge.style.backgroundColor = background;
 
-			filterBadge.style.borderWidth = border ? '1px' : null;
-			filterBadge.style.borderStyle = border ? 'solid' : null;
+			filterBadge.style.borderWidth = border ? '1px' : '';
+			filterBadge.style.borderStyle = border ? 'solid' : '';
 			filterBadge.style.borderColor = border;
 			filterBadge.style.color = foreground;
 		}));
@@ -213,7 +213,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private createFilesExcludeCheckbox(container: HTMLElement): void {
 		const filesExcludeFilter = this._register(new Checkbox({
-			actionClassName: 'markers-panel-filter-filesExclude',
+			actionClassName: 'codicon codicon-exclude',
 			title: this.action.useFilesExclude ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE,
 			isChecked: this.action.useFilesExclude
 		}));
@@ -298,7 +298,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 export class QuickFixAction extends Action {
 
 	public static readonly ID: string = 'workbench.actions.problems.quickfix';
-	private static readonly CLASS: string = 'markers-panel-action-quickfix';
+	private static readonly CLASS: string = 'markers-panel-action-quickfix codicon-lightbulb';
 	private static readonly AUTO_FIX_CLASS: string = QuickFixAction.CLASS + ' autofixable';
 
 	private readonly _onShowQuickFixes = this._register(new Emitter<void>());

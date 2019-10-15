@@ -4,37 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memoize } from 'vs/base/common/decorators';
+import { Emitter } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
+import { DataUri, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { WebviewContentState } from 'vs/editor/common/modes';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { ConfirmResult, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
 
-export class CustomFileEditorInput extends WebviewEditorInput {
+export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
+
 	public static typeId = 'workbench.editors.webviewEditor';
 
-	private name?: string;
-	private _hasResolved = false;
 	private readonly _editorResource: URI;
+	private _state = WebviewContentState.Readonly;
 
 	constructor(
 		resource: URI,
 		viewType: string,
 		id: string,
-		webview: UnownedDisposable<WebviewEditorOverlay>,
-		@ILabelService
-		private readonly labelService: ILabelService,
-		@IWebviewEditorService
-		private readonly _webviewEditorService: IWebviewEditorService,
-		@IExtensionService
-		private readonly _extensionService: IExtensionService
+		webview: Lazy<UnownedDisposable<WebviewEditorOverlay>>,
+		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
-		super(id, viewType, '', undefined, webview);
+		super(id, viewType, '', webview, webviewWorkbenchService);
 		this._editorResource = resource;
 	}
 
@@ -46,17 +47,34 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 		return this._editorResource;
 	}
 
+	@memoize
 	getName(): string {
-		if (!this.name) {
-			this.name = basename(this.labelService.getUriLabel(this.getResource()));
+		if (this.getResource().scheme === Schemas.data) {
+			const metadata = DataUri.parseMetaData(this.getResource());
+			const label = metadata.get(DataUri.META_DATA_LABEL);
+			if (typeof label === 'string') {
+				return label;
+			}
 		}
-		return this.name;
+		return basename(this.labelService.getUriLabel(this.getResource()));
+	}
+
+	@memoize
+	getDescription(): string | undefined {
+		if (this.getResource().scheme === Schemas.data) {
+			const metadata = DataUri.parseMetaData(this.getResource());
+			const description = metadata.get(DataUri.META_DATA_DESCRIPTION);
+			if (typeof description === 'string') {
+				return description;
+			}
+		}
+		return super.getDescription();
 	}
 
 	matches(other: IEditorInput): boolean {
 		return this === other || (other instanceof CustomFileEditorInput
 			&& this.viewType === other.viewType
-			&& this.getResource().toString() === other.getResource().toString());
+			&& isEqual(this.getResource(), other.getResource()));
 	}
 
 	@memoize
@@ -66,15 +84,21 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 
 	@memoize
 	private get mediumTitle(): string {
+		if (this.getResource().scheme === Schemas.data) {
+			return this.getName();
+		}
 		return this.labelService.getUriLabel(this.getResource(), { relative: true });
 	}
 
 	@memoize
 	private get longTitle(): string {
+		if (this.getResource().scheme === Schemas.data) {
+			return this.getName();
+		}
 		return this.labelService.getUriLabel(this.getResource());
 	}
 
-	getTitle(verbosity?: Verbosity): string {
+	public getTitle(verbosity?: Verbosity): string {
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				return this.shortTitle;
@@ -86,12 +110,34 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 		}
 	}
 
-	public async resolve(): Promise<IEditorModel> {
-		if (!this._hasResolved) {
-			this._hasResolved = true;
-			this._extensionService.activateByEvent(`onWebviewEditor:${this.viewType}`);
-			await this._webviewEditorService.resolveWebview(this);
-		}
-		return super.resolve();
+	public setState(newState: WebviewContentState): void {
+		this._state = newState;
+		this._onDidChangeDirty.fire();
 	}
+
+	public isDirty() {
+		return this._state === WebviewContentState.Dirty;
+	}
+
+	public async confirmSave(): Promise<ConfirmResult> {
+		if (!this.isDirty()) {
+			return ConfirmResult.DONT_SAVE;
+		}
+		return promptSave(this.dialogService, [this.getResource()]);
+	}
+
+	public async save(): Promise<boolean> {
+		if (!this.isDirty) {
+			return true;
+		}
+		const waitingOn: Promise<boolean>[] = [];
+		this._onWillSave.fire({
+			waitUntil: (thenable: Promise<boolean>): void => { waitingOn.push(thenable); },
+		});
+		const result = await Promise.all(waitingOn);
+		return result.every(x => x);
+	}
+
+	private readonly _onWillSave = this._register(new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>());
+	public readonly onWillSave = this._onWillSave.event;
 }

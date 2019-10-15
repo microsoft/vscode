@@ -53,6 +53,10 @@
 	padding-left: 20px;
 }
 
+.monaco-editor .suggest-widget > .details p code {
+	font-family: var(--monaco-monospace-font);
+}
+
 /* Styles for Message element for when widget is loading or is empty */
 .monaco-editor .suggest-widget > .message {
 	padding-left: 22px;

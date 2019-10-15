@@ -21,14 +21,10 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { dispose } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { equals } from 'vs/base/common/arrays';
 
-function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
-	for (let i = 0, len = events.length; i < len; i++) {
-		if (events[i].type === viewEvents.ViewEventType.ViewLineMappingChanged) {
-			return true;
-		}
-	}
-	return false;
+function containsLineMappingChanged(events: readonly viewEvents.ViewEvent[]): boolean {
+	return events.some(event => event.type === viewEvents.ViewEventType.ViewLineMappingChanged);
 }
 
 export class CursorStateChangedEvent {
@@ -73,15 +69,7 @@ export class CursorModelState {
 		if (this.modelVersionId !== other.modelVersionId) {
 			return false;
 		}
-		if (this.cursorState.length !== other.cursorState.length) {
-			return false;
-		}
-		for (let i = 0, len = this.cursorState.length; i < len; i++) {
-			if (!this.cursorState[i].equals(other.cursorState[i])) {
-				return false;
-			}
-		}
-		return true;
+		return equals(this.cursorState, other.cursorState, (a, b) => a.equals(b));
 	}
 }
 
@@ -153,7 +141,7 @@ class AutoClosedAction {
 
 export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
-	public static MAX_CURSOR_COUNT = 10000;
+	public static readonly MAX_CURSOR_COUNT = 10000;
 
 	private readonly _onDidReachMaxCursorCount: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidReachMaxCursorCount: Event<void> = this._onDidReachMaxCursorCount.event;
@@ -424,7 +412,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		return this._cursors.getPrimaryCursor().modelState.position;
 	}
 
-	public setSelections(source: string, selections: ISelection[]): void {
+	public setSelections(source: string, selections: readonly ISelection[]): void {
 		this.setStates(source, CursorChangeReason.NotSet, CursorState.fromModelSelections(selections));
 	}
 
@@ -949,12 +937,7 @@ class CommandExecutor {
 	}
 
 	private static _arrayIsEmpty(commands: (editorCommon.ICommand | null)[]): boolean {
-		for (let i = 0, len = commands.length; i < len; i++) {
-			if (commands[i]) {
-				return false;
-			}
-		}
-		return true;
+		return commands.every(command => !command);
 	}
 
 	private static _getEditOperations(ctx: IExecContext, commands: (editorCommon.ICommand | null)[]): ICommandsData {

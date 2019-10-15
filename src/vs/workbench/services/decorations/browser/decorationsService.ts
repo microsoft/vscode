@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { Disposable, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
@@ -19,6 +19,7 @@ import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class DecorationRule {
 
@@ -75,9 +76,10 @@ class DecorationRule {
 		}
 
 		// bubble badge
+		// TODO @misolori update bubble badge to use class name instead of unicode
 		createCSSRule(
 			`.${this.bubbleBadgeClassName}::after`,
-			`content: "\uf052"; color: ${getColor(theme, color)}; font-family: octicons; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+			`content: "\uf052"; color: ${getColor(theme, color)}; font-family: octicons; font-size: 14px; padding-right: 10px; opacity: 0.4;`,
 			element
 		);
 	}
@@ -95,25 +97,21 @@ class DecorationRule {
 	}
 }
 
-class DecorationStyles extends Disposable {
+class DecorationStyles {
 
 	private readonly _styleElement = createStyleSheet();
 	private readonly _decorationRules = new Map<string, DecorationRule>();
+	private readonly _dispoables = new DisposableStore();
 
 	constructor(
 		private _themeService: IThemeService,
 	) {
-		super();
-		this._register(this._themeService.onThemeChange(this._onThemeChange, this));
+		this._themeService.onThemeChange(this._onThemeChange, this, this._dispoables);
 	}
 
 	dispose(): void {
-		super.dispose();
-
-		const parent = this._styleElement.parentElement;
-		if (parent) {
-			parent.removeChild(this._styleElement);
-		}
+		this._dispoables.dispose();
+		this._styleElement.remove();
 	}
 
 	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {
@@ -171,7 +169,7 @@ class DecorationStyles extends Disposable {
 			if (value.isUnused()) {
 				let remove: boolean = false;
 				if (Array.isArray(data)) {
-					remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
+					remove = data.every(data => !usedDecorations.has(DecorationRule.keyOf(data)));
 				} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
 					remove = true;
 				}
@@ -223,11 +221,11 @@ class DecorationProviderWrapper {
 	private readonly _dispoable: IDisposable;
 
 	constructor(
-		private readonly _provider: IDecorationsProvider,
+		readonly provider: IDecorationsProvider,
 		private readonly _uriEmitter: Emitter<URI | URI[]>,
 		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
-		this._dispoable = this._provider.onDidChange(uris => {
+		this._dispoable = this.provider.onDidChange(uris => {
 			if (!uris) {
 				// flush event -> drop all data, can affect everything
 				this.data.clear();
@@ -291,7 +289,7 @@ class DecorationProviderWrapper {
 		}
 
 		const source = new CancellationTokenSource();
-		const dataOrThenable = this._provider.provideDecorations(uri, source.token);
+		const dataOrThenable = this.provider.provideDecorations(uri, source.token);
 		if (!isThenable<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrThenable)) {
 			// sync -> we have a result now
 			return this._keepItem(uri, dataOrThenable);
@@ -324,7 +322,7 @@ class DecorationProviderWrapper {
 	}
 }
 
-export class FileDecorationsService implements IDecorationsService {
+export class DecorationsService implements IDecorationsService {
 
 	_serviceBrand: undefined;
 
@@ -332,7 +330,6 @@ export class FileDecorationsService implements IDecorationsService {
 	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
 	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
 	private readonly _decorationStyles: DecorationStyles;
-	private readonly _disposables: IDisposable[];
 
 	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.any(
 		this._onDidChangeDecorations.event,
@@ -344,29 +341,25 @@ export class FileDecorationsService implements IDecorationsService {
 	);
 
 	constructor(
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._decorationStyles = new DecorationStyles(themeService);
 
 		// every so many events we check if there are
 		// css styles that we don't need anymore
 		let count = 0;
-		let reg = this.onDidChangeDecorations(() => {
+		this.onDidChangeDecorations(() => {
 			if (++count % 17 === 0) {
 				this._decorationStyles.cleanUp(this._data.iterator());
 			}
 		});
-
-		this._disposables = [
-			reg,
-			this._decorationStyles
-		];
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
-		dispose(this._onDidChangeDecorations);
-		dispose(this._onDidChangeDecorationsDelayed);
+		this._decorationStyles.dispose();
+		this._onDidChangeDecorations.dispose();
+		this._onDidChangeDecorationsDelayed.dispose();
 	}
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {
@@ -396,10 +389,12 @@ export class FileDecorationsService implements IDecorationsService {
 		let data: IDecorationData[] = [];
 		let containsChildren: boolean = false;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
+			const { label } = next.value.provider;
 			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
 				if (!isChild || deco.bubble) {
 					data.push(deco);
 					containsChildren = isChild || containsChildren;
+					this._logService.trace('DecorationsService#getDecoration#getOrRetrieve', label, deco, isChild, uri);
 				}
 			});
 		}
@@ -419,4 +414,4 @@ function getColor(theme: ITheme, color: string | undefined) {
 	return 'inherit';
 }
 
-registerSingleton(IDecorationsService, FileDecorationsService);
+registerSingleton(IDecorationsService, DecorationsService, true);

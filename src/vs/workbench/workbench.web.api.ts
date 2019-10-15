@@ -5,16 +5,20 @@
 
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
-import { UriComponents } from 'vs/base/common/uri';
-import { IFileSystemProvider } from 'vs/platform/files/common/files';
-import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
+import { UriComponents, URI } from 'vs/base/common/uri';
+import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, FileChangeType } from 'vs/platform/files/common/files';
+import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import { IProductConfiguration } from 'vs/platform/product/common/product';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 
-export interface IWorkbenchConstructionOptions {
+interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Experimental: the remote authority is the IP:PORT from where the workbench is served
@@ -34,14 +38,9 @@ export interface IWorkbenchConstructionOptions {
 	webviewEndpoint?: string;
 
 	/**
-	 * Experimental: An optional folder that is set as workspace context for the workbench.
+	 * Experimental: a handler for opening workspaces and providing the initial workspace.
 	 */
-	folderUri?: UriComponents;
-
-	/**
-	 * Experimental: An optional workspace that is set as workspace context for the workbench.
-	 */
-	workspaceUri?: UriComponents;
+	workspaceProvider?: IWorkspaceProvider;
 
 	/**
 	 * Experimental: The userDataProvider is used to handle user specific application
@@ -53,6 +52,11 @@ export interface IWorkbenchConstructionOptions {
 	 * A factory for web sockets.
 	 */
 	webSocketFactory?: IWebSocketFactory;
+
+	/**
+	 * A provider for resource URIs.
+	 */
+	resourceUriProvider?: (uri: URI) => URI;
 
 	/**
 	 * Experimental: Whether to enable the smoke test driver.
@@ -67,7 +71,7 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * Experimental: Add static extensions that cannot be uninstalled but only be disabled.
 	 */
-	staticExtensions?: { packageJSON: IExtensionManifest, extensionLocation: UriComponents }[];
+	staticExtensions?: { packageJSON: IExtensionManifest, extensionLocation: URI }[];
 
 	/**
 	 * Experimental: Support for URL callbacks.
@@ -75,14 +79,31 @@ export interface IWorkbenchConstructionOptions {
 	urlCallbackProvider?: IURLCallbackProvider;
 
 	/**
-	 * Experimental: Support for product configuration.
-	 */
-	productConfiguration?: IProductConfiguration;
-
-	/**
 	 * Current logging level. Default is `LogLevel.Info`.
 	 */
 	logLevel?: LogLevel;
+
+
+	/**
+	 * Experimental: Support for update reporting.
+	 */
+	updateProvider?: IUpdateProvider;
+
+	/**
+	 * Experimental: If provided, will be called when logging telemetry events.
+	 */
+	telemetryAppender?: ITelemetryAppender;
+
+
+	/**
+	 * Experimental: Support adding additional properties to telemetry.
+	 */
+	resolveCommonTelemetryProperties?: () => { [key: string]: any };
+
+	/**
+	 * Experimental: Resolves an external uri before it is opened.
+	 */
+	readonly resolveExternalUri?: (uri: URI) => Promise<URI>;
 }
 
 /**
@@ -96,5 +117,49 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 }
 
 export {
-	create
+
+	// Factory
+	create,
+	IWorkbenchConstructionOptions,
+
+	// Basic Types
+	URI,
+	UriComponents,
+	Event,
+	Emitter,
+	IDisposable,
+	Disposable,
+
+	// Workspace
+	IWorkspace,
+	IWorkspaceProvider,
+
+	// FileSystem
+	IFileSystemProvider,
+	FileSystemProviderCapabilities,
+	IFileChange,
+	FileChangeType,
+
+	// WebSockets
+	IWebSocketFactory,
+	IWebSocket,
+
+	// Credentials
+	ICredentialsProvider,
+
+	// Static Extensions
+	IExtensionManifest,
+
+	// Callbacks
+	IURLCallbackProvider,
+
+	// LogLevel
+	LogLevel,
+
+	// Updates
+	IUpdateProvider,
+	IUpdate,
+
+	// Telemetry
+	ITelemetryAppender
 };

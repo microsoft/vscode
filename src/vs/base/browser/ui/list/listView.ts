@@ -190,7 +190,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private readonly disposables: DisposableStore = new DisposableStore();
 
-	private _onDidChangeContentHeight = new Emitter<number>();
+	private readonly _onDidChangeContentHeight = new Emitter<number>();
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event);
 	get contentHeight(): number { return this.rangeMap.size; }
 
@@ -236,7 +236,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
-		Gesture.addTarget(this.rowsContainer);
+		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
 		this.scrollableElement = this.disposables.add(new ScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: true,
@@ -686,7 +686,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return scrollPosition.scrollLeft;
 	}
 
-	setScrollLeftt(scrollLeft: number): void {
+	setScrollLeft(scrollLeft: number): void {
 		if (this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable.dispose();
 			this.scrollableElementUpdateDisposable = null;

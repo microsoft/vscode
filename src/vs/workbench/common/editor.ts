@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -19,9 +19,10 @@ import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
+export const ActiveEditorIsSaveableContext = new RawContextKey<boolean>('activeEditorIsSaveable', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
@@ -116,7 +117,7 @@ export interface ITextEditor extends IEditor {
 	/**
 	 * Returns the underlying text editor widget of this editor.
 	 */
-	getControl(): ICodeEditor;
+	getControl(): ICodeEditor | undefined;
 }
 
 export interface ITextDiffEditor extends IEditor {
@@ -124,7 +125,7 @@ export interface ITextDiffEditor extends IEditor {
 	/**
 	 * Returns the underlying text editor widget of this editor.
 	 */
-	getControl(): IDiffEditor;
+	getControl(): IDiffEditor | undefined;
 }
 
 export interface ITextSideBySideEditor extends IEditor {
@@ -383,11 +384,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * for the input. This allows subclasses to decide late which editor to use for the input on a case by case basis.
 	 */
 	getPreferredEditorId(candidates: string[]): string | undefined {
-		if (candidates.length > 0) {
-			return candidates[0];
-		}
-
-		return undefined;
+		return firstOrDefault(candidates);
 	}
 
 	/**
@@ -502,7 +499,7 @@ export interface IEncodingSupport {
 	/**
 	 * Gets the encoding of the input if known.
 	 */
-	getEncoding(): string;
+	getEncoding(): string | undefined;
 
 	/**
 	 * Sets the encoding for the input for saving.
@@ -830,13 +827,13 @@ export class EditorOptions implements IEditorOptions {
  * Base Text Editor Options.
  */
 export class TextEditorOptions extends EditorOptions {
-	private startLineNumber: number;
-	private startColumn: number;
-	private endLineNumber: number;
-	private endColumn: number;
+	private startLineNumber: number | undefined;
+	private startColumn: number | undefined;
+	private endLineNumber: number | undefined;
+	private endColumn: number | undefined;
 
-	private revealInCenterIfOutsideViewport: boolean;
-	private editorViewState: IEditorViewState | null;
+	private revealInCenterIfOutsideViewport: boolean | undefined;
+	private editorViewState: IEditorViewState | undefined;
 
 	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
@@ -904,7 +901,7 @@ export class TextEditorOptions extends EditorOptions {
 		const options = TextEditorOptions.create(settings);
 
 		// View state
-		options.editorViewState = editor.saveViewState();
+		options.editorViewState = withNullAsUndefined(editor.saveViewState());
 
 		return options;
 	}
@@ -1087,23 +1084,23 @@ export interface IEditorMemento<T> {
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
-	private instantiationService: IInstantiationService;
-	private fileInputFactory: IFileInputFactory;
+	private instantiationService: IInstantiationService | undefined;
+	private fileInputFactory: IFileInputFactory | undefined;
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
 
 	start(accessor: ServicesAccessor): void {
-		this.instantiationService = accessor.get(IInstantiationService);
+		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
 
 		this.editorInputFactoryConstructors.forEach((ctor, key) => {
-			this.createEditorInputFactory(key, ctor);
+			this.createEditorInputFactory(key, ctor, instantiationService);
 		});
 
 		this.editorInputFactoryConstructors.clear();
 	}
 
-	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
-		const instance = this.instantiationService.createInstance(ctor);
+	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>, instantiationService: IInstantiationService): void {
+		const instance = instantiationService.createInstance(ctor);
 		this.editorInputFactoryInstances.set(editorInputId, instance);
 	}
 
@@ -1112,14 +1109,14 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	}
 
 	getFileInputFactory(): IFileInputFactory {
-		return this.fileInputFactory;
+		return assertIsDefined(this.fileInputFactory);
 	}
 
 	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
 		if (!this.instantiationService) {
 			this.editorInputFactoryConstructors.set(editorInputId, ctor);
 		} else {
-			this.createEditorInputFactory(editorInputId, ctor);
+			this.createEditorInputFactory(editorInputId, ctor, this.instantiationService);
 		}
 	}
 

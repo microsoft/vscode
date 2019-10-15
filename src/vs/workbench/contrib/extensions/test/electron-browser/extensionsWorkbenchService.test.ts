@@ -27,10 +27,9 @@ import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestWindowService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -61,7 +60,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
-		instantiationService.stub(IWindowService, TestWindowService);
 		instantiationService.stub(IProgressService, ProgressService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
@@ -942,6 +940,46 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return instantiationService.get(IExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledGlobally)
 					.then(() => assert.ok(target.calledOnce));
 			});
+	});
+
+	test('test installing an extension re-eanbles it when disabled globally', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.EnabledGlobally);
+	});
+
+	test('test updating an extension does not re-eanbles it when disabled globally', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.DisabledGlobally);
+	});
+
+	test('test installing an extension re-eanbles it when workspace disabled', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.EnabledGlobally);
+	});
+
+	test('test updating an extension does not re-eanbles it when workspace disabled', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.DisabledWorkspace);
 	});
 
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {

@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
-import * as marked from 'vs/base/common/marked/marked';
 import { createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
@@ -55,6 +54,11 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
@@ -186,7 +190,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
-		@IWebviewService private readonly webviewService: IWebviewService
+		@IWebviewService private readonly webviewService: IWebviewService,
+		@IModeService private readonly modeService: IModeService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -569,44 +574,68 @@ export class ExtensionEditor extends BaseEditor {
 		return Promise.resolve(null);
 	}
 
-	private openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate): Promise<IActiveElement> {
-		return this.loadContents(() => cacheResult, template)
-			.then(marked.parse)
-			.then(content => this.renderBody(content))
-			.then(removeEmbeddedSVGs)
-			.then(body => {
-				const webviewElement = this.webviewService.createWebview('extensionEditor',
-					{
-						enableFindWidget: true,
-					},
-					{});
-				webviewElement.mountTo(template.content);
-				this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webviewElement);
-				this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-				webviewElement.html = body;
+	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate): Promise<IActiveElement> {
+		try {
+			const body = await this.renderMarkdown(cacheResult, template);
 
-				this.contentDisposables.add(webviewElement.onDidClickLink(link => {
-					if (!link) {
-						return;
-					}
-					// Whitelist supported schemes for links
-					if (['http', 'https', 'mailto'].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesActionId)) {
-						this.openerService.open(link);
-					}
-				}, null, this.contentDisposables));
-				this.contentDisposables.add(webviewElement);
-				return webviewElement;
-			})
-			.then(undefined, () => {
-				const p = append(template.content, $('p.nocontent'));
-				p.textContent = noContentCopy;
-				return p;
+			const webviewElement = this.contentDisposables.add(this.webviewService.createWebviewEditorOverlay('extensionEditor', {
+				enableFindWidget: true,
+			}, {}));
+
+			webviewElement.claim(this);
+			webviewElement.layoutWebviewOverElement(template.content);
+			webviewElement.html = body;
+
+			this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
+			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
+				layout: () => {
+					webviewElement.layout();
+					webviewElement.layoutWebviewOverElement(template.content);
+				}
 			});
+			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+
+			let isDisposed = false;
+			this.contentDisposables.add(toDisposable(() => { isDisposed = true; }));
+
+			this.contentDisposables.add(this.themeService.onThemeChange(async () => {
+				// Render again since syntax highlighting of code blocks may have changed
+				const body = await this.renderMarkdown(cacheResult, template);
+				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+					webviewElement.html = body;
+				}
+			}));
+
+			this.contentDisposables.add(webviewElement.onDidClickLink(link => {
+				if (!link) {
+					return;
+				}
+
+				// Whitelist supported schemes for links
+				if ([Schemas.http, Schemas.https, Schemas.mailto].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesActionId)) {
+					this.openerService.open(link);
+				}
+			}, null, this.contentDisposables));
+
+			return webviewElement;
+		} catch (e) {
+			const p = append(template.content, $('p.nocontent'));
+			p.textContent = noContentCopy;
+			return p;
+		}
+	}
+
+	private async renderMarkdown(cacheResult: CacheResult<string>, template: IExtensionEditorTemplate) {
+		const contents = await this.loadContents(() => cacheResult, template);
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.modeService);
+		const documentContent = await this.renderBody(content);
+		return removeEmbeddedSVGs(documentContent);
 	}
 
 	private async renderBody(body: string): Promise<string> {
 		const nonce = generateUuid();
+		const colorMap = TokenizationRegistry.getColorMap();
+		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		return `<!DOCTYPE html>
 		<html>
 			<head>
@@ -684,20 +713,19 @@ export class ExtensionEditor extends BaseEditor {
 					}
 
 					code {
-						font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
-						font-size: 14px;
-						line-height: 19px;
-					}
-
-					.mac code {
-						font-size: 12px;
-						line-height: 18px;
+						font-family: var(--vscode-editor-font-family);
+						font-weight: var(--vscode-editor-font-weight);
+						font-size: var(--vscode-editor-font-size);
 					}
 
 					code > div {
 						padding: 16px;
 						border-radius: 3px;
 						overflow: auto;
+					}
+
+					.monaco-tokenized-source {
+							white-space: pre;
 					}
 
 					#scroll-to-top {
@@ -784,6 +812,7 @@ export class ExtensionEditor extends BaseEditor {
 						border-color: rgba(255, 255, 255, 0.18);
 					}
 
+					${css}
 				</style>
 			</head>
 			<body>

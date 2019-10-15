@@ -122,8 +122,8 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			}
 		}));
 		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
-			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
+			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
+			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
 		}));
 
 		this.updateOptions();
@@ -202,7 +202,7 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(() => {
-			const session = this.debugService.getViewModel().focusedSession;
+			const session = this.getSelectedSession();
 			if (session) {
 				const index = this.getSessions().indexOf(session);
 				this.select(index);
@@ -222,11 +222,11 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 	}
 
 	protected getActionContext(_: string, index: number): any {
-		return this.debugService.getModel().getSessions()[index];
+		return this.getSessions()[index];
 	}
 
 	private update() {
-		const session = this.debugService.getViewModel().focusedSession;
+		const session = this.getSelectedSession();
 		const sessions = this.getSessions();
 		const names = sessions.map(s => {
 			const label = s.getLabel();
@@ -240,10 +240,23 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		this.setOptions(names.map(data => <ISelectOptionItem>{ text: data }), session ? sessions.indexOf(session) : undefined);
 	}
 
+	private getSelectedSession(): IDebugSession | undefined {
+		const session = this.debugService.getViewModel().focusedSession;
+		return session ? this.mapFocusedSessionToSelected(session) : undefined;
+	}
+
 	protected getSessions(): ReadonlyArray<IDebugSession> {
 		const showSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 		const sessions = this.debugService.getModel().getSessions();
 
 		return showSubSessions ? sessions : sessions.filter(s => !s.parentSession);
+	}
+
+	protected mapFocusedSessionToSelected(focusedSession: IDebugSession): IDebugSession {
+		const showSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
+		while (focusedSession.parentSession && !showSubSessions) {
+			focusedSession = focusedSession.parentSession;
+		}
+		return focusedSession;
 	}
 }

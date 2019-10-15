@@ -20,7 +20,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, IComputedEditorOptions, EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, IComputedEditorOptions, EditorOption, EditorOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -723,7 +723,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.modifiedEditor.setSelection(something);
 	}
 
-	public setSelections(ranges: ISelection[]): void {
+	public setSelections(ranges: readonly ISelection[]): void {
 		this.modifiedEditor.setSelections(ranges);
 	}
 
@@ -1562,7 +1562,7 @@ const DECORATIONS = {
 
 class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEditorWidgetStyle, IVerticalSashLayoutProvider {
 
-	static MINIMUM_EDITOR_WIDTH = 100;
+	static readonly MINIMUM_EDITOR_WIDTH = 100;
 
 	private _disableSash: boolean;
 	private readonly _sash: Sash;
@@ -2060,7 +2060,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, originalModel.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, originalModel.mightContainRTL());
 		const output = renderViewLine(new RenderLineInput(
-			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations) && !options.get(EditorOption.fontLigatures)),
+			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations)),
 			fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
@@ -2074,7 +2074,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			options.get(EditorOption.stopRenderingLineAfter),
 			options.get(EditorOption.renderWhitespace),
 			options.get(EditorOption.renderControlCharacters),
-			options.get(EditorOption.fontLigatures),
+			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
 			null // Send no selections, original line cannot be selected
 		), sb);
 

@@ -8,8 +8,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
-import { WebviewEditorInput } from './webviewEditorInput';
-import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
+import { WebviewInput } from './webviewEditorInput';
+import { IWebviewWorkbenchService, WebviewInputOptions } from './webviewWorkbenchService';
 
 interface SerializedIconPath {
 	light: string | UriComponents;
@@ -17,6 +17,7 @@ interface SerializedIconPath {
 }
 
 interface SerializedWebview {
+	readonly id?: string;
 	readonly viewType: string;
 	readonly title: string;
 	readonly options: WebviewInputOptions;
@@ -29,14 +30,14 @@ interface SerializedWebview {
 
 export class WebviewEditorInputFactory implements IEditorInputFactory {
 
-	public static readonly ID = WebviewEditorInput.typeId;
+	public static readonly ID = WebviewInput.typeId;
 
 	public constructor(
-		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService
 	) { }
 
-	public serialize(input: WebviewEditorInput): string | undefined {
-		if (!this._webviewService.shouldPersist(input)) {
+	public serialize(input: WebviewInput): string | undefined {
+		if (!this._webviewWorkbenchService.shouldPersist(input)) {
 			return undefined;
 		}
 
@@ -51,9 +52,9 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 	public deserialize(
 		_instantiationService: IInstantiationService,
 		serializedEditorInput: string
-	): WebviewEditorInput {
+	): WebviewInput {
 		const data = this.fromJson(serializedEditorInput);
-		return this._webviewService.reviveWebview(generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation ? {
+		return this._webviewWorkbenchService.reviveWebview(data.id || generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation && data.extensionId ? {
 			location: data.extensionLocation,
 			id: data.extensionId
 		} : undefined, data.group);
@@ -70,8 +71,9 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		};
 	}
 
-	protected toJson(input: WebviewEditorInput): SerializedWebview {
+	protected toJson(input: WebviewInput): SerializedWebview {
 		return {
+			id: input.id,
 			viewType: input.viewType,
 			title: input.getName(),
 			options: { ...input.webview.options, ...input.webview.contentOptions },
@@ -109,20 +111,6 @@ function reviveUri(data: string | UriComponents | undefined): URI | undefined {
 	}
 }
 
-
 function reviveState(state: unknown | undefined): undefined | string {
-	if (!state) {
-		return undefined;
-	}
-
-	if (typeof state === 'string') {
-		return state;
-	}
-
-	// Likely an old style state. Unwrap to a simple state object
-	// Remove after 1.37
-	if ('state' in (state as any) && typeof (state as any).state === 'string') {
-		return (state as any).state;
-	}
-	return undefined;
+	return typeof state === 'string' ? state : undefined;
 }

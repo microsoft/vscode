@@ -25,14 +25,13 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
@@ -233,8 +232,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 
-	private readonly _onExit = new Emitter<number>();
-	public get onExit(): Event<number> { return this._onExit.event; }
+	private readonly _onExit = new Emitter<number | undefined>();
+	public get onExit(): Event<number | undefined> { return this._onExit.event; }
 	private readonly _onDisposed = new Emitter<ITerminalInstance>();
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused = new Emitter<ITerminalInstance>();
@@ -259,7 +258,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
-		private _container: HTMLElement,
+		private _container: HTMLElement | undefined,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -409,14 +408,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The panel is minimized
 		if (!this._isVisible) {
 			return TerminalInstance._lastKnownCanvasDimensions;
-		} else {
-			// Trigger scroll event manually so that the viewport's scroll area is synced. This
-			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
-			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
-			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
-			if (this._xterm && this._xtermCore) {
-				this._xtermCore._onScroll.fire(this._xterm.buffer.viewportY);
-			}
 		}
 
 		if (!this._wrapperElement) {
@@ -508,7 +499,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					return false;
 				});
 			}
-			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, this._processManager, this._configHelper);
+			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, xterm, this._processManager, this._configHelper);
 		});
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
@@ -549,7 +540,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// The container changed, reattach
-		this._container.removeChild(this._wrapperElement);
+		if (this._container) {
+			this._container.removeChild(this._wrapperElement);
+		}
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
 	}
@@ -568,7 +561,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Attach the xterm object to the DOM, exposing it to the smoke tests
 			this._wrapperElement.xterm = this._xterm;
 
+			this._wrapperElement.appendChild(this._xtermElement);
+			this._container.appendChild(this._wrapperElement);
 			xterm.open(this._xtermElement);
+
 			xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 			xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 				// Disable all input if the terminal is exiting
@@ -580,7 +576,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// within commandsToSkipShell
 				const standardKeyboardEvent = new StandardKeyboardEvent(event);
 				const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
-				if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
+				const allowChords = resolveResult && resolveResult.enterChord && this._configHelper.config.allowChords;
+				if (allowChords || resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 					event.preventDefault();
 					return false;
 				}
@@ -644,9 +641,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
-
-			this._wrapperElement.appendChild(this._xtermElement);
-			this._container.appendChild(this._wrapperElement);
 
 			const widgetManager = new TerminalWidgetManager(this._wrapperElement);
 			this._widgetManager = widgetManager;
@@ -802,7 +796,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._wrapperElement.xterm) {
 				this._wrapperElement.xterm = undefined;
 			}
-			if (this._wrapperElement.parentElement) {
+			if (this._wrapperElement.parentElement && this._container) {
 				this._container.removeChild(this._wrapperElement);
 			}
 		}
@@ -901,6 +895,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
+			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
+			// fixed upstream.
 			this._xtermCore._onScroll.fire(this._xterm.buffer.viewportY);
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
@@ -1106,7 +1102,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		this._onExit.fire(exitCode || 0);
+		this._onExit.fire(exitCode);
 	}
 
 	private _attachPressAnyKeyToCloseListener(xterm: XTermTerminal) {

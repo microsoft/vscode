@@ -38,8 +38,8 @@ import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAn
 import { isMacintosh } from 'vs/base/common/platform';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
 import { ITask, sequence } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -443,7 +443,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IWindowService private windowService: IWindowService,
+		@IHostService private hostService: IHostService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		this.toDispose = [];
@@ -604,14 +604,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-
 	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
 		// Check for dropped external files to be folders
 		const result = await this.fileService.resolveAll(droppedResources);
 
 		// Pass focus to window
-		this.windowService.focusWindow();
+		this.hostService.focus();
 
 		// Handle folders by adding to workspace if we are in workspace context
 		const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
@@ -630,7 +629,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					: localize('dropFolder', "Do you want to copy '{0}' or add '{0}' as a folder to the workspace?", basename(folders[0].uri));
 			}
 
-			const choice = await this.dialogService.show(Severity.Info, message, buttons);
+			const { choice } = await this.dialogService.show(Severity.Info, message, buttons);
 			if (choice === buttons.length - 3) {
 				return this.workspaceEditingService.addFolders(folders);
 			}

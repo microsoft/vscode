@@ -71,8 +71,8 @@ export interface ParsedArgs {
 	'driver-verbose'?: boolean;
 	remote?: string;
 	'disable-user-env-probe'?: boolean;
-	'disable-inspect'?: boolean;
 	'force'?: boolean;
+	'force-user-env'?: boolean;
 
 	// node flags
 	'js-flags'?: string;
@@ -115,7 +115,11 @@ export interface IEnvironmentService {
 	settingsResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
-	localeResource: URI;
+	argvResource: URI;
+
+	// sync resources
+	userDataSyncLogResource: URI;
+	settingsSyncPreviewResource: URI;
 
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;

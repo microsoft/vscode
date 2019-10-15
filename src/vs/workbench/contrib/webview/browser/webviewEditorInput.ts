@@ -2,16 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as dom from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
+import { Lazy } from 'vs/base/common/lazy';
+import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 
-export const WebviewPanelResourceScheme = 'webview-panel';
+const WebviewPanelResourceScheme = 'webview-panel';
 
 class WebviewIconsManager {
 	private readonly _icons = new Map<string, { light: URI, dark: URI }>();
@@ -52,7 +53,7 @@ class WebviewIconsManager {
 	}
 }
 
-export class WebviewEditorInput extends EditorInput {
+export class WebviewInput extends EditorInput {
 
 	public static typeId = 'workbench.editors.webviewInput';
 
@@ -61,28 +62,23 @@ export class WebviewEditorInput extends EditorInput {
 	private _name: string;
 	private _iconPath?: { light: URI, dark: URI };
 	private _group?: GroupIdentifier;
-	private readonly _webview: WebviewEditorOverlay;
+	private readonly _webview: Lazy<WebviewEditorOverlay>;
 
 	constructor(
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		public readonly extension: undefined | {
-			readonly location: URI;
-			readonly id: ExtensionIdentifier;
-		},
-		webview: Unowned<WebviewEditorOverlay>
+		webview: Lazy<Unowned<WebviewEditorOverlay>>
 	) {
 		super();
 
 		this._name = name;
-		this.extension = extension;
 
-		this._webview = this._register(webview.acquire()); // The input owns this webview
+		this._webview = webview.map(value => this._register(value.acquire())); // The input owns this webview
 	}
 
 	public getTypeId(): string {
-		return WebviewEditorInput.typeId;
+		return WebviewInput.typeId;
 	}
 
 	public getResource(): URI {
@@ -100,7 +96,7 @@ export class WebviewEditorInput extends EditorInput {
 		return this.getName();
 	}
 
-	public getDescription() {
+	public getDescription(): string | undefined {
 		return undefined;
 	}
 
@@ -109,8 +105,12 @@ export class WebviewEditorInput extends EditorInput {
 		this._onDidChangeLabel.fire();
 	}
 
-	public get webview() {
-		return this._webview;
+	public get webview(): WebviewEditorOverlay {
+		return this._webview.getValue();
+	}
+
+	public get extension() {
+		return this._webview.getValue().extension;
 	}
 
 	public get iconPath() {
@@ -119,7 +119,7 @@ export class WebviewEditorInput extends EditorInput {
 
 	public set iconPath(value: { light: URI, dark: URI } | undefined) {
 		this._iconPath = value;
-		WebviewEditorInput.iconsManager.setIcons(this.id, value);
+		WebviewInput.iconsManager.setIcons(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {
@@ -140,31 +140,5 @@ export class WebviewEditorInput extends EditorInput {
 
 	public updateGroup(group: GroupIdentifier): void {
 		this._group = group;
-	}
-}
-
-export class RevivedWebviewEditorInput extends WebviewEditorInput {
-	private _revived: boolean = false;
-
-	constructor(
-		id: string,
-		viewType: string,
-		name: string,
-		extension: undefined | {
-			readonly location: URI;
-			readonly id: ExtensionIdentifier
-		},
-		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
-		webview: Unowned<WebviewEditorOverlay>
-	) {
-		super(id, viewType, name, extension, webview);
-	}
-
-	public async resolve(): Promise<IEditorModel> {
-		if (!this._revived) {
-			this._revived = true;
-			await this.reviver(this);
-		}
-		return super.resolve();
 	}
 }

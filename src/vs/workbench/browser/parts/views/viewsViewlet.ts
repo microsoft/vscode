@@ -64,6 +64,9 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, layoutService, contextMenuService, telemetryService, themeService, storageService);
 
 		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
+		if (!container) {
+			throw new Error('Could not find container');
+		}
 		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewletStateStorageId));
 		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
 
@@ -132,7 +135,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		if (!view) {
 			this.toggleViewVisibility(id);
 		}
-		view = this.getView(id);
+		view = this.getView(id)!;
 		view.setExpanded(true);
 		if (focus) {
 			view.focus();
@@ -185,7 +188,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return (this.instantiationService as any).createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.arguments || []), options) as ViewletPanel;
 	}
 
-	protected getView(id: string): ViewletPanel {
+	protected getView(id: string): ViewletPanel | undefined {
 		return this.panels.filter(view => view.id === id)[0];
 	}
 

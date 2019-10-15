@@ -23,7 +23,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 	protected readonly _onShutdown = this._register(new Emitter<void>());
 	readonly onShutdown: Event<void> = this._onShutdown.event;
 
-	protected _startupKind: StartupKind;
+	protected _startupKind: StartupKind = StartupKind.NewWindow;
 	get startupKind(): StartupKind { return this._startupKind; }
 
 	private _phase: LifecyclePhase = LifecyclePhase.Starting;

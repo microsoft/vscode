@@ -8,6 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { revive } from 'vs/base/common/marshalling';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
@@ -19,6 +20,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCommands);
 
@@ -56,7 +58,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 			id,
 			CommandsRegistry.registerCommand(id, (accessor, ...args) => {
 				return this._proxy.$executeContributedCommand(id, ...args).then(result => {
-					return revive(result, 0);
+					return revive(result);
 				});
 			})
 		);
@@ -70,9 +72,13 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		}
 	}
 
-	$executeCommand<T>(id: string, args: any[]): Promise<T | undefined> {
+	async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
 		for (let i = 0; i < args.length; i++) {
-			args[i] = revive(args[i], 0);
+			args[i] = revive(args[i]);
+		}
+		if (retry && args.length > 0 && !CommandsRegistry.getCommand(id)) {
+			await this._extensionService.activateByEvent(`onCommand:${id}`);
+			throw new Error('$executeCommand:retry');
 		}
 		return this._commandService.executeCommand<T>(id, ...args);
 	}

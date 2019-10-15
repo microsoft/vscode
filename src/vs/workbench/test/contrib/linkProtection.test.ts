@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { isURLDomainTrusted } from 'vs/workbench/contrib/url/common/url.contribution';
+import { isURLDomainTrusted } from 'vs/workbench/contrib/url/common/trustedDomainsValidator';
 import { URI } from 'vs/base/common/uri';
 
 suite('Link protection domain matching', () => {
@@ -32,11 +32,18 @@ suite('Link protection domain matching', () => {
 
 	test('* star', () => {
 		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['https://*.x.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.b.x.org'), ['https://*.x.org']));
 		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['https://a.x.*']));
 		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['https://a.*.org']));
 		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['https://*.*.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.b.x.org'), ['https://*.b.*.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.a.b.x.org'), ['https://*.b.*.org']));
+	});
 
-		assert.ok(!isURLDomainTrusted(URI.parse('https://a.b.c.org'), ['https://*.*.org']));
-		assert.ok(isURLDomainTrusted(URI.parse('https://a.b.c.org'), ['https://*.*.*.org']));
+	test('no scheme', () => {
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['a.x.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['*.x.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.b.x.org'), ['*.x.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://x.org'), ['*.x.org']));
 	});
 });

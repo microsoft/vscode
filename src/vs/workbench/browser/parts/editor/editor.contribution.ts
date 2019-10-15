@@ -106,7 +106,7 @@ interface ISerializedUntitledEditorInput {
 	resource: string;
 	resourceJSON: object;
 	modeId: string | undefined;
-	encoding: string;
+	encoding: string | undefined;
 }
 
 // Register Editor Input Factory
@@ -413,12 +413,12 @@ editorCommands.setup();
 // Touch Bar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconLocation: { dark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
 		group: 'navigation'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconLocation: { dark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
 		group: 'navigation'
 	});
 }

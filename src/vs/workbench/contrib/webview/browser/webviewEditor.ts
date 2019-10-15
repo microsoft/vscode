@@ -11,22 +11,23 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class WebviewEditor extends BaseEditor {
 
-	public static ID = 'WebviewEditor';
+	public static readonly ID = 'WebviewEditor';
 
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean>;
 	private _editorFrame?: HTMLElement;
 	private _content?: HTMLElement;
+	private _dimension?: DOM.Dimension;
 
 	private readonly _webviewFocusTrackerDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
@@ -39,7 +40,7 @@ export class WebviewEditor extends BaseEditor {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWindowService private readonly _windowService: IWindowService,
+		@IHostService private readonly _hostService: IHostService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
@@ -89,7 +90,8 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public layout(dimension: DOM.Dimension): void {
-		if (this.input && this.input instanceof WebviewEditorInput) {
+		this._dimension = dimension;
+		if (this.input && this.input instanceof WebviewInput) {
 			this.synchronizeWebviewContainerDimensions(this.input.webview, dimension);
 			this.input.webview.layout();
 		}
@@ -99,7 +101,7 @@ export class WebviewEditor extends BaseEditor {
 		super.focus();
 		if (!this._onFocusWindowHandler.value) {
 			// Make sure we restore focus when switching back to a VS Code window
-			this._onFocusWindowHandler.value = this._windowService.onDidChangeFocus(focused => {
+			this._onFocusWindowHandler.value = this._hostService.onDidChangeFocus(focused => {
 				if (focused && this._editorService.activeControl === this) {
 					this.focus();
 				}
@@ -109,27 +111,27 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public withWebview(f: (element: Webview) => void): void {
-		if (this.input && this.input instanceof WebviewEditorInput) {
+		if (this.input && this.input instanceof WebviewInput) {
 			f(this.input.webview);
 		}
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		const webview = this.input && (this.input as WebviewEditorInput).webview;
+		const webview = this.input && (this.input as WebviewInput).webview;
 		if (webview) {
 			if (visible) {
 				webview.claim(this);
 			} else {
 				webview.release(this);
 			}
-			this.claimWebview(this.input as WebviewEditorInput);
+			this.claimWebview(this.input as WebviewInput);
 		}
 
 		super.setEditorVisible(visible, group);
 	}
 
 	public clearInput() {
-		if (this.input && this.input instanceof WebviewEditorInput) {
+		if (this.input && this.input instanceof WebviewInput) {
 			this.input.webview.release(this);
 		}
 
@@ -141,7 +143,7 @@ export class WebviewEditor extends BaseEditor {
 			return;
 		}
 
-		if (this.input && this.input instanceof WebviewEditorInput) {
+		if (this.input && this.input instanceof WebviewInput) {
 			this.input.webview.release(this);
 		}
 
@@ -151,16 +153,19 @@ export class WebviewEditor extends BaseEditor {
 			return;
 		}
 
-		if (input instanceof WebviewEditorInput) {
+		if (input instanceof WebviewInput) {
 			if (this.group) {
 				input.updateGroup(this.group.id);
 			}
 
 			this.claimWebview(input);
+			if (this._dimension) {
+				this.layout(this._dimension);
+			}
 		}
 	}
 
-	private claimWebview(input: WebviewEditorInput): void {
+	private claimWebview(input: WebviewInput): void {
 		input.webview.claim(this);
 
 		if (input.webview.options.enableFindWidget) {
@@ -177,15 +182,8 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	private synchronizeWebviewContainerDimensions(webview: WebviewEditorOverlay, dimension?: DOM.Dimension) {
-		const webviewContainer = webview.container;
-		if (webviewContainer && webviewContainer.parentElement && this._editorFrame) {
-			const frameRect = this._editorFrame.getBoundingClientRect();
-			const containerRect = webviewContainer.parentElement.getBoundingClientRect();
-			webviewContainer.style.position = 'absolute';
-			webviewContainer.style.top = `${frameRect.top - containerRect.top}px`;
-			webviewContainer.style.left = `${frameRect.left - containerRect.left}px`;
-			webviewContainer.style.width = `${dimension ? dimension.width : frameRect.width}px`;
-			webviewContainer.style.height = `${dimension ? dimension.height : frameRect.height}px`;
+		if (this._editorFrame) {
+			webview.layoutWebviewOverElement(this._editorFrame, dimension);
 		}
 	}
 

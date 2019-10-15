@@ -6,7 +6,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import { join } from 'path';
-import { commands, workspace, window, Uri, ViewColumn, Range, Position } from 'vscode';
+import { commands, workspace, window, Uri, Range, Position, ViewColumn } from 'vscode';
 
 suite('commands namespace tests', () => {
 

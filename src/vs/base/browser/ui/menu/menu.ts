@@ -23,6 +23,11 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
+export enum Direction {
+	Right,
+	Left
+}
+
 export interface IMenuOptions {
 	context?: any;
 	actionViewItemProvider?: IActionViewItemProvider;
@@ -31,6 +36,7 @@ export interface IMenuOptions {
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
+	expandDirection?: Direction;
 }
 
 export interface IMenuStyles {
@@ -198,7 +204,7 @@ export class Menu extends ActionBar {
 		}));
 
 		const scrollElement = this.scrollableElement.getDomNode();
-		scrollElement.style.position = null;
+		scrollElement.style.position = '';
 
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
 
@@ -225,10 +231,10 @@ export class Menu extends ActionBar {
 	style(style: IMenuStyles): void {
 		const container = this.getContainer();
 
-		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : null;
-		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : null;
-		const border = style.borderColor ? `2px solid ${style.borderColor}` : null;
-		const shadow = style.shadowColor ? `0 2px 4px ${style.shadowColor}` : null;
+		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : '';
+		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : '';
+		const border = style.borderColor ? `2px solid ${style.borderColor}` : '';
+		const shadow = style.shadowColor ? `0 2px 4px ${style.shadowColor}` : '';
 
 		container.style.border = border;
 		this.domNode.style.color = fgColor;
@@ -392,7 +398,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				EventHelper.stop(e, true);
 				this.onClick(e);
 			}));
-		}, 50);
+		}, 100);
 
 		this._register(this.runOnceToEnableMouseUp);
 	}
@@ -569,11 +575,11 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		const isSelected = this.element && hasClass(this.element, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : this.menuStyle.backgroundColor;
-		const border = isSelected && this.menuStyle.selectionBorderColor ? `thin solid ${this.menuStyle.selectionBorderColor}` : null;
+		const border = isSelected && this.menuStyle.selectionBorderColor ? `thin solid ${this.menuStyle.selectionBorderColor}` : '';
 
 		this.item.style.color = fgColor ? `${fgColor}` : null;
-		this.check.style.backgroundColor = fgColor ? `${fgColor}` : null;
-		this.item.style.backgroundColor = bgColor ? `${bgColor}` : null;
+		this.check.style.backgroundColor = fgColor ? `${fgColor}` : '';
+		this.item.style.backgroundColor = bgColor ? `${bgColor}` : '';
 		this.container.style.border = border;
 	}
 
@@ -591,6 +597,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 	private mouseOver: boolean;
 	private showScheduler: RunOnceScheduler;
 	private hideScheduler: RunOnceScheduler;
+	private expandDirection: Direction;
 
 	constructor(
 		action: IAction,
@@ -599,6 +606,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		private submenuOptions?: IMenuOptions
 	) {
 		super(action, action, submenuOptions);
+
+		this.expandDirection = submenuOptions && submenuOptions.expandDirection !== undefined ? submenuOptions.expandDirection : Direction.Right;
 
 		this.showScheduler = new RunOnceScheduler(() => {
 			if (this.mouseOver) {
@@ -715,11 +724,17 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 
-			if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
-				this.submenuContainer.style.left = '10px';
-				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
-			} else {
-				this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
+			if (this.expandDirection === Direction.Right) {
+				if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
+					this.submenuContainer.style.left = '10px';
+					this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
+				} else {
+					this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
+					this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
+				}
+			} else if (this.expandDirection === Direction.Left) {
+				this.submenuContainer.style.right = `${this.element.offsetWidth}px`;
+				this.submenuContainer.style.left = 'auto';
 				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			}
 
@@ -778,7 +793,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		const isSelected = this.element && hasClass(this.element, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 
-		this.submenuIndicator.style.backgroundColor = fgColor ? `${fgColor}` : null;
+		this.submenuIndicator.style.backgroundColor = fgColor ? `${fgColor}` : '';
 
 		if (this.parentData.submenu) {
 			this.parentData.submenu.style(this.menuStyle);
@@ -803,7 +818,9 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 class MenuSeparatorActionViewItem extends ActionViewItem {
 	style(style: IMenuStyles): void {
-		this.label.style.borderBottomColor = style.separatorColor ? `${style.separatorColor}` : null;
+		if (this.label) {
+			this.label.style.borderBottomColor = style.separatorColor ? `${style.separatorColor}` : '';
+		}
 	}
 }
 

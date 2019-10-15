@@ -21,11 +21,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-// ESM-comment-begin
-let __insane_exports;
-// ESM-comment-end
-
-
+let __insane_func;
 
 (function () { function r(e, n, t) { function o(i, f) { if (!n[i]) { if (!e[i]) { var c = "function" == typeof require && require; if (!f && c) return c(i, !0); if (u) return u(i, !0); var a = new Error("Cannot find module '" + i + "'"); throw a.code = "MODULE_NOT_FOUND", a } var p = n[i] = { exports: {} }; e[i][0].call(p.exports, function (r) { var n = e[i][1][r]; return o(n || r) }, p, p.exports, r, e, n, t) } return n[i].exports } for (var u = "function" == typeof require && require, i = 0; i < t.length; i++)o(t[i]); return o } return r })()({
 	1: [function (require, module, exports) {
@@ -92,7 +88,7 @@ let __insane_exports;
 
 		insane.defaults = defaults;
 		module.exports = insane;
-		__insane_exports = insane;
+		__insane_func = insane;
 
 	}, { "./defaults": 2, "./parser": 7, "./sanitizer": 8, "assignment": 6, "he": 9 }], 5: [function (require, module, exports) {
 		'use strict';
@@ -469,10 +465,10 @@ let __insane_exports;
 	}, {}]
 }, {}, [4]);
 
-// BEGIN MONACOCHANGE
-// __marked_exports = marked;
-// }).call(this);
-
 // ESM-comment-begin
-define(function() { return __insane_exports; });
+define(function() { return { insane: __insane_func }; });
 // ESM-comment-end
+
+// ESM-uncomment-begin
+// export var insane = __insane_func;
+// ESM-uncomment-end
