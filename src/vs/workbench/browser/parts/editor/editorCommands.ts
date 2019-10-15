@@ -606,6 +606,10 @@ function registerCloseEditorCommands() {
 						.map(context => typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : group.activeEditor);
 					const editorsToClose = group.editors.filter(e => editors.indexOf(e) === -1);
 
+					if (group.activeEditor) {
+						group.pinEditor(group.activeEditor);
+					}
+
 					return group.closeEditors(editorsToClose);
 				}
 
