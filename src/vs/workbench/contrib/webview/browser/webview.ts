@@ -76,7 +76,6 @@ export interface Webview extends IDisposable {
 
 	sendMessage(data: any): void;
 
-	layout(): void;
 	focus(): void;
 	reload(): void;
 

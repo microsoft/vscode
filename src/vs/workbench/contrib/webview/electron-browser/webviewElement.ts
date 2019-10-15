@@ -315,8 +315,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			console.log(`[Embedded Page] ${e.message}`);
 		}));
 		this._register(addDisposableListener(this._webview, 'dom-ready', () => {
-			this.layout();
-
 			// Workaround for https://github.com/electron/electron/issues/14474
 			if (this._webview && (this._focused || document.activeElement === this._webview)) {
 				this._webview.blur();
@@ -364,7 +362,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 					this._webview.style.flex = '';
 					this._webview.style.width = '100%';
 					this._webview.style.height = '100%';
-					this.layout();
 					return;
 
 				case 'did-scroll':
@@ -561,11 +558,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 		if (this._webviewFindWidget) {
 			this._webviewFindWidget.updateTheme(this.webviewThemeDataProvider.getTheme());
 		}
-	}
-
-	public layout(): void {
-		// noop
-
 	}
 
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());

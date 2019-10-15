@@ -589,7 +589,6 @@ export class ExtensionEditor extends BaseEditor {
 			this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
 				layout: () => {
-					webviewElement.layout();
 					webviewElement.layoutWebviewOverElement(template.content);
 				}
 			});
