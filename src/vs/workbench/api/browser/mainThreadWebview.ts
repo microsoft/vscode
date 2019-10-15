@@ -5,6 +5,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { startsWith } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -19,14 +20,13 @@ import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } fr
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
+import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { ICreateWebViewShowOptions, WebviewInputOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
-import { Schemas } from 'vs/base/common/network';
-import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -100,10 +100,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IProductService private readonly _productService: IProductService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
 		super();
 
@@ -145,7 +145,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
-		const webview = this._webviewWorkbenchService.createWebview(handle, webviewPanelViewType.fromExternal(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), reviveWebviewExtension(extensionId, extensionLocation));
+		const extension = reviveWebviewExtension(extensionId, extensionLocation);
+		const webview = this._webviewWorkbenchService.createWebview(handle, webviewPanelViewType.fromExternal(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), extension);
 		this.hookupWebviewEventDelegate(handle, webview);
 
 		this._webviewInputs.add(handle, webview);
