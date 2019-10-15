@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-list .monaco-list-row.focused.selected .outline-element .monaco-highlighted-label,
-.monaco-list .monaco-list-row.focused.selected .outline-element-decoration {
+.monaco-list .monaco-list-row.focused.selected .outline-element-decoration,
+.monaco-list .monaco-list-row.focused.selected .outline-element .codicon::before {
 	/* make sure selection color wins when a label is being selected */
 	color: inherit !important;
 }

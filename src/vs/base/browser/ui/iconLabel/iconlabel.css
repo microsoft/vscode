@@ -20,7 +20,7 @@
 	padding-right: 6px;
 	width: 16px;
 	height: 22px;
-	line-height: 22px !important;
+	line-height: inherit !important;
 	display: inline-block;
 
 	/* fonts icons */

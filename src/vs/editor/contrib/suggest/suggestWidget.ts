@@ -189,7 +189,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			// normal icon
 			data.icon.className = 'icon hide';
 			labelOptions.extraClasses = [
-				`suggest-icon ${completionKindToCssClass(suggestion.kind)}`
+				`suggest-icon codicon codicon-symbol-${completionKindToCssClass(suggestion.kind)}`
 			];
 		}
 

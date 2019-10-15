@@ -198,7 +198,7 @@
 	display: none;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.suggest-icon::before {
+/* .monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.suggest-icon::before {
 	content: ' ';
 	background-repeat: no-repeat;
 	background-position: center;
@@ -230,7 +230,7 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.reference::before { background-image: url('reference-light.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.snippet::before { background-image: url('snippet-light.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.customcolor::before { background-image: none; }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.folder::before { background-image: url('folder-light.svg'); }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.folder::before { background-image: url('folder-light.svg'); } */
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.customcolor .colorspan {
 	margin: 0 0 0 0.3em;
