@@ -585,15 +585,19 @@ export class Repository implements Disposable {
 		}
 
 		const HEAD = this.HEAD;
-		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-		const tagName = tag && tag.name;
-		const branchName = HEAD.name || tagName || HEAD.commit;
 
-		if (branchName === undefined) {
-			return;
+		if (HEAD.name) {
+			return HEAD.name;
 		}
 
-		return branchName.substr(0, 8);
+		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+		const tagName = tag && tag.name;
+
+		if (tagName) {
+			return tagName;
+		}
+
+		return (HEAD.commit || '').substr(0, 8);
 	}
 
 	private _remotes: Remote[] = [];
