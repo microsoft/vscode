@@ -798,9 +798,9 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, treeOptions);
-		this.disposables.push(disposable);
+		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.push(this.internals);
+		this.disposables.add(this.internals);
 	}
 }
 
@@ -825,9 +825,9 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, treeOptions);
-		this.disposables.push(disposable);
+		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.push(this.internals);
+		this.disposables.add(this.internals);
 	}
 }
 
@@ -853,9 +853,9 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
-		this.disposables.push(disposable);
+		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.push(this.internals);
+		this.disposables.add(this.internals);
 	}
 }
 
