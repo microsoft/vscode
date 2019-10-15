@@ -34,7 +34,7 @@ class ToggleBreakpointAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
 		if (editor.hasModel()) {
 			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
@@ -120,11 +120,11 @@ export class RunToCursorAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const focusedSession = debugService.getViewModel().focusedSession;
 		if (debugService.state !== State.Stopped || !focusedSession) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		let breakpointToRemove: IBreakpoint;
@@ -139,18 +139,18 @@ export class RunToCursorAction extends EditorAction {
 		});
 
 		const position = editor.getPosition();
-		if (!editor.hasModel() || !position) {
-			return Promise.resolve();
-		}
-
-		const uri = editor.getModel().uri;
-		const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
-		return (bpExists ? Promise.resolve(null) : <Promise<any>>debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }], 'debugEditorActions.runToCursorAction')).then((breakpoints) => {
-			if (breakpoints && breakpoints.length) {
-				breakpointToRemove = breakpoints[0];
+		if (editor.hasModel() && position) {
+			const uri = editor.getModel().uri;
+			const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
+			if (!bpExists) {
+				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }], 'debugEditorActions.runToCursorAction');
+				if (breakpoints && breakpoints.length) {
+					breakpointToRemove = breakpoints[0];
+				}
 			}
-			debugService.getViewModel().focusedThread!.continue();
-		});
+
+			await debugService.getViewModel().focusedThread!.continue();
+		}
 	}
 }
 
@@ -169,7 +169,7 @@ class SelectionToReplAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const panelService = accessor.get(IPanelService);
 		const viewModel = debugService.getViewModel();
@@ -199,7 +199,7 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const viewletService = accessor.get(IViewletService);
 		if (!editor.hasModel()) {
@@ -207,7 +207,8 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 		}
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
-		return viewletService.openViewlet(VIEWLET_ID).then(() => debugService.addWatchExpression(text));
+		await viewletService.openViewlet(VIEWLET_ID);
+		debugService.addWatchExpression(text);
 	}
 }
 
@@ -227,7 +228,7 @@ class ShowDebugHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const position = editor.getPosition();
 		if (!position || !editor.hasModel()) {
 			return Promise.resolve();
@@ -247,7 +248,7 @@ class GoToBreakpointAction extends EditorAction {
 		super(opts);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<any> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<any> {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
 		if (editor.hasModel()) {
