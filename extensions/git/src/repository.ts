@@ -1257,6 +1257,10 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
 
+	async cleanUpCommitEditMessage(editMessage: string): Promise<string> {
+		return this.repository.cleanupCommitEditMessage(editMessage);
+	}
+
 	async ignore(files: Uri[]): Promise<void> {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
@@ -1426,6 +1430,10 @@ export class Repository implements Disposable {
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
 		this.isRepositoryHuge = didHitLimit;
+		const mergeMessage = await this.repository.getMergeMessage();
+		if (mergeMessage) {
+			this.inputBox.value = mergeMessage;
+		}
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
