@@ -836,6 +836,15 @@ export interface IDiffLineInformation {
 }
 
 /**
+ * @internal
+ */
+export const enum DiffEditorState {
+	Idle,
+	ComputingDiff,
+	DiffComputed
+}
+
+/**
  * A rich diff editor.
  */
 export interface IDiffEditor extends editorCommon.IEditor {

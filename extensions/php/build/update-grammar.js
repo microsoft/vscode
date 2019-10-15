@@ -21,6 +21,14 @@ function adaptInjectionScope(grammar) {
 	injections[newInjectionKey] = injection;
 }
 
+function includeDerivativeHtml(grammar) {
+	grammar.patterns.forEach(pattern => {
+		if (pattern.include === 'text.html.basic') {
+			pattern.include = 'text.html.derivative';
+		}
+	});
+}
+
 // Workaround for https://github.com/Microsoft/vscode/issues/40279
 // and https://github.com/Microsoft/vscode-textmate/issues/59
 function fixBadRegex(grammar) {
@@ -61,4 +69,7 @@ function fixBadRegex(grammar) {
 }
 
 updateGrammar.update('atom/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);
-updateGrammar.update('atom/language-php', 'grammars/html.cson', './syntaxes/html.tmLanguage.json', adaptInjectionScope);
+updateGrammar.update('atom/language-php', 'grammars/html.cson', './syntaxes/html.tmLanguage.json', grammar => {
+	adaptInjectionScope(grammar);
+	includeDerivativeHtml(grammar);
+});
