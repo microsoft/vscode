@@ -15,7 +15,6 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 
 interface IWorkbenchConstructionOptions {
@@ -90,12 +89,6 @@ interface IWorkbenchConstructionOptions {
 	updateProvider?: IUpdateProvider;
 
 	/**
-	 * Experimental: If provided, will be called when logging telemetry events.
-	 */
-	telemetryAppender?: ITelemetryAppender;
-
-
-	/**
 	 * Experimental: Support adding additional properties to telemetry.
 	 */
 	resolveCommonTelemetryProperties?: () => { [key: string]: any };
@@ -159,7 +152,4 @@ export {
 	// Updates
 	IUpdateProvider,
 	IUpdate,
-
-	// Telemetry
-	ITelemetryAppender
 };

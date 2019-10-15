@@ -317,13 +317,16 @@ export abstract class AbstractProcess<TProgressData> {
 
 export class LineProcess extends AbstractProcess<LineData> {
 
-	private stdoutLineDecoder: LineDecoder;
-	private stderrLineDecoder: LineDecoder;
+	private stdoutLineDecoder: LineDecoder | null;
+	private stderrLineDecoder: LineDecoder | null;
 
 	public constructor(executable: Executable);
 	public constructor(cmd: string, args: string[], shell: boolean, options: CommandOptions);
 	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean | ForkOptions, arg4?: CommandOptions) {
 		super(<any>arg1, arg2, <any>arg3, arg4);
+
+		this.stdoutLineDecoder = null;
+		this.stderrLineDecoder = null;
 	}
 
 	protected handleExec(cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, error: Error, stdout: Buffer, stderr: Buffer) {
@@ -342,24 +345,30 @@ export class LineProcess extends AbstractProcess<LineData> {
 	}
 
 	protected handleSpawn(childProcess: cp.ChildProcess, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback, sync: boolean): void {
-		this.stdoutLineDecoder = new LineDecoder();
-		this.stderrLineDecoder = new LineDecoder();
+		const stdoutLineDecoder = new LineDecoder();
+		const stderrLineDecoder = new LineDecoder();
 		childProcess.stdout.on('data', (data: Buffer) => {
-			const lines = this.stdoutLineDecoder.write(data);
+			const lines = stdoutLineDecoder.write(data);
 			lines.forEach(line => pp({ line: line, source: Source.stdout }));
 		});
 		childProcess.stderr.on('data', (data: Buffer) => {
-			const lines = this.stderrLineDecoder.write(data);
+			const lines = stderrLineDecoder.write(data);
 			lines.forEach(line => pp({ line: line, source: Source.stderr }));
 		});
+
+		this.stdoutLineDecoder = stdoutLineDecoder;
+		this.stderrLineDecoder = stderrLineDecoder;
 	}
 
 	protected handleClose(data: any, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback): void {
-		[this.stdoutLineDecoder.end(), this.stderrLineDecoder.end()].forEach((line, index) => {
-			if (line) {
-				pp({ line: line, source: index === 0 ? Source.stdout : Source.stderr });
-			}
-		});
+		const stdoutLine = this.stdoutLineDecoder ? this.stdoutLineDecoder.end() : null;
+		if (stdoutLine) {
+			pp({ line: stdoutLine, source: Source.stdout });
+		}
+		const stderrLine = this.stderrLineDecoder ? this.stderrLineDecoder.end() : null;
+		if (stderrLine) {
+			pp({ line: stderrLine, source: Source.stderr });
+		}
 	}
 }
 

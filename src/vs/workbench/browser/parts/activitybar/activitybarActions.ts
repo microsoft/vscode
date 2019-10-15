@@ -22,7 +22,7 @@ import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarCol
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -274,6 +274,25 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label {
 				background-color: ${activeForegroundColor} !important;
+			}
+		`);
+	}
+
+	const activeBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER);
+	if (activeBorderColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+				border-left-color: ${activeBorderColor};
+			}
+		`);
+	}
+
+	const activeBackgroundColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND);
+	if (activeBackgroundColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+				z-index: 0;
+				background-color: ${activeBackgroundColor};
 			}
 		`);
 	}

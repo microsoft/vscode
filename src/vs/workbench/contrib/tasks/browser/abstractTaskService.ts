@@ -372,8 +372,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.runConfigureDefaultTestTask();
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', () => {
-			this.runShowTasks();
+		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', async () => {
+			return this.runShowTasks();
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => {
@@ -569,6 +569,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return Promise.resolve(this._taskSystem.getActiveTasks());
 	}
 
+	public getBusyTasks(): Promise<Task[]> {
+		if (!this._taskSystem) {
+			return Promise.resolve([]);
+		}
+		return Promise.resolve(this._taskSystem.getBusyTasks());
+	}
+
 	public getRecentlyUsedTasks(): LinkedMap<string, string> {
 		if (this._recentlyUsedTasks) {
 			return this._recentlyUsedTasks;
@@ -671,6 +678,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.handleError(error);
 			return Promise.reject(error);
 		});
+	}
+
+	private isProvideTasksEnabled(): boolean {
+		const settingValue = this.configurationService.getValue('task.autoDetect');
+		return settingValue === true;
 	}
 
 	private shouldAttachProblemMatcher(task: Task): boolean {
@@ -1252,7 +1264,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 					}
 				};
-				if (this.schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
+				if (this.isProvideTasksEnabled() && (this.schemaVersion === JsonSchemaVersion.V2_0_0) && (this._providers.size > 0)) {
 					for (const [handle, provider] of this._providers) {
 						if ((type === undefined) || (type === this._providerTypes.get(handle))) {
 							counter++;
@@ -2481,23 +2493,28 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public runShowTasks(): void {
+	public async runShowTasks(): Promise<void> {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		this.showQuickPick(this.getActiveTasks(),
-			nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
-			{
-				label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
-				task: null
-			},
-			false, true
-		).then((entry) => {
-			let task: Task | undefined | null = entry ? entry.task : undefined;
-			if (task === undefined || task === null) {
-				return;
-			}
-			this._taskSystem!.revealTask(task);
-		});
+		const activeTasks: Task[] = await this.getActiveTasks();
+		if (activeTasks.length === 1) {
+			this._taskSystem!.revealTask(activeTasks[0]);
+		} else {
+			this.showQuickPick(this.getActiveTasks(),
+				nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
+				{
+					label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
+					task: null
+				},
+				false, true
+			).then((entry) => {
+				let task: Task | undefined | null = entry ? entry.task : undefined;
+				if (task === undefined || task === null) {
+					return;
+				}
+				this._taskSystem!.revealTask(task);
+			});
+		}
 	}
 }

@@ -54,14 +54,16 @@ export interface WebviewContentOptions {
 	readonly enableCommandUris?: boolean;
 }
 
+export interface WebviewExtensionDescription {
+	readonly location: URI;
+	readonly id: ExtensionIdentifier;
+}
+
 export interface Webview extends IDisposable {
 
 	html: string;
 	contentOptions: WebviewContentOptions;
-	extension: {
-		readonly location: URI;
-		readonly id?: ExtensionIdentifier;
-	} | undefined;
+	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;
 

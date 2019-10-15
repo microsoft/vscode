@@ -585,7 +585,7 @@ appendEditorToolItem(
 appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Trim Whitespace"),
+		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Leading/Trailing Whitespace Differences"),
 		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-dark.svg')),
 		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-light.svg'))
 	},
@@ -597,7 +597,7 @@ appendEditorToolItem(
 appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: nls.localize('showTrimWhitespace.label', "Show Trim Whitespace"),
+		title: nls.localize('showTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
 		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-disabled-dark.svg')),
 		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-disabled-light.svg'))
 	},
