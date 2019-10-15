@@ -17,14 +17,13 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Webview, WebviewContentOptions, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
-import { areWebviewInputOptionsEqual } from '../browser/webviewWorkbenchService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
+import { areWebviewInputOptionsEqual } from '../browser/webviewWorkbenchService';
 
 interface IKeydownEvent {
 	key: string;
@@ -254,7 +253,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 		contentOptions: WebviewContentOptions,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
 		@ITunnelService tunnelService: ITunnelService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
