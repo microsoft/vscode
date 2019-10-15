@@ -13,10 +13,17 @@ const fs = require('fs');
 const path = require('path');
 const util = require('util');
 const opn = require('opn');
+const minimist = require('vscode-minimist');
 
 const APP_ROOT = path.dirname(__dirname);
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 const PORT = 8080;
+
+const args = minimist(process.argv, {
+	string: [
+		'no-launch'
+	]
+});
 
 const server = http.createServer((req, res) => {
 	const parsedUrl = url.parse(req.url, true);
@@ -213,4 +220,6 @@ async function serveFile(req, res, filePath, responseHeaders = Object.create(nul
 	}
 }
 
-opn(`http://localhost:${PORT}`);
+if (args.launch !== false) {
+	opn(`http://localhost:${PORT}`);
+}

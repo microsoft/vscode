@@ -85,5 +85,24 @@
 			"task": "hygiene",
 			"problemMatcher": []
 		},
+		{
+			"type": "shell",
+			"command": "yarn web -- --no-launch",
+			"label": "Run web",
+			"isBackground": true,
+			// This section to make error go away when launching the debug config
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				 "background": {
+					"beginsPattern": ".*node.*",
+					"endsPattern": "Web UI available at .*"
+				}
+			},
+			"presentation": {
+				"reveal": "never"
+			}
+		},
 	]
 }

@@ -168,6 +168,13 @@
 			],
 		},
 		{
+			"type": "chrome",
+			"request": "launch",
+			"name": "Launch Chrome",
+			"url": "http://localhost:8080",
+			"preLaunchTask": "Run web"
+		},
+		{
 			"type": "node",
 			"request": "launch",
 			"name": "Git Unit Tests",
