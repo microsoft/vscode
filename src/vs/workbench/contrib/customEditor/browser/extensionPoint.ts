@@ -65,11 +65,13 @@ const webviewEditorsContribution: IJSONSchema = {
 				description: nls.localize('contributes.priority', 'Controls when the custom editor is used. May be overridden by users.'),
 				enum: [
 					CustomEditorPriority.default,
-					CustomEditorPriority.option
+					CustomEditorPriority.option,
+					CustomEditorPriority.builtin,
 				],
 				enumDescriptions: [
 					nls.localize('contributes.priority.default', 'Editor is automatically used for a resource if no other default custom editors are registered for it.'),
 					nls.localize('contributes.priority.option', 'Editor is not automatically used but can be selected by a user.'),
+					nls.localize('contributes.priority.builtin', 'Editor automatically used if no other `default` or `builtin` editors are registered for the resource.'),
 				],
 				default: 'default'
 			}

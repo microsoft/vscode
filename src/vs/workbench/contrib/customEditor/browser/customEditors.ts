@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, distinct } from 'vs/base/common/arrays';
+import { coalesce, distinct, mergeSort, find } from 'vs/base/common/arrays';
 import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -272,10 +272,19 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 				return;
 			}
 
-			const defaultEditors = contributedEditors.filter(editor => editor.priority === CustomEditorPriority.default);
-			if (defaultEditors.length === 1) {
+			// Find the single default editor to use (if any) by looking at the editor's priority and the
+			// other contributed editors.
+			const defaultEditor = find(contributedEditors, editor => {
+				if (editor.priority !== CustomEditorPriority.default && editor.priority !== CustomEditorPriority.builtin) {
+					return false;
+				}
+				return contributedEditors.every(otherEditor =>
+					otherEditor === editor || isLowerPriority(otherEditor, editor));
+			});
+
+			if (defaultEditor) {
 				return {
-					override: this.customEditorService.openWith(resource, defaultEditors[0].id, options, group),
+					override: this.customEditorService.openWith(resource, defaultEditor.id, options, group),
 				};
 			}
 		}
@@ -326,15 +335,20 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 				return undefined;
 			}
 
-			const editors = distinct([
-				...this.customEditorService.getUserConfiguredCustomEditors(resource),
-				...this.customEditorService.getContributedCustomEditors(resource),
-			], editor => editor.id);
+			// Prefer default editors in the diff editor case but ultimatly always take the first editor
+			const editors = mergeSort(
+				distinct([
+					...this.customEditorService.getUserConfiguredCustomEditors(resource),
+					...this.customEditorService.getContributedCustomEditors(resource),
+				], editor => editor.id),
+				(a, b) => {
+					return priorityToRank(a.priority) - priorityToRank(b.priority);
+				});
 
 			if (!editors.length) {
 				return undefined;
 			}
-			// Always prefer the first editor in the diff editor case
+
 			return this.customEditorService.createInput(resource, editors[0].id, group, { customClasses });
 		};
 
@@ -351,6 +365,18 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		}
 
 		return undefined;
+	}
+}
+
+function isLowerPriority(otherEditor: CustomEditorInfo, editor: CustomEditorInfo): unknown {
+	return priorityToRank(otherEditor.priority) < priorityToRank(editor.priority);
+}
+
+function priorityToRank(priority: CustomEditorPriority): number {
+	switch (priority) {
+		case CustomEditorPriority.default: return 3;
+		case CustomEditorPriority.builtin: return 2;
+		case CustomEditorPriority.option: return 1;
 	}
 }
 
