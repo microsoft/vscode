@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { Dimension } from 'vs/base/browser/dom';
 import { assertIsDefined } from 'vs/base/common/types';
 
@@ -47,8 +47,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		container.id = `webview-${this.id}`;
 		container.style.visibility = 'hidden';
 
-		const editorPart = assertIsDefined(this._layoutService.getContainer(Parts.EDITOR_PART));
-		editorPart.appendChild(container);
+		// Webviews cannot be reparented in the dom as it will destory their contents.
+		// Mount them to a high level node to avoid this.
+		this._layoutService.getWorkbenchElement().appendChild(container);
 
 		return container;
 	}
