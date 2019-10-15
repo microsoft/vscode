@@ -63,7 +63,7 @@ function findSpecificGit(path: string, onLookup: (path: string) => void): Promis
 
 function findGitDarwin(onLookup: (path: string) => void): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
-		cp.exec('which git', (err, gitPathBuffer) => {
+		cp.exec('command -v git', (err, gitPathBuffer) => {
 			if (err) {
 				return e('git not found');
 			}
