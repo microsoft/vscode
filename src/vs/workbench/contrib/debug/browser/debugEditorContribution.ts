@@ -98,7 +98,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 			this.wordToLineNumbersMap = undefined;
 			this.updateInlineValuesScheduler.schedule();
 		}));
-		this.toDispose.push(this.editor.onDidChangeModel(() => {
+		this.toDispose.push(this.editor.onDidChangeModel(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
 			if (model) {
@@ -108,7 +108,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
 			this.wordToLineNumbersMap = undefined;
-			this.updateInlineValueDecorations(stackFrame);
+			await this.updateInlineValueDecorations(stackFrame);
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
 		this.toDispose.push(this.debugService.onDidChangeState((state: State) => {
@@ -155,18 +155,18 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		return Promise.resolve();
 	}
 
-	private onFocusStackFrame(sf: IStackFrame | undefined): void {
+	private async onFocusStackFrame(sf: IStackFrame | undefined): Promise<void> {
 		const model = this.editor.getModel();
 		if (model) {
 			this._applyHoverConfiguration(model, sf);
 			if (sf && sf.source.uri.toString() === model.uri.toString()) {
-				this.toggleExceptionWidget();
+				await this.toggleExceptionWidget();
 			} else {
 				this.hideHoverWidget();
 			}
 		}
 
-		this.updateInlineValueDecorations(sf);
+		await this.updateInlineValueDecorations(sf);
 	}
 
 	@memoize
@@ -261,7 +261,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 	// end hover business
 
 	// exception widget
-	private toggleExceptionWidget(): void {
+	private async toggleExceptionWidget(): Promise<void> {
 		// Toggles exception widget based on the state of the current editor model and debug stack frame
 		const model = this.editor.getModel();
 		const focusedSf = this.debugService.getViewModel().focusedStackFrame;
@@ -282,11 +282,10 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
-			focusedSf.thread.exceptionInfo.then(exceptionInfo => {
-				if (exceptionInfo && exceptionSf.range.startLineNumber && exceptionSf.range.startColumn) {
-					this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
-				}
-			});
+			const exceptionInfo = await focusedSf.thread.exceptionInfo;
+			if (exceptionInfo && exceptionSf.range.startLineNumber && exceptionSf.range.startColumn) {
+				this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+			}
 		}
 	}
 
@@ -320,7 +319,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
-	addLaunchConfiguration(): Promise<any> {
+	async addLaunchConfiguration(): Promise<any> {
 		/* __GDPR__
 			"debug/addLaunchConfiguration" : {}
 		*/
@@ -364,7 +363,8 @@ class DebugEditorContribution implements IDebugEditorContribution {
 			return this.commandService.executeCommand('editor.action.insertLineAfter');
 		};
 
-		return insertLine(configurationsArrayPosition).then(() => this.commandService.executeCommand('editor.action.triggerSuggest'));
+		await insertLine(configurationsArrayPosition);
+		await this.commandService.executeCommand('editor.action.triggerSuggest');
 	}
 
 	// Inline Decorations
@@ -380,12 +380,12 @@ class DebugEditorContribution implements IDebugEditorContribution {
 	@memoize
 	private get updateInlineValuesScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(
-			() => this.updateInlineValueDecorations(this.debugService.getViewModel().focusedStackFrame),
+			async () => await this.updateInlineValueDecorations(this.debugService.getViewModel().focusedStackFrame),
 			200
 		);
 	}
 
-	private updateInlineValueDecorations(stackFrame: IStackFrame | undefined): void {
+	private async updateInlineValueDecorations(stackFrame: IStackFrame | undefined): Promise<void> {
 		const model = this.editor.getModel();
 		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
 			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
@@ -397,20 +397,20 @@ class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.removeInlineValuesScheduler.cancel();
 
-		stackFrame.getMostSpecificScopes(stackFrame.range)
-			// Get all top level children in the scope chain
-			.then(scopes => Promise.all(scopes.map(scope => scope.getChildren()
-				.then(children => {
-					let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
-					if (scope.range) {
-						range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
-					}
+		const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
+		// Get all top level children in the scope chain
+		const decorationsPerScope = await Promise.all(scopes.map(async scope => {
+			const children = await scope.getChildren();
+			let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
+			if (scope.range) {
+				range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
+			}
 
-					return this.createInlineValueDecorationsInsideRange(children, range, model);
-				}))).then(decorationsPerScope => {
-					const allDecorations = decorationsPerScope.reduce((previous, current) => previous.concat(current), []);
-					this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, allDecorations);
-				}));
+			return this.createInlineValueDecorationsInsideRange(children, range, model);
+		}));
+
+		const allDecorations = decorationsPerScope.reduce((previous, current) => previous.concat(current), []);
+		this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, allDecorations);
 	}
 
 	private createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, range: Range, model: ITextModel): IDecorationOptions[] {
