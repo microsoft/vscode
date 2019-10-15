@@ -65,7 +65,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	private async doGetChildren(): Promise<IExpression[]> {
 		if (!this.hasChildren) {
-			return Promise.resolve([]);
+			return [];
 		}
 
 		if (!this.getChildrenInChunks) {
@@ -224,7 +224,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 
 	async setVariable(value: string): Promise<any> {
 		if (!this.session) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		try {
@@ -345,9 +345,11 @@ export class StackFrame implements IStackFrame {
 		return sourceToString === UNKNOWN_SOURCE_LABEL ? this.name : `${this.name} (${sourceToString})`;
 	}
 
-	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | undefined> {
-		return !this.source.available ? Promise.resolve(undefined) :
-			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
+	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | undefined> {
+		if (this.source.available) {
+			return this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
+		}
+		return undefined;
 	}
 
 	equals(other: IStackFrame): boolean {

@@ -145,14 +145,12 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		return EDITOR_CONTRIBUTION_ID;
 	}
 
-	showHover(range: Range, focus: boolean): Promise<void> {
+	async showHover(range: Range, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && sf.source.uri.toString() === model.uri.toString()) {
 			return this.hoverWidget.showAt(range, focus);
 		}
-
-		return Promise.resolve();
 	}
 
 	private async onFocusStackFrame(sf: IStackFrame | undefined): Promise<void> {
@@ -327,7 +325,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		let configurationsArrayPosition: Position | undefined;
 		const model = this.editor.getModel();
 		if (!model) {
-			return Promise.resolve();
+			return;
 		}
 
 		let depthInArray = 0;
@@ -350,7 +348,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.editor.focus();
 		if (!configurationsArrayPosition) {
-			return Promise.resolve();
+			return;
 		}
 
 		const insertLine = (position: Position): Promise<any> => {
