@@ -3,12 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-@keyframes octicon-spin {
-	100% {
-		transform:rotate(360deg);
-	}
+import { escape } from 'vs/base/common/strings';
+
+export function renderCodicons(text: string): string {
+	return escape(text);
 }
 
-.octicon-animation-spin {
-	animation: octicon-spin 1.5s linear infinite;
+export class CodiconLabel {
+
+	private _container: HTMLElement;
+
+	constructor(container: HTMLElement) {
+		this._container = container;
+	}
+
+	set text(text: string) {
+		this._container.innerHTML = renderCodicons(text || '');
+	}
+
 }

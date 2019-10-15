@@ -85,7 +85,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			`lib.webworker.importscripts.d.ts`
 		],
 		redirects: {
-			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
+			'vs/base/browser/ui/codiconLabel/codiconLabel': 'vs/base/browser/ui/codiconLabel/codiconLabel.mock',
 		},
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /(^vs\/css!)|(promise-polyfill\/polyfill)/,
