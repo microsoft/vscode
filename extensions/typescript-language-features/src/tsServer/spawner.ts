@@ -85,10 +85,13 @@ export class TypeScriptServerSpawner {
 			this._tracer);
 	}
 
-	private getForkOptions(kind: ServerKind) {
+	private getForkOptions(kind: ServerKind, configuration: TypeScriptServiceConfiguration) {
 		const debugPort = TypeScriptServerSpawner.getDebugPort(kind);
 		const tsServerForkOptions: electron.ForkOptions = {
-			execArgv: debugPort ? [`--inspect=${debugPort}`] : [],
+			execArgv: [
+				...(debugPort ? [`--inspect=${debugPort}`] : []),
+				...(configuration.maxTsServerMemory ? [`--max-old-space-size=${configuration.maxTsServerMemory}`] : [])
+			]
 		};
 		return tsServerForkOptions;
 	}
