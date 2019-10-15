@@ -275,8 +275,11 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item::before {
-	min-width: 16px;
+	width: 16px;
 	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item:last-child {
