@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiffChange, ISequence, LcsDiff } from 'vs/base/common/diff/diff';
+import { IDiffChange, ISequence, LcsDiff, IDiffResult } from 'vs/base/common/diff/diff';
 import * as strings from 'vs/base/common/strings';
 import { ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
 
 const MAXIMUM_RUN_TIME = 5000; // 5 seconds
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 
-function computeDiff(originalSequence: ISequence, modifiedSequence: ISequence, continueProcessingPredicate: () => boolean, pretty: boolean): IDiffChange[] {
+export interface IDiffComputerResult {
+	quitEarly: boolean;
+	changes: ILineChange[];
+}
+
+function computeDiff(originalSequence: ISequence, modifiedSequence: ISequence, continueProcessingPredicate: () => boolean, pretty: boolean): IDiffResult {
 	const diffAlgo = new LcsDiff(originalSequence, modifiedSequence, continueProcessingPredicate);
 	return diffAlgo.ComputeDiff(pretty);
 }
@@ -22,8 +27,8 @@ class LineSequence implements ISequence {
 	private readonly _endColumns: number[];
 
 	constructor(lines: string[]) {
-		let startColumns: number[] = [];
-		let endColumns: number[] = [];
+		const startColumns: number[] = [];
+		const endColumns: number[] = [];
 		for (let i = 0, length = lines.length; i < length; i++) {
 			startColumns[i] = getFirstNonBlankColumn(lines[i], 1);
 			endColumns[i] = getLastNonBlankColumn(lines[i], 1);
@@ -50,9 +55,9 @@ class LineSequence implements ISequence {
 	}
 
 	public createCharSequence(shouldIgnoreTrimWhitespace: boolean, startIndex: number, endIndex: number): CharSequence {
-		let charCodes: number[] = [];
-		let lineNumbers: number[] = [];
-		let columns: number[] = [];
+		const charCodes: number[] = [];
+		const lineNumbers: number[] = [];
+		const columns: number[] = [];
 		let len = 0;
 		for (let index = startIndex; index <= endIndex; index++) {
 			const lineContent = this.lines[index];
@@ -180,7 +185,7 @@ function postProcessCharChanges(rawChanges: IDiffChange[]): IDiffChange[] {
 		return rawChanges;
 	}
 
-	let result = [rawChanges[0]];
+	const result = [rawChanges[0]];
 	let prevChange = result[0];
 
 	for (let i = 1, len = rawChanges.length; i < len; i++) {
@@ -226,7 +231,7 @@ class LineChange implements ILineChange {
 		this.charChanges = charChanges;
 	}
 
-	public static createFromDiffResult(shouldIgnoreTrimWhitespace: boolean, diffChange: IDiffChange, originalLineSequence: LineSequence, modifiedLineSequence: LineSequence, continueProcessingPredicate: () => boolean, shouldComputeCharChanges: boolean, shouldPostProcessCharChanges: boolean): LineChange {
+	public static createFromDiffResult(shouldIgnoreTrimWhitespace: boolean, diffChange: IDiffChange, originalLineSequence: LineSequence, modifiedLineSequence: LineSequence, continueCharDiff: () => boolean, shouldComputeCharChanges: boolean, shouldPostProcessCharChanges: boolean): LineChange {
 		let originalStartLineNumber: number;
 		let originalEndLineNumber: number;
 		let modifiedStartLineNumber: number;
@@ -249,12 +254,12 @@ class LineChange implements ILineChange {
 			modifiedEndLineNumber = modifiedLineSequence.getEndLineNumber(diffChange.modifiedStart + diffChange.modifiedLength - 1);
 		}
 
-		if (shouldComputeCharChanges && diffChange.originalLength > 0 && diffChange.originalLength < 20 && diffChange.modifiedLength > 0 && diffChange.modifiedLength < 20 && continueProcessingPredicate()) {
+		if (shouldComputeCharChanges && diffChange.originalLength > 0 && diffChange.originalLength < 20 && diffChange.modifiedLength > 0 && diffChange.modifiedLength < 20 && continueCharDiff()) {
 			// Compute character changes for diff chunks of at most 20 lines...
 			const originalCharSequence = originalLineSequence.createCharSequence(shouldIgnoreTrimWhitespace, diffChange.originalStart, diffChange.originalStart + diffChange.originalLength - 1);
 			const modifiedCharSequence = modifiedLineSequence.createCharSequence(shouldIgnoreTrimWhitespace, diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength - 1);
 
-			let rawChanges = computeDiff(originalCharSequence, modifiedCharSequence, continueProcessingPredicate, true);
+			let rawChanges = computeDiff(originalCharSequence, modifiedCharSequence, continueCharDiff, true).changes;
 
 			if (shouldPostProcessCharChanges) {
 				rawChanges = postProcessCharChanges(rawChanges);
@@ -283,88 +288,96 @@ export class DiffComputer {
 	private readonly shouldPostProcessCharChanges: boolean;
 	private readonly shouldIgnoreTrimWhitespace: boolean;
 	private readonly shouldMakePrettyDiff: boolean;
-	private readonly maximumRunTimeMs: number;
 	private readonly originalLines: string[];
 	private readonly modifiedLines: string[];
 	private readonly original: LineSequence;
 	private readonly modified: LineSequence;
-
-	private computationStartTime: number;
+	private readonly continueLineDiff: () => boolean;
+	private readonly continueCharDiff: () => boolean;
 
 	constructor(originalLines: string[], modifiedLines: string[], opts: IDiffComputerOpts) {
 		this.shouldComputeCharChanges = opts.shouldComputeCharChanges;
 		this.shouldPostProcessCharChanges = opts.shouldPostProcessCharChanges;
 		this.shouldIgnoreTrimWhitespace = opts.shouldIgnoreTrimWhitespace;
 		this.shouldMakePrettyDiff = opts.shouldMakePrettyDiff;
-		this.maximumRunTimeMs = MAXIMUM_RUN_TIME;
 		this.originalLines = originalLines;
 		this.modifiedLines = modifiedLines;
 		this.original = new LineSequence(originalLines);
 		this.modified = new LineSequence(modifiedLines);
 
-		this.computationStartTime = (new Date()).getTime();
+		this.continueLineDiff = createContinueProcessingPredicate(MAXIMUM_RUN_TIME);
+		this.continueCharDiff = createContinueProcessingPredicate(MAXIMUM_RUN_TIME);
 	}
 
-	public computeDiff(): ILineChange[] {
+	public computeDiff(): IDiffComputerResult {
 
 		if (this.original.lines.length === 1 && this.original.lines[0].length === 0) {
 			// empty original => fast path
-			return [{
-				originalStartLineNumber: 1,
-				originalEndLineNumber: 1,
-				modifiedStartLineNumber: 1,
-				modifiedEndLineNumber: this.modified.lines.length,
-				charChanges: [{
-					modifiedEndColumn: 0,
-					modifiedEndLineNumber: 0,
-					modifiedStartColumn: 0,
-					modifiedStartLineNumber: 0,
-					originalEndColumn: 0,
-					originalEndLineNumber: 0,
-					originalStartColumn: 0,
-					originalStartLineNumber: 0
+			return {
+				quitEarly: false,
+				changes: [{
+					originalStartLineNumber: 1,
+					originalEndLineNumber: 1,
+					modifiedStartLineNumber: 1,
+					modifiedEndLineNumber: this.modified.lines.length,
+					charChanges: [{
+						modifiedEndColumn: 0,
+						modifiedEndLineNumber: 0,
+						modifiedStartColumn: 0,
+						modifiedStartLineNumber: 0,
+						originalEndColumn: 0,
+						originalEndLineNumber: 0,
+						originalStartColumn: 0,
+						originalStartLineNumber: 0
+					}]
 				}]
-			}];
+			};
 		}
 
 		if (this.modified.lines.length === 1 && this.modified.lines[0].length === 0) {
 			// empty modified => fast path
-			return [{
-				originalStartLineNumber: 1,
-				originalEndLineNumber: this.original.lines.length,
-				modifiedStartLineNumber: 1,
-				modifiedEndLineNumber: 1,
-				charChanges: [{
-					modifiedEndColumn: 0,
-					modifiedEndLineNumber: 0,
-					modifiedStartColumn: 0,
-					modifiedStartLineNumber: 0,
-					originalEndColumn: 0,
-					originalEndLineNumber: 0,
-					originalStartColumn: 0,
-					originalStartLineNumber: 0
+			return {
+				quitEarly: false,
+				changes: [{
+					originalStartLineNumber: 1,
+					originalEndLineNumber: this.original.lines.length,
+					modifiedStartLineNumber: 1,
+					modifiedEndLineNumber: 1,
+					charChanges: [{
+						modifiedEndColumn: 0,
+						modifiedEndLineNumber: 0,
+						modifiedStartColumn: 0,
+						modifiedStartLineNumber: 0,
+						originalEndColumn: 0,
+						originalEndLineNumber: 0,
+						originalStartColumn: 0,
+						originalStartLineNumber: 0
+					}]
 				}]
-			}];
+			};
 		}
 
-		this.computationStartTime = (new Date()).getTime();
-
-		let rawChanges = computeDiff(this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldMakePrettyDiff);
+		const diffResult = computeDiff(this.original, this.modified, this.continueLineDiff, this.shouldMakePrettyDiff);
+		const rawChanges = diffResult.changes;
+		const quitEarly = diffResult.quitEarly;
 
 		// The diff is always computed with ignoring trim whitespace
 		// This ensures we get the prettiest diff
 
 		if (this.shouldIgnoreTrimWhitespace) {
-			let lineChanges: LineChange[] = [];
+			const lineChanges: LineChange[] = [];
 			for (let i = 0, length = rawChanges.length; i < length; i++) {
-				lineChanges.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, rawChanges[i], this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
+				lineChanges.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, rawChanges[i], this.original, this.modified, this.continueCharDiff, this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
 			}
-			return lineChanges;
+			return {
+				quitEarly: quitEarly,
+				changes: lineChanges
+			};
 		}
 
 		// Need to post-process and introduce changes where the trim whitespace is different
 		// Note that we are looping starting at -1 to also cover the lines before the first change
-		let result: LineChange[] = [];
+		const result: LineChange[] = [];
 
 		let originalLineIndex = 0;
 		let modifiedLineIndex = 0;
@@ -432,14 +445,17 @@ export class DiffComputer {
 
 			if (nextChange) {
 				// Emit the actual change
-				result.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, nextChange, this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
+				result.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, nextChange, this.original, this.modified, this.continueCharDiff, this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
 
 				originalLineIndex += nextChange.originalLength;
 				modifiedLineIndex += nextChange.modifiedLength;
 			}
 		}
 
-		return result;
+		return {
+			quitEarly: quitEarly,
+			changes: result
+		};
 	}
 
 	private _pushTrimWhitespaceCharChange(
@@ -497,15 +513,6 @@ export class DiffComputer {
 
 		return false;
 	}
-
-	private _continueProcessingPredicate(): boolean {
-		if (this.maximumRunTimeMs === 0) {
-			return true;
-		}
-		const now = (new Date()).getTime();
-		return now - this.computationStartTime < this.maximumRunTimeMs;
-	}
-
 }
 
 function getFirstNonBlankColumn(txt: string, defaultValue: number): number {
@@ -522,4 +529,15 @@ function getLastNonBlankColumn(txt: string, defaultValue: number): number {
 		return defaultValue;
 	}
 	return r + 2;
+}
+
+function createContinueProcessingPredicate(maximumRuntime: number): () => boolean {
+	if (maximumRuntime === 0) {
+		return () => true;
+	}
+
+	const startTime = Date.now();
+	return () => {
+		return Date.now() - startTime < maximumRuntime;
+	};
 }

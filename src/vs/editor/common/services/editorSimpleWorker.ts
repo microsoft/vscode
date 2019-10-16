@@ -393,11 +393,12 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			shouldMakePrettyDiff: true
 		});
 
-		const changes = diffComputer.computeDiff();
-		let identical = (changes.length > 0 ? false : this._modelsAreIdentical(original, modified));
+		const diffResult = diffComputer.computeDiff();
+		const identical = (diffResult.changes.length > 0 ? false : this._modelsAreIdentical(original, modified));
 		return {
+			quitEarly: diffResult.quitEarly,
 			identical: identical,
-			changes: changes
+			changes: diffResult.changes
 		};
 	}
 
@@ -432,7 +433,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
 		});
-		return diffComputer.computeDiff();
+		return diffComputer.computeDiff().changes;
 	}
 
 	// ---- END diff --------------------------------------------------------------------------

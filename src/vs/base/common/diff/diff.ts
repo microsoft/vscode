@@ -22,7 +22,7 @@ export class StringDiffSequence implements ISequence {
 }
 
 export function stringDiff(original: string, modified: string, pretty: boolean): IDiffChange[] {
-	return new LcsDiff(new StringDiffSequence(original), new StringDiffSequence(modified)).ComputeDiff(pretty);
+	return new LcsDiff(new StringDiffSequence(original), new StringDiffSequence(modified)).ComputeDiff(pretty).changes;
 }
 
 export interface ISequence {
@@ -57,6 +57,11 @@ export interface IDiffChange {
 
 export interface IContinueProcessingPredicate {
 	(furthestOriginalIndex: number, matchLengthOfLongest: number): boolean;
+}
+
+export interface IDiffResult {
+	quitEarly: boolean;
+	changes: IDiffChange[];
 }
 
 //
@@ -297,7 +302,7 @@ export class LcsDiff {
 		return (this._hasStrings ? this._modifiedStringElements[index1] === this._modifiedStringElements[index2] : true);
 	}
 
-	public ComputeDiff(pretty: boolean): IDiffChange[] {
+	public ComputeDiff(pretty: boolean): IDiffResult {
 		return this._ComputeDiff(0, this._originalElementsOrHash.length - 1, 0, this._modifiedElementsOrHash.length - 1, pretty);
 	}
 
@@ -306,18 +311,21 @@ export class LcsDiff {
 	 * sequences on the bounded range.
 	 * @returns An array of the differences between the two input sequences.
 	 */
-	private _ComputeDiff(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, pretty: boolean): DiffChange[] {
+	private _ComputeDiff(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, pretty: boolean): IDiffResult {
 		const quitEarlyArr = [false];
-		const changes = this.ComputeDiffRecursive(originalStart, originalEnd, modifiedStart, modifiedEnd, quitEarlyArr);
+		let changes = this.ComputeDiffRecursive(originalStart, originalEnd, modifiedStart, modifiedEnd, quitEarlyArr);
 
 		if (pretty) {
 			// We have to clean up the computed diff to be more intuitive
 			// but it turns out this cannot be done correctly until the entire set
 			// of diffs have been computed
-			return this.PrettifyChanges(changes);
+			changes = this.PrettifyChanges(changes);
 		}
 
-		return changes;
+		return {
+			quitEarly: quitEarlyArr[0],
+			changes: changes
+		};
 	}
 
 	/**

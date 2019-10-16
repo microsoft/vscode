@@ -13,6 +13,7 @@ export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
 
 export interface IDiffComputationResult {
+	quitEarly: boolean;
 	identical: boolean;
 	changes: ILineChange[];
 }
