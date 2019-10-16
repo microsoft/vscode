@@ -4862,7 +4862,7 @@ suite('autoClosingPairs', () => {
 			assert.equal(model.getValue(), 'console.log(\'it\\\');');
 
 			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
-			assert.equal(model.getValue(), 'console.log(\'it\\\'\');');
+			assert.equal(model.getValue(), 'console.log(\'it\\\'\'\');');
 		});
 		mode.dispose();
 	});
