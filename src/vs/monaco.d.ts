@@ -2942,6 +2942,11 @@ declare namespace monaco.editor {
 		 */
 		renderSideBySide?: boolean;
 		/**
+		 * Timeout in milliseconds after which diff computation is cancelled.
+		 * Defaults to 5000.
+		 */
+		maximumComputationTime?: number;
+		/**
 		 * Compute the diff by ignoring leading/trailing whitespace
 		 * Defaults to true.
 		 */

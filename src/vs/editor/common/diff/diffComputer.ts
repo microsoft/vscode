@@ -7,7 +7,6 @@ import { IDiffChange, ISequence, LcsDiff, IDiffResult } from 'vs/base/common/dif
 import * as strings from 'vs/base/common/strings';
 import { ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
 
-const MAXIMUM_RUN_TIME = 5000; // 5 seconds
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 
 export interface IDiffComputerResult {
@@ -280,6 +279,7 @@ export interface IDiffComputerOpts {
 	shouldPostProcessCharChanges: boolean;
 	shouldIgnoreTrimWhitespace: boolean;
 	shouldMakePrettyDiff: boolean;
+	maximumComputationTime: number;
 }
 
 export class DiffComputer {
@@ -305,8 +305,8 @@ export class DiffComputer {
 		this.original = new LineSequence(originalLines);
 		this.modified = new LineSequence(modifiedLines);
 
-		this.continueLineDiff = createContinueProcessingPredicate(MAXIMUM_RUN_TIME);
-		this.continueCharDiff = createContinueProcessingPredicate(MAXIMUM_RUN_TIME);
+		this.continueLineDiff = createContinueProcessingPredicate(opts.maximumComputationTime);
+		this.continueCharDiff = createContinueProcessingPredicate(opts.maximumComputationTime === 0 ? 0 : Math.min(opts.maximumComputationTime, 5000)); // never run after 5s for character changes...
 	}
 
 	public computeDiff(): IDiffComputerResult {

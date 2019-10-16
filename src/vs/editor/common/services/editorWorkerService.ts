@@ -22,7 +22,7 @@ export interface IEditorWorkerService {
 	_serviceBrand: undefined;
 
 	canComputeDiff(original: URI, modified: URI): boolean;
-	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IDiffComputationResult | null>;
+	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maximumComputationTime: number): Promise<IDiffComputationResult | null>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;
