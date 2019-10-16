@@ -1487,7 +1487,7 @@ export class SearchView extends ViewletPanel {
 			dom.EventHelper.stop(e, false);
 
 			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
-			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
+			const action = this.instantiationService.createInstance(actionClass, actionClass.ID, actionClass.LABEL);
 			this.actionRunner!.run(action).then(() => {
 				action.dispose();
 			}, err => {
