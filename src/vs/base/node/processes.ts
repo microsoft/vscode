@@ -40,7 +40,7 @@ function getWindowsCode(status: number): TerminateResponseCode {
 	}
 }
 
-export function terminateProcess(process: cp.ChildProcess, cwd?: string): TerminateResponse {
+function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<TerminateResponse> {
 	if (Platform.isWindows) {
 		try {
 			const options: any = {
@@ -49,24 +49,45 @@ export function terminateProcess(process: cp.ChildProcess, cwd?: string): Termin
 			if (cwd) {
 				options.cwd = cwd;
 			}
-			cp.execFileSync('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
+			const killProcess = cp.execFile('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
+			return new Promise((resolve, reject) => {
+				killProcess.once('error', (err) => {
+					resolve({ success: false, error: err });
+				});
+				killProcess.once('exit', (code, signal) => {
+					if (code === 0) {
+						resolve({ success: true });
+					} else {
+						resolve({ success: false, code: code !== null ? code : TerminateResponseCode.Unknown });
+					}
+				});
+			});
 		} catch (err) {
-			return { success: false, error: err, code: err.status ? getWindowsCode(err.status) : TerminateResponseCode.Unknown };
+			return Promise.resolve({ success: false, error: err, code: err.status ? getWindowsCode(err.status) : TerminateResponseCode.Unknown });
 		}
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
 			const cmd = getPathFromAmdModule(require, 'vs/base/node/terminateProcess.sh');
-			const result = cp.spawnSync(cmd, [process.pid.toString()]);
-			if (result.error) {
-				return { success: false, error: result.error };
-			}
+			const killProcess = cp.spawn(cmd, [process.pid.toString()]);
+			return new Promise((resolve, reject) => {
+				killProcess.once('error', (err) => {
+					resolve({ success: false, error: err });
+				});
+				killProcess.once('exit', (code, signal) => {
+					if (code === 0) {
+						resolve({ success: true });
+					} else {
+						resolve({ success: false, code: code !== null ? code : TerminateResponseCode.Unknown });
+					}
+				});
+			});
 		} catch (err) {
-			return { success: false, error: err };
+			return Promise.resolve({ success: false, error: err });
 		}
 	} else {
 		process.kill('SIGKILL');
 	}
-	return { success: true };
+	return Promise.resolve({ success: true });
 }
 
 export function getWindowsShell(): string {
@@ -289,11 +310,12 @@ export abstract class AbstractProcess<TProgressData> {
 		}
 		return this.childProcessPromise.then((childProcess) => {
 			this.terminateRequested = true;
-			const result = terminateProcess(childProcess, this.options.cwd);
-			if (result.success) {
-				this.childProcess = null;
-			}
-			return result;
+			return terminateProcess(childProcess, this.options.cwd).then(response => {
+				if (response.success) {
+					this.childProcess = null;
+				}
+				return response;
+			});
 		}, (err) => {
 			return { success: true };
 		});
