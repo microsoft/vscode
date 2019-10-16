@@ -350,21 +350,10 @@ function isAsciiLetter(code: number): boolean {
 }
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
-	const len1 = a ? a.length : 0;
-	const len2 = b ? b.length : 0;
-
-	if (len1 !== len2) {
-		return false;
-	}
-
-	return doEqualsIgnoreCase(a, b);
+	return a.length === b.length && doEqualsIgnoreCase(a, b);
 }
 
 function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
-	if (typeof a !== 'string' || typeof b !== 'string') {
-		return false;
-	}
-
 	for (let i = 0; i < stopAt; i++) {
 		const codeA = a.charCodeAt(i);
 		const codeB = b.charCodeAt(i);
