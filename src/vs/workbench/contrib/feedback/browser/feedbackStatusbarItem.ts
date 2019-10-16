@@ -71,7 +71,11 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 		if (!this.dropdown) {
 			const statusContainr = document.getElementById('status.feedback');
 			if (statusContainr) {
-				this.dropdown = this._register(this.instantiationService.createInstance(FeedbackDropdown, statusContainr.getElementsByClassName('octicon').item(0), {
+				const icon = statusContainr.getElementsByClassName('octicon').item(0) as HTMLElement | null;
+				if (!icon) {
+					throw new Error('Could not find icon');
+				}
+				this.dropdown = this._register(this.instantiationService.createInstance(FeedbackDropdown, icon, {
 					contextViewProvider: this.contextViewService,
 					feedbackService: this.instantiationService.createInstance(TwitterFeedbackService),
 					onFeedbackVisibilityChange: visible => this.entry!.update(this.getStatusEntry(visible))

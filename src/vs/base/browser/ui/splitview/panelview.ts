@@ -229,8 +229,8 @@ export abstract class Panel extends Disposable implements IView {
 		this.header.setAttribute('aria-expanded', String(expanded));
 
 		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : null;
-		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : null;
-		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : null;
+		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : '';
+		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : '';
 		this._dropBackground = this.styles.dropBackground;
 	}
 
@@ -340,7 +340,7 @@ class PanelDraggable extends Disposable {
 			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
 		}
 
-		this.panel.dropTargetElement.style.backgroundColor = backgroundColor;
+		this.panel.dropTargetElement.style.backgroundColor = backgroundColor || '';
 	}
 }
 

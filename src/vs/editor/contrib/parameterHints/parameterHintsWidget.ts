@@ -34,13 +34,17 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	private readonly model = this._register(new MutableDisposable<ParameterHintsModel>());
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
-	private element: HTMLElement;
-	private signature: HTMLElement;
-	private docs: HTMLElement;
-	private overloads: HTMLElement;
-	private visible: boolean;
-	private announcedLabel: string | null;
-	private scrollbar: DomScrollableElement;
+
+	private domNodes?: {
+		readonly element: HTMLElement;
+		readonly signature: HTMLElement;
+		readonly docs: HTMLElement;
+		readonly overloads: HTMLElement;
+		readonly scrollbar: DomScrollableElement;
+	};
+
+	private visible: boolean = false;
+	private announcedLabel: string | null = null;
 
 	// Editor.IContentWidget.allowEditorOverflow
 	allowEditorOverflow = true;
@@ -56,7 +60,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		this.model.value = new ParameterHintsModel(editor);
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
-		this.visible = false;
 
 		this._register(this.model.value.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
@@ -69,8 +72,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	private createParamaterHintDOMNodes() {
-		this.element = $('.editor-widget.parameter-hints-widget');
-		const wrapper = dom.append(this.element, $('.wrapper'));
+		const element = $('.editor-widget.parameter-hints-widget');
+		const wrapper = dom.append(element, $('.wrapper'));
 		wrapper.tabIndex = -1;
 
 		const buttons = dom.append(wrapper, $('.buttons'));
@@ -83,21 +86,29 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		const onNextClick = stop(domEvent(next, 'click'));
 		this._register(onNextClick(this.next, this));
 
-		this.overloads = dom.append(wrapper, $('.overloads'));
+		const overloads = dom.append(wrapper, $('.overloads'));
 
 		const body = $('.body');
-		this.scrollbar = new DomScrollableElement(body, {});
-		this._register(this.scrollbar);
-		wrapper.appendChild(this.scrollbar.getDomNode());
+		const scrollbar = new DomScrollableElement(body, {});
+		this._register(scrollbar);
+		wrapper.appendChild(scrollbar.getDomNode());
 
-		this.signature = dom.append(body, $('.signature'));
+		const signature = dom.append(body, $('.signature'));
+		const docs = dom.append(body, $('.docs'));
 
-		this.docs = dom.append(body, $('.docs'));
+		element.style.userSelect = 'text';
+
+		this.domNodes = {
+			element,
+			signature,
+			overloads,
+			docs,
+			scrollbar,
+		};
 
 		this.editor.addContentWidget(this);
 		this.hide();
 
-		this.element.style.userSelect = 'text';
 		this._register(this.editor.onDidChangeCursorSelection(e => {
 			if (this.visible) {
 				this.editor.layoutContentWidget(this);
@@ -105,8 +116,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		}));
 
 		const updateFont = () => {
+			if (!this.domNodes) {
+				return;
+			}
 			const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-			this.element.style.fontSize = `${fontInfo.fontSize}px`;
+			this.domNodes.element.style.fontSize = `${fontInfo.fontSize}px`;
 		};
 
 		updateFont();
@@ -124,13 +138,17 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			return;
 		}
 
-		if (!this.element) {
+		if (!this.domNodes) {
 			this.createParamaterHintDOMNodes();
 		}
 
 		this.keyVisible.set(true);
 		this.visible = true;
-		setTimeout(() => dom.addClass(this.element, 'visible'), 100);
+		setTimeout(() => {
+			if (this.domNodes) {
+				dom.addClass(this.domNodes.element, 'visible');
+			}
+		}, 100);
 		this.editor.layoutContentWidget(this);
 	}
 
@@ -139,14 +157,12 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			return;
 		}
 
-		if (!this.element) {
-			this.createParamaterHintDOMNodes();
-		}
-
 		this.keyVisible.reset();
 		this.visible = false;
 		this.announcedLabel = null;
-		dom.removeClass(this.element, 'visible');
+		if (this.domNodes) {
+			dom.removeClass(this.domNodes.element, 'visible');
+		}
 		this.editor.layoutContentWidget(this);
 	}
 
@@ -161,12 +177,16 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	private render(hints: modes.SignatureHelp): void {
+		if (!this.domNodes) {
+			return;
+		}
+
 		const multiple = hints.signatures.length > 1;
-		dom.toggleClass(this.element, 'multiple', multiple);
+		dom.toggleClass(this.domNodes.element, 'multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
 
-		this.signature.innerHTML = '';
-		this.docs.innerHTML = '';
+		this.domNodes.signature.innerHTML = '';
+		this.domNodes.docs.innerHTML = '';
 
 		const signature = hints.signatures[hints.activeSignature];
 
@@ -174,7 +194,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			return;
 		}
 
-		const code = dom.append(this.signature, $('.code'));
+		const code = dom.append(this.domNodes.signature, $('.code'));
 		const hasParameters = signature.parameters.length > 0;
 
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
@@ -203,17 +223,17 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 				this.renderDisposeables.add(renderedContents);
 				documentation.appendChild(renderedContents.element);
 			}
-			dom.append(this.docs, $('p', {}, documentation));
+			dom.append(this.domNodes.docs, $('p', {}, documentation));
 		}
 
 		if (signature.documentation === undefined) { /** no op */ }
 		else if (typeof signature.documentation === 'string') {
-			dom.append(this.docs, $('p', {}, signature.documentation));
+			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
 			const renderedContents = this.markdownRenderer.render(signature.documentation);
 			dom.addClass(renderedContents.element, 'markdown-docs');
 			this.renderDisposeables.add(renderedContents);
-			dom.append(this.docs, renderedContents.element);
+			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
 		let hasDocs = false;
@@ -230,8 +250,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			hasDocs = true;
 		}
 
-		dom.toggleClass(this.signature, 'has-docs', hasDocs);
-		dom.toggleClass(this.docs, 'empty', !hasDocs);
+		dom.toggleClass(this.domNodes.signature, 'has-docs', hasDocs);
+		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
 
 		let currentOverload = String(hints.activeSignature + 1);
 
@@ -239,7 +259,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			currentOverload += `/${hints.signatures.length}`;
 		}
 
-		this.overloads.textContent = currentOverload;
+		this.domNodes.overloads.textContent = currentOverload;
 
 		if (activeParameter) {
 			const labelToAnnounce = this.getParameterLabel(signature, hints.activeParameter);
@@ -253,7 +273,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		}
 
 		this.editor.layoutContentWidget(this);
-		this.scrollbar.scanDomNode();
+		this.domNodes.scrollbar.scanDomNode();
 	}
 
 	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
@@ -317,7 +337,10 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	getDomNode(): HTMLElement {
-		return this.element;
+		if (!this.domNodes) {
+			this.createParamaterHintDOMNodes();
+		}
+		return this.domNodes!.element;
 	}
 
 	getId(): string {
@@ -331,10 +354,13 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	private updateMaxHeight(): void {
+		if (!this.domNodes) {
+			return;
+		}
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
 		const maxHeight = `${height}px`;
-		this.element.style.maxHeight = maxHeight;
-		const wrapper = this.element.getElementsByClassName('wrapper') as HTMLCollectionOf<HTMLElement>;
+		this.domNodes.element.style.maxHeight = maxHeight;
+		const wrapper = this.domNodes.element.getElementsByClassName('wrapper') as HTMLCollectionOf<HTMLElement>;
 		if (wrapper.length) {
 			wrapper[0].style.maxHeight = maxHeight;
 		}

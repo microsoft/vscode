@@ -28,6 +28,7 @@ const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
 const URL_TO_HANDLE = 'extensionUrlHandler.urlToHandle';
 const CONFIRMED_EXTENSIONS_CONFIGURATION_KEY = 'extensions.confirmedUriHandlerExtensionIds';
+const CONFIRMED_EXTENSIONS_STORAGE_KEY = 'extensionUrlHandler.confirmedExtensions';
 
 function isExtensionId(value: string): boolean {
 	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
@@ -130,7 +131,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 
 			if (result.checkboxChecked) {
-				await this.addConfirmedExtensionIdToStorage(extensionId);
+				this.addConfirmedExtensionIdToStorage(extensionId);
 			}
 		}
 
@@ -292,8 +293,10 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private getConfirmedExtensionIds(): Set<string> {
-		const ids = this.getConfirmedExtensionIdsFromConfiguration()
-			.map(extensionId => ExtensionIdentifier.toKey(extensionId));
+		const ids = [
+			...this.getConfirmedExtensionIdsFromStorage(),
+			...this.getConfirmedExtensionIdsFromConfiguration(),
+		].map(extensionId => ExtensionIdentifier.toKey(extensionId));
 
 		return new Set(ids);
 	}
@@ -308,12 +311,26 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		return confirmedExtensionIds;
 	}
 
-	private async addConfirmedExtensionIdToStorage(extensionId: string): Promise<void> {
-		const confirmedExtensionIds = this.configurationService.getValue<Array<string>>(CONFIRMED_EXTENSIONS_CONFIGURATION_KEY);
-		const set = new Set(confirmedExtensionIds);
-		set.add(extensionId);
+	private getConfirmedExtensionIdsFromStorage(): Array<string> {
+		const confirmedExtensionIdsJson = this.storageService.get(CONFIRMED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
 
-		await this.configurationService.updateValue(CONFIRMED_EXTENSIONS_CONFIGURATION_KEY, [...set.values()]);
+		try {
+			return JSON.parse(confirmedExtensionIdsJson);
+		} catch (err) {
+			return [];
+		}
+	}
+
+	private addConfirmedExtensionIdToStorage(extensionId: string): void {
+		const existingConfirmedExtensionIds = this.getConfirmedExtensionIdsFromStorage();
+		this.storageService.store(
+			CONFIRMED_EXTENSIONS_STORAGE_KEY,
+			JSON.stringify([
+				...existingConfirmedExtensionIds,
+				ExtensionIdentifier.toKey(extensionId),
+			]),
+			StorageScope.GLOBAL,
+		);
 	}
 
 	dispose(): void {

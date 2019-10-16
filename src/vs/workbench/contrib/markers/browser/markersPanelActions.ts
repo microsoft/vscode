@@ -196,14 +196,14 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private createBadge(container: HTMLElement): void {
 		const filterBadge = this.filterBadge = DOM.append(container, DOM.$('.markers-panel-filter-badge'));
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
 			filterBadge.style.backgroundColor = background;
 
-			filterBadge.style.borderWidth = border ? '1px' : null;
-			filterBadge.style.borderStyle = border ? 'solid' : null;
+			filterBadge.style.borderWidth = border ? '1px' : '';
+			filterBadge.style.borderStyle = border ? 'solid' : '';
 			filterBadge.style.borderColor = border;
 			filterBadge.style.color = foreground;
 		}));

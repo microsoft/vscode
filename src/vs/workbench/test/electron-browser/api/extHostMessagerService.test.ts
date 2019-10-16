@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -55,6 +55,9 @@ const emptyNotificationService = new class implements INotificationService {
 	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
+	setFilter(filter: NotificationsFilter): void {
+		throw new Error('not implemented.');
+	}
 };
 
 class EmptyNotificationService implements INotificationService {
@@ -78,10 +81,13 @@ class EmptyNotificationService implements INotificationService {
 		throw new Error('Method not implemented.');
 	}
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		throw new Error('not implemented');
+		throw new Error('Method not implemented');
 	}
 	status(message: string, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
+	}
+	setFilter(filter: NotificationsFilter): void {
+		throw new Error('Method not implemented.');
 	}
 }
 

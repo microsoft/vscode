@@ -288,14 +288,6 @@ class BrowserMain extends Disposable {
 		let workspace: IWorkspace | undefined = undefined;
 		if (this.configuration.workspaceProvider) {
 			workspace = this.configuration.workspaceProvider.workspace;
-		} else {
-			// TODO@ben remove me once IWorkspaceProvider API is adopted
-			const legacyConfiguration = this.configuration as { workspaceUri?: URI, folderUri?: URI };
-			if (legacyConfiguration.workspaceUri) {
-				workspace = { workspaceUri: legacyConfiguration.workspaceUri };
-			} else if (legacyConfiguration.folderUri) {
-				workspace = { folderUri: legacyConfiguration.folderUri };
-			}
 		}
 
 		// Multi-root workspace
@@ -311,7 +303,7 @@ class BrowserMain extends Disposable {
 		return { id: 'empty-window' };
 	}
 
-	private getRemoteUserDataUri(): URI | null {
+	private getRemoteUserDataUri(): URI | undefined {
 		const element = document.getElementById('vscode-remote-user-data-uri');
 		if (element) {
 			const remoteUserDataPath = element.getAttribute('data-settings');
@@ -320,7 +312,7 @@ class BrowserMain extends Disposable {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 }
 

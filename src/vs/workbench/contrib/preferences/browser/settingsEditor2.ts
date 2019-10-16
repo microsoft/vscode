@@ -400,15 +400,15 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.countElement = DOM.append(searchContainer, DOM.$('.settings-count-widget'));
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder, badgeForeground }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
 
 			this.countElement.style.backgroundColor = background;
 			this.countElement.style.color = foreground;
 
-			this.countElement.style.borderWidth = border ? '1px' : null;
-			this.countElement.style.borderStyle = border ? 'solid' : null;
+			this.countElement.style.borderWidth = border ? '1px' : '';
+			this.countElement.style.borderStyle = border ? 'solid' : '';
 			this.countElement.style.borderColor = border;
 		}));
 

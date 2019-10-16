@@ -84,7 +84,9 @@ suite('Workbench - TerminalCommandTracker', () => {
 			(<any>window).matchMedia = () => {
 				return { addListener: () => { } };
 			};
-			xterm.open(document.createElement('div'));
+			const e = document.createElement('div');
+			document.body.appendChild(e);
+			xterm.open(e);
 
 			await writePromise(xterm, '\r0');
 			await writePromise(xterm, '\n\r1');
@@ -109,12 +111,16 @@ suite('Workbench - TerminalCommandTracker', () => {
 			assert.equal(xterm.getSelection(), '2');
 			commandTracker.selectToNextCommand();
 			assert.equal(xterm.getSelection(), isWindows ? '\r\n' : '\n');
+
+			document.body.removeChild(e);
 		});
 		test('should select to the next and previous lines & commands', async () => {
 			(<any>window).matchMedia = () => {
 				return { addListener: () => { } };
 			};
-			xterm.open(document.createElement('div'));
+			const e = document.createElement('div');
+			document.body.appendChild(e);
+			xterm.open(e);
 
 			await writePromise(xterm, '\r0');
 			await writePromise(xterm, '\n\r1');
@@ -144,6 +150,8 @@ suite('Workbench - TerminalCommandTracker', () => {
 			assert.equal(xterm.getSelection(), isWindows ? '1\r\n2' : '1\n2');
 			commandTracker.selectToPreviousLine();
 			assert.equal(xterm.getSelection(), isWindows ? '0\r\n1\r\n2' : '0\n1\n2');
+
+			document.body.removeChild(e);
 		});
 	});
 });

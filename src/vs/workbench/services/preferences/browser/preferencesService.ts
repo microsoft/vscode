@@ -51,11 +51,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private readonly _onDispose = this._register(new Emitter<void>());
 
 	private _defaultUserSettingsUriCounter = 0;
-	private _defaultUserSettingsContentModel: DefaultSettings;
+	private _defaultUserSettingsContentModel: DefaultSettings | undefined;
 	private _defaultWorkspaceSettingsUriCounter = 0;
-	private _defaultWorkspaceSettingsContentModel: DefaultSettings;
+	private _defaultWorkspaceSettingsContentModel: DefaultSettings | undefined;
 	private _defaultFolderSettingsUriCounter = 0;
-	private _defaultFolderSettingsContentModel: DefaultSettings;
+	private _defaultFolderSettingsContentModel: DefaultSettings | undefined;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,

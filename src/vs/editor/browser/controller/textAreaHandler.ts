@@ -66,7 +66,7 @@ interface LocalClipboardMetadata {
  * we can fetch the previous metadata.
  */
 class LocalClipboardMetadataManager {
-	public static INSTANCE = new LocalClipboardMetadataManager();
+	public static readonly INSTANCE = new LocalClipboardMetadataManager();
 
 	private _lastState: LocalClipboardMetadata | null;
 

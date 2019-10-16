@@ -9,7 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
+import { SymbolKinds, Location } from 'vs/editor/common/modes';
 import { hash } from 'vs/base/common/hash';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Range } from 'vs/editor/common/core/range';
@@ -83,8 +83,8 @@ export class DataSource implements IAsyncDataSource<CallHierarchyRoot, Call> {
 		const outgoingCalls = await provideOutgoingCalls(model, position, CancellationToken.None);
 		for (const call of outgoingCalls) {
 			bucket.push(new Call(
-				call.target,
-				call.sourceRanges.map(range => ({ range, uri: model.uri })),
+				call.to,
+				call.fromRanges.map(range => ({ range, uri: model.uri })),
 				parent
 			));
 		}
@@ -94,8 +94,8 @@ export class DataSource implements IAsyncDataSource<CallHierarchyRoot, Call> {
 		const incomingCalls = await provideIncomingCalls(model, position, CancellationToken.None);
 		for (const call of incomingCalls) {
 			bucket.push(new Call(
-				call.source,
-				call.sourceRanges.map(range => ({ range, uri: call.source.uri })),
+				call.from,
+				call.fromRanges.map(range => ({ range, uri: call.from.uri })),
 				parent
 			));
 		}
@@ -122,7 +122,7 @@ class CallRenderingTemplate {
 
 export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderingTemplate> {
 
-	static id = 'CallRenderer';
+	static readonly id = 'CallRenderer';
 
 	templateId: string = CallRenderer.id;
 
@@ -140,7 +140,7 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 			{
 				labelEscapeNewLines: true,
 				matches: createMatches(filterData),
-				extraClasses: [symbolKindToCssClass(element.item.kind, true)]
+				extraClasses: [SymbolKinds.toCssClassName(element.item.kind, true)]
 			}
 		);
 	}

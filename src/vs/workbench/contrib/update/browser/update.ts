@@ -103,7 +103,7 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
 	static readonly ID = ShowCurrentReleaseNotesActionId;
-	static LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
+	static readonly LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
 
 	constructor(
 		id = ShowCurrentReleaseNotesAction.ID,
@@ -469,7 +469,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '6_update',
 			command: {
 				id: 'update.restart',
-				title: nls.localize('restartToUpdate', "Restart to Update")
+				title: nls.localize('restartToUpdate', "*Restart to Update")
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});

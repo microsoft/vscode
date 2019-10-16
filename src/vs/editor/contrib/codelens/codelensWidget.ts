@@ -6,7 +6,7 @@
 import 'vs/css!./codelensWidget';
 import * as dom from 'vs/base/browser/dom';
 import { coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { escape } from 'vs/base/common/strings';
+import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -104,7 +104,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		for (let i = 0; i < symbols.length; i++) {
 			const command = symbols[i].command;
 			if (command) {
-				const title = escape(command.title);
+				const title = renderOcticons(command.title);
 				let part: string;
 				if (command.id) {
 					part = `<a id=${i}>${title}</a>`;

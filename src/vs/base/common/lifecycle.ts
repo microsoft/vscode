@@ -138,7 +138,7 @@ export class DisposableStore implements IDisposable {
 
 export abstract class Disposable implements IDisposable {
 
-	static None = Object.freeze<IDisposable>({ dispose() { } });
+	static readonly None = Object.freeze<IDisposable>({ dispose() { } });
 
 	private readonly _store = new DisposableStore();
 

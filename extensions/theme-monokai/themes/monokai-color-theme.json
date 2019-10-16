@@ -65,8 +65,8 @@
 		"focusBorder": "#75715E",
 		"editorWidget.background": "#1e1f1c",
 		"debugToolBar.background": "#1e1f1c",
-		"diffEditor.insertedTextBackground": "#66852880", // middle of #272822 and #a6e22e
-		"diffEditor.removedTextBackground": "#90274A80", // middle of #272822 and #f92672
+		"diffEditor.insertedTextBackground": "#4b661680", // middle of #272822 and #a6e22e
+		"diffEditor.removedTextBackground": "#90274A70", // middle of #272822 and #f92672
 		"inputValidation.errorBackground": "#90274A", // middle of #272822 and #f92672
 		"inputValidation.errorBorder": "#f92672",
 		"inputValidation.warningBackground": "#848528", // middle of #272822 and #e2e22e
@@ -123,7 +123,7 @@
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
-				"foreground": "#75715E"
+				"foreground": "#88846f"
 			}
 		},
 		{

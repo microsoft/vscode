@@ -15,7 +15,7 @@ import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } fr
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
@@ -24,6 +24,7 @@ import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLi
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import * as platform from 'vs/base/common/platform';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -128,6 +129,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		super.dispose();
 		this.decorations.dispose();
 		this.lines.dispose();
+		this.invalidateMinimapColorCache();
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 	}
 
@@ -713,7 +715,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			if (lineContent === '') {
 				result += '<br>';
 			} else {
-				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize);
+				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize, platform.isWindows);
 			}
 		}
 

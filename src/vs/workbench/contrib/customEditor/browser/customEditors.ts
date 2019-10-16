@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, distinct } from 'vs/base/common/arrays';
+import { coalesce, distinct, mergeSort, find } from 'vs/base/common/arrays';
 import * as glob from 'vs/base/common/glob';
-import { UnownedDisposable } from 'vs/base/common/lifecycle';
+import { UnownedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, DataUri, isEqual } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -22,12 +22,14 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
-import { CustomEditorPriority, CustomEditorInfo, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorPriority, CustomEditorInfo, CustomEditorSelector, ICustomEditorService, CONTEXT_HAS_CUSTOM_EDITORS } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { CustomFileEditorInput } from './customEditorInput';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Lazy } from 'vs/base/common/lazy';
 
 const defaultEditorId = 'default';
 
@@ -67,18 +69,22 @@ export class CustomEditorStore {
 	}
 }
 
-export class CustomEditorService implements ICustomEditorService {
+export class CustomEditorService extends Disposable implements ICustomEditorService {
 	_serviceBrand: any;
 
 	private readonly editors = new CustomEditorStore();
+	private readonly _hasCustomEditor: IContextKey<boolean>;
 
 	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 	) {
+		super();
+
 		webviewEditorsExtensionPoint.setHandler(extensions => {
 			this.editors.clear();
 
@@ -92,7 +98,13 @@ export class CustomEditorService implements ICustomEditorService {
 					});
 				}
 			}
+			this.updateContext();
 		});
+
+		this._hasCustomEditor = CONTEXT_HAS_CUSTOM_EDITORS.bindTo(contextKeyService);
+
+		this._register(this.editorService.onDidActiveEditorChange(() => this.updateContext()));
+		this.updateContext();
 	}
 
 	public getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[] {
@@ -154,13 +166,15 @@ export class CustomEditorService implements ICustomEditorService {
 		resource: URI,
 		viewType: string,
 		group: IEditorGroup | undefined,
-		options?: { readonly customClasses: string },
+		options?: { readonly customClasses: string; },
 	): CustomFileEditorInput {
 		const id = generateUuid();
-		const webview = this.webviewService.createWebviewEditorOverlay(id, { customClasses: options ? options.customClasses : undefined }, {});
-		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, new UnownedDisposable(webview));
+		const webview = new Lazy(() => {
+			return new UnownedDisposable(this.webviewService.createWebviewEditorOverlay(id, { customClasses: options ? options.customClasses : undefined }, {}));
+		});
+		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, webview);
 		if (group) {
-			input.updateGroup(group!.id);
+			input.updateGroup(group.id);
 		}
 		return input;
 	}
@@ -175,28 +189,44 @@ export class CustomEditorService implements ICustomEditorService {
 			const existingEditors = group.editors.filter(editor => editor.getResource() && isEqual(editor.getResource()!, resource));
 			if (existingEditors.length) {
 				const existing = existingEditors[0];
-				if (input.matches(existing)) {
-					return;
-				}
+				if (!input.matches(existing)) {
+					await this.editorService.replaceEditors([{
+						editor: existing,
+						replacement: input,
+						options: options ? EditorOptions.create(options) : undefined,
+					}], group);
 
-				await this.editorService.replaceEditors([{
-					editor: existing,
-					replacement: input,
-					options: options ? EditorOptions.create(options) : undefined,
-				}], group);
-
-				if (existing instanceof CustomFileEditorInput) {
-					existing.dispose();
+					if (existing instanceof CustomFileEditorInput) {
+						existing.dispose();
+					}
 				}
 			}
 		}
 		return this.editorService.openEditor(input, options, group);
 	}
+
+	private updateContext() {
+		const activeControl = this.editorService.activeControl;
+		if (!activeControl) {
+			this._hasCustomEditor.reset();
+			return;
+		}
+		const resource = activeControl.input.getResource();
+		if (!resource) {
+			this._hasCustomEditor.reset();
+			return;
+		}
+		const possibleEditors = [
+			...this.getContributedCustomEditors(resource),
+			...this.getUserConfiguredCustomEditors(resource),
+		];
+		this._hasCustomEditor.set(possibleEditors.length > 0);
+	}
 }
 
 export const customEditorsAssociationsKey = 'workbench.experimental.editorAssociations';
 
-export type CustomEditorsAssociations = readonly (CustomEditorSelector & { readonly viewType: string })[];
+export type CustomEditorsAssociations = readonly (CustomEditorSelector & { readonly viewType: string; })[];
 
 export class CustomEditorContribution implements IWorkbenchContribution {
 	constructor(
@@ -212,7 +242,9 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
 		if (editor instanceof CustomFileEditorInput) {
-			return undefined;
+			if (editor.group === group.id) {
+				return undefined;
+			}
 		}
 
 		if (editor instanceof DiffEditorInput) {
@@ -240,10 +272,19 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 				return;
 			}
 
-			const defaultEditors = contributedEditors.filter(editor => editor.priority === CustomEditorPriority.default);
-			if (defaultEditors.length === 1) {
+			// Find the single default editor to use (if any) by looking at the editor's priority and the
+			// other contributed editors.
+			const defaultEditor = find(contributedEditors, editor => {
+				if (editor.priority !== CustomEditorPriority.default && editor.priority !== CustomEditorPriority.builtin) {
+					return false;
+				}
+				return contributedEditors.every(otherEditor =>
+					otherEditor === editor || isLowerPriority(otherEditor, editor));
+			});
+
+			if (defaultEditor) {
 				return {
-					override: this.customEditorService.openWith(resource, defaultEditors[0].id, options, group),
+					override: this.customEditorService.openWith(resource, defaultEditor.id, options, group),
 				};
 			}
 		}
@@ -294,15 +335,20 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 				return undefined;
 			}
 
-			const editors = distinct([
-				...this.customEditorService.getUserConfiguredCustomEditors(resource),
-				...this.customEditorService.getContributedCustomEditors(resource),
-			], editor => editor.id);
+			// Prefer default editors in the diff editor case but ultimatly always take the first editor
+			const editors = mergeSort(
+				distinct([
+					...this.customEditorService.getUserConfiguredCustomEditors(resource),
+					...this.customEditorService.getContributedCustomEditors(resource),
+				], editor => editor.id),
+				(a, b) => {
+					return priorityToRank(a.priority) - priorityToRank(b.priority);
+				});
 
 			if (!editors.length) {
 				return undefined;
 			}
-			// Always prefer the first editor in the diff editor case
+
 			return this.customEditorService.createInput(resource, editors[0].id, group, { customClasses });
 		};
 
@@ -319,6 +365,18 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		}
 
 		return undefined;
+	}
+}
+
+function isLowerPriority(otherEditor: CustomEditorInfo, editor: CustomEditorInfo): unknown {
+	return priorityToRank(otherEditor.priority) < priorityToRank(editor.priority);
+}
+
+function priorityToRank(priority: CustomEditorPriority): number {
+	switch (priority) {
+		case CustomEditorPriority.default: return 3;
+		case CustomEditorPriority.builtin: return 2;
+		case CustomEditorPriority.option: return 1;
 	}
 }
 

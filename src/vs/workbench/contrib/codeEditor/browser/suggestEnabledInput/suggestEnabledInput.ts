@@ -216,7 +216,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 
 	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
+		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
 		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
 		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
 
@@ -228,7 +228,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : null;
+			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : '';
 		}
 	}
 
@@ -290,6 +290,7 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		ariaLabel: ariaLabel || '',
 
 		snippetSuggestions: 'none',
-		suggest: { filterGraceful: false, showIcons: false }
+		suggest: { filterGraceful: false, showIcons: false },
+		autoClosingBrackets: 'never'
 	};
 }

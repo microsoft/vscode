@@ -44,8 +44,7 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 			: nls.localize('links.navigate.kb.alt', "alt + click");
 
 	if (link.url) {
-		const hoverMessage = new MarkdownString().appendMarkdown(`[${label}](${link.url.toString()}) (${kb})`);
-		hoverMessage.isTrusted = true;
+		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString()}) (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);
@@ -106,7 +105,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		return editor.getContribution<LinkDetector>(LinkDetector.ID);
 	}
 
-	static RECOMPUTE_TIME = 1000; // ms
+	static readonly RECOMPUTE_TIME = 1000; // ms
 
 	private readonly editor: ICodeEditor;
 	private enabled: boolean;
