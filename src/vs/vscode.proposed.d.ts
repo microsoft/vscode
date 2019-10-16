@@ -1090,6 +1090,7 @@ declare module 'vscode' {
 		export function registerWebviewEditorProvider(
 			viewType: string,
 			provider: WebviewEditorProvider,
+			options?: WebviewPanelOptions
 		): Disposable;
 	}
 

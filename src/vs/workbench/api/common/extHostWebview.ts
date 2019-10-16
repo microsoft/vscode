@@ -318,13 +318,14 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.WebviewEditorProvider,
+		options?: vscode.WebviewPanelOptions,
 	): vscode.Disposable {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Editor provider for '${viewType}' already registered`);
 		}
 
 		this._editorProviders.set(viewType, { extension, provider, });
-		this._proxy.$registerEditorProvider(viewType, extension.identifier, extension.extensionLocation);
+		this._proxy.$registerEditorProvider(viewType, extension.identifier, extension.extensionLocation, options || {});
 
 		return new Disposable(() => {
 			this._editorProviders.delete(viewType);

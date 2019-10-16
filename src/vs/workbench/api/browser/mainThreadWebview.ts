@@ -258,7 +258,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		this._revivers.delete(viewType);
 	}
 
-	public $registerEditorProvider(viewType: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void {
+	public $registerEditorProvider(viewType: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents, options: modes.IWebviewPanelOptions): void {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
@@ -274,6 +274,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				this._webviewInputs.add(handle, webviewInput);
 				this.hookupWebviewEventDelegate(handle, webviewInput);
 
+				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
 				if (webviewInput instanceof CustomFileEditorInput) {

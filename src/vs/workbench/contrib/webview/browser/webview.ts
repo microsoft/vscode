@@ -90,7 +90,7 @@ export interface WebviewElement extends Webview {
 
 export interface WebviewEditorOverlay extends Webview {
 	readonly container: HTMLElement;
-	readonly options: WebviewOptions;
+	options: WebviewOptions;
 
 	claim(owner: any): void;
 	release(owner: any): void;
