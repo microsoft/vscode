@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { RevealTarget } from 'vs/editor/common/controller/cursorCommon';
@@ -14,7 +14,7 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -26,6 +26,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class InsertCursorAbove extends EditorAction {
 
@@ -72,7 +73,7 @@ export class InsertCursorAbove extends EditorAction {
 			CursorChangeReason.Explicit,
 			CursorMoveCommands.addCursorUp(context, cursors.getAll(), useLogicalLine)
 		);
-		cursors.reveal(true, RevealTarget.TopMost, ScrollType.Smooth);
+		cursors.reveal(args.source, true, RevealTarget.TopMost, ScrollType.Smooth);
 	}
 }
 
@@ -121,7 +122,7 @@ export class InsertCursorBelow extends EditorAction {
 			CursorChangeReason.Explicit,
 			CursorMoveCommands.addCursorDown(context, cursors.getAll(), useLogicalLine)
 		);
-		cursors.reveal(true, RevealTarget.BottomMost, ScrollType.Smooth);
+		cursors.reveal(args.source, true, RevealTarget.BottomMost, ScrollType.Smooth);
 	}
 }
 
@@ -350,7 +351,7 @@ export class MultiCursorSession {
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const nextMatch = this._editor.getModel().findNextMatch(this.searchText, lastAddedSelection.getEndPosition(), false, this.matchCase, this.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false);
+		const nextMatch = this._editor.getModel().findNextMatch(this.searchText, lastAddedSelection.getEndPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
 
 		if (!nextMatch) {
 			return null;
@@ -401,7 +402,7 @@ export class MultiCursorSession {
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const previousMatch = this._editor.getModel().findPreviousMatch(this.searchText, lastAddedSelection.getStartPosition(), false, this.matchCase, this.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false);
+		const previousMatch = this._editor.getModel().findPreviousMatch(this.searchText, lastAddedSelection.getStartPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
 
 		if (!previousMatch) {
 			return null;
@@ -416,7 +417,7 @@ export class MultiCursorSession {
 
 		this.findController.highlightFindOptions();
 
-		return this._editor.getModel().findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		return this._editor.getModel().findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
 }
 
@@ -427,7 +428,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	private readonly _editor: ICodeEditor;
 	private _ignoreSelectionChange: boolean;
 	private _session: MultiCursorSession | null;
-	private _sessionDispose: IDisposable[];
+	private readonly _sessionDispose = this._register(new DisposableStore());
 
 	public static get(editor: ICodeEditor): MultiCursorSelectionController {
 		return editor.getContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID);
@@ -438,7 +439,6 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		this._editor = editor;
 		this._ignoreSelectionChange = false;
 		this._session = null;
-		this._sessionDispose = [];
 	}
 
 	public dispose(): void {
@@ -468,27 +468,25 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			}
 			findController.getState().change(newState, false);
 
-			this._sessionDispose = [
-				this._editor.onDidChangeCursorSelection((e) => {
-					if (this._ignoreSelectionChange) {
-						return;
-					}
+			this._sessionDispose.add(this._editor.onDidChangeCursorSelection((e) => {
+				if (this._ignoreSelectionChange) {
+					return;
+				}
+				this._endSession();
+			}));
+			this._sessionDispose.add(this._editor.onDidBlurEditorText(() => {
+				this._endSession();
+			}));
+			this._sessionDispose.add(findController.getState().onFindReplaceStateChange((e) => {
+				if (e.matchCase || e.wholeWord) {
 					this._endSession();
-				}),
-				this._editor.onDidBlurEditorText(() => {
-					this._endSession();
-				}),
-				findController.getState().onFindReplaceStateChange((e) => {
-					if (e.matchCase || e.wholeWord) {
-						this._endSession();
-					}
-				})
-			];
+				}
+			}));
 		}
 	}
 
 	private _endSession(): void {
-		this._sessionDispose = dispose(this._sessionDispose);
+		this._sessionDispose.clear();
 		if (this._session && this._session.isDisconnectedFromFindController) {
 			const newState: INewFindReplaceState = {
 				wholeWordOverride: FindOptionOverride.NotSet,
@@ -596,7 +594,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and we're searching for a regex
 		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
 
-			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 
 		} else {
 
@@ -811,13 +809,13 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	constructor(editor: ICodeEditor) {
 		super();
 		this.editor = editor;
-		this._isEnabled = editor.getConfiguration().contribInfo.selectionHighlight;
+		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 		this.decorations = [];
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
-			this._isEnabled = editor.getConfiguration().contribInfo.selectionHighlight;
+			this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 		}));
 		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 
@@ -931,7 +929,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null);
+		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null);
 	}
 
 	private _setState(state: SelectionHighlighterState | null): void {

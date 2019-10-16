@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadOutputServiceShape, IMainContext, ExtHostOutputServiceShape } from './extHost.protocol';
+import { MainContext, MainThreadOutputServiceShape, ExtHostOutputServiceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
@@ -27,6 +29,7 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 		this._name = name;
 		this._proxy = proxy;
 		this._id = proxy.$register(this.name, log, file);
+		this._disposed = false;
 		this._offset = 0;
 	}
 
@@ -105,73 +108,52 @@ class ExtHostLogFileOutputChannel extends AbstractExtHostOutputChannel {
 	}
 }
 
-export interface IOutputChannelFactory {
-	createOutputChannel(name: string, logsLocation: URI, proxy: MainThreadOutputServiceShape): Promise<AbstractExtHostOutputChannel>;
-}
+export class LazyOutputChannel implements vscode.OutputChannel {
 
-export const PushOutputChannelFactory = new class implements IOutputChannelFactory {
-	async createOutputChannel(name: string, _logsLocation: URI, proxy: MainThreadOutputServiceShape): Promise<AbstractExtHostOutputChannel> {
-		return new ExtHostPushOutputChannel(name, proxy);
+	constructor(
+		readonly name: string,
+		private readonly _channel: Promise<AbstractExtHostOutputChannel>
+	) { }
+
+	append(value: string): void {
+		this._channel.then(channel => channel.append(value));
 	}
-};
+	appendLine(value: string): void {
+		this._channel.then(channel => channel.appendLine(value));
+	}
+	clear(): void {
+		this._channel.then(channel => channel.clear());
+	}
+	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
+		this._channel.then(channel => channel.show(columnOrPreserveFocus, preserveFocus));
+	}
+	hide(): void {
+		this._channel.then(channel => channel.hide());
+	}
+	dispose(): void {
+		this._channel.then(channel => channel.dispose());
+	}
+}
 
 export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
-	private readonly _factory: IOutputChannelFactory;
-	private readonly _logsLocation: URI;
-	private readonly _proxy: MainThreadOutputServiceShape;
-	private readonly _channels: Map<string, AbstractExtHostOutputChannel> = new Map<string, AbstractExtHostOutputChannel>();
-	private _visibleChannelDisposable: IDisposable;
+	readonly _serviceBrand: undefined;
 
-	constructor(factory: IOutputChannelFactory, logsLocation: URI, mainContext: IMainContext) {
-		this._factory = factory;
-		this._logsLocation = logsLocation;
-		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
+	protected readonly _proxy: MainThreadOutputServiceShape;
+
+	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadOutputService);
 	}
 
 	$setVisibleChannel(channelId: string): void {
-		if (this._visibleChannelDisposable) {
-			this._visibleChannelDisposable = dispose(this._visibleChannelDisposable);
-		}
-		if (channelId) {
-			const channel = this._channels.get(channelId);
-			if (channel) {
-				this._visibleChannelDisposable = channel.onDidAppend(() => channel.update());
-			}
-		}
 	}
 
 	createOutputChannel(name: string): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
-		} else {
-			const extHostOutputChannel = this._factory.createOutputChannel(name, this._logsLocation, this._proxy);
-			extHostOutputChannel.then(channel => channel._id.then(id => this._channels.set(id, channel)));
-			return {
-				get name(): string {
-					return name;
-				},
-				append(value: string): void {
-					extHostOutputChannel.then(channel => channel.append(value));
-				},
-				appendLine(value: string): void {
-					extHostOutputChannel.then(channel => channel.appendLine(value));
-				},
-				clear(): void {
-					extHostOutputChannel.then(channel => channel.clear());
-				},
-				show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-					extHostOutputChannel.then(channel => channel.show(columnOrPreserveFocus, preserveFocus));
-				},
-				hide(): void {
-					extHostOutputChannel.then(channel => channel.hide());
-				},
-				dispose(): void {
-					extHostOutputChannel.then(channel => channel.dispose());
-				}
-			};
 		}
+		return new ExtHostPushOutputChannel(name, this._proxy);
 	}
 
 	createOutputChannelFromLogFile(name: string, file: URI): vscode.OutputChannel {
@@ -185,3 +167,6 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		return new ExtHostLogFileOutputChannel(name, file, this._proxy);
 	}
 }
+
+export interface IExtHostOutputService extends ExtHostOutputService { }
+export const IExtHostOutputService = createDecorator<IExtHostOutputService>('IExtHostOutputService');

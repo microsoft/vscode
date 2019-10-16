@@ -15,22 +15,22 @@ export interface IComposite {
 	/**
 	 * Returns the name of this composite to show in the title area.
 	 */
-	getTitle(): string | null;
+	getTitle(): string | undefined;
 
 	/**
 	 * Returns the primary actions of the composite.
 	 */
-	getActions(): IAction[];
+	getActions(): ReadonlyArray<IAction>;
 
 	/**
 	 * Returns the secondary actions of the composite.
 	 */
-	getSecondaryActions(): IAction[];
+	getSecondaryActions(): ReadonlyArray<IAction>;
 
 	/**
 	 * Returns an array of actions to show in the context menu of the composite
 	 */
-	getContextMenuActions(): IAction[];
+	getContextMenuActions(): ReadonlyArray<IAction>;
 
 	/**
 	 * Returns the action item for a specific action.

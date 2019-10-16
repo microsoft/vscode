@@ -7,11 +7,11 @@ import { INavigator, ArrayNavigator } from 'vs/base/common/iterator';
 
 export class HistoryNavigator<T> implements INavigator<T> {
 
-	private _history: Set<T>;
+	private _history!: Set<T>;
 	private _limit: number;
-	private _navigator: ArrayNavigator<T>;
+	private _navigator!: ArrayNavigator<T>;
 
-	constructor(history: T[] = [], limit: number = 10) {
+	constructor(history: readonly T[] = [], limit: number = 10) {
 		this._initialize(history);
 		this._limit = limit;
 		this._onChange();
@@ -62,7 +62,8 @@ export class HistoryNavigator<T> implements INavigator<T> {
 
 	private _onChange() {
 		this._reduceToLimit();
-		this._navigator = new ArrayNavigator(this._elements, 0, this._elements.length, this._elements.length);
+		const elements = this._elements;
+		this._navigator = new ArrayNavigator(elements, 0, elements.length, elements.length);
 	}
 
 	private _reduceToLimit() {
@@ -72,7 +73,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		}
 	}
 
-	private _initialize(history: T[]): void {
+	private _initialize(history: readonly T[]): void {
 		this._history = new Set();
 		for (const entry of history) {
 			this._history.add(entry);

@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { basename } from 'vs/base/common/resources';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
@@ -17,12 +18,12 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
-	private cachedModel: ResourceEditorModel | null;
-	private modelReference: Promise<IReference<ITextEditorModel>> | null;
+	private cachedModel: ResourceEditorModel | null = null;
+	private modelReference: Promise<IReference<ITextEditorModel>> | null = null;
 
 	constructor(
-		private name: string,
-		private description: string | null,
+		private name: string | undefined,
+		private description: string | undefined,
 		private readonly resource: URI,
 		private preferredMode: string | undefined,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
@@ -43,7 +44,7 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 	}
 
 	getName(): string {
-		return this.name;
+		return this.name || basename(this.resource);
 	}
 
 	setName(name: string): void {
@@ -53,7 +54,7 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 		}
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		return this.description;
 	}
 
@@ -76,31 +77,31 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 		this.preferredMode = mode;
 	}
 
-	resolve(): Promise<ITextEditorModel> {
+	async resolve(): Promise<ITextEditorModel> {
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}
 
-		return this.modelReference.then(ref => {
-			const model = ref.object;
+		const ref = await this.modelReference;
 
-			// Ensure the resolved model is of expected type
-			if (!(model instanceof ResourceEditorModel)) {
-				ref.dispose();
-				this.modelReference = null;
+		const model = ref.object;
 
-				return Promise.reject(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
-			}
+		// Ensure the resolved model is of expected type
+		if (!(model instanceof ResourceEditorModel)) {
+			ref.dispose();
+			this.modelReference = null;
 
-			this.cachedModel = model;
+			throw new Error(`Unexpected model for ResourceInput: ${this.resource}`);
+		}
 
-			// Set mode if we have a preferred mode configured
-			if (this.preferredMode) {
-				model.setMode(this.preferredMode);
-			}
+		this.cachedModel = model;
 
-			return model;
-		});
+		// Set mode if we have a preferred mode configured
+		if (this.preferredMode) {
+			model.setMode(this.preferredMode);
+		}
+
+		return model;
 	}
 
 	matches(otherInput: unknown): boolean {

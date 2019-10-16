@@ -14,38 +14,37 @@ suite('StateService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
 	const storageFile = path.join(parentDir, 'storage.json');
 
-	teardown(done => {
-		rimraf(parentDir, RimRafMode.MOVE).then(done, done);
+	teardown(async () => {
+		await rimraf(parentDir, RimRafMode.MOVE);
 	});
 
-	test('Basics', () => {
-		return mkdirp(parentDir).then(() => {
-			writeFileSync(storageFile, '');
+	test('Basics', async () => {
+		await mkdirp(parentDir);
+		writeFileSync(storageFile, '');
 
-			let service = new FileStorage(storageFile, () => null);
+		let service = new FileStorage(storageFile, () => null);
 
-			service.setItem('some.key', 'some.value');
-			assert.equal(service.getItem('some.key'), 'some.value');
+		service.setItem('some.key', 'some.value');
+		assert.equal(service.getItem('some.key'), 'some.value');
 
-			service.removeItem('some.key');
-			assert.equal(service.getItem('some.key', 'some.default'), 'some.default');
+		service.removeItem('some.key');
+		assert.equal(service.getItem('some.key', 'some.default'), 'some.default');
 
-			assert.ok(!service.getItem('some.unknonw.key'));
+		assert.ok(!service.getItem('some.unknonw.key'));
 
-			service.setItem('some.other.key', 'some.other.value');
+		service.setItem('some.other.key', 'some.other.value');
 
-			service = new FileStorage(storageFile, () => null);
+		service = new FileStorage(storageFile, () => null);
 
-			assert.equal(service.getItem('some.other.key'), 'some.other.value');
+		assert.equal(service.getItem('some.other.key'), 'some.other.value');
 
-			service.setItem('some.other.key', 'some.other.value');
-			assert.equal(service.getItem('some.other.key'), 'some.other.value');
+		service.setItem('some.other.key', 'some.other.value');
+		assert.equal(service.getItem('some.other.key'), 'some.other.value');
 
-			service.setItem('some.undefined.key', undefined);
-			assert.equal(service.getItem('some.undefined.key', 'some.default'), 'some.default');
+		service.setItem('some.undefined.key', undefined);
+		assert.equal(service.getItem('some.undefined.key', 'some.default'), 'some.default');
 
-			service.setItem('some.null.key', null);
-			assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
-		});
+		service.setItem('some.null.key', null);
+		assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
 	});
 });

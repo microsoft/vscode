@@ -7,10 +7,9 @@ import * as sinon from 'sinon';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestContextService, TestFileService, TestElectronService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
@@ -21,23 +20,24 @@ import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/commo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { Schemas } from 'vs/base/common/network';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 class ServiceAccessor {
 	constructor(
 		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IUntitledEditorService public untitledEditorService: IUntitledEditorService,
-		@IWindowsService public windowsService: TestWindowsService,
 		@IWorkspaceContextService public contextService: TestContextService,
 		@IModelService public modelService: ModelServiceImpl,
-		@IFileService public fileService: TestFileService
+		@IFileService public fileService: TestFileService,
+		@IElectronService public electronService: TestElectronService
 	) {
 	}
 }
 
 class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 
-	public value: boolean | Promise<boolean>;
+	public value: boolean | Promise<boolean> | undefined;
 	public reason = ShutdownReason.CLOSE;
 
 	veto(value: boolean | Promise<boolean>): void {
@@ -272,8 +272,16 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('move - dirty file', async function () {
-		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target.txt'), 'utf8', undefined);
+		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'));
+	});
+
+	test('move - dirty file (target exists and is dirty)', async function () {
+		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true);
+	});
+
+	async function testMove(source: URI, target: URI, targetDirty?: boolean): Promise<void> {
+		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
+		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(sourceModel.getResource(), sourceModel);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(targetModel.getResource(), targetModel);
 
@@ -283,11 +291,22 @@ suite('Files - TextFileService', () => {
 		sourceModel.textEditorModel!.setValue('foo');
 		assert.ok(service.isDirty(sourceModel.getResource()));
 
+		if (targetDirty) {
+			await targetModel.load();
+			targetModel.textEditorModel!.setValue('bar');
+			assert.ok(service.isDirty(targetModel.getResource()));
+		}
+
 		await service.move(sourceModel.getResource(), targetModel.getResource(), true);
+
+		assert.equal(targetModel.textEditorModel!.getValue(), 'foo');
+
 		assert.ok(!service.isDirty(sourceModel.getResource()));
+		assert.ok(service.isDirty(targetModel.getResource()));
+
 		sourceModel.dispose();
 		targetModel.dispose();
-	});
+	}
 
 	suite('Hot Exit', () => {
 		suite('"onExit" setting', () => {
@@ -405,7 +424,7 @@ suite('Files - TextFileService', () => {
 			}
 			// Set multiple windows if required
 			if (multipleWindows) {
-				accessor.windowsService.windowCount = 2;
+				accessor.electronService.windowCount = Promise.resolve(2);
 			}
 			// Set cancel to force a veto if hot exit does not trigger
 			service.setConfirmResult(ConfirmResult.CANCEL);

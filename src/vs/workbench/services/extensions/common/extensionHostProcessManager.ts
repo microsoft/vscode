@@ -8,13 +8,13 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { ResolvedAuthority, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
@@ -26,6 +26,7 @@ import { IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -35,7 +36,7 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export class ExtensionHostProcessManager extends Disposable {
 
-	public readonly onDidCrash: Event<[number, string | null]>;
+	public readonly onDidExit: Event<[number, string | null]>;
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
@@ -54,11 +55,12 @@ export class ExtensionHostProcessManager extends Disposable {
 	private _resolveAuthorityAttempt: number;
 
 	constructor(
+		public readonly isLocal: boolean,
 		extensionHostProcessWorker: IExtensionHostStarter,
 		private readonly _remoteAuthority: string,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
@@ -66,7 +68,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._extensionHostProcessCustomers = [];
 
 		this._extensionHostProcessWorker = extensionHostProcessWorker;
-		this.onDidCrash = this._extensionHostProcessWorker.onCrashed;
+		this.onDidExit = this._extensionHostProcessWorker.onExit;
 		this._extensionHostProcessProxy = this._extensionHostProcessWorker.start()!.then(
 			(protocol) => {
 				return { value: this._createExtensionHostCustomers(protocol) };
@@ -153,9 +155,13 @@ export class ExtensionHostProcessManager extends Disposable {
 	private async _measureUp(proxy: ExtHostExtensionServiceShape): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		let b = Buffer.alloc(SIZE, Math.random() % 256);
+		let buff = VSBuffer.alloc(SIZE);
+		let value = Math.ceil(Math.random() * 256);
+		for (let i = 0; i < buff.byteLength; i++) {
+			buff.writeUInt8(i, value);
+		}
 		const sw = StopWatch.create(true);
-		await proxy.$test_up(VSBuffer.wrap(b));
+		await proxy.$test_up(buff);
 		sw.stop();
 		return ExtensionHostProcessManager._convert(SIZE, sw.elapsed());
 	}
@@ -208,12 +214,12 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessRPCProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
 	}
 
-	public async activate(extension: ExtensionIdentifier, activationEvent: string): Promise<boolean> {
+	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
 		const proxy = await this._getExtensionHostProcessProxy();
 		if (!proxy) {
 			return false;
 		}
-		return proxy.$activate(extension, activationEvent);
+		return proxy.$activate(extension, reason);
 	}
 
 	public activateByEvent(activationEvent: string): Promise<void> {
@@ -232,8 +238,11 @@ export class ExtensionHostProcessManager extends Disposable {
 		});
 	}
 
-	public getInspectPort(): number {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
 		if (this._extensionHostProcessWorker) {
+			if (tryEnableInspector) {
+				await this._extensionHostProcessWorker.enableInspectPort();
+			}
 			let port = this._extensionHostProcessWorker.getInspectPort();
 			if (port) {
 				return port;
@@ -242,19 +251,17 @@ export class ExtensionHostProcessManager extends Disposable {
 		return 0;
 	}
 
-	public canProfileExtensionHost(): boolean {
-		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
-	}
-
-	public async resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority> {
+	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
 			const pieces = remoteAuthority.split(':');
 			return Promise.resolve({
-				authority: remoteAuthority,
-				host: pieces[0],
-				port: parseInt(pieces[1], 10)
+				authority: {
+					authority: remoteAuthority,
+					host: pieces[0],
+					port: parseInt(pieces[1], 10)
+				}
 			});
 		}
 		const proxy = await this._getExtensionHostProcessProxy();
@@ -284,6 +291,15 @@ export class ExtensionHostProcessManager extends Disposable {
 			return;
 		}
 		return proxy.$deltaExtensions(toAdd, toRemove);
+	}
+
+	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
+		const proxy = await this._getExtensionHostProcessProxy();
+		if (!proxy) {
+			return;
+		}
+
+		return proxy.$setRemoteEnvironment(env);
 	}
 }
 

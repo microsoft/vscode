@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { sep, posix, normalize } from 'vs/base/common/path';
+import { sep, posix, normalize, basename as path_basename, dirname as path_dirname } from 'vs/base/common/path';
 import { endsWith, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { isEqual, basename, relativePath } from 'vs/base/common/resources';
-import { CharCode } from 'vs/base/common/charCode';
 
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
@@ -283,7 +282,7 @@ interface ISegment {
  * @param value string to which templating is applied
  * @param values the values of the templates to use
  */
-export function template(template: string, values: { [key: string]: string | ISeparator | null } = Object.create(null)): string {
+export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null } = Object.create(null)): string {
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
@@ -388,11 +387,8 @@ export function unmnemonicLabel(label: string): string {
  * Splits a path in name and parent path, supporting both '/' and '\'
  */
 export function splitName(fullPath: string): { name: string, parentPath: string } {
-	for (let i = fullPath.length - 1; i >= 1; i--) {
-		const code = fullPath.charCodeAt(i);
-		if (code === CharCode.Slash || code === CharCode.Backslash) {
-			return { parentPath: fullPath.substr(0, i), name: fullPath.substr(i + 1) };
-		}
+	if (fullPath.indexOf('/') !== -1) {
+		return { name: posix.basename(fullPath), parentPath: posix.dirname(fullPath) };
 	}
-	return { parentPath: '', name: fullPath };
+	return { name: path_basename(fullPath), parentPath: path_dirname(fullPath) };
 }

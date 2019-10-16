@@ -426,6 +426,19 @@ suite('URI', () => {
 		assert.equal(uri.toString(true), input);
 	});
 
+	test('Unable to open \'%A0.txt\': URI malformed #76506', function () {
+
+		let uri = URI.file('/foo/%A0.txt');
+		let uri2 = URI.parse(uri.toString());
+		assert.equal(uri.scheme, uri2.scheme);
+		assert.equal(uri.path, uri2.path);
+
+		uri = URI.file('/foo/%2e.txt');
+		uri2 = URI.parse(uri.toString());
+		assert.equal(uri.scheme, uri2.scheme);
+		assert.equal(uri.path, uri2.path);
+	});
+
 	test('URI - (de)serialize', function () {
 
 		const values = [

@@ -19,6 +19,8 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 export interface IExtensionTemplateData {
 	icon: HTMLImageElement;
@@ -154,7 +156,7 @@ export class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtens
 
 class OpenExtensionAction extends Action {
 
-	private _extensionData: IExtensionData;
+	private _extensionData: IExtensionData | undefined;
 
 	constructor(@IExtensionsWorkbenchService private readonly extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super('extensions.action.openExtension', '');
@@ -164,12 +166,11 @@ class OpenExtensionAction extends Action {
 		this._extensionData = extension;
 	}
 
-	public get extensionData(): IExtensionData {
-		return this._extensionData;
-	}
-
 	run(sideByside: boolean): Promise<any> {
-		return this.extensionsWorkdbenchService.open(this.extensionData.extension, sideByside);
+		if (this._extensionData) {
+			return this.extensionsWorkdbenchService.open(this._extensionData.extension, sideByside);
+		}
+		return Promise.resolve();
 	}
 }
 
@@ -197,6 +198,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 		};
 
 		super(
+			'ExtensionsTree',
 			container,
 			delegate,
 			renderers,
@@ -211,10 +213,54 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 
 		this.setInput(input);
 
-		this.disposables.push(this.onDidChangeSelection(event => {
+		this.disposables.add(this.onDidChangeSelection(event => {
 			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
 				extensionsWorkdbenchService.open(event.elements[0].extension, false);
 			}
 		}));
+	}
+}
+
+export class ExtensionData implements IExtensionData {
+
+	readonly extension: IExtension;
+	readonly parent: IExtensionData | null;
+	private readonly getChildrenExtensionIds: (extension: IExtension) => string[];
+	private readonly childrenExtensionIds: string[];
+	private readonly extensionsWorkbenchService: IExtensionsWorkbenchService;
+
+	constructor(extension: IExtension, parent: IExtensionData | null, getChildrenExtensionIds: (extension: IExtension) => string[], extensionsWorkbenchService: IExtensionsWorkbenchService) {
+		this.extension = extension;
+		this.parent = parent;
+		this.getChildrenExtensionIds = getChildrenExtensionIds;
+		this.extensionsWorkbenchService = extensionsWorkbenchService;
+		this.childrenExtensionIds = this.getChildrenExtensionIds(extension);
+	}
+
+	get hasChildren(): boolean {
+		return isNonEmptyArray(this.childrenExtensionIds);
+	}
+
+	async getChildren(): Promise<IExtensionData[] | null> {
+		if (this.hasChildren) {
+			const localById = this.extensionsWorkbenchService.local.reduce((result, e) => { result.set(e.identifier.id.toLowerCase(), e); return result; }, new Map<string, IExtension>());
+			const result: IExtension[] = [];
+			const toQuery: string[] = [];
+			for (const extensionId of this.childrenExtensionIds) {
+				const id = extensionId.toLowerCase();
+				const local = localById.get(id);
+				if (local) {
+					result.push(local);
+				} else {
+					toQuery.push(id);
+				}
+			}
+			if (toQuery.length) {
+				const galleryResult = await this.extensionsWorkbenchService.queryGallery({ names: toQuery, pageSize: toQuery.length }, CancellationToken.None);
+				result.push(...galleryResult.firstPage);
+			}
+			return result.map(extension => new ExtensionData(extension, this, this.getChildrenExtensionIds, this.extensionsWorkbenchService));
+		}
+		return null;
 	}
 }

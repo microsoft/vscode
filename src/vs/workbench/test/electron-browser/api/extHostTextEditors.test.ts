@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MainContext, MainThreadTextEditorsShape, WorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -16,14 +16,14 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 
 	const resource = URI.parse('foo:bar');
 	let editors: ExtHostEditors;
-	let workspaceResourceEdits: WorkspaceEditDto;
+	let workspaceResourceEdits: IWorkspaceEditDto;
 
 	setup(() => {
 		workspaceResourceEdits = null!;
 
 		let rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadTextEditors, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_workspaceResourceEdits: WorkspaceEditDto): Promise<boolean> {
+			$tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceEditDto): Promise<boolean> {
 				workspaceResourceEdits = _workspaceResourceEdits;
 				return Promise.resolve(true);
 			}

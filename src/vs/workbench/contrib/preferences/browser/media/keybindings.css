@@ -41,26 +41,6 @@
 }
 
 /* Editor decorations */
-.monaco-editor .inlineKeybindingInfo:before {
-	margin: 0.2em 0.1em 0 0.1em;
-	content:" ";
-	display:inline-block;
-	height:0.8em;
-	width:1em;
-	background: url(info.svg) 0px -0.1em no-repeat;
-	background-size: 0.9em;
-}
-
-.monaco-editor .inlineKeybindingError:before {
-	margin: 0.1em 0.1em 0 0.1em;
-	content:" ";
-	display:inline-block;
-	height:0.8em;
-	width:1em;
-	background: url(status-error.svg) 0px -0.1em no-repeat;
-	background-size: 1em;
-}
-
 .monaco-editor .keybindingInfo {
 	box-shadow:	inset 0 0 0 1px #B9B9B9;
 	background-color: rgba(100, 100, 250, 0.2);

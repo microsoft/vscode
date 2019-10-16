@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { keys } from 'vs/base/common/map';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -87,7 +87,7 @@ class NullContext extends Context {
 
 class ConfigAwareContextValuesContainer extends Context {
 
-	private static _keyPrefix = 'config.';
+	private static readonly _keyPrefix = 'config.';
 
 	private readonly _values = new Map<string, any>();
 	private readonly _listener: IDisposable;
@@ -203,29 +203,19 @@ class SimpleContextKeyChangeEvent implements IContextKeyChangeEvent {
 class ArrayContextKeyChangeEvent implements IContextKeyChangeEvent {
 	constructor(readonly keys: string[]) { }
 	affectsSome(keys: IReadableSet<string>): boolean {
-		for (const key of this.keys) {
-			if (keys.has(key)) {
-				return true;
-			}
-		}
-		return false;
+		return this.keys.some(key => keys.has(key));
 	}
 }
 
 class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 	constructor(readonly events: IContextKeyChangeEvent[]) { }
 	affectsSome(keys: IReadableSet<string>): boolean {
-		for (const e of this.events) {
-			if (e.affectsSome(keys)) {
-				return true;
-			}
-		}
-		return false;
+		return this.events.some(e => e.affectsSome(keys));
 	}
 }
 
 export abstract class AbstractContextKeyService implements IContextKeyService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	protected _isDisposed: boolean;
 	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });
@@ -323,7 +313,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 	private _lastContextId: number;
 	private readonly _contexts = new Map<number, Context>();
 
-	private _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 
 	constructor(@IConfigurationService configurationService: IConfigurationService) {
 		super(0);
@@ -332,7 +322,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 		const myContext = new ConfigAwareContextValuesContainer(this._myContextId, configurationService, this._onDidChangeContext);
 		this._contexts.set(this._myContextId, myContext);
-		this._toDispose.push(myContext);
+		this._toDispose.add(myContext);
 
 		// Uncomment this to see the contexts continuously logged
 		// let lastLoggedValue: string | null = null;
@@ -348,7 +338,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 	public dispose(): void {
 		this._isDisposed = true;
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	public getContextValuesContainer(contextId: number): Context {

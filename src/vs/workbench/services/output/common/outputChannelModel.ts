@@ -31,7 +31,7 @@ export interface IOutputChannelModel extends IDisposable {
 export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
 
 export interface IOutputChannelModelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel;
 
@@ -51,14 +51,14 @@ export abstract class AsbtractOutputChannelModelService {
 
 export abstract class AbstractFileOutputChannelModel extends Disposable implements IOutputChannelModel {
 
-	protected _onDidAppendedContent = new Emitter<void>();
+	protected readonly _onDidAppendedContent = this._register(new Emitter<void>());
 	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	protected _onDispose = new Emitter<void>();
+	protected readonly _onDispose = this._register(new Emitter<void>());
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	protected modelUpdater: RunOnceScheduler;
-	protected model: ITextModel | null;
+	protected model: ITextModel | null = null;
 
 	protected startOffset: number = 0;
 	protected endOffset: number = 0;
@@ -96,12 +96,11 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		} else {
 			this.model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
 			this.onModelCreated(this.model);
-			const disposables: IDisposable[] = [];
-			disposables.push(this.model.onWillDispose(() => {
+			const disposable = this.model.onWillDispose(() => {
 				this.onModelWillDispose(this.model);
 				this.model = null;
-				dispose(disposables);
-			}));
+				dispose(disposable);
+			});
 		}
 		return this.model;
 	}
@@ -289,7 +288,7 @@ export class BufferredOutputChannel extends Disposable implements IOutputChannel
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private modelUpdater: RunOnceScheduler;
-	private model: ITextModel | null;
+	private model: ITextModel | null = null;
 	private readonly bufferredContent: BufferedContent;
 	private lastReadId: number | undefined = undefined;
 
@@ -340,11 +339,10 @@ export class BufferredOutputChannel extends Disposable implements IOutputChannel
 
 	private createModel(content: string): ITextModel {
 		const model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
-		const disposables: IDisposable[] = [];
-		disposables.push(model.onWillDispose(() => {
+		const disposable = model.onWillDispose(() => {
 			this.model = null;
-			dispose(disposables);
-		}));
+			dispose(disposable);
+		});
 		return model;
 	}
 
@@ -367,7 +365,7 @@ export class BufferredOutputChannel extends Disposable implements IOutputChannel
 
 class BufferedContent {
 
-	private static MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
+	private static readonly MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
 
 	private data: string[] = [];
 	private dataIds: number[] = [];

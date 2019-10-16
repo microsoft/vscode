@@ -6,10 +6,11 @@
 import * as fs from 'fs';
 import { dirname } from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import { readlink, statLink } from 'vs/base/node/pfs';
+import { statLink } from 'vs/base/node/pfs';
+import { realpath } from 'vs/base/node/extpath';
 import { watchFolder, watchFile } from 'vs/base/node/watcher';
 
 export interface IConfigurationChangeEvent<T> {
@@ -40,20 +41,17 @@ export interface IConfigOptions<T> {
  * - delayed processing of changes to accomodate for lots of changes
  * - configurable defaults
  */
-export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
-	private cache: T;
-	private parseErrors: json.ParseError[];
-	private disposed: boolean;
-	private loaded: boolean;
-	private timeoutHandle: NodeJS.Timer | null;
-	private disposables: IDisposable[];
+export class ConfigWatcher<T> extends Disposable implements IConfigWatcher<T> {
+	private cache: T | undefined;
+	private parseErrors: json.ParseError[] | undefined;
+	private disposed: boolean | undefined;
+	private loaded: boolean | undefined;
+	private timeoutHandle: NodeJS.Timer | null | undefined;
 	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 
 	constructor(private _path: string, private options: IConfigOptions<T> = { defaultConfig: Object.create(null), onError: error => console.error(error) }) {
-		this.disposables = [];
-
-		this._onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent<T>>();
-		this.disposables.push(this._onDidUpdateConfiguration);
+		super();
+		this._onDidUpdateConfiguration = this._register(new Emitter<IConfigurationChangeEvent<T>>());
 
 		this.registerWatcher();
 		this.initAsync();
@@ -64,7 +62,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	}
 
 	get hasParseErrors(): boolean {
-		return this.parseErrors && this.parseErrors.length > 0;
+		return !!this.parseErrors && this.parseErrors.length > 0;
 	}
 
 	get onDidUpdateConfiguration(): Event<IConfigurationChangeEvent<T>> {
@@ -110,10 +108,10 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		try {
 			this.parseErrors = [];
 			res = this.options.parse ? this.options.parse(raw, this.parseErrors) : json.parse(raw, this.parseErrors);
+
 			return res || this.options.defaultConfig;
 		} catch (error) {
-			// Ignore parsing errors
-			return this.options.defaultConfig;
+			return this.options.defaultConfig; // Ignore parsing errors
 		}
 	}
 
@@ -124,13 +122,13 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.watch(parentFolder, true);
 
 		// Check if the path is a symlink and watch its target if so
-		this.handleSymbolicLink().then(undefined, error => { /* ignore error */ });
+		this.handleSymbolicLink().then(undefined, () => { /* ignore error */ });
 	}
 
 	private async handleSymbolicLink(): Promise<void> {
 		const { stat, isSymbolicLink } = await statLink(this._path);
 		if (isSymbolicLink && !stat.isDirectory()) {
-			const realPath = await readlink(this._path);
+			const realPath = await realpath(this._path);
 
 			this.watch(realPath, false);
 		}
@@ -142,9 +140,9 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 
 		if (isFolder) {
-			this.disposables.push(watchFolder(path, (type, path) => path === this._path ? this.onConfigFileChange() : undefined, error => this.options.onError(error)));
+			this._register(watchFolder(path, (type, path) => path === this._path ? this.onConfigFileChange() : undefined, error => this.options.onError(error)));
 		} else {
-			this.disposables.push(watchFile(path, (type, path) => this.onConfigFileChange(), error => this.options.onError(error)));
+			this._register(watchFile(path, () => this.onConfigFileChange(), error => this.options.onError(error)));
 		}
 	}
 
@@ -163,7 +161,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			if (!objects.equals(currentConfig, this.cache)) {
 				this.updateCache(currentConfig);
 
-				this._onDidUpdateConfiguration.fire({ config: this.cache });
+				this._onDidUpdateConfiguration.fire({ config: currentConfig });
 			}
 
 			if (callback) {
@@ -175,7 +173,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	getConfig(): T {
 		this.ensureLoaded();
 
-		return this.cache;
+		return this.cache!;
 	}
 
 	private ensureLoaded(): void {
@@ -186,6 +184,6 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 
 	dispose(): void {
 		this.disposed = true;
-		this.disposables = dispose(this.disposables);
+		super.dispose();
 	}
 }

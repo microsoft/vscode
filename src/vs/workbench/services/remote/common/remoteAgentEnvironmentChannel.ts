@@ -8,16 +8,19 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { RemoteAuthorities } from 'vs/base/common/network';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IGetEnvironmentDataArguments {
 	language: string;
 	remoteAuthority: string;
-	extensionDevelopmentPath: UriComponents | UriComponents[] | undefined;
+	extensionDevelopmentPath: UriComponents[] | undefined;
 }
 
 export interface IRemoteAgentEnvironmentDTO {
 	pid: number;
+	connectionToken: string;
 	appRoot: UriComponents;
 	appSettingsHome: UriComponents;
 	settingsPath: UriComponents;
@@ -34,28 +37,31 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 	constructor(private channel: IChannel) { }
 
-	getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI[]): Promise<IRemoteAgentEnvironment> {
+	async getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI[]): Promise<IRemoteAgentEnvironment> {
 		const args: IGetEnvironmentDataArguments = {
 			language: platform.language,
 			remoteAuthority,
 			extensionDevelopmentPath
 		};
-		return this.channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args)
-			.then((data: IRemoteAgentEnvironmentDTO): IRemoteAgentEnvironment => {
-				return {
-					pid: data.pid,
-					appRoot: URI.revive(data.appRoot),
-					appSettingsHome: URI.revive(data.appSettingsHome),
-					settingsPath: URI.revive(data.settingsPath),
-					logsPath: URI.revive(data.logsPath),
-					extensionsPath: URI.revive(data.extensionsPath),
-					extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
-					globalStorageHome: URI.revive(data.globalStorageHome),
-					userHome: URI.revive(data.userHome),
-					extensions: data.extensions.map(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); return ext; }),
-					os: data.os
-				};
-			});
+
+		const data = await this.channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args);
+
+		RemoteAuthorities.setConnectionToken(remoteAuthority, data.connectionToken);
+
+		return {
+			pid: data.pid,
+			connectionToken: data.connectionToken,
+			appRoot: URI.revive(data.appRoot),
+			appSettingsHome: URI.revive(data.appSettingsHome),
+			settingsPath: URI.revive(data.settingsPath),
+			logsPath: URI.revive(data.logsPath),
+			extensionsPath: URI.revive(data.extensionsPath),
+			extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
+			globalStorageHome: URI.revive(data.globalStorageHome),
+			userHome: URI.revive(data.userHome),
+			extensions: data.extensions.map(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); return ext; }),
+			os: data.os
+		};
 	}
 
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {
@@ -64,5 +70,13 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 	disableTelemetry(): Promise<void> {
 		return this.channel.call<void>('disableTelemetry');
+	}
+
+	logTelemetry(eventName: string, data: ITelemetryData): Promise<void> {
+		return this.channel.call<void>('logTelemetry', { eventName, data });
+	}
+
+	flushTelemetry(): Promise<void> {
+		return this.channel.call<void>('flushTelemetry');
 	}
 }

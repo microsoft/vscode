@@ -11,6 +11,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { isAncestor } from 'vs/base/browser/dom';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export abstract class Panel extends Composite implements IPanel { }
 
@@ -25,7 +26,7 @@ export class PanelDescriptor extends CompositeDescriptor<Panel> {
 }
 
 export class PanelRegistry extends CompositeRegistry<Panel> {
-	private defaultPanelId: string;
+	private defaultPanelId: string | undefined;
 
 	/**
 	 * Registers a panel to the platform.
@@ -39,6 +40,13 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 */
 	deregisterPanel(id: string): void {
 		super.deregisterComposite(id);
+	}
+
+	/**
+	 * Returns a panel by id.
+	 */
+	getPanel(id: string): PanelDescriptor | undefined {
+		return this.getComposite(id);
 	}
 
 	/**
@@ -59,7 +67,7 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 * Gets the id of the panel that should open on startup by default.
 	 */
 	getDefaultPanelId(): string {
-		return this.defaultPanelId;
+		return assertIsDefined(this.defaultPanelId);
 	}
 
 	/**
@@ -104,8 +112,9 @@ export abstract class TogglePanelAction extends Action {
 
 	private isPanelFocused(): boolean {
 		const activeElement = document.activeElement;
+		const panelPart = this.layoutService.getContainer(Parts.PANEL_PART);
 
-		return !!(this.isPanelActive() && activeElement && isAncestor(activeElement, this.layoutService.getContainer(Parts.PANEL_PART)));
+		return !!(this.isPanelActive() && activeElement && panelPart && isAncestor(activeElement, panelPart));
 	}
 }
 

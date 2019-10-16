@@ -21,12 +21,6 @@
 	position: relative;
 	overflow: visible;
 	-webkit-text-size-adjust: 100%;
-	-webkit-font-feature-settings: "liga" off, "calt" off;
-	font-feature-settings: "liga" off, "calt" off;
-}
-.monaco-editor.enable-ligatures {
-	-webkit-font-feature-settings: "liga" on, "calt" on;
-	font-feature-settings: "liga" on, "calt" on;
 }
 
 /* -------------------- Misc -------------------- */
@@ -40,3 +34,9 @@
 	position: absolute;
 	top: 0;
 }
+
+/*
+.monaco-editor .auto-closed-character {
+	opacity: 0.3;
+}
+*/

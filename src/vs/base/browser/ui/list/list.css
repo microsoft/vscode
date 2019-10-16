@@ -126,13 +126,13 @@
 	-webkit-appearance: none;
 	width: 16px;
 	height: 16px;
-	background: url("media/no-filter.svg");
+	background: url("media/no-filter-light.svg");
 	background-position: 50% 50%;
 	cursor: pointer;
 }
 
 .monaco-list-type-filter > .controls > .filter:checked {
-	background-image: url("media/filter.svg");
+	background-image: url("media/filter-light.svg");
 }
 
 .vs-dark .monaco-list-type-filter > .controls > .filter {
@@ -153,7 +153,7 @@
 
 .monaco-list-type-filter > .controls > .clear {
 	border: none;
-	background: url("media/close.svg");
+	background: url("media/close-light.svg");
 	cursor: pointer;
 }
 
@@ -186,9 +186,9 @@
 /* Electron */
 
 .monaco-list-type-filter {
-	cursor: -webkit-grab;
+	cursor: grab;
 }
 
 .monaco-list-type-filter.dragging {
-	cursor: -webkit-grabbing;
+	cursor: grabbing;
 }

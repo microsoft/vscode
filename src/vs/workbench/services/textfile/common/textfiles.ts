@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions, IModeSupport } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -19,7 +19,7 @@ export const ITextFileService = createDecorator<ITextFileService>('textFileServi
 
 export interface ITextFileService extends IDisposable {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	readonly onWillMove: Event<IWillMoveEvent>;
 
@@ -125,7 +125,7 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.
 	 */
-	move(source: URI, target: URI, overwrite?: boolean): Promise<void>;
+	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Brings up the confirm dialog to either save, don't save or cancel.
@@ -136,12 +136,12 @@ export interface ITextFileService extends IDisposable {
 	confirmSave(resources?: URI[]): Promise<ConfirmResult>;
 
 	/**
-	 * Convinient fast access to the current auto save mode.
+	 * Convenient fast access to the current auto save mode.
 	 */
 	getAutoSaveMode(): AutoSaveMode;
 
 	/**
-	 * Convinient fast access to the raw configured auto save settings.
+	 * Convenient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
 }
@@ -248,9 +248,14 @@ export const enum ModelState {
 	DIRTY,
 
 	/**
-	 * A model is transitioning from dirty to saved.
+	 * A model is currently being saved but this operation has not completed yet.
 	 */
 	PENDING_SAVE,
+
+	/**
+	 * A model is marked for being saved after a specific timeout.
+	 */
+	PENDING_AUTO_SAVE,
 
 	/**
 	 * A model is in conflict mode when changes cannot be saved because the
@@ -407,10 +412,10 @@ export interface ITextFileEditorModelManager {
 	readonly onModelReverted: Event<TextFileModelChangeEvent>;
 	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
 
-	readonly onModelsDirty: Event<TextFileModelChangeEvent[]>;
-	readonly onModelsSaveError: Event<TextFileModelChangeEvent[]>;
-	readonly onModelsSaved: Event<TextFileModelChangeEvent[]>;
-	readonly onModelsReverted: Event<TextFileModelChangeEvent[]>;
+	readonly onModelsDirty: Event<readonly TextFileModelChangeEvent[]>;
+	readonly onModelsSaveError: Event<readonly TextFileModelChangeEvent[]>;
+	readonly onModelsSaved: Event<readonly TextFileModelChangeEvent[]>;
+	readonly onModelsReverted: Event<readonly TextFileModelChangeEvent[]>;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
 
@@ -428,6 +433,7 @@ export interface ISaveOptions {
 	overwriteEncoding?: boolean;
 	skipSaveParticipants?: boolean;
 	writeElevated?: boolean;
+	availableFileSystems?: readonly string[];
 }
 
 export interface ILoadOptions {
@@ -457,7 +463,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	hasState(state: ModelState): boolean;
 
-	updatePreferredEncoding(encoding: string): void;
+	updatePreferredEncoding(encoding: string | undefined): void;
 
 	save(options?: ISaveOptions): Promise<void>;
 
@@ -467,7 +473,11 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	backup(target?: URI): Promise<void>;
 
-	isDirty(): boolean;
+	hasBackup(): boolean;
+
+	isDirty(): this is IResolvedTextFileEditorModel;
+
+	makeDirty(): void;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
 
@@ -519,7 +529,7 @@ export function stringToSnapshot(value: string): ITextSnapshot {
 }
 
 export class TextSnapshotReadable implements VSBufferReadable {
-	private preambleHandled: boolean;
+	private preambleHandled = false;
 
 	constructor(private snapshot: ITextSnapshot, private preamble?: string) { }
 

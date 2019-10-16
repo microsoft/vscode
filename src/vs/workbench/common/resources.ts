@@ -18,13 +18,13 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
-	static Scheme = new RawContextKey<string>('resourceScheme', undefined);
-	static Filename = new RawContextKey<string>('resourceFilename', undefined);
-	static LangId = new RawContextKey<string>('resourceLangId', undefined);
-	static Resource = new RawContextKey<URI>('resource', undefined);
-	static Extension = new RawContextKey<string>('resourceExtname', undefined);
-	static HasResource = new RawContextKey<boolean>('resourceSet', false);
-	static IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', false);
+	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined);
+	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined);
+	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined);
+	static readonly Resource = new RawContextKey<URI>('resource', undefined);
+	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined);
+	static readonly HasResource = new RawContextKey<boolean>('resourceSet', false);
+	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', false);
 
 	private readonly _resourceKey: IContextKey<URI | null>;
 	private readonly _schemeKey: IContextKey<string | null>;
@@ -56,7 +56,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
 		this._register(_modeService.onDidCreateMode(() => {
 			const value = this._resourceKey.get();
-			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath) : null);
+			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
 		}));
 	}
 
@@ -65,7 +65,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 			this._resourceKey.set(value);
 			this._schemeKey.set(value ? value.scheme : null);
 			this._filenameKey.set(value ? basename(value) : null);
-			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath) : null);
+			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
 			this._extensionKey.set(value ? extname(value) : null);
 			this._hasResource.set(!!value);
 			this._isFileSystemResource.set(value ? this._fileService.canHandleResource(value) : false);
@@ -107,7 +107,7 @@ export class ResourceGlobMatcher extends Disposable {
 	private static readonly NO_ROOT: string | null = null;
 
 	private readonly _onExpressionChange: Emitter<void> = this._register(new Emitter<void>());
-	get onExpressionChange(): Event<void> { return this._onExpressionChange.event; }
+	readonly onExpressionChange: Event<void> = this._onExpressionChange.event;
 
 	private readonly mapRootToParsedExpression: Map<string | null, ParsedExpression> = new Map<string, ParsedExpression>();
 	private readonly mapRootToExpressionConfig: Map<string | null, IExpression> = new Map<string, IExpression>();
@@ -180,24 +180,24 @@ export class ResourceGlobMatcher extends Disposable {
 	matches(resource: URI): boolean {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 
-		let expressionForRoot: ParsedExpression;
+		let expressionForRoot: ParsedExpression | undefined;
 		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
-			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString())!;
+			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
 		} else {
-			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT)!;
+			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
 		}
 
 		// If the resource if from a workspace, convert its absolute path to a relative
 		// path so that glob patterns have a higher probability to match. For example
 		// a glob pattern of "src/**" will not match on an absolute path "/folder/src/file.txt"
 		// but can match on "src/file.txt"
-		let resourcePathToMatch: string;
+		let resourcePathToMatch: string | undefined;
 		if (folder) {
-			resourcePathToMatch = relativePath(folder.uri, resource)!; // always uses forward slashes
+			resourcePathToMatch = relativePath(folder.uri, resource); // always uses forward slashes
 		} else {
 			resourcePathToMatch = resource.fsPath; // TODO@isidor: support non-file URIs
 		}
 
-		return !!expressionForRoot(resourcePathToMatch);
+		return !!expressionForRoot && typeof resourcePathToMatch === 'string' && !!expressionForRoot(resourcePathToMatch);
 	}
 }

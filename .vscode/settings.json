@@ -56,5 +56,9 @@
 			"url": "./.vscode/cglicenses.schema.json"
 		}
 	],
-	"git.ignoreLimitWarning": true
+	"git.ignoreLimitWarning": true,
+	"remote.extensionKind": {
+		"msjsdiag.debugger-for-chrome": "workspace"
+	},
+	"files.insertFinalNewline": true
 }

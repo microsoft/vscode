@@ -13,7 +13,7 @@ export const ITextResourceConfigurationService = createDecorator<ITextResourceCo
 
 export interface ITextResourceConfigurationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Event that fires when the configuration changes.
@@ -25,7 +25,7 @@ export interface ITextResourceConfigurationService {
 	 * Value can be of native type or an object keyed off the section name.
 	 *
 	 * @param resource - Resource for which the configuration has to be fetched.
-	 * @param postion - Position in the resource for which configuration has to be fetched.
+	 * @param position - Position in the resource for which configuration has to be fetched.
 	 * @param section - Section of the configuraion.
 	 *
 	 */
@@ -38,7 +38,7 @@ export const ITextResourcePropertiesService = createDecorator<ITextResourcePrope
 
 export interface ITextResourcePropertiesService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Returns the End of Line characters for the given resource

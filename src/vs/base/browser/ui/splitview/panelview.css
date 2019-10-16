@@ -20,30 +20,22 @@
 	font-size: 11px;
 	font-weight: bold;
 	text-transform: uppercase;
-	padding-left: 20px;
 	overflow: hidden;
 	display: flex;
 	cursor: pointer;
 }
 
-.monaco-panel-view .panel > .panel-header {
-	background-image: url('arrow-collapse.svg');
-	background-position: 2px center;
-	background-repeat: no-repeat;
+.monaco-panel-view .panel > .panel-header > .twisties {
+	width: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transform-origin: center;
+	color: inherit;
 }
 
-.monaco-panel-view .panel > .panel-header.expanded {
-	background-image: url('arrow-expand.svg');
-	background-position: 2px center;
-	background-repeat: no-repeat;
-}
-
-.vs-dark .monaco-panel-view .panel > .panel-header {
-	background-image: url('arrow-collapse-dark.svg');
-}
-
-.vs-dark .monaco-panel-view .panel > .panel-header.expanded {
-	background-image: url('arrow-expand-dark.svg');
+.monaco-panel-view .panel > .panel-header.expanded > .twisties::before {
+	transform: rotate(90deg);
 }
 
 /* TODO: actions should be part of the panel, but they aren't yet */
@@ -60,13 +52,18 @@
 }
 
 /* TODO: actions should be part of the panel, but they aren't yet */
-.monaco-panel-view .panel > .panel-header > .actions .action-label.icon {
+.monaco-panel-view .panel > .panel-header > .actions .action-label.icon,
+.monaco-panel-view .panel > .panel-header > .actions .action-label.codicon {
 	width: 28px;
 	height: 22px;
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
 	margin-right: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: inherit;
 }
 
 /* Bold font style does not go well with CJK fonts */

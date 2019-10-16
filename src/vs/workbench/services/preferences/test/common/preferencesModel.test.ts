@@ -250,4 +250,88 @@ suite('Preferences Model test', () => {
 		withMessage.rejects(' ').withMessage('always error!');
 		withMessage.rejects('1').withMessage('always error!');
 	});
+
+	class ArrayTester {
+		private validator: (value: any) => string | null;
+
+		constructor(private settings: IConfigurationPropertySchema) {
+			this.validator = createValidator(settings)!;
+		}
+
+		public accepts(input: string[]) {
+			assert.equal(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
+		}
+
+		public rejects(input: any[]) {
+			assert.notEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${JSON.stringify(input)}\`.`);
+			return {
+				withMessage:
+					(message: string) => {
+						const actual = this.validator(input);
+						assert.ok(actual);
+						assert(actual!.indexOf(message) > -1,
+							`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`);
+					}
+			};
+		}
+	}
+
+	test('simple array', () => {
+		{
+			const arr = new ArrayTester({ type: 'array', items: { type: 'string' } });
+			arr.accepts([]);
+			arr.accepts(['foo']);
+			arr.accepts(['foo', 'bar']);
+		}
+	});
+
+	test('min-max items array', () => {
+		{
+			const arr = new ArrayTester({ type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 2 });
+			arr.rejects([]).withMessage('Array must have at least 1 items');
+			arr.accepts(['a']);
+			arr.accepts(['a', 'a']);
+			arr.rejects(['a', 'a', 'a']).withMessage('Array must have less than 2 items');
+		}
+	});
+
+	test('array of enums', () => {
+		{
+			const arr = new ArrayTester({ type: 'array', items: { type: 'string', enum: ['a', 'b'] } });
+			arr.accepts(['a']);
+			arr.accepts(['a', 'b']);
+
+			arr.rejects(['c']).withMessage(`Value 'c' is not one of`);
+			arr.rejects(['a', 'c']).withMessage(`Value 'c' is not one of`);
+
+			arr.rejects(['c', 'd']).withMessage(`Value 'c' is not one of`);
+			arr.rejects(['c', 'd']).withMessage(`Value 'd' is not one of`);
+		}
+	});
+
+	test('min-max and enum', () => {
+		const arr = new ArrayTester({ type: 'array', items: { type: 'string', enum: ['a', 'b'] }, minItems: 1, maxItems: 2 });
+
+		arr.rejects(['a', 'b', 'c']).withMessage('Array must have less than 2 items');
+		arr.rejects(['a', 'b', 'c']).withMessage(`Value 'c' is not one of`);
+	});
+
+	test('pattern', () => {
+		const arr = new ArrayTester({ type: 'array', items: { type: 'string', pattern: '^(hello)*$' } });
+
+		arr.accepts(['hello']);
+		arr.rejects(['a']).withMessage(`Value 'a' must match regex`);
+	});
+
+	test('pattern with error message', () => {
+		const arr = new ArrayTester({ type: 'array', items: { type: 'string', pattern: '^(hello)*$', patternErrorMessage: 'err: must be friendly' } });
+
+		arr.rejects(['a']).withMessage(`err: must be friendly`);
+	});
+
+	test('uniqueItems', () => {
+		const arr = new ArrayTester({ type: 'array', items: { type: 'string' }, uniqueItems: true });
+
+		arr.rejects(['a', 'a']).withMessage(`Array has duplicate items`);
+	});
 });

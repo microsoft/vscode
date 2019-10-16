@@ -153,11 +153,6 @@ async function sync(commit: string, quality: string): Promise<void> {
 }
 
 function main(): void {
-	if (process.env['VSCODE_BUILD_SKIP_PUBLISH']) {
-		error('Skipping publish due to VSCODE_BUILD_SKIP_PUBLISH');
-		return;
-	}
-
 	const commit = process.env['BUILD_SOURCEVERSION'];
 
 	if (!commit) {

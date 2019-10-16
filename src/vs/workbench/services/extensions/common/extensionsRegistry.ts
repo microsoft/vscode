@@ -61,9 +61,7 @@ export interface IExtensionPointUser<T> {
 	collector: ExtensionMessageCollector;
 }
 
-export interface IExtensionPointHandler<T> {
-	(extensions: IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>): void;
-}
+export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;
 
 export interface IExtensionPoint<T> {
 	name: string;
@@ -73,7 +71,7 @@ export interface IExtensionPoint<T> {
 
 export class ExtensionPointUserDelta<T> {
 
-	private static _toSet<T>(arr: IExtensionPointUser<T>[]): Set<string> {
+	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): Set<string> {
 		const result = new Set<string>();
 		for (let i = 0, len = arr.length; i < len; i++) {
 			result.add(ExtensionIdentifier.toKey(arr[i].description.identifier));
@@ -81,7 +79,7 @@ export class ExtensionPointUserDelta<T> {
 		return result;
 	}
 
-	public static compute<T>(previous: IExtensionPointUser<T>[] | null, current: IExtensionPointUser<T>[]): ExtensionPointUserDelta<T> {
+	public static compute<T>(previous: readonly IExtensionPointUser<T>[] | null, current: readonly IExtensionPointUser<T>[]): ExtensionPointUserDelta<T> {
 		if (!previous || !previous.length) {
 			return new ExtensionPointUserDelta<T>(current, []);
 		}
@@ -99,8 +97,8 @@ export class ExtensionPointUserDelta<T> {
 	}
 
 	constructor(
-		public readonly added: IExtensionPointUser<T>[],
-		public readonly removed: IExtensionPointUser<T>[],
+		public readonly added: readonly IExtensionPointUser<T>[],
+		public readonly removed: readonly IExtensionPointUser<T>[],
 	) { }
 }
 
@@ -206,7 +204,7 @@ export const schema = {
 			type: 'object',
 			properties: {
 				// extensions will fill in
-			},
+			} as { [key: string]: any },
 			default: {}
 		},
 		preview: {
@@ -268,6 +266,11 @@ export const schema = {
 						label: 'onView',
 						body: 'onView:${5:viewId}',
 						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
+					},
+					{
+						label: 'onIdentity',
+						body: 'onIdentity:${8:identity}',
+						description: nls.localize('vscode.extension.activationEvents.onIdentity', 'An activation event emitted whenever the specified user identity.'),
 					},
 					{
 						label: 'onUri',
@@ -340,6 +343,19 @@ export const schema = {
 				type: 'string',
 				pattern: EXTENSION_IDENTIFIER_PATTERN
 			}
+		},
+		extensionKind: {
+			description: nls.localize('extensionKind', "Define the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote."),
+			type: 'string',
+			enum: [
+				'ui',
+				'workspace'
+			],
+			enumDescriptions: [
+				nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+				nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+			],
+			default: 'workspace'
 		},
 		scripts: {
 			type: 'object',

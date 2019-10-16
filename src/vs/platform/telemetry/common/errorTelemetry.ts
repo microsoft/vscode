@@ -5,25 +5,20 @@
 
 import { binarySearch } from 'vs/base/common/arrays';
 import * as Errors from 'vs/base/common/errors';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-/* __GDPR__FRAGMENT__
-	"ErrorEvent" : {
-		"stack": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" },
-		"message" : { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" },
-		"filename" : { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" },
-		"callstack": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-		"msg" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-		"file" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-		"line": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"column": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"uncaught_error_name": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-		"uncaught_error_msg": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-		"count": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-	}
- */
+type ErrorEventFragment = {
+	callstack: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	msg?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	file?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	line?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	column?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	uncaught_error_name?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	uncaught_error_msg?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	count?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
+};
 export interface ErrorEvent {
 	callstack: string;
 	msg?: string;
@@ -54,7 +49,7 @@ export default abstract class BaseErrorTelemetry {
 	private _flushDelay: number;
 	private _flushHandle: any = -1;
 	private _buffer: ErrorEvent[] = [];
-	protected _disposables: IDisposable[] = [];
+	protected readonly _disposables = new DisposableStore();
 
 	constructor(telemetryService: ITelemetryService, flushDelay = BaseErrorTelemetry.ERROR_FLUSH_TIMEOUT) {
 		this._telemetryService = telemetryService;
@@ -62,7 +57,7 @@ export default abstract class BaseErrorTelemetry {
 
 		// (1) check for unexpected but handled errors
 		const unbind = Errors.errorHandler.addListener((err) => this._onErrorEvent(err));
-		this._disposables.push(toDisposable(unbind));
+		this._disposables.add(toDisposable(unbind));
 
 		// (2) install implementation-specific error listeners
 		this.installErrorListeners();
@@ -71,7 +66,7 @@ export default abstract class BaseErrorTelemetry {
 	dispose() {
 		clearTimeout(this._flushHandle);
 		this._flushBuffer();
-		this._disposables = dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	protected installErrorListeners(): void {
@@ -124,12 +119,8 @@ export default abstract class BaseErrorTelemetry {
 
 	private _flushBuffer(): void {
 		for (let error of this._buffer) {
-			/* __GDPR__
-			"UnhandledError" : {
-					"${include}": [ "${ErrorEvent}" ]
-				}
-			*/
-			this._telemetryService.publicLog('UnhandledError', error, true);
+			type UnhandledErrorClassification = {} & ErrorEventFragment;
+			this._telemetryService.publicLog2<ErrorEvent, UnhandledErrorClassification>('UnhandledError', error, true);
 		}
 		this._buffer.length = 0;
 	}

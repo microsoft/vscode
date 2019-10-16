@@ -10,16 +10,16 @@ import { $ } from 'vs/base/browser/dom';
 import * as collections from 'vs/base/common/collections';
 import * as browser from 'vs/base/browser/browser';
 import { escape } from 'vs/base/common/strings';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/common/product';
 import * as os from 'os';
 import { debounce } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -27,22 +27,21 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { MainProcessService, IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
+import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/node/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
+import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 
-const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
+const MAX_URL_LENGTH = 2045;
 
 interface SearchResult {
 	html_url: string;
@@ -64,9 +63,9 @@ export function startup(configuration: IssueReporterConfiguration) {
 }
 
 export class IssueReporter extends Disposable {
-	private environmentService: IEnvironmentService;
-	private telemetryService: ITelemetryService;
-	private logService: ILogService;
+	private environmentService!: IEnvironmentService;
+	private telemetryService!: ITelemetryService;
+	private logService!: ILogService;
 	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
@@ -74,7 +73,7 @@ export class IssueReporter extends Disposable {
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
 
-	private readonly previewButton: Button;
+	private readonly previewButton!: Button;
 
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
@@ -85,7 +84,7 @@ export class IssueReporter extends Disposable {
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
-				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
+				vscodeVersion: `${product.nameShort} ${product.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!this.environmentService.disableExtensions,
@@ -232,7 +231,7 @@ export class IssueReporter extends Disposable {
 
 		styleTag.innerHTML = content.join('\n');
 		document.head.appendChild(styleTag);
-		document.body.style.color = withUndefinedAsNull(styles.color);
+		document.body.style.color = styles.color || '';
 	}
 
 	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
@@ -297,22 +296,23 @@ export class IssueReporter extends Disposable {
 		const mainProcessService = new MainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		serviceCollection.set(IWindowsService, new WindowsService(mainProcessService));
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
-		const logService = createSpdLogService(`issuereporter${configuration.windowId}`, getLogLevel(this.environmentService), this.environmentService.logsPath);
-		const logLevelClient = new LogLevelSetterChannelClient(mainProcessService.getChannel('loglevel'));
-		this.logService = new FollowerLogService(logLevelClient, logService);
+		const logService = new SpdLogService(`issuereporter${configuration.windowId}`, this.environmentService.logsPath, getLogLevel(this.environmentService));
+		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
+		this.logService = new FollowerLogService(loggerClient, logService);
 
-		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
+		const sharedProcessService = createChannelSender<ISharedProcessService>(mainProcessService.getChannel('sharedProcess'));
+
+		const sharedProcess = sharedProcessService.whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService));
-			const commonProperties = resolveCommonProperties(product.commit || 'Commit unknown', pkg.version, configuration.machineId, this.environmentService.installSourcePath);
-			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
+			const commonProperties = resolveCommonProperties(product.commit || 'Commit unknown', product.version, configuration.machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
+			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -336,7 +336,7 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'].forEach(elementId => {
+		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
@@ -346,7 +346,7 @@ export class IssueReporter extends Disposable {
 		const showInfoElements = document.getElementsByClassName('showInfo');
 		for (let i = 0; i < showInfoElements.length; i++) {
 			const showInfo = showInfoElements.item(i);
-			showInfo!.addEventListener('click', (e) => {
+			showInfo!.addEventListener('click', (e: MouseEvent) => {
 				e.preventDefault();
 				const label = (<HTMLDivElement>e.target);
 				if (label) {
@@ -440,11 +440,11 @@ export class IssueReporter extends Disposable {
 			}
 		});
 
-		document.onkeydown = (e: KeyboardEvent) => {
+		document.onkeydown = async (e: KeyboardEvent) => {
 			const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {
-				if (this.createIssue()) {
+				if (await this.createIssue()) {
 					ipcRenderer.send('vscode:closeIssueReporter');
 				}
 			}
@@ -676,12 +676,14 @@ export class IssueReporter extends Disposable {
 
 	private logSearchError(error: Error) {
 		this.logService.warn('issueReporter#search ', error.message);
-		/* __GDPR__
-		"issueReporterSearchError" : {
-				"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
-			}
-		*/
-		this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
+		type IssueReporterSearchErrorClassification = {
+			message: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' }
+		};
+
+		type IssueReporterSearchError = {
+			message: string;
+		};
+		this.telemetryService.publicLog2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message });
 	}
 
 	private setUpTypes(): void {
@@ -843,7 +845,7 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
-	private createIssue(): boolean {
+	private async createIssue(): Promise<boolean> {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
@@ -873,13 +875,15 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
-		/* __GDPR__
-			"issueReporterSubmit" : {
-				"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"numSimilarIssuesDisplayed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
+		type IssueReporterSubmitClassification = {
+			issueType: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			numSimilarIssuesDisplayed: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		};
+		type IssueReporterSubmitEvent = {
+			issueType: any;
+			numSimilarIssuesDisplayed: number;
+		};
+		this.telemetryService.publicLog2<IssueReporterSubmitEvent, IssueReporterSubmitClassification>('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
 		this.hasBeenSubmitted = true;
 
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
@@ -887,12 +891,30 @@ export class IssueReporter extends Disposable {
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
 		if (url.length > MAX_URL_LENGTH) {
-			clipboard.writeText(issueBody);
-			url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+			try {
+				url = await this.writeToClipboard(baseUrl, issueBody);
+			} catch (_) {
+				return false;
+			}
 		}
 
 		ipcRenderer.send('vscode:openExternal', url);
 		return true;
+	}
+
+	private async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
+		return new Promise((resolve, reject) => {
+			ipcRenderer.once('vscode:issueReporterClipboardResponse', (_: unknown, shouldWrite: boolean) => {
+				if (shouldWrite) {
+					clipboard.writeText(issueBody);
+					resolve(baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`);
+				} else {
+					reject();
+				}
+			});
+
+			ipcRenderer.send('vscode:issueReporterClipboard');
+		});
 	}
 
 	private getExtensionGitHubUrl(): string {
@@ -918,7 +940,7 @@ export class IssueReporter extends Disposable {
 			}
 		}
 
-		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		const queryStringPrefix = product.reportIssueUrl && product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
 		return `${repositoryUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
 	}
 
@@ -1088,11 +1110,7 @@ export class IssueReporter extends Disposable {
 		// Exclude right click
 		if (event.which < 3) {
 			shell.openExternal((<HTMLAnchorElement>event.target).href);
-
-			/* __GDPR__
-				"issueReporterViewSimilarIssue" : { }
-			*/
-			this.telemetryService.publicLog('issueReporterViewSimilarIssue');
+			this.telemetryService.publicLog2('issueReporterViewSimilarIssue');
 		}
 	}
 
@@ -1103,12 +1121,13 @@ export class IssueReporter extends Disposable {
 		} else {
 			const error = new Error(`${elementId} not found.`);
 			this.logService.error(error);
-			/* __GDPR__
-				"issueReporterGetElementError" : {
-						"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
-					}
-				*/
-			this.telemetryService.publicLog('issueReporterGetElementError', { message: error.message });
+			type IssueReporterGetElementErrorClassification = {
+				message: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+			};
+			type IssueReporterGetElementErrorEvent = {
+				message: string;
+			};
+			this.telemetryService.publicLog2<IssueReporterGetElementErrorEvent, IssueReporterGetElementErrorClassification>('issueReporterGetElementError', { message: error.message });
 
 			return undefined;
 		}

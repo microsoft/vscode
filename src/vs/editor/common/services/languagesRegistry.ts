@@ -323,11 +323,11 @@ export class LanguagesRegistry extends Disposable {
 		return [];
 	}
 
-	public getModeIdsFromFilepathOrFirstLine(filepath: string | null, firstLine?: string): string[] {
-		if (!filepath && !firstLine) {
+	public getModeIdsFromFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
+		if (!resource && !firstLine) {
 			return [];
 		}
-		let mimeTypes = mime.guessMimeTypes(filepath, firstLine);
+		let mimeTypes = mime.guessMimeTypes(resource, firstLine);
 		return this.extractModeIds(mimeTypes.join(','));
 	}
 

@@ -7,17 +7,14 @@
  * An interface for a JavaScript object that
  * acts a dictionary. The keys are strings.
  */
-export interface IStringDictionary<V> {
-	[name: string]: V;
-}
+export type IStringDictionary<V> = Record<string, V>;
+
 
 /**
  * An interface for a JavaScript object that
  * acts a dictionary. The keys are numbers.
  */
-export interface INumberDictionary<V> {
-	[idx: number]: V;
-}
+export type INumberDictionary<V> = Record<number, V>;
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -46,9 +43,9 @@ export function size<T>(from: IStringDictionary<T> | INumberDictionary<T>): numb
 }
 
 export function first<T>(from: IStringDictionary<T> | INumberDictionary<T>): T | undefined {
-	for (let key in from) {
+	for (const key in from) {
 		if (hasOwnProperty.call(from, key)) {
-			return from[key];
+			return (from as any)[key];
 		}
 	}
 	return undefined;
@@ -96,4 +93,50 @@ export function fromMap<T>(original: Map<string, T>): IStringDictionary<T> {
 		});
 	}
 	return result;
+}
+
+export function mapValues<V>(map: Map<any, V>): V[] {
+	const result: V[] = [];
+	map.forEach(v => result.push(v));
+	return result;
+}
+
+export class SetMap<K, V> {
+
+	private map = new Map<K, Set<V>>();
+
+	add(key: K, value: V): void {
+		let values = this.map.get(key);
+
+		if (!values) {
+			values = new Set<V>();
+			this.map.set(key, values);
+		}
+
+		values.add(value);
+	}
+
+	delete(key: K, value: V): void {
+		const values = this.map.get(key);
+
+		if (!values) {
+			return;
+		}
+
+		values.delete(value);
+
+		if (values.size === 0) {
+			this.map.delete(key);
+		}
+	}
+
+	forEach(key: K, fn: (value: V) => void): void {
+		const values = this.map.get(key);
+
+		if (!values) {
+			return;
+		}
+
+		values.forEach(fn);
+	}
 }

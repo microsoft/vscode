@@ -86,7 +86,9 @@
 			"name": "Class name",
 			"scope": [
 				"entity.name.class",
-				"entity.name.type"
+				"entity.name.type",
+				"entity.name.namespace",
+				"entity.name.scope-resolution"
 			],
 			"settings": {
 				"fontStyle": "underline",
@@ -355,6 +357,10 @@
 		// "diffEditor.insertedTextBorder": "",
 		"diffEditor.removedTextBackground": "#892F4688",
 		// "diffEditor.removedTextBorder": "",
+
+
+		// Editor: Minimap
+		"minimap.selectionHighlight": "#750000",
 
 		// Workbench: Title
 		"titleBar.activeBackground": "#10192c",

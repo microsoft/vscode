@@ -14,7 +14,7 @@ import { StartAction, ConfigureAction, SelectAndStartAction, FocusSessionAction 
 import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -36,11 +36,12 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export class DebugViewlet extends ViewContainerViewlet {
 
-	private startDebugActionViewItem: StartDebugActionViewItem;
-	private progressRunner: IProgressRunner;
-	private breakpointView: ViewletPanel;
+	private startDebugActionViewItem: StartDebugActionViewItem | undefined;
+	private progressResolve: (() => void) | undefined;
+	private breakpointView: ViewletPanel | undefined;
 	private panelListeners = new Map<string, IDisposable>();
-	private debugToolBarMenu: IMenu;
+	private debugToolBarMenu: IMenu | undefined;
+	private disposeOnTitleUpdate: IDisposable | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -112,9 +113,16 @@ export class DebugViewlet extends ViewContainerViewlet {
 
 		if (!this.debugToolBarMenu) {
 			this.debugToolBarMenu = this.menuService.createMenu(MenuId.DebugToolBar, this.contextKeyService);
-			this.toDispose.push(this.debugToolBarMenu);
+			this._register(this.debugToolBarMenu);
 		}
-		return DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+
+		const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+		if (this.disposeOnTitleUpdate) {
+			dispose(this.disposeOnTitleUpdate);
+		}
+		this.disposeOnTitleUpdate = disposable;
+
+		return actions;
 	}
 
 	get showInitialDebugActions(): boolean {
@@ -153,12 +161,15 @@ export class DebugViewlet extends ViewContainerViewlet {
 	}
 
 	private onDebugServiceStateChange(state: State): void {
-		if (this.progressRunner) {
-			this.progressRunner.done();
+		if (this.progressResolve) {
+			this.progressResolve();
+			this.progressResolve = undefined;
 		}
 
 		if (state === State.Initializing) {
-			this.progressRunner = this.progressService.show(true);
+			this.progressService.withProgress({ location: VIEWLET_ID }, _progress => {
+				return new Promise(resolve => this.progressResolve = resolve);
+			});
 		}
 
 		this.updateToolBar();
@@ -203,7 +214,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 
 class ToggleReplAction extends TogglePanelAction {
 	static readonly ID = 'debug.toggleRepl';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
+	static readonly LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
 
 	constructor(id: string, label: string,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,

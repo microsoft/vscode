@@ -58,6 +58,8 @@ class ErrorInvalidArgType extends Error {
 
 		msg += `. Received type ${typeof actual}`;
 		super(msg);
+
+		this.code = 'ERR_INVALID_ARG_TYPE';
 	}
 }
 
@@ -212,7 +214,7 @@ export const win32: IPath = {
 				// absolute path, get cwd for that drive, or the process cwd if
 				// the drive cwd is not available. We're sure the device is not
 				// a UNC path at this points, because UNC paths are always absolute.
-				path = process.env['=' + resolvedDevice] || process.cwd();
+				path = (process.env as any)['=' + resolvedDevice] || process.cwd();
 
 				// Verify that a cwd was found and that it actually points
 				// to our drive. If not, default to the drive's root.

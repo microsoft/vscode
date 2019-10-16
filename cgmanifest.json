@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "164c37e3f235134c88e80fac2a182cfba3f07f00"
+					"commitHash": "91f08db83c2ce8c722ddf0911ead8f7c473bedfa"
 				}
 			},
 			"licenseDetail": [
@@ -40,20 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "66.0.3359.181"
-		},
-		{
-			"component": {
-				"type": "git",
-				"git": {
-					"name": "libchromiumcontent",
-					"repositoryUrl": "https://github.com/electron/libchromiumcontent",
-					"commitHash": "7ea271f92018b1eeb8e70ec6de8c29f9758a0c05"
-				}
-			},
-			"isOnlyProductionDependency": true,
-			"license": "MIT",
-			"version": "66.0.3359.181"
+			"version": "76.0.3809.146"
 		},
 		{
 			"component": {
@@ -61,11 +48,11 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "5cbb905c1af7cea2d709932d59827d7c6d03ef4a"
+					"commitHash": "64219741218aa87e259cf8257596073b8e747f0a"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "10.2.0"
+			"version": "12.4.0"
 		},
 		{
 			"component": {
@@ -73,12 +60,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "e84a6860e35e14b4031b88bb9b49841cdb89a305"
+					"commitHash": "1e50380fab37f407c4d357e1e30ecbc3d5a703b8"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "3.1.8"
+			"version": "6.0.12"
 		},
 		{
 			"component": {
@@ -111,11 +98,11 @@
 				"git": {
 					"name": "vscode-octicons-font",
 					"repositoryUrl": "https://github.com/Microsoft/vscode-octicons-font",
-					"commitHash": "4f69de3a233ed501c2098e33047e116ac2fbbf42"
+					"commitHash": "4cbf2bd35cf0084eabd47d322cc58339fd7743cf"
 				}
 			},
 			"license": "MIT",
-			"version": "1.1.0"
+			"version": "1.3.2"
 		},
 		{
 			"component": {

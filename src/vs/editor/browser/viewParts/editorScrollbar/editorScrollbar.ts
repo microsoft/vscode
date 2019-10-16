@@ -14,6 +14,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class EditorScrollbar extends ViewPart {
 
@@ -28,8 +29,11 @@ export class EditorScrollbar extends ViewPart {
 	) {
 		super(context);
 
-		const editor = this._context.configuration.editor;
-		const configScrollbarOpts = editor.viewInfo.scrollbar;
+
+		const options = this._context.configuration.options;
+		const scrollbar = options.get(EditorOption.scrollbar);
+		const mouseWheelScrollSensitivity = options.get(EditorOption.mouseWheelScrollSensitivity);
+		const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
 
 		const scrollbarOptions: ScrollableElementCreationOptions = {
 			listenOnDomNode: viewDomNode.domNode,
@@ -37,18 +41,18 @@ export class EditorScrollbar extends ViewPart {
 			useShadows: false,
 			lazyRender: true,
 
-			vertical: configScrollbarOpts.vertical,
-			horizontal: configScrollbarOpts.horizontal,
-			verticalHasArrows: configScrollbarOpts.verticalHasArrows,
-			horizontalHasArrows: configScrollbarOpts.horizontalHasArrows,
-			verticalScrollbarSize: configScrollbarOpts.verticalScrollbarSize,
-			verticalSliderSize: configScrollbarOpts.verticalSliderSize,
-			horizontalScrollbarSize: configScrollbarOpts.horizontalScrollbarSize,
-			horizontalSliderSize: configScrollbarOpts.horizontalSliderSize,
-			handleMouseWheel: configScrollbarOpts.handleMouseWheel,
-			arrowSize: configScrollbarOpts.arrowSize,
-			mouseWheelScrollSensitivity: configScrollbarOpts.mouseWheelScrollSensitivity,
-			fastScrollSensitivity: configScrollbarOpts.fastScrollSensitivity,
+			vertical: scrollbar.vertical,
+			horizontal: scrollbar.horizontal,
+			verticalHasArrows: scrollbar.verticalHasArrows,
+			horizontalHasArrows: scrollbar.horizontalHasArrows,
+			verticalScrollbarSize: scrollbar.verticalScrollbarSize,
+			verticalSliderSize: scrollbar.verticalSliderSize,
+			horizontalScrollbarSize: scrollbar.horizontalScrollbarSize,
+			horizontalSliderSize: scrollbar.horizontalSliderSize,
+			handleMouseWheel: scrollbar.handleMouseWheel,
+			arrowSize: scrollbar.arrowSize,
+			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
+			fastScrollSensitivity: fastScrollSensitivity,
 		};
 
 		this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.scrollable));
@@ -96,11 +100,13 @@ export class EditorScrollbar extends ViewPart {
 	}
 
 	private _setLayout(): void {
-		const layoutInfo = this._context.configuration.editor.layoutInfo;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this.scrollbarDomNode.setLeft(layoutInfo.contentLeft);
 
-		const side = this._context.configuration.editor.viewInfo.minimap.side;
+		const minimap = options.get(EditorOption.minimap);
+		const side = minimap.side;
 		if (side === 'right') {
 			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
 		} else {
@@ -124,16 +130,23 @@ export class EditorScrollbar extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo) {
-			const editor = this._context.configuration.editor;
+		if (
+			e.hasChanged(EditorOption.scrollbar)
+			|| e.hasChanged(EditorOption.mouseWheelScrollSensitivity)
+			|| e.hasChanged(EditorOption.fastScrollSensitivity)
+		) {
+			const options = this._context.configuration.options;
+			const scrollbar = options.get(EditorOption.scrollbar);
+			const mouseWheelScrollSensitivity = options.get(EditorOption.mouseWheelScrollSensitivity);
+			const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
 			const newOpts: ScrollableElementChangeOptions = {
-				handleMouseWheel: editor.viewInfo.scrollbar.handleMouseWheel,
-				mouseWheelScrollSensitivity: editor.viewInfo.scrollbar.mouseWheelScrollSensitivity,
-				fastScrollSensitivity: editor.viewInfo.scrollbar.fastScrollSensitivity
+				handleMouseWheel: scrollbar.handleMouseWheel,
+				mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
+				fastScrollSensitivity: fastScrollSensitivity
 			};
 			this.scrollbar.updateOptions(newOpts);
 		}
-		if (e.layoutInfo) {
+		if (e.hasChanged(EditorOption.layoutInfo)) {
 			this._setLayout();
 		}
 		return true;

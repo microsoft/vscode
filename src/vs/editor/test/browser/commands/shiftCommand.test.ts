@@ -92,7 +92,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
-			new Selection(1, 1, 1, 2)
+			new Selection(1, 2, 1, 2)
 		);
 	});
 

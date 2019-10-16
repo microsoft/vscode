@@ -44,13 +44,13 @@ export class FileQuickOpenModel extends QuickOpenModel {
 }
 
 export class FileEntry extends EditorQuickOpenEntry {
-	private range: IRange | null;
+	private range: IRange | null = null;
 
 	constructor(
 		private resource: URI,
 		private name: string,
 		private description: string,
-		private icon: string,
+		private icon: string | undefined,
 		@IEditorService editorService: IEditorService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
@@ -78,7 +78,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return this.description;
 	}
 
-	getIcon(): string {
+	getIcon(): string | undefined {
 		return this.icon;
 	}
 
@@ -112,12 +112,11 @@ export interface IOpenFileOptions {
 }
 
 export class OpenFileHandler extends QuickOpenHandler {
-	private options: IOpenFileOptions;
+	private options: IOpenFileOptions | undefined;
 	private queryBuilder: QueryBuilder;
-	private cacheState: CacheState;
+	private cacheState: CacheState | undefined;
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -144,46 +143,48 @@ export class OpenFileHandler extends QuickOpenHandler {
 		}
 
 		// Do find results
-		return this.doFindResults(query, token, this.cacheState.cacheKey, maxSortedResults);
+		return this.doFindResults(query, token, this.cacheState ? this.cacheState.cacheKey : undefined, maxSortedResults);
 	}
 
-	private doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): Promise<FileQuickOpenModel> {
+	private async doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): Promise<FileQuickOpenModel> {
 		const queryOptions = this.doResolveQueryOptions(query, cacheKey, maxSortedResults);
 
-		let iconClass: string;
+		let iconClass: string | undefined = undefined;
 		if (this.options && this.options.forceUseIcons && !this.themeService.getFileIconTheme()) {
 			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
 		}
 
-		return this.getAbsolutePathResult(query).then(result => {
-			if (token.isCancellationRequested) {
-				return Promise.resolve(<ISearchComplete>{ results: [] });
+		let complete: ISearchComplete | undefined = undefined;
+
+		const result = await this.getAbsolutePathResult(query);
+		if (token.isCancellationRequested) {
+			complete = <ISearchComplete>{ results: [] };
+		}
+
+		// If the original search value is an existing file on disk, return it immediately and bypass the search service
+		else if (result) {
+			complete = <ISearchComplete>{ results: [{ resource: result }] };
+		}
+
+		else {
+			complete = await this.searchService.fileSearch(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
+		}
+
+		const results: QuickOpenEntry[] = [];
+
+		if (!token.isCancellationRequested) {
+			for (const fileMatch of complete.results) {
+				const label = basename(fileMatch.resource);
+				const description = this.labelService.getUriLabel(dirname(fileMatch.resource), { relative: true });
+
+				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
+		}
 
-			// If the original search value is an existing file on disk, return it immediately and bypass the search service
-			if (result) {
-				return Promise.resolve(<ISearchComplete>{ results: [{ resource: result }] });
-			}
-
-			return this.searchService.fileSearch(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
-		}).then(complete => {
-			const results: QuickOpenEntry[] = [];
-
-			if (!token.isCancellationRequested) {
-				for (const fileMatch of complete.results) {
-
-					const label = basename(fileMatch.resource);
-					const description = this.labelService.getUriLabel(dirname(fileMatch.resource), { relative: true });
-
-					results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
-				}
-			}
-
-			return new FileQuickOpenModel(results, <IFileSearchStats>complete.stats);
-		});
+		return new FileQuickOpenModel(results, <IFileSearchStats>complete.stats);
 	}
 
-	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI | undefined> {
+	private async getAbsolutePathResult(query: IPreparedQuery): Promise<URI | undefined> {
 		const detildifiedQuery = untildify(query.original, this.environmentService.userHome);
 		if (isAbsolute(detildifiedQuery)) {
 			const workspaceFolders = this.contextService.getWorkspace().folders;
@@ -191,18 +192,22 @@ export class OpenFileHandler extends QuickOpenHandler {
 				workspaceFolders[0].uri.with({ path: detildifiedQuery }) :
 				URI.file(detildifiedQuery);
 
-			return this.fileService.resolve(resource).then(
-				stat => stat.isDirectory ? undefined : resource,
-				error => undefined);
+			try {
+				const stat = await this.fileService.resolve(resource);
+
+				return stat.isDirectory ? undefined : resource;
+			} catch (error) {
+				// ignore
+			}
 		}
 
-		return Promise.resolve(undefined);
+		return undefined;
 	}
 
 	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IFileQueryBuilderOptions {
 		const queryOptions: IFileQueryBuilderOptions = {
 			_reason: 'openFileHandler',
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
+			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			filePattern: query.original,
 			cacheKey
 		};
@@ -227,7 +232,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private cacheQuery(cacheKey: string): IFileQuery {
 		const options: IFileQueryBuilderOptions = {
 			_reason: 'openFileHandler',
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
+			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			filePattern: '',
 			cacheKey: cacheKey,
 			maxResults: 0,
@@ -241,7 +246,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	get isCacheLoaded(): boolean {
-		return this.cacheState && this.cacheState.isLoaded;
+		return !!this.cacheState && this.cacheState.isLoaded;
 	}
 
 	getGroupLabel(): string {
@@ -272,16 +277,16 @@ export class CacheState {
 	private query: IFileQuery;
 
 	private loadingPhase = LoadingPhase.Created;
-	private promise: Promise<void>;
+	private promise: Promise<void> | undefined;
 
-	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState | null) {
+	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState | undefined) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });
 			const previous = objects.assign({}, this.previous.query, { cacheKey: null });
 			if (!objects.equals(current, previous)) {
 				this.previous.dispose();
-				this.previous = null;
+				this.previous = undefined;
 			}
 		}
 	}
@@ -310,7 +315,7 @@ export class CacheState {
 				this.loadingPhase = LoadingPhase.Loaded;
 				if (this.previous) {
 					this.previous.dispose();
-					this.previous = null;
+					this.previous = undefined;
 				}
 			}, err => {
 				this.loadingPhase = LoadingPhase.Errored;
@@ -332,7 +337,7 @@ export class CacheState {
 		}
 		if (this.previous) {
 			this.previous.dispose();
-			this.previous = null;
+			this.previous = undefined;
 		}
 	}
 }

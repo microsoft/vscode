@@ -91,18 +91,18 @@ suite('ExtHostDiagnostics', () => {
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
 		]);
 
-		let array = collection.get(URI.parse('foo:bar'));
+		let array = collection.get(URI.parse('foo:bar')) as Diagnostic[];
 		assert.throws(() => array.length = 0);
 		assert.throws(() => array.pop());
 		assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
 
-		collection.forEach((uri, array) => {
+		collection.forEach((uri, array: Diagnostic[]) => {
 			assert.throws(() => array.length = 0);
 			assert.throws(() => array.pop());
 			assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
 		});
 
-		array = collection.get(URI.parse('foo:bar'));
+		array = collection.get(URI.parse('foo:bar')) as Diagnostic[];
 		assert.equal(array.length, 2);
 
 		collection.dispose();
@@ -423,5 +423,41 @@ suite('ExtHostDiagnostics', () => {
 		array.push(diag2);
 		collection.set(URI.parse('test:me'), array);
 		assert.equal(callCount, 3); // same but un-equal array
+	});
+
+	test('Diagnostics created by tasks aren\'t accessible to extensions #47292', async function () {
+		const diags = new ExtHostDiagnostics(new class implements IMainContext {
+			getProxy(id: any): any {
+				return {};
+			}
+			set(): any {
+				return null;
+			}
+			assertRegistered(): void {
+
+			}
+		});
+
+
+		//
+		const uri = URI.parse('foo:bar');
+		const data: IMarkerData[] = [{
+			message: 'message',
+			startLineNumber: 1,
+			startColumn: 1,
+			endLineNumber: 1,
+			endColumn: 1,
+			severity: 3
+		}];
+
+		const p1 = Event.toPromise(diags.onDidChangeDiagnostics);
+		diags.$acceptMarkersChange([[uri, data]]);
+		await p1;
+		assert.equal(diags.getDiagnostics(uri).length, 1);
+
+		const p2 = Event.toPromise(diags.onDidChangeDiagnostics);
+		diags.$acceptMarkersChange([[uri, []]]);
+		await p2;
+		assert.equal(diags.getDiagnostics(uri).length, 0);
 	});
 });

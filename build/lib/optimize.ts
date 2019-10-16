@@ -6,6 +6,7 @@
 'use strict';
 
 import * as es from 'event-stream';
+import * as fs from 'fs';
 import * as gulp from 'gulp';
 import * as concat from 'gulp-concat';
 import * as minifyCSS from 'gulp-cssnano';
@@ -19,7 +20,7 @@ import * as ansiColors from 'ansi-colors';
 import * as path from 'path';
 import * as pump from 'pump';
 import * as sm from 'source-map';
-import * as uglifyes from 'uglify-es';
+import * as terser from 'terser';
 import * as VinylFile from 'vinyl';
 import * as bundle from './bundle';
 import { Language, processNlsFiles } from './i18n';
@@ -154,11 +155,15 @@ export interface IOptimizeTaskOpts {
 	/**
 	 * (basically the Copyright treatment)
 	 */
-	header: string;
+	header?: string;
 	/**
 	 * (emit bundleInfo.json file)
 	 */
 	bundleInfo: boolean;
+	/**
+	 * replace calls to `registerAndGetAmdImageURL` with data uris
+	 */
+	inlineAmdImages: boolean;
 	/**
 	 * (out folder name)
 	 */
@@ -169,12 +174,18 @@ export interface IOptimizeTaskOpts {
 	languages?: Language[];
 }
 
+const DEFAULT_FILE_HEADER = [
+	'/*!--------------------------------------------------------',
+	' * Copyright (C) Microsoft Corporation. All rights reserved.',
+	' *--------------------------------------------------------*/'
+].join('\n');
+
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const src = opts.src;
 	const entryPoints = opts.entryPoints;
 	const resources = opts.resources;
 	const loaderConfig = opts.loaderConfig;
-	const bundledFileHeader = opts.header;
+	const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
 	const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
 	const out = opts.out;
 
@@ -185,6 +196,14 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 
 		bundle.bundle(entryPoints, loaderConfig, function (err, result) {
 			if (err || !result) { return bundlesStream.emit('error', JSON.stringify(err)); }
+
+			if (opts.inlineAmdImages) {
+				try {
+					result = inlineAmdImages(src, result);
+				} catch (err) {
+					return bundlesStream.emit('error', JSON.stringify(err));
+				}
+			}
 
 			toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
 
@@ -230,6 +249,42 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 	};
 }
 
+function inlineAmdImages(src: string, result: bundle.IBundleResult): bundle.IBundleResult {
+	for (const outputFile of result.files) {
+		for (const sourceFile of outputFile.sources) {
+			if (sourceFile.path && /\.js$/.test(sourceFile.path)) {
+				sourceFile.contents = sourceFile.contents.replace(/\([^.]+\.registerAndGetAmdImageURL\(([^)]+)\)\)/g, (_, m0) => {
+					let imagePath = m0;
+					// remove `` or ''
+					if ((imagePath.charAt(0) === '`' && imagePath.charAt(imagePath.length - 1) === '`')
+						|| (imagePath.charAt(0) === '\'' && imagePath.charAt(imagePath.length - 1) === '\'')) {
+						imagePath = imagePath.substr(1, imagePath.length - 2);
+					}
+					if (!/\.(png|svg)$/.test(imagePath)) {
+						console.log(`original: ${_}`);
+						return _;
+					}
+					const repoLocation = path.join(src, imagePath);
+					const absoluteLocation = path.join(REPO_ROOT_PATH, repoLocation);
+					if (!fs.existsSync(absoluteLocation)) {
+						const message = `Invalid amd image url in file ${sourceFile.path}: ${imagePath}`;
+						console.log(message);
+						throw new Error(message);
+					}
+					const fileContents = fs.readFileSync(absoluteLocation);
+					const mime = /\.svg$/.test(imagePath) ? 'image/svg+xml' : 'image/png';
+
+					// Mark the file as inlined so we don't ship it by itself
+					result.cssInlinedResources.push(repoLocation);
+
+					return `("data:${mime};base64,${fileContents.toString('base64')}")`;
+				});
+			}
+		}
+	}
+	return result;
+}
+
 declare class FileWithCopyright extends VinylFile {
 	public __hasOurCopyright: boolean;
 }
@@ -267,7 +322,7 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 		};
 	};
 
-	const minify = (composer as any)(uglifyes);
+	const minify = (composer as any)(terser);
 	const input = es.through();
 	const output = input
 		.pipe(flatmap((stream, f) => {

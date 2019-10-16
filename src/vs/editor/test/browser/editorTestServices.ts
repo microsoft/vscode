@@ -14,10 +14,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 
 export class TestCodeEditorService extends AbstractCodeEditorService {
 	public lastInput?: IResourceInput;
-	public getActiveCodeEditor(): ICodeEditor | null { return null; }
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	public getActiveCodeEditor(): ICodeEditor | undefined { return undefined; }
+	public openCodeEditor(input: IResourceInput, _source: ICodeEditor | undefined, _sideBySide?: boolean): Promise<ICodeEditor | undefined> {
 		this.lastInput = input;
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
 	public removeDecorationType(key: string): void { }
@@ -25,12 +25,15 @@ export class TestCodeEditorService extends AbstractCodeEditorService {
 }
 
 export class TestCommandService implements ICommandService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _instantiationService: IInstantiationService;
 
 	private readonly _onWillExecuteCommand = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+
+	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
+	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
 	constructor(instantiationService: IInstantiationService) {
 		this._instantiationService = instantiationService;
@@ -43,8 +46,9 @@ export class TestCommandService implements ICommandService {
 		}
 
 		try {
-			this._onWillExecuteCommand.fire({ commandId: id });
+			this._onWillExecuteCommand.fire({ commandId: id, args });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
+			this._onDidExecuteCommand.fire({ commandId: id, args });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

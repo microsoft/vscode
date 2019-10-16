@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
@@ -14,6 +14,8 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { Location, LocationLink } from 'vs/editor/common/modes';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Position } from 'vs/editor/common/core/position';
+import { IMatch } from 'vs/base/common/filters';
+import { Constants } from 'vs/base/common/uint';
 
 export class OneReference {
 	readonly id: string;
@@ -61,7 +63,7 @@ export class FilePreview implements IDisposable {
 		dispose(this._modelReference);
 	}
 
-	preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } | undefined {
+	preview(range: IRange, n: number = 8): { value: string; highlight: IMatch } | undefined {
 		const model = this._modelReference.object.textEditorModel;
 
 		if (!model) {
@@ -71,15 +73,16 @@ export class FilePreview implements IDisposable {
 		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 		const word = model.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
 		const beforeRange = new Range(startLineNumber, word.startColumn, startLineNumber, startColumn);
-		const afterRange = new Range(endLineNumber, endColumn, endLineNumber, Number.MAX_VALUE);
+		const afterRange = new Range(endLineNumber, endColumn, endLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
 
-		const ret = {
-			before: model.getValueInRange(beforeRange).replace(/^\s+/, strings.empty),
-			inside: model.getValueInRange(range),
-			after: model.getValueInRange(afterRange).replace(/\s+$/, strings.empty)
+		const before = model.getValueInRange(beforeRange).replace(/^\s+/, '');
+		const inside = model.getValueInRange(range);
+		const after = model.getValueInRange(afterRange).replace(/\s+$/, '');
+
+		return {
+			value: before + inside + after,
+			highlight: { start: before.length, end: before.length + inside.length }
 		};
-
-		return ret;
 	}
 }
 
@@ -87,7 +90,7 @@ export class FileReferences implements IDisposable {
 
 	private _children: OneReference[];
 	private _preview?: FilePreview;
-	private _resolved: boolean;
+	private _resolved?: boolean;
 	private _loadFailure: any;
 
 	constructor(private readonly _parent: ReferencesModel, private readonly _uri: URI) {
@@ -164,7 +167,7 @@ export class FileReferences implements IDisposable {
 
 export class ReferencesModel implements IDisposable {
 
-	private readonly _disposables: IDisposable[];
+	private readonly _disposables = new DisposableStore();
 	readonly groups: FileReferences[] = [];
 	readonly references: OneReference[] = [];
 
@@ -172,7 +175,7 @@ export class ReferencesModel implements IDisposable {
 	readonly onDidChangeReferenceRange: Event<OneReference> = this._onDidChangeReferenceRange.event;
 
 	constructor(references: LocationLink[]) {
-		this._disposables = [];
+
 		// grouping and sorting
 		const [providersFirst] = references;
 		references.sort(ReferencesModel._compareReferences);
@@ -190,7 +193,7 @@ export class ReferencesModel implements IDisposable {
 				|| !Range.equalsRange(ref.range, current.children[current.children.length - 1].range)) {
 
 				let oneRef = new OneReference(current, ref.targetSelectionRange || ref.range, providersFirst === ref);
-				this._disposables.push(oneRef.onRefChanged((e) => this._onDidChangeReferenceRange.fire(e)));
+				this._disposables.add(oneRef.onRefChanged((e) => this._onDidChangeReferenceRange.fire(e)));
 				this.references.push(oneRef);
 				current.children.push(oneRef);
 			}
@@ -280,9 +283,8 @@ export class ReferencesModel implements IDisposable {
 
 	dispose(): void {
 		dispose(this.groups);
-		dispose(this._disposables);
+		this._disposables.dispose();
 		this.groups.length = 0;
-		this._disposables.length = 0;
 	}
 
 	private static _compareReferences(a: Location, b: Location): number {

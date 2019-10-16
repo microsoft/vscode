@@ -5,6 +5,7 @@
   "displayName": "Grunt support for VS Code",
   "version": "1.0.0",
   "icon": "images/grunt.png",
+  "license": "MIT",
   "engines": {
     "vscode": "*"
   },
@@ -19,7 +20,7 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^10.12.21"
+    "@types/node": "^10.14.8"
   },
   "main": "./out/main",
   "activationEvents": [

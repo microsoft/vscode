@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
 import { StatusBarItem, StatusBarAlignment } from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext } from './extHost.protocol';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { localize } from 'vs/nls';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -15,25 +15,27 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 	private _id: number;
 	private _alignment: number;
 	private _priority?: number;
-	private _disposed: boolean;
-	private _visible: boolean;
+	private _disposed: boolean = false;
+	private _visible: boolean = false;
 
-	private _text: string;
-	private _tooltip: string;
-	private _color: string | ThemeColor;
-	private _command: string;
+	private _statusId: string;
+	private _statusName: string;
+
+	private _text: string = '';
+	private _tooltip?: string;
+	private _color?: string | ThemeColor;
+	private _command?: string;
 
 	private _timeoutHandle: any;
 	private _proxy: MainThreadStatusBarShape;
 
-	private _extensionId?: ExtensionIdentifier;
-
-	constructor(proxy: MainThreadStatusBarShape, extensionId: ExtensionIdentifier | undefined, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
+	constructor(proxy: MainThreadStatusBarShape, id: string, name: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
 		this._id = ExtHostStatusBarEntry.ID_GEN++;
 		this._proxy = proxy;
+		this._statusId = id;
+		this._statusName = name;
 		this._alignment = alignment;
 		this._priority = priority;
-		this._extensionId = extensionId;
 	}
 
 	public get id(): number {
@@ -52,15 +54,15 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 		return this._text;
 	}
 
-	public get tooltip(): string {
+	public get tooltip(): string | undefined {
 		return this._tooltip;
 	}
 
-	public get color(): string | ThemeColor {
+	public get color(): string | ThemeColor | undefined {
 		return this._color;
 	}
 
-	public get command(): string {
+	public get command(): string | undefined {
 		return this._command;
 	}
 
@@ -69,17 +71,17 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 		this.update();
 	}
 
-	public set tooltip(tooltip: string) {
+	public set tooltip(tooltip: string | undefined) {
 		this._tooltip = tooltip;
 		this.update();
 	}
 
-	public set color(color: string | ThemeColor) {
+	public set color(color: string | ThemeColor | undefined) {
 		this._color = color;
 		this.update();
 	}
 
-	public set command(command: string) {
+	public set command(command: string | undefined) {
 		this._command = command;
 		this.update();
 	}
@@ -107,7 +109,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 			this._timeoutHandle = undefined;
 
 			// Set to status bar
-			this._proxy.$setEntry(this.id, this._extensionId, this.text, this.tooltip, this.command, this.color,
+			this._proxy.$setEntry(this.id, this._statusId, this._statusName, this.text, this.tooltip, this.command, this.color,
 				this._alignment === ExtHostStatusBarAlignment.Left ? MainThreadStatusBarAlignment.LEFT : MainThreadStatusBarAlignment.RIGHT,
 				this._priority);
 		}, 0);
@@ -125,7 +127,7 @@ class StatusBarMessage {
 	private _messages: { message: string }[] = [];
 
 	constructor(statusBar: ExtHostStatusBar) {
-		this._item = statusBar.createStatusBarEntry(undefined, ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
+		this._item = statusBar.createStatusBarEntry('status.extensionMessage', localize('status.extensionMessage', "Extension Status"), ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
 	}
 
 	dispose() {
@@ -167,8 +169,8 @@ export class ExtHostStatusBar {
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
-	createStatusBarEntry(extensionId: ExtensionIdentifier | undefined, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
-		return new ExtHostStatusBarEntry(this._proxy, extensionId, alignment, priority);
+	createStatusBarEntry(id: string, name: string, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
+		return new ExtHostStatusBarEntry(this._proxy, id, name, alignment, priority);
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {

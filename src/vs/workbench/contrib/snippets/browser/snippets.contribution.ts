@@ -15,7 +15,7 @@ export const ISnippetsService = createDecorator<ISnippetsService>('snippetServic
 
 export interface ISnippetsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	getSnippetFiles(): Promise<SnippetFile[]>;
 
@@ -28,6 +28,7 @@ const languageScopeSchemaId = 'vscode://schemas/snippets';
 const languageScopeSchema: IJSONSchema = {
 	id: languageScopeSchemaId,
 	allowComments: true,
+	allowTrailingCommas: true,
 	defaultSnippets: [{
 		label: nls.localize('snippetSchema.json.default', "Empty snippet"),
 		body: { '${1:snippetName}': { 'prefix': '${2:prefix}', 'body': '${3:snippet}', 'description': '${4:description}' } }
@@ -43,7 +44,7 @@ const languageScopeSchema: IJSONSchema = {
 				type: ['string', 'array']
 			},
 			body: {
-				description: nls.localize('snippetSchema.json.body', 'The snippet content. Use \'$1\', \'${1:defaultText}\' to define cursor positions, use \'$0\' for the final cursor position. Insert variable values with \'${varName}\' and \'${varName:defaultText}\', e.g \'This is file: $TM_FILENAME\'.'),
+				description: nls.localize('snippetSchema.json.body', 'The snippet content. Use \'$1\', \'${1:defaultText}\' to define cursor positions, use \'$0\' for the final cursor position. Insert variable values with \'${varName}\' and \'${varName:defaultText}\', e.g. \'This is file: $TM_FILENAME\'.'),
 				type: ['string', 'array'],
 				items: {
 					type: 'string'
@@ -63,6 +64,7 @@ const globalSchemaId = 'vscode://schemas/global-snippets';
 const globalSchema: IJSONSchema = {
 	id: globalSchemaId,
 	allowComments: true,
+	allowTrailingCommas: true,
 	defaultSnippets: [{
 		label: nls.localize('snippetSchema.json.default', "Empty snippet"),
 		body: { '${1:snippetName}': { 'scope': '${2:scope}', 'prefix': '${3:prefix}', 'body': '${4:snippet}', 'description': '${5:description}' } }
@@ -78,11 +80,11 @@ const globalSchema: IJSONSchema = {
 				type: ['string', 'array']
 			},
 			scope: {
-				description: nls.localize('snippetSchema.json.scope', "A list of language names to which this snippet applies, e.g 'typescript,javascript'."),
+				description: nls.localize('snippetSchema.json.scope', "A list of language names to which this snippet applies, e.g. 'typescript,javascript'."),
 				type: 'string'
 			},
 			body: {
-				description: nls.localize('snippetSchema.json.body', 'The snippet content. Use \'$1\', \'${1:defaultText}\' to define cursor positions, use \'$0\' for the final cursor position. Insert variable values with \'${varName}\' and \'${varName:defaultText}\', e.g \'This is file: $TM_FILENAME\'.'),
+				description: nls.localize('snippetSchema.json.body', 'The snippet content. Use \'$1\', \'${1:defaultText}\' to define cursor positions, use \'$0\' for the final cursor position. Insert variable values with \'${varName}\' and \'${varName:defaultText}\', e.g. \'This is file: $TM_FILENAME\'.'),
 				type: ['string', 'array'],
 				items: {
 					type: 'string'

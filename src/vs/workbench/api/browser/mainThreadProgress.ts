@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProgress, IProgressService2, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
 import { MainThreadProgressShape, MainContext, IExtHostContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { Action } from 'vs/base/common/actions';
@@ -22,13 +22,13 @@ class ManageExtensionAction extends Action {
 @extHostNamedCustomer(MainContext.MainThreadProgress)
 export class MainThreadProgress implements MainThreadProgressShape {
 
-	private readonly _progressService: IProgressService2;
+	private readonly _progressService: IProgressService;
 	private _progress = new Map<number, { resolve: () => void, progress: IProgress<IProgressStep> }>();
 	private readonly _proxy: ExtHostProgressShape;
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IProgressService2 progressService: IProgressService2,
+		@IProgressService progressService: IProgressService,
 		@ICommandService private readonly _commandService: ICommandService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostProgress);

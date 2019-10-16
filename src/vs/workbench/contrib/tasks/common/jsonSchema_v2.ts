@@ -50,7 +50,7 @@ const taskIdentifier: IJSONSchema = {
 	properties: {
 		type: {
 			type: 'string',
-			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task indentifier.')
+			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task identifier.')
 		}
 	}
 };
@@ -74,7 +74,19 @@ const dependsOn: IJSONSchema = {
 				]
 			}
 		}
-	]
+	],
+	description: nls.localize('JsonSchema.tasks.dependsOn', 'Either a string representing another task or an array of other tasks that this task depends on.')
+};
+
+const dependsOrder: IJSONSchema = {
+	type: 'string',
+	enum: ['parallel', 'sequence'],
+	enumDescriptions: [
+		nls.localize('JsonSchema.tasks.dependsOrder.parallel', 'Run all dependsOn tasks in parallel.'),
+		nls.localize('JsonSchema.tasks.dependsOrder.sequence', 'Run all dependsOn tasks in sequence.'),
+	],
+	default: 'parallel',
+	description: nls.localize('JsonSchema.tasks.dependsOrder', 'Determines the order of the dependsOn tasks for this task. Note that this property is not recursive.')
 };
 
 const presentation: IJSONSchema = {
@@ -87,7 +99,7 @@ const presentation: IJSONSchema = {
 		showReuseMessage: true,
 		clear: false,
 	},
-	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s ouput and reads its input.'),
+	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s output and reads its input.'),
 	additionalProperties: false,
 	properties: {
 		echo: {
@@ -353,6 +365,7 @@ let taskConfiguration: IJSONSchema = {
 		},
 		runOptions: Objects.deepClone(runOptions),
 		dependsOn: Objects.deepClone(dependsOn),
+		dependsOrder: Objects.deepClone(dependsOrder)
 	}
 };
 
@@ -405,6 +418,7 @@ taskDescriptionProperties.command = Objects.deepClone(command);
 taskDescriptionProperties.args = Objects.deepClone(args);
 taskDescriptionProperties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescriptionProperties.dependsOn = dependsOn;
+taskDescriptionProperties.dependsOrder = dependsOrder;
 taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);
 taskDescriptionProperties.presentation = Objects.deepClone(presentation);
@@ -422,7 +436,7 @@ taskDescription.default = {
 	problemMatcher: []
 };
 definitions.showOutputType.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.showOputput.deprecated',
+	'JsonSchema.tasks.showOutput.deprecated',
 	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'
 );
 taskDescriptionProperties.echoCommand.deprecationMessage = nls.localize(
@@ -468,6 +482,7 @@ tasks.items = {
 definitionsTaskRunnerConfigurationProperties.inputs = inputsSchema.definitions!.inputs;
 
 definitions.commandConfiguration.properties!.isShellCommand = Objects.deepClone(shellCommand);
+definitions.commandConfiguration.properties!.args = Objects.deepClone(args);
 definitions.options.properties!.shell = {
 	$ref: '#/definitions/shellConfiguration'
 };
