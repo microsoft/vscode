@@ -56,7 +56,7 @@ export class BracketElectricCharacterSupport {
 		let reversedBracketRegex = this._richEditBrackets.reversedRegex;
 		let text = context.getLineContent().substring(0, column - 1) + character;
 
-		let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, text, 0, text.length);
+		let r = BracketsUtils.findPrevBracketInRange(reversedBracketRegex, 1, text, 0, text.length);
 		if (!r) {
 			return null;
 		}

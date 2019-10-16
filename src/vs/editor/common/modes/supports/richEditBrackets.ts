@@ -168,12 +168,11 @@ export class BracketsUtils {
 		return new Range(lineNumber, absoluteMatchOffset - matchLength + 1, lineNumber, absoluteMatchOffset + 1);
 	}
 
-	public static findPrevBracketInToken(reversedBracketRegex: RegExp, lineNumber: number, lineText: string, currentTokenStart: number, currentTokenEnd: number): Range | null {
+	public static findPrevBracketInRange(reversedBracketRegex: RegExp, lineNumber: number, lineText: string, startOffset: number, endOffset: number): Range | null {
 		// Because JS does not support backwards regex search, we search forwards in a reversed string with a reversed regex ;)
-		let reversedLineText = toReversedString(lineText);
-		let reversedTokenText = reversedLineText.substring(lineText.length - currentTokenEnd, lineText.length - currentTokenStart);
-
-		return this._findPrevBracketInText(reversedBracketRegex, lineNumber, reversedTokenText, currentTokenStart);
+		const reversedLineText = toReversedString(lineText);
+		const reversedSubstr = reversedLineText.substring(lineText.length - endOffset, lineText.length - startOffset);
+		return this._findPrevBracketInText(reversedBracketRegex, lineNumber, reversedSubstr, startOffset);
 	}
 
 	public static findNextBracketInText(bracketRegex: RegExp, lineNumber: number, text: string, offset: number): Range | null {
@@ -193,10 +192,8 @@ export class BracketsUtils {
 		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
 	}
 
-	public static findNextBracketInToken(bracketRegex: RegExp, lineNumber: number, lineText: string, currentTokenStart: number, currentTokenEnd: number): Range | null {
-		let currentTokenText = lineText.substring(currentTokenStart, currentTokenEnd);
-
-		return this.findNextBracketInText(bracketRegex, lineNumber, currentTokenText, currentTokenStart);
+	public static findNextBracketInRange(bracketRegex: RegExp, lineNumber: number, lineText: string, startOffset: number, endOffset: number): Range | null {
+		const substr = lineText.substring(startOffset, endOffset);
+		return this.findNextBracketInText(bracketRegex, lineNumber, substr, startOffset);
 	}
-
 }
