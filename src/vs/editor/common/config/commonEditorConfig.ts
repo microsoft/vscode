@@ -465,7 +465,7 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.maximumComputationTime': {
 			type: 'number',
 			default: 5000,
-			description: nls.localize('maximumComputationTime', "Timeout in milliseconds after which diff computation is cancelled.")
+			description: nls.localize('maximumComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
 		},
 		'diffEditor.renderSideBySide': {
 			type: 'boolean',

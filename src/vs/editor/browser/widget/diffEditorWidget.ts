@@ -632,6 +632,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		if (typeof newOptions.maximumComputationTime !== 'undefined') {
 			this._maximumComputationTime = newOptions.maximumComputationTime;
+			if (this._isVisible) {
+				this._beginUpdateDecorationsSoon();
+			}
 		}
 
 		let beginUpdateDecorations = false;

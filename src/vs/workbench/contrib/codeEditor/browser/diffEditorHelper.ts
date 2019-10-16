@@ -15,7 +15,8 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 
 const enum WidgetState {
 	Hidden,
-	HintWhitespace
+	HintWhitespace,
+	HintTimeout
 }
 
 class DiffEditorHelperContribution extends Disposable implements IEditorContribution {
@@ -47,6 +48,9 @@ class DiffEditorHelperContribution extends Disposable implements IEditorContribu
 		if (this._diffEditor.ignoreTrimWhitespace && diffComputationResult.changes.length === 0 && !diffComputationResult.identical) {
 			return WidgetState.HintWhitespace;
 		}
+		if (diffComputationResult.quitEarly) {
+			return WidgetState.HintTimeout;
+		}
 		return WidgetState.Hidden;
 	}
 
@@ -71,11 +75,20 @@ class DiffEditorHelperContribution extends Disposable implements IEditorContribu
 			this._helperWidgetListener = this._helperWidget.onClick(() => this._onDidClickHelperWidget());
 			this._helperWidget.render();
 		}
+
+		if (this._state === WidgetState.HintTimeout) {
+			this._helperWidget = this._instantiationService.createInstance(FloatingClickWidget, this._diffEditor.getModifiedEditor(), nls.localize('hintTimeout', "Remove diff computation timeout"), null);
+			this._helperWidgetListener = this._helperWidget.onClick(() => this._onDidClickHelperWidget());
+			this._helperWidget.render();
+		}
 	}
 
 	private _onDidClickHelperWidget(): void {
 		if (this._state === WidgetState.HintWhitespace) {
 			this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false, ConfigurationTarget.USER);
+		}
+		if (this._state === WidgetState.HintTimeout) {
+			this._configurationService.updateValue('diffEditor.maximumComputationTime', 0, ConfigurationTarget.USER);
 		}
 	}
 
