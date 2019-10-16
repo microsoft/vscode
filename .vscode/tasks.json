@@ -95,8 +95,8 @@
 				"pattern": {
 					"regexp": ""
 				},
-				 "background": {
-					"beginsPattern": ".*node.*",
+				"background": {
+					"beginsPattern": ".*node .*",
 					"endsPattern": "Web UI available at .*"
 				}
 			},
