@@ -192,40 +192,6 @@
 	display: none;
 }
 
-/* .monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.suggest-icon::before {
-	content: ' ';
-	background-repeat: no-repeat;
-	background-position: center;
-	background-size: 75%;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.function::before,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.constructor::before { background-image: url('method-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.field::before { background-image: url('field-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.event::before { background-image: url('event-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.operator::before { background-image: url('operator-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.variable::before { background-image: url('variable-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.class::before { background-image: url('class-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.interface::before { background-image: url('interface-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.struct::before { background-image: url('structure-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.type-parameter::before { background-image: url('template-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.module::before { background-image: url('namespace-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.property::before { background-image: url('property-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.unit::before { background-image: url('ruler-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.constant::before { background-image: url('constant-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.value::before,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.enum::before { background-image: url('enumerator-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.enum-member::before { background-image: url('enumerator-item-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.keyword::before { background-image: url('keyword-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.text::before { background-image: url('string-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.color::before { background-image: url('color-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.file::before { background-image: url('file-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.reference::before { background-image: url('reference-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.snippet::before { background-image: url('snippet-light.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.customcolor::before { background-image: none; }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.folder::before { background-image: url('folder-light.svg'); } */
-
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.customcolor .colorspan {
 	margin: 0 0 0 0.3em;
 	border: 0.1em solid #000;
