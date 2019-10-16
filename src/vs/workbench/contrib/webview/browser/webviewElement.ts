@@ -25,8 +25,21 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
+const enum WebviewMessageChannels {
+	onmessage = 'onmessage',
+	didClickLink = 'did-click-link',
+	didScroll = 'did-scroll',
+	didFocus = 'did-focus',
+	didBlur = 'did-blur',
+	doUpdateState = 'do-update-state',
+	doReload = 'do-reload',
+	loadResource = 'load-resource',
+	loadLocalhost = 'load-localhost',
+	webviewReady = 'webview-ready',
+}
+
 interface WebviewEventEmitter {
-	on(channel: string, handler: (data: unknown) => void): IDisposable;
+	on(channel: WebviewMessageChannels, handler: (data: unknown) => void): IDisposable;
 }
 
 export class IFrameWebview extends Disposable implements Webview {
@@ -91,52 +104,52 @@ export class IFrameWebview extends Disposable implements Webview {
 			}
 		};
 
-		this._register(this.webviewEventEmitter.on('onmessage', (data) => {
+		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.onmessage, (data) => {
 			this._onMessage.fire(data);
 		}));
 
-		this._register(this.webviewEventEmitter.on('did-click-link', (uri) => {
+		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.didClickLink, (uri) => {
 			if (typeof uri === 'string') {
 				this._onDidClickLink.fire(URI.parse(uri));
 			}
 		}));
 
-		this._register(this.webviewEventEmitter.on('did-scroll', () => {
+		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.didScroll, () => {
 			// if (e.args && typeof e.args[0] === 'number') {
 			// 	this._onDidScroll.fire({ scrollYPercentage: e.args[0] });
 			// }
 		}));
 
-		this._register(this.webviewEventEmitter.on('do-reload', () => {
+		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.doReload, () => {
 			this.reload();
 		}));
 
-		this._register(this.webviewEventEmitter.on('do-update-state', (state: any) => {
+		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.doUpdateState, (state: any) => {
 			this.state = state;
 			this._onDidUpdateState.fire(state);
 		}));
 
-		this._register(this.webviewEventEmitter.on('did-focus', () => {
+		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.didFocus, () => {
 			this.handleFocusChange(true);
 		}));
 
-		this._register(this.webviewEventEmitter.on('did-blur', () => {
+		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.didBlur, () => {
 			this.handleFocusChange(false);
 		}));
 
-		this._register(this.webviewEventEmitter.on('load-resource', (entry: any) => {
+		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.loadResource, (entry: any) => {
 			const rawPath = entry.path;
 			const normalizedPath = decodeURIComponent(rawPath);
 			const uri = URI.parse(normalizedPath.replace(/^\/(\w+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
 			this.loadResource(rawPath, uri);
 		}));
 
-		this._register(this.webviewEventEmitter.on('load-localhost', (entry: any) => {
+		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
 			this.localLocalhost(entry.origin);
 		}));
 
 		this._ready = new Promise(resolve => {
-			const subscription = this._register(this.webviewEventEmitter.on('webview-ready', () => {
+			const subscription = this._register(this.webviewEventEmitter.on(WebviewMessageChannels.webviewReady, () => {
 				if (this.element) {
 					addClass(this.element, 'ready');
 				}
