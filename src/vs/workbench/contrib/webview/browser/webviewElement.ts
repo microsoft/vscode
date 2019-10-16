@@ -5,7 +5,7 @@
 
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,6 +25,10 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
+interface WebviewEventEmitter {
+	on(channel: string, handler: (data: unknown) => void): IDisposable;
+}
+
 export class IFrameWebview extends Disposable implements Webview {
 	private element?: HTMLIFrameElement;
 
@@ -36,6 +40,8 @@ export class IFrameWebview extends Disposable implements Webview {
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
 	public extension: WebviewExtensionDescription | undefined;
+
+	private webviewEventEmitter: WebviewEventEmitter;
 
 	constructor(
 		private readonly id: string,
@@ -72,73 +78,70 @@ export class IFrameWebview extends Disposable implements Webview {
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
 
-		this._register(addDisposableListener(window, 'message', e => {
-			if (!e || !e.data || e.data.target !== this.id) {
-				return;
+		this.webviewEventEmitter = {
+			on: (channel, handler) => {
+				return addDisposableListener(window, 'message', e => {
+					if (!e || !e.data || e.data.target !== this.id) {
+						return;
+					}
+					if (e.data.channel === channel) {
+						handler(e.data.data);
+					}
+				});
 			}
+		};
 
-			switch (e.data.channel) {
-				case 'onmessage':
-					if (e.data.data) {
-						this._onMessage.fire(e.data.data);
-					}
-					return;
+		this._register(this.webviewEventEmitter.on('onmessage', (data) => {
+			this._onMessage.fire(data);
+		}));
 
-				case 'did-click-link':
-					const uri = e.data.data;
-					this._onDidClickLink.fire(URI.parse(uri));
-					return;
-
-				case 'did-scroll':
-					// if (e.args && typeof e.args[0] === 'number') {
-					// 	this._onDidScroll.fire({ scrollYPercentage: e.args[0] });
-					// }
-					return;
-
-				case 'do-reload':
-					this.reload();
-					return;
-
-				case 'do-update-state':
-					const state = e.data.data;
-					this.state = state;
-					this._onDidUpdateState.fire(state);
-					return;
-
-				case 'did-focus':
-					this.handleFocusChange(true);
-					return;
-
-				case 'did-blur':
-					this.handleFocusChange(false);
-					return;
-
-				case 'load-resource':
-					{
-						const rawPath = e.data.data.path;
-						const normalizedPath = decodeURIComponent(rawPath);
-						const uri = URI.parse(normalizedPath.replace(/^\/(\w+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
-						this.loadResource(rawPath, uri);
-						return;
-					}
-
-				case 'load-localhost':
-					{
-						this.localLocalhost(e.data.data.origin);
-						return;
-					}
+		this._register(this.webviewEventEmitter.on('did-click-link', (uri) => {
+			if (typeof uri === 'string') {
+				this._onDidClickLink.fire(URI.parse(uri));
 			}
 		}));
 
+		this._register(this.webviewEventEmitter.on('did-scroll', () => {
+			// if (e.args && typeof e.args[0] === 'number') {
+			// 	this._onDidScroll.fire({ scrollYPercentage: e.args[0] });
+			// }
+		}));
+
+		this._register(this.webviewEventEmitter.on('do-reload', () => {
+			this.reload();
+		}));
+
+		this._register(this.webviewEventEmitter.on('do-update-state', (state: any) => {
+			this.state = state;
+			this._onDidUpdateState.fire(state);
+		}));
+
+		this._register(this.webviewEventEmitter.on('did-focus', () => {
+			this.handleFocusChange(true);
+		}));
+
+		this._register(this.webviewEventEmitter.on('did-blur', () => {
+			this.handleFocusChange(false);
+		}));
+
+		this._register(this.webviewEventEmitter.on('load-resource', (entry: any) => {
+			const rawPath = entry.path;
+			const normalizedPath = decodeURIComponent(rawPath);
+			const uri = URI.parse(normalizedPath.replace(/^\/(\w+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
+			this.loadResource(rawPath, uri);
+		}));
+
+		this._register(this.webviewEventEmitter.on('load-localhost', (entry: any) => {
+			this.localLocalhost(entry.origin);
+		}));
+
 		this._ready = new Promise(resolve => {
-			const subscription = this._register(addDisposableListener(window, 'message', (e) => {
-				if (e.data && e.data.target === this.id && e.data.channel === 'webview-ready') {
-					if (this.element) {
-						addClass(this.element, 'ready');
-					}
-					subscription.dispose();
-					resolve();
+			const subscription = this._register(this.webviewEventEmitter.on('webview-ready', () => {
+				if (this.element) {
+					addClass(this.element, 'ready');
 				}
+				subscription.dispose();
+				resolve();
 			}));
 		});
 
