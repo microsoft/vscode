@@ -121,7 +121,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 
 		data.typeLabel = append(main, $('span.type-label'));
 
-		data.readMore = append(main, $('span.readMore'));
+		data.readMore = append(main, $('span.readMore.codicon.codicon-info'));
 		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
@@ -267,7 +267,7 @@ class SuggestionDetails {
 		this.disposables.add(this.scrollbar);
 
 		this.header = append(this.body, $('.header'));
-		this.close = append(this.header, $('span.close'));
+		this.close = append(this.header, $('span.codicon.codicon-close'));
 		this.close.title = nls.localize('readLess', "Read less...{0}", this.triggerKeybindingLabel);
 		this.type = append(this.header, $('p.type'));
 

@@ -363,6 +363,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineEnumeratorSymbolColor = theme.getColor(OUTLINE_ENUMERATOR_SYMBOL_FOREGROUND);
 	if (outlineEnumeratorSymbolColor) {
 		collector.addRule(`
+			.monaco-workbench .codicon-symbol-value:before,
 			.monaco-workbench .codicon-symbol-enum:before {
 				color: ${outlineEnumeratorSymbolColor} !important;
 			}
