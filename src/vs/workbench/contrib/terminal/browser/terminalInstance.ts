@@ -565,6 +565,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._container.appendChild(this._wrapperElement);
 			xterm.open(this._xtermElement);
 
+			if (!xterm.element || !xterm.textarea) {
+				throw new Error('xterm elements not set after open');
+			}
+
 			xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 			xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 				// Disable all input if the terminal is exiting
@@ -1106,7 +1110,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _attachPressAnyKeyToCloseListener(xterm: XTermTerminal) {
-		if (!this._pressAnyKeyToCloseListener) {
+		if (xterm.textarea && !this._pressAnyKeyToCloseListener) {
 			this._pressAnyKeyToCloseListener = dom.addDisposableListener(xterm.textarea, 'keypress', (event: KeyboardEvent) => {
 				if (this._pressAnyKeyToCloseListener) {
 					this._pressAnyKeyToCloseListener.dispose();
@@ -1309,7 +1313,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		if (this._xterm) {
+		if (this._xterm && this._xterm.element) {
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
 
