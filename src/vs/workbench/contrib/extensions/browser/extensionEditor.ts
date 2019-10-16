@@ -1352,11 +1352,9 @@ export class ExtensionEditor extends BaseEditor {
 	private loadContents<T>(loadingTask: () => CacheResult<T>, template: IExtensionEditorTemplate): Promise<T> {
 		addClass(template.content, 'loading');
 
-		const result = loadingTask();
+		const result = this.contentDisposables.add(loadingTask());
 		const onDone = () => removeClass(template.content, 'loading');
 		result.promise.then(onDone, onDone);
-
-		this.contentDisposables.add(toDisposable(() => result.dispose()));
 
 		return result.promise;
 	}
