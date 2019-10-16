@@ -138,10 +138,19 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 		// Normal Menu Item
 		else {
+			let type: 'radio' | 'checkbox' | undefined = undefined;
+			if (!!entry.checked) {
+				if (typeof delegate.getCheckedActionsRepresentation === 'function') {
+					type = delegate.getCheckedActionsRepresentation(entry);
+				} else {
+					type = 'checkbox';
+				}
+			}
+
 			const item: IContextMenuItem = {
 				label: unmnemonicLabel(entry.label),
-				checked: !!entry.checked || !!entry.radio,
-				type: !!entry.checked ? 'checkbox' : !!entry.radio ? 'radio' : undefined,
+				checked: !!entry.checked,
+				type,
 				enabled: !!entry.enabled,
 				click: event => {
 

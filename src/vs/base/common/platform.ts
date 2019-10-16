@@ -164,6 +164,34 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 	if (globals.setImmediate) {
 		return globals.setImmediate.bind(globals);
 	}
+	if (typeof globals.postMessage === 'function' && !globals.importScripts) {
+		interface IQueueElement {
+			id: number;
+			callback: () => void;
+		}
+		let pending: IQueueElement[] = [];
+		globals.addEventListener('message', (e: MessageEvent) => {
+			if (e.data && e.data.vscodeSetImmediateId) {
+				for (let i = 0, len = pending.length; i < len; i++) {
+					const candidate = pending[i];
+					if (candidate.id === e.data.vscodeSetImmediateId) {
+						pending.splice(i, 1);
+						candidate.callback();
+						return;
+					}
+				}
+			}
+		});
+		let lastId = 0;
+		return (callback: () => void) => {
+			const myId = ++lastId;
+			pending.push({
+				id: myId,
+				callback: callback
+			});
+			globals.postMessage({ vscodeSetImmediateId: myId });
+		};
+	}
 	if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
 		return process.nextTick.bind(process);
 	}

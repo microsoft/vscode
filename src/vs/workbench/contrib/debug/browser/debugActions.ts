@@ -83,10 +83,10 @@ export class ConfigureAction extends AbstractDebugAction {
 		this.class = configurationCount > 0 ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
-	run(event?: any): Promise<any> {
+	async run(event?: any): Promise<any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-			return Promise.resolve();
+			return;
 		}
 
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
@@ -295,9 +295,8 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		this.debugService.addFunctionBreakpoint();
-		return Promise.resolve();
 	}
 
 	protected isEnabled(_: State): boolean {
@@ -316,9 +315,8 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 		this._register(this.debugService.getViewModel().onDidSelectExpression(() => this.updateEnablement()));
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		this.debugService.addWatchExpression();
-		return Promise.resolve(undefined);
 	}
 
 	protected isEnabled(_: State): boolean {
@@ -336,9 +334,8 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 		this._register(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		this.debugService.removeWatchExpressions();
-		return Promise.resolve();
 	}
 
 	protected isEnabled(_: State): boolean {
@@ -362,10 +359,8 @@ export class FocusSessionAction extends AbstractDebugAction {
 		await this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {
-			return stackFrame.openInEditor(this.editorService, true);
+			await stackFrame.openInEditor(this.editorService, true);
 		}
-
-		return Promise.resolve(undefined);
 	}
 }
 

@@ -1662,7 +1662,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.function.expression.js.jsx meta.block.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx meta.embedded.expression.js.jsx punctuation.section.embedded.begin.js.jsx",
+		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.function.expression.js.jsx meta.block.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx punctuation.section.embedded.begin.js.jsx",
 		"r": {
 			"dark_plus": "punctuation.section.embedded: #569CD6",
 			"light_plus": "punctuation.section.embedded: #0000FF",
@@ -1684,7 +1684,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.function.expression.js.jsx meta.block.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx meta.embedded.expression.js.jsx punctuation.section.embedded.end.js.jsx",
+		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.function.expression.js.jsx meta.block.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx punctuation.section.embedded.end.js.jsx",
 		"r": {
 			"dark_plus": "punctuation.section.embedded: #569CD6",
 			"light_plus": "punctuation.section.embedded: #0000FF",
@@ -1860,7 +1860,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.function.expression.js.jsx meta.block.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx meta.tag.js.jsx meta.tag.attributes.js.jsx meta.embedded.expression.js.jsx punctuation.section.embedded.begin.js.jsx",
+		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.function.expression.js.jsx meta.block.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx meta.tag.js.jsx meta.tag.attributes.js.jsx punctuation.section.embedded.begin.js.jsx",
 		"r": {
 			"dark_plus": "punctuation.section.embedded: #569CD6",
 			"light_plus": "punctuation.section.embedded: #0000FF",
@@ -1904,7 +1904,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.function.expression.js.jsx meta.block.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx meta.tag.js.jsx meta.tag.attributes.js.jsx meta.embedded.expression.js.jsx punctuation.section.embedded.end.js.jsx",
+		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.function.expression.js.jsx meta.block.js.jsx meta.tag.without-attributes.js.jsx meta.jsx.children.js.jsx meta.tag.js.jsx meta.tag.attributes.js.jsx punctuation.section.embedded.end.js.jsx",
 		"r": {
 			"dark_plus": "punctuation.section.embedded: #569CD6",
 			"light_plus": "punctuation.section.embedded: #0000FF",

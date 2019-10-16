@@ -90,6 +90,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 3,
 			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
 		},
+		'scm.diffDecorationsGutterVisibility': {
+			type: 'string',
+			enum: ['always', 'hover'],
+			enumDescriptions: [
+				localize('scm.diffDecorationsGutterVisibility.always', "Show the diff decorator in the gutter at all times."),
+				localize('scm.diffDecorationsGutterVisibility.hover', "Show the diff decorator in the gutter only on hover.")
+			],
+			description: localize('scm.diffDecorationsGutterVisibility', "Controls the visibilty of the Source Control diff decorator in the gutter."),
+			default: 'always'
+		},
 		'scm.alwaysShowActions': {
 			type: 'boolean',
 			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),

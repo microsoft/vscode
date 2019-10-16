@@ -585,15 +585,19 @@ export class Repository implements Disposable {
 		}
 
 		const HEAD = this.HEAD;
-		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-		const tagName = tag && tag.name;
-		const branchName = HEAD.name || tagName || HEAD.commit;
 
-		if (branchName === undefined) {
-			return;
+		if (HEAD.name) {
+			return HEAD.name;
 		}
 
-		return branchName.substr(0, 8);
+		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+		const tagName = tag && tag.name;
+
+		if (tagName) {
+			return tagName;
+		}
+
+		return (HEAD.commit || '').substr(0, 8);
 	}
 
 	private _remotes: Remote[] = [];
@@ -691,9 +695,7 @@ export class Repository implements Disposable {
 		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, onDotGitFileChange, outputChannel));
 
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root, {
-			treeRendering: true
-		});
+		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
@@ -748,8 +750,6 @@ export class Repository implements Disposable {
 		const onDidChangeCountBadge = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.countBadge', root));
 		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
 		this.setCountBadge();
-
-		this.updateCommitTemplate();
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
@@ -825,12 +825,14 @@ export class Repository implements Disposable {
 		return toGitUri(uri, '', { replaceFileExtension: true });
 	}
 
-	private async updateCommitTemplate(): Promise<void> {
-		try {
-			this._sourceControl.commitTemplate = await this.repository.getCommitTemplate();
-		} catch (e) {
-			// noop
+	async getInputTemplate(): Promise<string> {
+		const mergeMessage = await this.repository.getMergeMessage();
+
+		if (mergeMessage) {
+			return mergeMessage;
 		}
+
+		return await this.repository.getCommitTemplate();
 	}
 
 	getConfigs(): Promise<{ key: string; value: string; }[]> {
@@ -1255,6 +1257,10 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
 
+	async cleanUpCommitEditMessage(editMessage: string): Promise<string> {
+		return this.repository.cleanupCommitEditMessage(editMessage);
+	}
+
 	async ignore(files: Uri[]): Promise<void> {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
@@ -1526,6 +1532,8 @@ export class Repository implements Disposable {
 		this.setCountBadge();
 
 		this._onDidChangeStatus.fire();
+
+		this._sourceControl.commitTemplate = await this.getInputTemplate();
 	}
 
 	private setCountBadge(): void {

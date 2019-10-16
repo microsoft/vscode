@@ -557,8 +557,10 @@ export class DebugExtensionHostAction extends Action {
 				secondaryButton: nls.localize('cancel', "Cancel")
 			});
 			if (res.confirmed) {
-				this._electronService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+				await this._electronService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
 			}
+
+			return;
 		}
 
 		return this._debugService.startDebugging(undefined, {

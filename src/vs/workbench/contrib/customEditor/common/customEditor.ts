@@ -28,6 +28,7 @@ export interface ICustomEditorService {
 
 export const enum CustomEditorPriority {
 	default = 'default',
+	builtin = 'builtin',
 	option = 'option',
 }
 
