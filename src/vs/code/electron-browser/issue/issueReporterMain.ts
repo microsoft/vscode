@@ -647,8 +647,8 @@ export class IssueReporter extends Disposable {
 					issueState = $('span.issue-state');
 
 					const issueIcon = $('span.issue-icon');
-					const octicon = new CodiconLabel(issueIcon);
-					octicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
+					const codicon = new CodiconLabel(issueIcon);
+					codicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
 
 					const issueStateLabel = $('span.issue-state.label');
 					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
