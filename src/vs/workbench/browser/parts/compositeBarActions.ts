@@ -383,6 +383,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => this.actions,
+			getCheckedActionsRepresentation: () => 'radio',
 			onHide: () => dispose(this.actions)
 		});
 	}
@@ -390,7 +391,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 	private getActions(): Action[] {
 		return this.getOverflowingComposites().map(composite => {
 			const action = this.getCompositeOpenAction(composite.id);
-			action.radio = this.getActiveCompositeId() === action.id;
+			action.checked = this.getActiveCompositeId() === action.id;
 
 			const badge = this.getBadge(composite.id);
 			let suffix: string | number | undefined;
@@ -614,8 +615,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActionsContext: () => this.activity.id,
-			getActions: () => actions
+			getActions: () => actions,
+			getActionsContext: () => this.activity.id
 		});
 	}
 
