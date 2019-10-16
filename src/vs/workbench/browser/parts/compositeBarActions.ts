@@ -126,10 +126,10 @@ export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptio
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
-	protected container: HTMLElement;
-	protected label: HTMLElement;
-	protected badge: HTMLElement;
-	protected options: IActivityActionViewItemOptions;
+	protected container!: HTMLElement;
+	protected label!: HTMLElement;
+	protected badge!: HTMLElement;
+	protected options!: IActivityActionViewItemOptions;
 
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -219,7 +219,6 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			dom.append(container, dom.$('.active-item-indicator'));
 		}
 
-
 		dom.hide(this.badge);
 
 		this.updateActivity();
@@ -303,14 +302,17 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		} else {
 			title = this.activity.name;
 		}
+
 		this.updateTitle(title);
 	}
 
 	protected updateLabel(): void {
 		this.label.className = 'action-label';
+
 		if (this.activity.cssClass) {
 			dom.addClass(this.label, this.activity.cssClass);
 		}
+
 		if (!this.options.icon) {
 			this.label.textContent = this.getAction().label;
 		}
