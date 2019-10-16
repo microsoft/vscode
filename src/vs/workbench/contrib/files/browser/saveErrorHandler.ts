@@ -303,7 +303,7 @@ class OverwriteReadonlyAction extends Action {
 	}
 }
 
-export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
+export const acceptLocalChangesCommand = async (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 	const modelService = accessor.get(IModelService);
@@ -312,35 +312,35 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 	if (!control) {
 		return;
 	}
+
 	const editor = control.input;
 	const group = control.group;
 
-	resolverService.createModelReference(resource).then(async reference => {
-		const model = reference.object as IResolvedTextFileEditorModel;
-		const localModelSnapshot = model.createSnapshot();
+	const reference = await resolverService.createModelReference(resource);
+	const model = reference.object as IResolvedTextFileEditorModel;
+	const localModelSnapshot = model.createSnapshot();
 
-		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
+	clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
-		// Revert to be able to save
-		await model.revert();
+	// Revert to be able to save
+	await model.revert();
 
-		// Restore user value (without loosing undo stack)
-		modelService.updateModel(model.textEditorModel, createTextBufferFactoryFromSnapshot(localModelSnapshot));
+	// Restore user value (without loosing undo stack)
+	modelService.updateModel(model.textEditorModel, createTextBufferFactoryFromSnapshot(localModelSnapshot));
 
-		// Trigger save
-		await model.save();
+	// Trigger save
+	await model.save();
 
-		// Reopen file input
-		await editorService.openEditor({ resource: model.getResource() }, group);
+	// Reopen file input
+	await editorService.openEditor({ resource: model.getResource() }, group);
 
-		// Clean up
-		group.closeEditor(editor);
-		editor.dispose();
-		reference.dispose();
-	});
+	// Clean up
+	group.closeEditor(editor);
+	editor.dispose();
+	reference.dispose();
 };
 
-export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
+export const revertLocalChangesCommand = async (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 
@@ -348,23 +348,23 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 	if (!control) {
 		return;
 	}
+
 	const editor = control.input;
 	const group = control.group;
 
-	resolverService.createModelReference(resource).then(async reference => {
-		const model = reference.object as ITextFileEditorModel;
+	const reference = await resolverService.createModelReference(resource);
+	const model = reference.object as ITextFileEditorModel;
 
-		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
+	clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
-		// Revert on model
-		await model.revert();
+	// Revert on model
+	await model.revert();
 
-		// Reopen file input
-		await editorService.openEditor({ resource: model.getResource() }, group);
+	// Reopen file input
+	await editorService.openEditor({ resource: model.getResource() }, group);
 
-		// Clean up
-		group.closeEditor(editor);
-		editor.dispose();
-		reference.dispose();
-	});
+	// Clean up
+	group.closeEditor(editor);
+	editor.dispose();
+	reference.dispose();
 };
