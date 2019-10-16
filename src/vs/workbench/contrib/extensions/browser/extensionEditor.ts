@@ -854,7 +854,8 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderDebuggers(content, manifest, layout),
 					this.renderViewContainers(content, manifest, layout),
 					this.renderViews(content, manifest, layout),
-					this.renderLocalizations(content, manifest, layout)
+					this.renderLocalizations(content, manifest, layout),
+					this.renderWebviewEditors(content, manifest, layout),
 				];
 
 				scrollableContent.scanDomNode();
@@ -1047,6 +1048,31 @@ export class ExtensionEditor extends BaseEditor {
 			$('table', undefined,
 				$('tr', undefined, $('th', undefined, localize('localizations language id', "Language Id")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
 				...localizations.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderWebviewEditors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const webviewEditors = (manifest.contributes && manifest.contributes.webviewEditors) || [];
+		if (!webviewEditors.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('webviewEditors', "Webview Editors ({0})", webviewEditors.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('webviewEditors view type', "View Type")),
+					$('th', undefined, localize('webviewEditors priority', "Priority")),
+					$('th', undefined, localize('webviewEditors filenamePattern', "Filename Pattern"))),
+				...webviewEditors.map(webviewEditor =>
+					$('tr', undefined,
+						$('td', undefined, webviewEditor.viewType),
+						$('td', undefined, webviewEditor.priority),
+						$('td', undefined, arrays.coalesce(webviewEditor.selector.map(x => x.filenamePattern)).join(', '))))
 			)
 		);
 
