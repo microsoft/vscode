@@ -8,7 +8,6 @@ import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, DataUri, isEqual } from 'vs/base/common/resources';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
@@ -276,45 +275,33 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
 		const userConfiguredEditors = this.customEditorService.getUserConfiguredCustomEditors(resource);
-		const contributedEditors = this.customEditorService.getContributedCustomEditors(resource);
-
-		if (!userConfiguredEditors.length) {
-			if (!contributedEditors.length) {
-				return;
-			}
-
-			// Find the single default editor to use (if any) by looking at the editor's priority and the
-			// other contributed editors.
-			const defaultEditor = find(contributedEditors, editor => {
-				if (editor.priority !== CustomEditorPriority.default && editor.priority !== CustomEditorPriority.builtin) {
-					return false;
-				}
-				return contributedEditors.every(otherEditor =>
-					otherEditor === editor || isLowerPriority(otherEditor, editor));
-			});
-
-			if (defaultEditor) {
-				return {
-					override: this.customEditorService.openWith(resource, defaultEditor.id, options, group),
-				};
-			}
-		}
-
-		for (const input of group.editors) {
-			if (input instanceof CustomFileEditorInput && isEqual(input.getResource(), resource)) {
-				return {
-					override: group.openEditor(input, options).then(withNullAsUndefined)
-				};
-			}
-		}
-
 		if (userConfiguredEditors.length) {
 			return {
 				override: this.customEditorService.openWith(resource, userConfiguredEditors[0].id, options, group),
 			};
 		}
 
-		// Open default editor but prompt user to see if they wish to use a custom one instead
+		const contributedEditors = this.customEditorService.getContributedCustomEditors(resource);
+		if (!contributedEditors.length) {
+			return;
+		}
+
+		// Find the single default editor to use (if any) by looking at the editor's priority and the
+		// other contributed editors.
+		const defaultEditor = find(contributedEditors, editor => {
+			if (editor.priority !== CustomEditorPriority.default && editor.priority !== CustomEditorPriority.builtin) {
+				return false;
+			}
+			return contributedEditors.every(otherEditor =>
+				otherEditor === editor || isLowerPriority(otherEditor, editor));
+		});
+		if (defaultEditor) {
+			return {
+				override: this.customEditorService.openWith(resource, defaultEditor.id, options, group),
+			};
+		}
+
+		// Open VS Code's standard editor but prompt user to see if they wish to use a custom one instead
 		return {
 			override: (async () => {
 				const standardEditor = await this.editorService.openEditor(editor, { ...options, ignoreOverrides: true }, group);
