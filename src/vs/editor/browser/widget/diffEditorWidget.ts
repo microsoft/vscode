@@ -400,6 +400,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._renderSideBySide;
 	}
 
+	public get maxComputationTime(): number {
+		return this._maxComputationTime;
+	}
+
 	public get renderIndicators(): boolean {
 		return this._renderIndicators;
 	}
