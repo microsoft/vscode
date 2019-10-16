@@ -129,11 +129,22 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			...this.getContributedCustomEditors(resource),
 		], editor => editor.id);
 
-		const pick = await this.quickInputService.pick(
-			customEditors.map((editorDescriptor): IQuickPickItem => ({
-				label: editorDescriptor.displayName,
-				id: editorDescriptor.id,
-			})), {
+		let currentlyOpenedEditorType: undefined | string;
+		for (const editor of group ? group.editors : []) {
+			if (editor.getResource() && isEqual(editor.getResource()!, resource)) {
+				currentlyOpenedEditorType = editor instanceof CustomFileEditorInput ? editor.viewType : defaultEditorId;
+				break;
+			}
+		}
+
+		const items = customEditors.map((editorDescriptor): IQuickPickItem => ({
+			label: editorDescriptor.displayName,
+			id: editorDescriptor.id,
+			description: editorDescriptor.id === currentlyOpenedEditorType
+				? nls.localize('openWithCurrentlyActive', "Currently Active")
+				: undefined
+		}));
+		const pick = await this.quickInputService.pick(items, {
 			placeHolder: nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", basename(resource)),
 		});
 
