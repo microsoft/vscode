@@ -513,6 +513,10 @@ export class SearchWidget extends Widget {
 			}
 			keyboardEvent.preventDefault();
 		}
+		else if (KeyMod.Shift | KeyCode.Tab) {
+			this.focusRegexAction();
+			keyboardEvent.preventDefault();
+		}
 	}
 
 	private onReplaceInputKeyDown(keyboardEvent: IKeyboardEvent) {

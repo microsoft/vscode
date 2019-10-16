@@ -245,7 +245,7 @@ export class SearchView extends ViewletPanel {
 				if (this.searchWidget.isReplaceActive()) {
 					this.searchWidget.focusReplaceAllAction();
 				} else {
-					this.searchWidget.focusRegexAction();
+					this.searchWidget.replaceInput.focusOnPreserve();
 				}
 				dom.EventHelper.stop(e);
 			}
