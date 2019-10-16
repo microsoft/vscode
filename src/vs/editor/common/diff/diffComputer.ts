@@ -279,7 +279,7 @@ export interface IDiffComputerOpts {
 	shouldPostProcessCharChanges: boolean;
 	shouldIgnoreTrimWhitespace: boolean;
 	shouldMakePrettyDiff: boolean;
-	maximumComputationTime: number;
+	maxComputationTime: number;
 }
 
 export class DiffComputer {
@@ -305,8 +305,8 @@ export class DiffComputer {
 		this.original = new LineSequence(originalLines);
 		this.modified = new LineSequence(modifiedLines);
 
-		this.continueLineDiff = createContinueProcessingPredicate(opts.maximumComputationTime);
-		this.continueCharDiff = createContinueProcessingPredicate(opts.maximumComputationTime === 0 ? 0 : Math.min(opts.maximumComputationTime, 5000)); // never run after 5s for character changes...
+		this.continueLineDiff = createContinueProcessingPredicate(opts.maxComputationTime);
+		this.continueCharDiff = createContinueProcessingPredicate(opts.maxComputationTime === 0 ? 0 : Math.min(opts.maxComputationTime, 5000)); // never run after 5s for character changes...
 	}
 
 	public computeDiff(): IDiffComputerResult {

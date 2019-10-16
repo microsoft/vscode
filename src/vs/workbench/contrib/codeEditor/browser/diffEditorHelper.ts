@@ -88,7 +88,7 @@ class DiffEditorHelperContribution extends Disposable implements IEditorContribu
 			this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false, ConfigurationTarget.USER);
 		}
 		if (this._state === WidgetState.HintTimeout) {
-			this._configurationService.updateValue('diffEditor.maximumComputationTime', 0, ConfigurationTarget.USER);
+			this._configurationService.updateValue('diffEditor.maxComputationTime', 0, ConfigurationTarget.USER);
 		}
 	}
 

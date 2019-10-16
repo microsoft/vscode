@@ -203,7 +203,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _originalIsEditable: boolean;
 
 	private _renderSideBySide: boolean;
-	private _maximumComputationTime: number;
+	private _maxComputationTime: number;
 	private _renderIndicators: boolean;
 	private _enableSplitViewResizing: boolean;
 	private _strategy!: IDiffEditorWidgetStyle;
@@ -253,10 +253,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._renderSideBySide = options.renderSideBySide;
 		}
 
-		// maximumComputationTime
-		this._maximumComputationTime = 5000;
-		if (typeof options.maximumComputationTime !== 'undefined') {
-			this._maximumComputationTime = options.maximumComputationTime;
+		// maxComputationTime
+		this._maxComputationTime = 5000;
+		if (typeof options.maxComputationTime !== 'undefined') {
+			this._maxComputationTime = options.maxComputationTime;
 		}
 
 		// ignoreTrimWhitespace
@@ -630,8 +630,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			}
 		}
 
-		if (typeof newOptions.maximumComputationTime !== 'undefined') {
-			this._maximumComputationTime = newOptions.maximumComputationTime;
+		if (typeof newOptions.maxComputationTime !== 'undefined') {
+			this._maxComputationTime = newOptions.maxComputationTime;
 			if (this._isVisible) {
 				this._beginUpdateDecorationsSoon();
 			}
@@ -982,7 +982,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			return;
 		}
 
-		this._editorWorkerService.computeDiff(currentOriginalModel.uri, currentModifiedModel.uri, this._ignoreTrimWhitespace, this._maximumComputationTime).then((result) => {
+		this._editorWorkerService.computeDiff(currentOriginalModel.uri, currentModifiedModel.uri, this._ignoreTrimWhitespace, this._maxComputationTime).then((result) => {
 			if (currentToken === this._diffComputationToken
 				&& currentOriginalModel === this.originalEditor.getModel()
 				&& currentModifiedModel === this.modifiedEditor.getModel()

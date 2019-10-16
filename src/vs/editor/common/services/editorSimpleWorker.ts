@@ -377,7 +377,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public async computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean, maximumComputationTime: number): Promise<IDiffComputationResult | null> {
+	public async computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
@@ -391,7 +391,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			shouldPostProcessCharChanges: true,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true,
-			maximumComputationTime: maximumComputationTime
+			maxComputationTime: maxComputationTime
 		});
 
 		const diffResult = diffComputer.computeDiff();
@@ -433,7 +433,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			shouldPostProcessCharChanges: false,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true,
-			maximumComputationTime: 1000
+			maxComputationTime: 1000
 		});
 		return diffComputer.computeDiff().changes;
 	}

@@ -542,7 +542,7 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
 	 */
-	maximumComputationTime?: number;
+	maxComputationTime?: number;
 	/**
 	 * Compute the diff by ignoring leading/trailing whitespace
 	 * Defaults to true.
