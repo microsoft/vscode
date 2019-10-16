@@ -78,6 +78,7 @@ import { ITextEditor } from 'vs/workbench/common/editor';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -2328,9 +2329,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');
 		let openLabel = nls.localize('TaskService.openJsonFile', 'Open tasks.json file');
+		const tokenSource = new CancellationTokenSource();
+		const cancellationToken: CancellationToken = tokenSource.token;
+		type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
 		let entries = Promise.all(stats).then((stats) => {
 			return taskPromise.then((taskMap) => {
-				type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
 				let entries: QuickPickInput<EntryType>[] = [];
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 					let tasks = taskMap.all();
@@ -2374,13 +2377,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						index++;
 					}
 				}
+				if (entries.length === 1) {
+					tokenSource.cancel();
+				}
 				return entries;
 			});
 		});
 
 		this.quickInputService.pick(entries,
-			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }).
-			then((selection) => {
+			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }, cancellationToken).
+			then(async (selection) => {
+				if (cancellationToken.isCancellationRequested) {
+					// canceled when there's only one task
+					const task = (await entries)[0];
+					if ((<any>task).task) {
+						selection = <EntryType>task;
+					}
+				}
 				if (!selection) {
 					return;
 				}
