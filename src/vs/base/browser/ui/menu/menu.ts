@@ -113,7 +113,7 @@ export class Menu extends ActionBar {
 					const actions = this.mnemonics.get(key)!;
 
 					if (actions.length === 1) {
-						if (actions[0] instanceof SubmenuMenuActionViewItem) {
+						if (actions[0] instanceof SubmenuMenuActionViewItem && actions[0].container) {
 							this.focusItemByElement(actions[0].container);
 						}
 
@@ -122,7 +122,7 @@ export class Menu extends ActionBar {
 
 					if (actions.length > 1) {
 						const action = actions.shift();
-						if (action) {
+						if (action && action.container) {
 							this.focusItemByElement(action.container);
 							actions.push(action);
 						}
@@ -356,17 +356,17 @@ interface IMenuItemOptions extends IActionViewItemOptions {
 
 class BaseMenuActionViewItem extends BaseActionViewItem {
 
-	public container: HTMLElement;
+	public container: HTMLElement | undefined;
 
 	protected options: IMenuItemOptions;
-	protected item: HTMLElement;
+	protected item: HTMLElement | undefined;
 
 	private runOnceToEnableMouseUp: RunOnceScheduler;
-	private label: HTMLElement;
-	private check: HTMLElement;
-	private mnemonic: string;
+	private label: HTMLElement | undefined;
+	private check: HTMLElement | undefined;
+	private mnemonic: string | undefined;
 	private cssClass: string;
-	protected menuStyle: IMenuStyles;
+	protected menuStyle: IMenuStyles | undefined;
 
 	constructor(ctx: any, action: IAction, options: IMenuItemOptions = {}) {
 		options.isMenu = true;
@@ -449,13 +449,19 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 
 	focus(): void {
 		super.focus();
-		this.item.focus();
+
+		if (this.item) {
+			this.item.focus();
+		}
+
 		this.applyStyle();
 	}
 
 	updatePositionInSet(pos: number, setSize: number): void {
-		this.item.setAttribute('aria-posinset', `${pos}`);
-		this.item.setAttribute('aria-setsize', `${setSize}`);
+		if (this.item) {
+			this.item.setAttribute('aria-posinset', `${pos}`);
+			this.item.setAttribute('aria-setsize', `${setSize}`);
+		}
 	}
 
 	updateLabel(): void {
@@ -467,7 +473,9 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 					label = cleanLabel;
 				}
 
-				this.label.setAttribute('aria-label', cleanLabel.replace(/&&/g, '&'));
+				if (this.label) {
+					this.label.setAttribute('aria-label', cleanLabel.replace(/&&/g, '&'));
+				}
 
 				const matches = MENU_MNEMONIC_REGEX.exec(label);
 
@@ -488,13 +496,17 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 					}
 
 					label = label.replace(/&amp;&amp;/g, '&amp;');
-					this.item.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase());
+					if (this.item) {
+						this.item.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase());
+					}
 				} else {
 					label = label.replace(/&&/g, '&');
 				}
 			}
 
-			this.label.innerHTML = label.trim();
+			if (this.label) {
+				this.label.innerHTML = label.trim();
+			}
 		}
 	}
 
@@ -512,23 +524,23 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			}
 		}
 
-		if (title) {
+		if (title && this.item) {
 			this.item.title = title;
 		}
 	}
 
 	updateClass(): void {
-		if (this.cssClass) {
+		if (this.cssClass && this.item) {
 			removeClasses(this.item, this.cssClass);
 		}
-		if (this.options.icon) {
+		if (this.options.icon && this.label) {
 			this.cssClass = this.getAction().class || '';
 			addClass(this.label, 'icon');
 			if (this.cssClass) {
 				addClasses(this.label, this.cssClass);
 			}
 			this.updateEnabled();
-		} else {
+		} else if (this.label) {
 			removeClass(this.label, 'icon');
 		}
 	}
@@ -539,19 +551,27 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				removeClass(this.element, 'disabled');
 			}
 
-			removeClass(this.item, 'disabled');
-			this.item.tabIndex = 0;
+			if (this.item) {
+				removeClass(this.item, 'disabled');
+				this.item.tabIndex = 0;
+			}
 		} else {
 			if (this.element) {
 				addClass(this.element, 'disabled');
 			}
 
-			addClass(this.item, 'disabled');
-			removeTabIndexAndUpdateFocus(this.item);
+			if (this.item) {
+				addClass(this.item, 'disabled');
+				removeTabIndexAndUpdateFocus(this.item);
+			}
 		}
 	}
 
 	updateChecked(): void {
+		if (!this.item) {
+			return;
+		}
+
 		if (this.getAction().checked) {
 			addClass(this.item, 'checked');
 			this.item.setAttribute('role', 'menuitemcheckbox');
@@ -563,7 +583,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	getMnemonic(): string {
+	getMnemonic(): string | undefined {
 		return this.mnemonic;
 	}
 
@@ -577,10 +597,18 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : this.menuStyle.backgroundColor;
 		const border = isSelected && this.menuStyle.selectionBorderColor ? `thin solid ${this.menuStyle.selectionBorderColor}` : '';
 
-		this.item.style.color = fgColor ? `${fgColor}` : null;
-		this.check.style.backgroundColor = fgColor ? `${fgColor}` : '';
-		this.item.style.backgroundColor = bgColor ? `${bgColor}` : '';
-		this.container.style.border = border;
+		if (this.item) {
+			this.item.style.color = fgColor ? `${fgColor}` : null;
+			this.item.style.backgroundColor = bgColor ? `${bgColor}` : '';
+		}
+
+		if (this.check) {
+			this.check.style.backgroundColor = fgColor ? `${fgColor}` : '';
+		}
+
+		if (this.container) {
+			this.container.style.border = border;
+		}
 	}
 
 	style(style: IMenuStyles): void {
@@ -590,11 +618,11 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 }
 
 class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
-	private mysubmenu: Menu | null;
+	private mysubmenu: Menu | null = null;
 	private submenuContainer: HTMLElement | undefined;
-	private submenuIndicator: HTMLElement;
+	private submenuIndicator: HTMLElement | undefined;
 	private readonly submenuDisposables = this._register(new DisposableStore());
-	private mouseOver: boolean;
+	private mouseOver: boolean = false;
 	private showScheduler: RunOnceScheduler;
 	private hideScheduler: RunOnceScheduler;
 	private expandDirection: Direction;
@@ -631,11 +659,13 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			return;
 		}
 
-		addClass(this.item, 'monaco-submenu-item');
-		this.item.setAttribute('aria-haspopup', 'true');
+		if (this.item) {
+			addClass(this.item, 'monaco-submenu-item');
+			this.item.setAttribute('aria-haspopup', 'true');
 
-		this.submenuIndicator = append(this.item, $('span.submenu-indicator'));
-		this.submenuIndicator.setAttribute('aria-hidden', 'true');
+			this.submenuIndicator = append(this.item, $('span.submenu-indicator'));
+			this.submenuIndicator.setAttribute('aria-hidden', 'true');
+		}
 
 		this._register(addDisposableListener(this.element, EventType.KEY_UP, e => {
 			let event = new StandardKeyboardEvent(e);
@@ -793,7 +823,9 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		const isSelected = this.element && hasClass(this.element, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 
-		this.submenuIndicator.style.backgroundColor = fgColor ? `${fgColor}` : '';
+		if (this.submenuIndicator) {
+			this.submenuIndicator.style.backgroundColor = fgColor ? `${fgColor}` : '';
+		}
 
 		if (this.parentData.submenu) {
 			this.parentData.submenu.style(this.menuStyle);
