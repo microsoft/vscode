@@ -4841,6 +4841,32 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #53357: Over typing ignores characters after backslash', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'console.log();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [new Selection(1, 13, 1, 13)]);
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'\');');
+
+			cursorCommand(cursor, H.Type, { text: 'it' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\');');
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\\\');');
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\\\'\');');
+		});
+		mode.dispose();
+	});
+
 	test('issue #2773: Accents (´`¨^, others?) are inserted in the wrong position (Mac)', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
