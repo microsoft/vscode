@@ -90,7 +90,7 @@ export const config = {
 	repo: product.electronRepository || undefined
 };
 
-export function getElectron(arch: string): () => NodeJS.ReadWriteStream {
+function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	return () => {
 		const electronOpts = _.extend({}, config, {
 			platform: process.platform,
@@ -107,7 +107,7 @@ export function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	};
 }
 
-async function main(): Promise<void> {
+async function main(arch = process.arch): Promise<void> {
 	const version = getElectronVersion();
 	const electronPath = path.join(root, '.build', 'electron');
 	const versionFile = path.join(electronPath, 'version');
@@ -115,12 +115,12 @@ async function main(): Promise<void> {
 
 	if (!isUpToDate) {
 		await util.rimraf(electronPath)();
-		await util.streamToPromise(getElectron(process.arch)());
+		await util.streamToPromise(getElectron(arch)());
 	}
 }
 
 if (require.main === module) {
-	main().catch(err => {
+	main(process.argv[2]).catch(err => {
 		console.error(err);
 		process.exit(1);
 	});

@@ -98,19 +98,18 @@ function getElectron(arch) {
             .pipe(vfs.dest('.build/electron'));
     };
 }
-exports.getElectron = getElectron;
-async function main() {
+async function main(arch = process.arch) {
     const version = getElectronVersion();
     const electronPath = path.join(root, '.build', 'electron');
     const versionFile = path.join(electronPath, 'version');
     const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;
     if (!isUpToDate) {
         await util.rimraf(electronPath)();
-        await util.streamToPromise(getElectron(process.arch)());
+        await util.streamToPromise(getElectron(arch)());
     }
 }
 if (require.main === module) {
-    main().catch(err => {
+    main(process.argv[2]).catch(err => {
         console.error(err);
         process.exit(1);
     });
