@@ -421,10 +421,10 @@ xterm-addon-web-links@0.2.0:
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.0.tgz#b408a0be46211d8d4a0bb5e701d8f3c2bd07d473"
   integrity sha512-dq81c4Pzli2PgKVBgY2REte9sCVibR3df8AP3SEvCTM9uYFnUFxtxzMTplPnc7+rXabVhFdbU6x+rstIk8HNQg==
 
-xterm@4.2.0-beta8:
-  version "4.2.0-beta8"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.2.0-beta8.tgz#f375cfef7d58240c56ba23c8ca1c36399ab7ccb1"
-  integrity sha512-oka51TIzcmxwpJaoV180bkynYiMW2H0rN7J9gehofEFFX7nHRxIh/tm9EzUEA8I9ELYB91a9TQc7V1PQSN+Mlw==
+xterm@4.2.0-beta10:
+  version "4.2.0-beta10"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.2.0-beta10.tgz#28573392d2b3168e71dac15d8916248c2084532e"
+  integrity sha512-UUJ+qYBfV+dlEw9fUrGD9ZY6vy2BBpSICrvFU9/f3Z1Od1TXUO431AB00lr/2N6IdFfH35FHTMHXXxsxFD4k9A==
 
 yauzl@^2.9.2:
   version "2.10.0"
