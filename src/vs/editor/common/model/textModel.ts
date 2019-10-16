@@ -2011,9 +2011,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 				}
 
 				const hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
-				if (hitText === bracket.open) {
+				if (bracket.isOpen(hitText)) {
 					count++;
-				} else if (hitText === bracket.close) {
+				} else if (bracket.isClose(hitText)) {
 					count--;
 				}
 
@@ -2094,9 +2094,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 				}
 
 				const hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
-				if (hitText === bracket.open) {
+				if (bracket.isOpen(hitText)) {
 					count++;
-				} else if (hitText === bracket.close) {
+				} else if (bracket.isClose(hitText)) {
 					count--;
 				}
 

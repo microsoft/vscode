@@ -25,8 +25,8 @@ suite('TextModelWithTokens', () => {
 			}
 			return {
 				range: a.range.toString(),
-				open: a.open,
-				close: a.close,
+				open: a.open[0],
+				close: a.close[0],
 				isOpen: a.isOpen
 			};
 		}
@@ -57,8 +57,8 @@ suite('TextModelWithTokens', () => {
 				let ch = lineText.charAt(charIndex);
 				if (charIsBracket[ch]) {
 					expectedBrackets.push({
-						open: openForChar[ch],
-						close: closeForChar[ch],
+						open: [openForChar[ch]],
+						close: [closeForChar[ch]],
 						isOpen: charIsOpenBracket[ch],
 						range: new Range(lineIndex + 1, charIndex + 1, lineIndex + 1, charIndex + 2)
 					});
@@ -300,6 +300,37 @@ suite('TextModelWithTokens', () => {
 		// <begin> ... <end> is matched
 		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 6), new Range(6, 1, 6, 4)]);
 		assertIsBracket(model, new Position(6, 1), [new Range(6, 1, 6, 4), new Range(1, 1, 1, 6)]);
+
+		model.dispose();
+		registration.dispose();
+	});
+
+	test('bracket matching 4', () => {
+
+		const languageIdentifier = new LanguageIdentifier('bracketMode2', LanguageId.PlainText);
+		const registration = LanguageConfigurationRegistry.register(languageIdentifier, {
+			brackets: [
+				['recordbegin', 'endrecord'],
+				['simplerecordbegin', 'endrecord'],
+			],
+		});
+
+		const text = [
+			'recordbegin',
+			'  simplerecordbegin',
+			'  endrecord',
+			'endrecord',
+		].join('\n');
+
+		const model = TextModel.createFromString(text, undefined, languageIdentifier);
+
+		// <recordbegin> ... <endrecord> is matched
+		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 12), new Range(4, 1, 4, 10)]);
+		assertIsBracket(model, new Position(4, 1), [new Range(4, 1, 4, 10), new Range(1, 1, 1, 12)]);
+
+		// <simplerecordbegin> ... <endrecord> is matched
+		assertIsBracket(model, new Position(2, 3), [new Range(2, 3, 2, 20), new Range(3, 3, 3, 12)]);
+		assertIsBracket(model, new Position(3, 3), [new Range(3, 3, 3, 12), new Range(2, 3, 2, 20)]);
 
 		model.dispose();
 		registration.dispose();

@@ -459,8 +459,8 @@ export class FindMatch {
  */
 export interface IFoundBracket {
 	range: Range;
-	open: string;
-	close: string;
+	open: string[];
+	close: string[];
 	isOpen: boolean;
 }
 

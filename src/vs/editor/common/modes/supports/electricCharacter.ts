@@ -28,10 +28,11 @@ export class BracketElectricCharacterSupport {
 		let result: string[] = [];
 
 		if (this._richEditBrackets) {
-			for (let i = 0, len = this._richEditBrackets.brackets.length; i < len; i++) {
-				let bracketPair = this._richEditBrackets.brackets[i];
-				let lastChar = bracketPair.close.charAt(bracketPair.close.length - 1);
-				result.push(lastChar);
+			for (const bracket of this._richEditBrackets.brackets) {
+				for (const close of bracket.close) {
+					const lastChar = close.charAt(close.length - 1);
+					result.push(lastChar);
+				}
 			}
 		}
 

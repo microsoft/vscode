@@ -8,27 +8,105 @@ import { Range } from 'vs/editor/common/core/range';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 
-interface ISimpleInternalBracket {
-	open: string;
-	close: string;
+interface InternalBracket {
+	open: string[];
+	close: string[];
 }
 
 export class RichEditBracket {
 	_richEditBracketBrand: void;
 
 	readonly languageIdentifier: LanguageIdentifier;
-	readonly open: string;
-	readonly close: string;
+	readonly open: string[];
+	readonly close: string[];
 	readonly forwardRegex: RegExp;
 	readonly reversedRegex: RegExp;
+	private readonly _openSet: Set<string>;
+	private readonly _closeSet: Set<string>;
 
-	constructor(languageIdentifier: LanguageIdentifier, open: string, close: string, forwardRegex: RegExp, reversedRegex: RegExp) {
+	constructor(languageIdentifier: LanguageIdentifier, open: string[], close: string[], forwardRegex: RegExp, reversedRegex: RegExp) {
 		this.languageIdentifier = languageIdentifier;
 		this.open = open;
 		this.close = close;
 		this.forwardRegex = forwardRegex;
 		this.reversedRegex = reversedRegex;
+		this._openSet = RichEditBracket._toSet(this.open);
+		this._closeSet = RichEditBracket._toSet(this.close);
 	}
+
+	public isOpen(text: string) {
+		return this._openSet.has(text);
+	}
+
+	public isClose(text: string) {
+		return this._closeSet.has(text);
+	}
+
+	private static _toSet(arr: string[]): Set<string> {
+		const result = new Set<string>();
+		for (const element of arr) {
+			result.add(element);
+		}
+		return result;
+	}
+}
+
+function groupFuzzyBrackets(brackets: CharacterPair[]): InternalBracket[] {
+	const N = brackets.length;
+
+	brackets = brackets.map(b => [b[0].toLowerCase(), b[1].toLowerCase()]);
+
+	const group: number[] = [];
+	for (let i = 0; i < N; i++) {
+		group[i] = i;
+	}
+
+	const areOverlapping = (a: CharacterPair, b: CharacterPair) => {
+		const [aOpen, aClose] = a;
+		const [bOpen, bClose] = b;
+		return (aOpen === bOpen || aOpen === bClose || aClose === bOpen || aClose === bClose);
+	};
+
+	const mergeGroups = (g1: number, g2: number) => {
+		const newG = Math.min(g1, g2);
+		const oldG = Math.max(g1, g2);
+		for (let i = 0; i < N; i++) {
+			if (group[i] === oldG) {
+				group[i] = newG;
+			}
+		}
+	};
+
+	// group together brackets that have the same open or the same close sequence
+	for (let i = 0; i < N; i++) {
+		const a = brackets[i];
+		for (let j = i + 1; j < N; j++) {
+			const b = brackets[j];
+			if (areOverlapping(a, b)) {
+				mergeGroups(group[i], group[j]);
+			}
+		}
+	}
+
+	const result: InternalBracket[] = [];
+	for (let g = 0; g < N; g++) {
+		let currentOpen: string[] = [];
+		let currentClose: string[] = [];
+		for (let i = 0; i < N; i++) {
+			if (group[i] === g) {
+				const [open, close] = brackets[i];
+				currentOpen.push(open);
+				currentClose.push(close);
+			}
+		}
+		if (currentOpen.length > 0) {
+			result.push({
+				open: currentOpen,
+				close: currentClose
+			});
+		}
+	}
+	return result;
 }
 
 export class RichEditBrackets {
@@ -41,58 +119,56 @@ export class RichEditBrackets {
 	public readonly textIsBracket: { [text: string]: RichEditBracket; };
 	public readonly textIsOpenBracket: { [text: string]: boolean; };
 
-	constructor(languageIdentifier: LanguageIdentifier, brackets: CharacterPair[]) {
-		brackets = brackets.map(b => [b[0].toLowerCase(), b[1].toLowerCase()]);
+	constructor(languageIdentifier: LanguageIdentifier, _brackets: CharacterPair[]) {
+		const brackets = groupFuzzyBrackets(_brackets);
+
 		this.brackets = brackets.map((b, index) => {
 			return new RichEditBracket(
 				languageIdentifier,
-				b[0],
-				b[1],
-				getRegexForBracketPair(b[0], b[1], brackets, index),
-				getReversedRegexForBracketPair(b[0], b[1], brackets, index)
+				b.open,
+				b.close,
+				getRegexForBracketPair(b.open, b.close, brackets, index),
+				getReversedRegexForBracketPair(b.open, b.close, brackets, index)
 			);
 		});
+
 		this.forwardRegex = getRegexForBrackets(this.brackets);
 		this.reversedRegex = getReversedRegexForBrackets(this.brackets);
 
 		this.textIsBracket = {};
 		this.textIsOpenBracket = {};
 
-		let maxBracketLength = 0;
-		this.brackets.forEach((b) => {
-			this.textIsBracket[b.open] = b;
-			this.textIsBracket[b.close] = b;
-			this.textIsOpenBracket[b.open] = true;
-			this.textIsOpenBracket[b.close] = false;
-			maxBracketLength = Math.max(maxBracketLength, b.open.length);
-			maxBracketLength = Math.max(maxBracketLength, b.close.length);
-		});
-		this.maxBracketLength = maxBracketLength;
+		this.maxBracketLength = 0;
+		for (const bracket of this.brackets) {
+			for (const open of bracket.open) {
+				this.textIsBracket[open] = bracket;
+				this.textIsOpenBracket[open] = true;
+				this.maxBracketLength = Math.max(this.maxBracketLength, open.length);
+			}
+			for (const close of bracket.close) {
+				this.textIsBracket[close] = bracket;
+				this.textIsOpenBracket[close] = false;
+				this.maxBracketLength = Math.max(this.maxBracketLength, close.length);
+			}
+		}
 	}
 }
 
-function once<T, R>(keyFn: (input: T) => string, computeFn: (input: T) => R): (input: T) => R {
-	let cache: { [key: string]: R; } = {};
-	return (input: T): R => {
-		let key = keyFn(input);
-		if (!cache.hasOwnProperty(key)) {
-			cache[key] = computeFn(input);
-		}
-		return cache[key];
-	};
-}
-
-function collectSuperstrings(str: string, brackets: CharacterPair[], currentIndex: number, dest: string[]): void {
+function collectSuperstrings(str: string, brackets: InternalBracket[], currentIndex: number, dest: string[]): void {
 	for (let i = 0, len = brackets.length; i < len; i++) {
 		if (i === currentIndex) {
 			continue;
 		}
-		const [open, close] = brackets[i];
-		if (open.indexOf(str) >= 0) {
-			dest.push(open);
+		const bracket = brackets[i];
+		for (const open of bracket.open) {
+			if (open.indexOf(str) >= 0) {
+				dest.push(open);
+			}
 		}
-		if (close.indexOf(str) >= 0) {
-			dest.push(close);
+		for (const close of bracket.close) {
+			if (close.indexOf(str) >= 0) {
+				dest.push(close);
+			}
 		}
 	}
 }
@@ -101,49 +177,77 @@ function lengthcmp(a: string, b: string) {
 	return a.length - b.length;
 }
 
-function getRegexForBracketPair(open: string, close: string, brackets: CharacterPair[], currentIndex: number): RegExp {
+function unique(arr: string[]): string[] {
+	if (arr.length <= 1) {
+		return arr;
+	}
+	const result: string[] = [];
+	const seen = new Set<string>();
+	for (const element of arr) {
+		if (seen.has(element)) {
+			continue;
+		}
+		result.push(element);
+		seen.add(element);
+	}
+	return result;
+}
+
+function getRegexForBracketPair(open: string[], close: string[], brackets: InternalBracket[], currentIndex: number): RegExp {
 	// search in all brackets for other brackets that are a superstring of these brackets
-	const pieces: string[] = [open, close];
-	collectSuperstrings(open, brackets, currentIndex, pieces);
-	collectSuperstrings(close, brackets, currentIndex, pieces);
+	let pieces: string[] = [];
+	pieces = pieces.concat(open);
+	pieces = pieces.concat(close);
+	for (let i = 0, len = pieces.length; i < len; i++) {
+		collectSuperstrings(pieces[i], brackets, currentIndex, pieces);
+	}
+	pieces = unique(pieces);
 	pieces.sort(lengthcmp);
 	pieces.reverse();
 	return createBracketOrRegExp(pieces);
 }
 
-function getReversedRegexForBracketPair(open: string, close: string, brackets: CharacterPair[], currentIndex: number): RegExp {
+function getReversedRegexForBracketPair(open: string[], close: string[], brackets: InternalBracket[], currentIndex: number): RegExp {
 	// search in all brackets for other brackets that are a superstring of these brackets
-	const pieces: string[] = [open, close];
-	collectSuperstrings(open, brackets, currentIndex, pieces);
-	collectSuperstrings(close, brackets, currentIndex, pieces);
+	let pieces: string[] = [];
+	pieces = pieces.concat(open);
+	pieces = pieces.concat(close);
+	for (let i = 0, len = pieces.length; i < len; i++) {
+		collectSuperstrings(pieces[i], brackets, currentIndex, pieces);
+	}
+	pieces = unique(pieces);
 	pieces.sort(lengthcmp);
 	pieces.reverse();
 	return createBracketOrRegExp(pieces.map(toReversedString));
 }
 
-const getRegexForBrackets = once<ISimpleInternalBracket[], RegExp>(
-	(input) => input.map(b => `${b.open};${b.close}`).join(';'),
-	(input) => {
-		let pieces: string[] = [];
-		input.forEach((b) => {
-			pieces.push(b.open);
-			pieces.push(b.close);
-		});
-		return createBracketOrRegExp(pieces);
+function getRegexForBrackets(brackets: RichEditBracket[]): RegExp {
+	let pieces: string[] = [];
+	for (const bracket of brackets) {
+		for (const open of bracket.open) {
+			pieces.push(open);
+		}
+		for (const close of bracket.close) {
+			pieces.push(close);
+		}
 	}
-);
+	pieces = unique(pieces);
+	return createBracketOrRegExp(pieces);
+}
 
-const getReversedRegexForBrackets = once<ISimpleInternalBracket[], RegExp>(
-	(input) => input.map(b => `${b.open};${b.close}`).join(';'),
-	(input) => {
-		let pieces: string[] = [];
-		input.forEach((b) => {
-			pieces.push(toReversedString(b.open));
-			pieces.push(toReversedString(b.close));
-		});
-		return createBracketOrRegExp(pieces);
+function getReversedRegexForBrackets(brackets: RichEditBracket[]): RegExp {
+	let pieces: string[] = [];
+	for (const bracket of brackets) {
+		for (const open of bracket.open) {
+			pieces.push(open);
+		}
+		for (const close of bracket.close) {
+			pieces.push(close);
+		}
 	}
-);
+	pieces = unique(pieces);
+	return createBracketOrRegExp(pieces.map(toReversedString));
+}
 
 function prepareBracketForRegExp(str: string): string {
 	// This bracket pair uses letters like e.g. "begin" - "end"
