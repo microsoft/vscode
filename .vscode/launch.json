@@ -170,7 +170,7 @@
 		{
 			"type": "chrome",
 			"request": "launch",
-			"name": "Launch Chrome",
+			"name": "Launch VS Code (Web, Chrome)",
 			"url": "http://localhost:8080",
 			"preLaunchTask": "Run web"
 		},
