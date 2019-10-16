@@ -221,7 +221,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
 			let showBreakpointHintAtLineNumber = -1;
 			const model = this.editor.getModel();
-			if (model && e.target.position && e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
+			if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
 				this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 				const data = e.target.detail as IMarginData;
 				if (!data.isAfterLines) {
