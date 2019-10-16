@@ -339,12 +339,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentElements = newCommentNodeList;
 		this.createThreadLabel();
 
-		if (this._formActions && this._commentEditor.hasModel()) {
-			dom.clearNode(this._formActions);
-			const model = this._commentEditor.getModel();
-			this.createCommentWidgetActions(this._formActions, model);
-		}
-
 		// Move comment glyph widget and show position if the line has changed.
 		const lineNumber = this._commentThread.range.startLineNumber;
 		let shouldMoveWidget = false;
