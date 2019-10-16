@@ -187,8 +187,9 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	private preprocessHtml(value: string): string {
-		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
-			`${startQuote}${this.externalEndpoint}/vscode-resource/file${path}${endQuote}`);
+		return value.replace(/(["'])vscode-resource:(\/\/([^\s'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_, startQuote, _1, scheme, path, endQuote) => {
+			return `${startQuote}${this.externalEndpoint}/vscode-resource/${scheme || ''}${path}${endQuote}`;
+		});
 	}
 
 	private doUpdateContent() {
@@ -311,7 +312,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 		return this._send('did-load-resource', {
 			status: 404,
-			path: uri.path
+			path: requestPath
 		});
 	}
 
