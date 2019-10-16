@@ -168,7 +168,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		} else {
 			dom.show(template.decoration);
 			dom.addClass(template.decoration, 'bubble');
-			template.decoration.innerText = '\uf052';
+			template.decoration.innerText = '\uea71';
 			template.decoration.title = localize('deep.problem', "Contains elements with problems");
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
 		}
