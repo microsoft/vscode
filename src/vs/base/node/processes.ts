@@ -68,16 +68,12 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
 			const cmd = getPathFromAmdModule(require, 'vs/base/node/terminateProcess.sh');
-			const killProcess = cp.spawn(cmd, [process.pid.toString()]);
 			return new Promise((resolve, reject) => {
-				killProcess.once('error', (err) => {
-					resolve({ success: false, error: err });
-				});
-				killProcess.once('exit', (code, signal) => {
-					if (code === 0) {
-						resolve({ success: true });
+				cp.execFile(cmd, [process.pid.toString()], { encoding: 'utf8', shell: true } as cp.ExecFileOptions, (err, stdout, stderr) => {
+					if (err) {
+						resolve({ success: false, error: err });
 					} else {
-						resolve({ success: false, code: code !== null ? code : TerminateResponseCode.Unknown });
+						resolve({ success: true });
 					}
 				});
 			});
