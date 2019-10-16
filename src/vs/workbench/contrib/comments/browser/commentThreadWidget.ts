@@ -118,6 +118,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
 		this._commentThreadContextValue = this._contextKeyService.createKey('commentThread', _commentThread.contextValue);
 
+		const commentControllerKey = this._contextKeyService.createKey<string | undefined>('commentController', undefined);
+		const controller = this.commentService.getCommentController(this._owner);
+
+		if (controller) {
+			commentControllerKey.set(controller.contextValue);
+		}
+
 		this._resizeObserver = null;
 		this._isExpanded = _commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
