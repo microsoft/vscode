@@ -786,7 +786,13 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'auto',
 			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
-		}
+		},
+		'search.sortOrder': {
+			type: 'string',
+			enum: ['default', 'ascendingCount', 'descendingCount'],
+			default: 'default',
+			description: nls.localize('search.sortOrder', "Sort order for search results"),
+		},
 	}
 });
 

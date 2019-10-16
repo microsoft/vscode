@@ -119,6 +119,7 @@ export class SearchView extends ViewletPanel {
 	private inputPatternExcludes!: ExcludePatternInputWidget;
 	private inputPatternIncludes!: PatternInputWidget;
 	private resultsElement!: HTMLElement;
+	private sortOrder: string;
 
 	private currentSelectedFileMatch: FileMatch | undefined;
 
@@ -169,6 +170,7 @@ export class SearchView extends ViewletPanel {
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
+		this.sortOrder = this.configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
 
 		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
@@ -179,7 +181,12 @@ export class SearchView extends ViewletPanel {
 		this._register(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
-
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('search.sortOrder')) {
+				this.sortOrder = this.configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
+				this.refreshTree();
+			}
+		}));
 		this.delayedRefresh = this._register(new Delayer<void>(250));
 
 		this.actions = [
@@ -462,7 +469,7 @@ export class SearchView extends ViewletPanel {
 	private createResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
 		const folderMatches = this.searchResult.folderMatches()
 			.filter(fm => !fm.isEmpty())
-			.sort(searchMatchComparer);
+			.sort((a, b) => searchMatchComparer(a, b, this.sortOrder));
 
 		if (folderMatches.length === 1) {
 			return this.createFolderIterator(folderMatches[0], collapseResults);
@@ -478,7 +485,7 @@ export class SearchView extends ViewletPanel {
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
 		const filesIt = Iterator.fromArray(
 			folderMatch.matches()
-				.sort(searchMatchComparer));
+				.sort((a, b) => searchMatchComparer(a, b, this.sortOrder)));
 
 		return Iterator.map(filesIt, fileMatch => {
 			const children = this.createFileIterator(fileMatch);
@@ -496,7 +503,7 @@ export class SearchView extends ViewletPanel {
 	private createFileIterator(fileMatch: FileMatch): Iterator<ITreeElement<RenderableMatch>> {
 		const matchesIt = Iterator.from(
 			fileMatch.matches()
-				.sort(searchMatchComparer));
+				.sort((a, b): number => searchMatchComparer(a, b, this.sortOrder)));
 		return Iterator.map(matchesIt, r => (<ITreeElement<RenderableMatch>>{ element: r }));
 	}
 

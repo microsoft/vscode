@@ -328,6 +328,7 @@ export interface ISearchConfigurationProperties {
 	actionsPosition: 'auto' | 'right';
 	maintainFileSearchCache: boolean;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
+	sortOrder: 'default' | 'ascendingCount' | 'descendingCount';
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

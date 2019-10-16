@@ -610,13 +610,22 @@ export class FolderMatchWithResource extends FolderMatch {
  * Compares instances of the same match type. Different match types should not be siblings
  * and their sort order is undefined.
  */
-export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
+export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, searchSortOrder?: string): number {
 	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
 		return elementA.index() - elementB.index();
 	}
-
 	if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
-		return elementA.resource.fsPath.localeCompare(elementB.resource.fsPath) || elementA.name().localeCompare(elementB.name());
+		switch (searchSortOrder) {
+			case 'ascendingCount': {
+				return elementA.matches().length - elementB.matches().length;
+			}
+			case 'descendingCount': {
+				return elementB.matches().length - elementA.matches().length;
+			}
+			default: {
+				return elementA.resource.fsPath.localeCompare(elementB.resource.fsPath) || elementA.name().localeCompare(elementB.name());
+			}
+		}
 	}
 
 	if (elementA instanceof Match && elementB instanceof Match) {
