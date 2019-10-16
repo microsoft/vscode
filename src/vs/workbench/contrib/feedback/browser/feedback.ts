@@ -142,7 +142,7 @@ export class FeedbackDropdown extends Dropdown {
 		}));
 
 		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OUT, () => {
-			closeBtn.style.backgroundColor = null;
+			closeBtn.style.backgroundColor = '';
 		}));
 
 		this.invoke(closeBtn, disposables, () => this.hide());
@@ -276,17 +276,17 @@ export class FeedbackDropdown extends Dropdown {
 
 		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, editorWidgetForeground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
 			if (this.feedbackForm) {
-				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : null;
+				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : '';
 				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : null;
-				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null;
+				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : '';
 			}
 			if (this.feedbackDescriptionInput) {
-				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
+				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
 				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
 				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
 			}
 
-			contactUsContainer.style.backgroundColor = colors.editorBackground ? colors.editorBackground.toString() : null;
+			contactUsContainer.style.backgroundColor = colors.editorBackground ? colors.editorBackground.toString() : '';
 			contactUsContainer.style.border = `1px solid ${colors.contrastBorder || 'transparent'}`;
 		}));
 

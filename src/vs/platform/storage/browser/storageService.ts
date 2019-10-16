@@ -15,6 +15,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { runWhenIdle, RunOnceScheduler } from 'vs/base/common/async';
 import { serializableToMap, mapToSerializable } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
 export class BrowserStorageService extends Disposable implements IStorageService {
 
@@ -26,20 +27,20 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	private readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
 	readonly onWillSaveState: Event<IWillSaveStateEvent> = this._onWillSaveState.event;
 
-	private globalStorage: IStorage;
-	private workspaceStorage: IStorage;
+	private globalStorage: IStorage | undefined;
+	private workspaceStorage: IStorage | undefined;
 
-	private globalStorageDatabase: FileStorageDatabase;
-	private workspaceStorageDatabase: FileStorageDatabase;
+	private globalStorageDatabase: FileStorageDatabase | undefined;
+	private workspaceStorageDatabase: FileStorageDatabase | undefined;
 
-	private globalStorageFile: URI;
-	private workspaceStorageFile: URI;
+	private globalStorageFile: URI | undefined;
+	private workspaceStorageFile: URI | undefined;
 
-	private initializePromise: Promise<void>;
+	private initializePromise: Promise<void> | undefined;
 	private periodicSaveScheduler = this._register(new RunOnceScheduler(() => this.collectState(), 5000));
 
 	get hasPendingUpdate(): boolean {
-		return this.globalStorageDatabase.hasPendingUpdate || this.workspaceStorageDatabase.hasPendingUpdate;
+		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
 	}
 
 	constructor(
@@ -137,16 +138,18 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	}
 
 	private getStorage(scope: StorageScope): IStorage {
-		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
 	}
 
 	async logStorage(): Promise<void> {
+		const [globalStorage, workspaceStorage, globalStorageFile, workspaceStorageFile] = assertAllDefined(this.globalStorage, this.workspaceStorage, this.globalStorageFile, this.workspaceStorageFile);
+
 		const result = await Promise.all([
-			this.globalStorage.items,
-			this.workspaceStorage.items
+			globalStorage.items,
+			workspaceStorage.items
 		]);
 
-		return logStorage(result[0], result[1], this.globalStorageFile.toString(), this.workspaceStorageFile.toString());
+		return logStorage(result[0], result[1], globalStorageFile.toString(), workspaceStorageFile.toString());
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {

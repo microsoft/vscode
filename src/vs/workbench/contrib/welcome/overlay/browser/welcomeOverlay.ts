@@ -222,8 +222,8 @@ class WelcomeOverlay extends Disposable {
 			key.style.bottom = bottom + 'px';
 			key.style.left = left + 'px';
 		} else {
-			key.style.bottom = null;
-			key.style.left = null;
+			key.style.bottom = '';
+			key.style.left = '';
 		}
 	}
 

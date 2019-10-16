@@ -62,6 +62,7 @@ import 'vs/workbench/services/update/electron-browser/updateService';
 import 'vs/workbench/services/issue/electron-browser/issueService';
 import 'vs/workbench/services/menubar/electron-browser/menubarService';
 
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
@@ -129,11 +130,10 @@ import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
 
-// Welcome
-import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
+// Telemetry Opt Out
+import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-browser/telemetryOptOut.contribution';
 
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/node/configurationExportHelper.contribution';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 //#endregion

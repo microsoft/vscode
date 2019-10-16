@@ -101,6 +101,7 @@ export interface ITerminalConfiguration {
 	detectLocale: 'auto' | 'off' | 'on';
 	scrollback: number;
 	commandsToSkipShell: string[];
+	allowChords: boolean;
 	cwd: string;
 	confirmOnExit: boolean;
 	enableBell: boolean;

@@ -7,7 +7,7 @@ import { ComposedTreeDelegate, IAbstractTreeOptions, IAbstractTreeOptionsUpdate 
 import { ObjectTree, IObjectTreeOptions, CompressibleObjectTree, ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError, WeakMapper } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
@@ -88,7 +88,6 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 
 	readonly templateId: string;
 	private renderedNodes = new Map<IAsyncDataTreeNode<TInput, T>, IDataTreeListTemplateData<TTemplateData>>();
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		protected renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
@@ -124,7 +123,6 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 
 	dispose(): void {
 		this.renderedNodes.clear();
-		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -292,7 +290,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	protected readonly nodeMapper: AsyncDataTreeNodeMapper<TInput, T, TFilterData> = new WeakMapper(node => new AsyncDataTreeNodeWrapper(node));
 
-	protected readonly disposables: IDisposable[] = [];
+	protected readonly disposables = new DisposableStore();
 
 	get onDidScroll(): Event<ScrollEvent> { return this.tree.onDidScroll; }
 
@@ -930,7 +928,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	dispose(): void {
-		dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 

@@ -64,6 +64,9 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, layoutService, contextMenuService, telemetryService, themeService, storageService);
 
 		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
+		if (!container) {
+			throw new Error('Could not find container');
+		}
 		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewletStateStorageId));
 		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
 

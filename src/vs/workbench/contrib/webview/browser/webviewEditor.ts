@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 export class WebviewEditor extends BaseEditor {
 
-	public static ID = 'WebviewEditor';
+	public static readonly ID = 'WebviewEditor';
 
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean>;
@@ -93,7 +93,6 @@ export class WebviewEditor extends BaseEditor {
 		this._dimension = dimension;
 		if (this.input && this.input instanceof WebviewInput) {
 			this.synchronizeWebviewContainerDimensions(this.input.webview, dimension);
-			this.input.webview.layout();
 		}
 	}
 

@@ -77,7 +77,7 @@ class FastLabelNode {
 		}
 
 		this._empty = empty;
-		this._element.style.marginLeft = empty ? '0' : null;
+		this._element.style.marginLeft = empty ? '0' : '';
 	}
 
 	dispose(): void {

@@ -507,6 +507,21 @@ export interface IEditorContribution {
 }
 
 /**
+ * A diff editor contribution that gets created every time a new  diffeditor gets created and gets disposed when the diff editor gets disposed.
+ * @internal
+ */
+export interface IDiffEditorContribution {
+	/**
+	 * Get a unique identifier for this contribution.
+	 */
+	getId(): string;
+	/**
+	 * Dispose this contribution.
+	 */
+	dispose(): void;
+}
+
+/**
  * @internal
  */
 export function isThemeColor(o: any): o is ThemeColor {

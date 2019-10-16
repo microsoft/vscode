@@ -20,7 +20,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution {
 
-	private static TELEMETRY_OPT_OUT_SHOWN = 'workbench.telemetryOptOutShown';
+	private static readonly TELEMETRY_OPT_OUT_SHOWN = 'workbench.telemetryOptOutShown';
 	private privacyUrl: string | undefined;
 
 	constructor(
@@ -100,7 +100,7 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 
 				return this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale!)
 					.then(translation => {
-						const translationsFromPack: any = translation && translation.contents ? translation.contents['vs/workbench/contrib/welcome/gettingStarted/electron-browser/telemetryOptOut'] : {};
+						const translationsFromPack: any = translation && translation.contents ? translation.contents['vs/workbench/contrib/welcome/telemetryOptOut/electron-browser/telemetryOptOut'] : {};
 						if (!!translationsFromPack[promptMessageKey] && !!translationsFromPack[yesLabelKey] && !!translationsFromPack[noLabelKey]) {
 							promptMessage = translationsFromPack[promptMessageKey].replace('{0}', this.privacyUrl) + ' (Please help Microsoft improve Visual Studio Code by allowing the collection of usage data.)';
 							yesLabel = translationsFromPack[yesLabelKey] + ' (Yes)';

@@ -265,6 +265,9 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		}
 
 		const result = this.doEnterWorkspace(window, getWorkspaceIdentifier(path));
+		if (!result) {
+			return null;
+		}
 
 		// Emit as event
 		this._onWorkspaceEntered.fire({ window, workspace: result.workspace });
@@ -300,7 +303,11 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return true; // OK
 	}
 
-	private doEnterWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): IEnterWorkspaceResult {
+	private doEnterWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): IEnterWorkspaceResult | null {
+		if (!window.config) {
+			return null;
+		}
+
 		window.focus();
 
 		// Register window for backups and migrate current backups over

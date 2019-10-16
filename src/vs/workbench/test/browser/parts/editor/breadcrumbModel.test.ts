@@ -29,7 +29,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, inside workspace', function () {
 
-		let model = new EditorBreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, workspaceService, configService);
+		let model = new EditorBreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService);
 		let elements = model.getElements();
 
 		assert.equal(elements.length, 3);
@@ -44,7 +44,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, outside workspace', function () {
 
-		let model = new EditorBreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, workspaceService, configService);
+		let model = new EditorBreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService);
 		let elements = model.getElements();
 
 		assert.equal(elements.length, 2);

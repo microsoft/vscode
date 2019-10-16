@@ -10,7 +10,6 @@ import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShe
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { URI } from 'vs/base/common/uri';
@@ -65,7 +64,7 @@ export interface ITerminalTab {
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
-	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance | undefined;
+	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
 export interface ITerminalService {
@@ -227,7 +226,7 @@ export interface ITerminalInstance {
 	 * is the processes' exit code, an exit code of null means the process was killed as a result of
 	 * the ITerminalInstance being disposed.
 	 */
-	onExit: Event<number>;
+	onExit: Event<number | undefined>;
 
 	processReady: Promise<void>;
 

@@ -133,7 +133,6 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 			this.socket.end();
 			this.socket = undefined;
 		}
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -178,7 +177,6 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			if (options.env) {
 				env = objects.mixin(env, options.env);
 			}
-			delete env.VSCODE_PREVENT_FOREIGN_INSPECT;
 
 			if (command === 'node') {
 				if (Array.isArray(args) && args.length > 0) {
