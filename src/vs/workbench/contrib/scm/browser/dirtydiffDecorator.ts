@@ -676,7 +676,10 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 
 		const disposables = new DisposableStore();
 		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
-		disposables.add(model.onDidChange(this.onDidModelChange, this));
+		Event.chain(model.onDidChange)
+			.filter(e => e.diff.length > 0)
+			.map(e => e.diff)
+			.event(this.onDidModelChange, this, disposables);
 
 		disposables.add(this.widget);
 		disposables.add(toDisposable(() => {
@@ -979,13 +982,11 @@ export class DirtyDiffModel extends Disposable {
 	private repositoryDisposables = new Set<IDisposable>();
 	private readonly originalModelDisposables = this._register(new DisposableStore());
 
-	private readonly _onDidChange = new Emitter<ISplice<IChange>[]>();
-	readonly onDidChange: Event<ISplice<IChange>[]> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<{ changes: IChange[], diff: ISplice<IChange>[] }>();
+	readonly onDidChange: Event<{ changes: IChange[], diff: ISplice<IChange>[] }> = this._onDidChange.event;
 
 	private _changes: IChange[] = [];
-	get changes(): IChange[] {
-		return this._changes;
-	}
+	get changes(): IChange[] { return this._changes; }
 
 	private _editorModel: ITextModel | null;
 
@@ -1039,10 +1040,7 @@ export class DirtyDiffModel extends Disposable {
 
 				const diff = sortedDiff(this._changes, changes, compareChanges);
 				this._changes = changes;
-
-				if (diff.length > 0) {
-					this._onDidChange.fire(diff);
-				}
+				this._onDidChange.fire({ changes, diff });
 			});
 	}
 
