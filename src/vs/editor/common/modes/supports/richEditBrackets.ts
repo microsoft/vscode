@@ -42,13 +42,14 @@ export class RichEditBrackets {
 	public readonly textIsOpenBracket: { [text: string]: boolean; };
 
 	constructor(languageIdentifier: LanguageIdentifier, brackets: CharacterPair[]) {
-		this.brackets = brackets.map((b) => {
+		brackets = brackets.map(b => [b[0].toLowerCase(), b[1].toLowerCase()]);
+		this.brackets = brackets.map((b, index) => {
 			return new RichEditBracket(
 				languageIdentifier,
 				b[0],
 				b[1],
-				getRegexForBracketPair({ open: b[0], close: b[1] }),
-				getReversedRegexForBracketPair({ open: b[0], close: b[1] })
+				getRegexForBracketPair(b[0], b[1], brackets, index),
+				getReversedRegexForBracketPair(b[0], b[1], brackets, index)
 			);
 		});
 		this.forwardRegex = getRegexForBrackets(this.brackets);
@@ -59,10 +60,10 @@ export class RichEditBrackets {
 
 		let maxBracketLength = 0;
 		this.brackets.forEach((b) => {
-			this.textIsBracket[b.open.toLowerCase()] = b;
-			this.textIsBracket[b.close.toLowerCase()] = b;
-			this.textIsOpenBracket[b.open.toLowerCase()] = true;
-			this.textIsOpenBracket[b.close.toLowerCase()] = false;
+			this.textIsBracket[b.open] = b;
+			this.textIsBracket[b.close] = b;
+			this.textIsOpenBracket[b.open] = true;
+			this.textIsOpenBracket[b.close] = false;
 			maxBracketLength = Math.max(maxBracketLength, b.open.length);
 			maxBracketLength = Math.max(maxBracketLength, b.close.length);
 		});
@@ -81,19 +82,44 @@ function once<T, R>(keyFn: (input: T) => string, computeFn: (input: T) => R): (i
 	};
 }
 
-const getRegexForBracketPair = once<ISimpleInternalBracket, RegExp>(
-	(input) => `${input.open};${input.close}`,
-	(input) => {
-		return createBracketOrRegExp([input.open, input.close]);
+function collectSuperstrings(str: string, brackets: CharacterPair[], currentIndex: number, dest: string[]): void {
+	for (let i = 0, len = brackets.length; i < len; i++) {
+		if (i === currentIndex) {
+			continue;
+		}
+		const [open, close] = brackets[i];
+		if (open.indexOf(str) >= 0) {
+			dest.push(open);
+		}
+		if (close.indexOf(str) >= 0) {
+			dest.push(close);
+		}
 	}
-);
+}
 
-const getReversedRegexForBracketPair = once<ISimpleInternalBracket, RegExp>(
-	(input) => `${input.open};${input.close}`,
-	(input) => {
-		return createBracketOrRegExp([toReversedString(input.open), toReversedString(input.close)]);
-	}
-);
+function lengthcmp(a: string, b: string) {
+	return a.length - b.length;
+}
+
+function getRegexForBracketPair(open: string, close: string, brackets: CharacterPair[], currentIndex: number): RegExp {
+	// search in all brackets for other brackets that are a superstring of these brackets
+	const pieces: string[] = [open, close];
+	collectSuperstrings(open, brackets, currentIndex, pieces);
+	collectSuperstrings(close, brackets, currentIndex, pieces);
+	pieces.sort(lengthcmp);
+	pieces.reverse();
+	return createBracketOrRegExp(pieces);
+}
+
+function getReversedRegexForBracketPair(open: string, close: string, brackets: CharacterPair[], currentIndex: number): RegExp {
+	// search in all brackets for other brackets that are a superstring of these brackets
+	const pieces: string[] = [open, close];
+	collectSuperstrings(open, brackets, currentIndex, pieces);
+	collectSuperstrings(close, brackets, currentIndex, pieces);
+	pieces.sort(lengthcmp);
+	pieces.reverse();
+	return createBracketOrRegExp(pieces.map(toReversedString));
+}
 
 const getRegexForBrackets = once<ISimpleInternalBracket[], RegExp>(
 	(input) => input.map(b => `${b.open};${b.close}`).join(';'),
@@ -121,7 +147,7 @@ const getReversedRegexForBrackets = once<ISimpleInternalBracket[], RegExp>(
 
 function prepareBracketForRegExp(str: string): string {
 	// This bracket pair uses letters like e.g. "begin" - "end"
-	const insertWordBoundaries = (/^[\w]+$/.test(str));
+	const insertWordBoundaries = (/^[\w ]+$/.test(str));
 	str = strings.escapeRegExpCharacters(str);
 	return (insertWordBoundaries ? `\\b${str}\\b` : str);
 }
