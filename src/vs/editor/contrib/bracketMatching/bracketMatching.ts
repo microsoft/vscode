@@ -281,6 +281,14 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			return;
 		}
 
+		const selections = this._editor.getSelections();
+		if (selections.length > 100) {
+			// no bracket matching for high numbers of selections
+			this._lastBracketsData = [];
+			this._lastVersionId = 0;
+			return;
+		}
+
 		const model = this._editor.getModel();
 		const versionId = model.getVersionId();
 		let previousData: BracketsData[] = [];
@@ -288,8 +296,6 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			// use the previous data only if the model is at the same version id
 			previousData = this._lastBracketsData;
 		}
-
-		const selections = this._editor.getSelections();
 
 		let positions: Position[] = [], positionsLen = 0;
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -319,6 +325,9 @@ export class BracketMatchingController extends Disposable implements editorCommo
 				newData[newDataLen++] = previousData[previousIndex];
 			} else {
 				let brackets = model.matchBracket(position);
+				if (!brackets) {
+					brackets = model.findEnclosingBrackets(position);
+				}
 				newData[newDataLen++] = new BracketsData(position, brackets);
 			}
 		}
