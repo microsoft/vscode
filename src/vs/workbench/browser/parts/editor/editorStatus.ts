@@ -278,7 +278,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly screenRedearModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly indentationElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly selectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly encodingElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly encodingElement = Object.keys(SUPPORTED_ENCODINGS).length > 1 ? this._register(new MutableDisposable<IStatusbarEntryAccessor>()) : undefined;
 	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly modeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -437,6 +437,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private updateEncodingElement(text: string | undefined): void {
+		if (!this.encodingElement) {
+			return; // return early if encoding should not show (e.g. in Web we only support utf8)
+		}
+
 		if (!text) {
 			this.encodingElement.clear();
 			return;

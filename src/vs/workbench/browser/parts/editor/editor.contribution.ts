@@ -17,7 +17,7 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -227,7 +227,10 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL), 'Change End of Line Sequence');
-registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
+
+if (Object.keys(SUPPORTED_ENCODINGS).length > 1) {
+	registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
+}
 
 export class QuickOpenActionContributor extends ActionBarContributor {
 	private openToSideActionInstance: OpenToSideFromQuickOpenAction | undefined;
