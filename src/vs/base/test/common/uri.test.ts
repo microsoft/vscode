@@ -442,19 +442,21 @@ suite('URI', () => {
 
 	test('Links in markdown are broken if url contains encoded parameters #79474', function () {
 		this.skip();
-		// fails!!
 		let strIn = 'https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom';
 		let uri1 = URI.parse(strIn);
 		let strOut = uri1.toString();
 		let uri2 = URI.parse(strOut);
 
+		assert.equal(uri1.scheme, uri2.scheme);
+		assert.equal(uri1.authority, uri2.authority);
+		assert.equal(uri1.path, uri2.path);
 		assert.equal(uri1.query, uri2.query);
-		assert.equal(strIn, strOut);
+		assert.equal(uri1.fragment, uri2.fragment);
+		assert.equal(strIn, strOut); // fails here!!
 	});
 
 	test('Uri#parse can break path-component #45515', function () {
 		this.skip();
-		// fails!!
 		let strIn = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
 		let uri1 = URI.parse(strIn);
 		let strOut = uri1.toString();
@@ -465,7 +467,7 @@ suite('URI', () => {
 		assert.equal(uri1.path, uri2.path);
 		assert.equal(uri1.query, uri2.query);
 		assert.equal(uri1.fragment, uri2.fragment);
-		assert.equal(strIn, strOut);
+		assert.equal(strIn, strOut); // fails here!!
 	});
 
 	test('URI - (de)serialize', function () {

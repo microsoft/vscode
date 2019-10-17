@@ -39,7 +39,7 @@ import schemaVersion1 from '../common/jsonSchema_v1';
 import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
 import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -307,7 +307,7 @@ ProblemMatcherRegistry.onMatcherChanged(() => {
 	jsonRegistry.notifySchemaChanged(tasksSchemaId);
 });
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	id: 'task',
 	order: 100,
