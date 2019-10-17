@@ -130,7 +130,13 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
 			{
-				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer, SelectionClipboard],
+				contributions: [
+					{ id: SuggestController.ID, ctor: SuggestController },
+					{ id: SnippetController2.ID, ctor: SnippetController2 },
+					{ id: ContextMenuController.ID, ctor: ContextMenuController },
+					{ id: MenuPreventer.ID, ctor: MenuPreventer },
+					{ id: SelectionClipboard.ID, ctor: SelectionClipboard }
+				],
 				isSimpleWidget: true,
 			});
 		this._register(this.inputWidget);

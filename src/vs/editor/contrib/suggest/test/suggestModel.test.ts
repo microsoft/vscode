@@ -59,7 +59,7 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 			}],
 		),
 	});
-	editor.registerAndInstantiateContribution(SnippetController2);
+	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 	return editor;
 }
 
@@ -679,8 +679,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					super._insertSuggestion(item, false, true, true, false);
 				}
 			}
-			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);
-			editor.registerAndInstantiateContribution(SnippetController2);
+			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl.ID, TestCtrl);
+			editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 
 			await assertEvent(sugget.onDidSuggest, () => {
 				editor.setPosition({ lineNumber: 1, column: 3 });

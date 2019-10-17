@@ -25,7 +25,7 @@ import { InspectTokensNLS } from 'vs/editor/common/standaloneStrings';
 
 class InspectTokensController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.inspectTokens';
+	public static readonly ID = 'editor.contrib.inspectTokens';
 
 	public static get(editor: ICodeEditor): InspectTokensController {
 		return editor.getContribution<InspectTokensController>(InspectTokensController.ID);
@@ -48,10 +48,6 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
 		this._register(this._editor.onDidChangeModelLanguage((e) => this.stop()));
 		this._register(TokenizationRegistry.onDidChange((e) => this.stop()));
-	}
-
-	public getId(): string {
-		return InspectTokensController.ID;
 	}
 
 	public dispose(): void {
@@ -325,7 +321,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerEditorContribution(InspectTokensController);
+registerEditorContribution(InspectTokensController.ID, InspectTokensController);
 registerEditorAction(InspectTokens);
 
 registerThemingParticipant((theme, collector) => {

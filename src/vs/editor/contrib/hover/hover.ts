@@ -29,7 +29,7 @@ import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibi
 
 export class ModesHoverController implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.hover';
+	public static readonly ID = 'editor.contrib.hover';
 
 	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
@@ -212,10 +212,6 @@ export class ModesHoverController implements IEditorContribution {
 		this.contentWidget.startShowingAt(range, mode, focus);
 	}
 
-	public getId(): string {
-		return ModesHoverController.ID;
-	}
-
 	public dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
@@ -262,7 +258,7 @@ class ShowHoverAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ModesHoverController);
+registerEditorContribution(ModesHoverController.ID, ModesHoverController);
 registerEditorAction(ShowHoverAction);
 
 // theming

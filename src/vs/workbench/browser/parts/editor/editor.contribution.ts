@@ -218,7 +218,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
 
 // Register Editor Contributions
-registerEditorContribution(OpenWorkspaceButtonContribution);
+registerEditorContribution(OpenWorkspaceButtonContribution.ID, OpenWorkspaceButtonContribution);
 
 // Register Editor Status
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatus, LifecyclePhase.Ready);

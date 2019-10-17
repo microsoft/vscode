@@ -166,7 +166,7 @@ class ToggleWordWrapAction extends EditorAction {
 
 class ToggleWordWrapController extends Disposable implements IEditorContribution {
 
-	private static readonly _ID = 'editor.contrib.toggleWordWrapController';
+	public static readonly ID = 'editor.contrib.toggleWordWrapController';
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -254,10 +254,6 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			wordWrapMinified: state.configuredWordWrapMinified
 		});
 	}
-
-	public getId(): string {
-		return ToggleWordWrapController._ID;
-	}
 }
 
 function canToggleWordWrap(uri: URI): boolean {
@@ -268,7 +264,7 @@ function canToggleWordWrap(uri: URI): boolean {
 }
 
 
-registerEditorContribution(ToggleWordWrapController);
+registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController);
 
 registerEditorAction(ToggleWordWrapAction);
 

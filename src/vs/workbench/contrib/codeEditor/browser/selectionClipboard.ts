@@ -17,7 +17,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static readonly SELECTION_LENGTH_LIMIT = 65536;
-	private static readonly ID = 'editor.contrib.selectionClipboard';
+	public static readonly ID = 'editor.contrib.selectionClipboard';
 
 	constructor(editor: ICodeEditor, @IClipboardService clipboardService: IClipboardService) {
 		super();
@@ -87,13 +87,9 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 		}
 	}
 
-	public getId(): string {
-		return SelectionClipboard.ID;
-	}
-
 	public dispose(): void {
 		super.dispose();
 	}
 }
 
-registerEditorContribution(SelectionClipboard);
+registerEditorContribution(SelectionClipboard.ID, SelectionClipboard);

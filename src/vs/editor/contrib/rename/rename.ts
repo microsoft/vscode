@@ -97,7 +97,7 @@ export async function rename(model: ITextModel, position: Position, newName: str
 
 class RenameController implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.renameController';
+	public static readonly ID = 'editor.contrib.renameController';
 
 	static get(editor: ICodeEditor): RenameController {
 		return editor.getContribution<RenameController>(RenameController.ID);
@@ -116,10 +116,6 @@ class RenameController implements IEditorContribution {
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		this._renameInputField = new IdleValue(() => this._dispoableStore.add(new RenameInputField(this.editor, this._themeService, this._contextKeyService)));
-	}
-
-	getId(): string {
-		return RenameController.ID;
 	}
 
 	dispose(): void {
@@ -278,7 +274,7 @@ export class RenameAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(RenameController);
+registerEditorContribution(RenameController.ID, RenameController);
 registerEditorAction(RenameAction);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);

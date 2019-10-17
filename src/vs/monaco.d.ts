@@ -2210,10 +2210,6 @@ declare namespace monaco.editor {
 	 */
 	export interface IEditorContribution {
 		/**
-		 * Get a unique identifier for this contribution.
-		 */
-		getId(): string;
-		/**
 		 * Dispose this contribution.
 		 */
 		dispose(): void;

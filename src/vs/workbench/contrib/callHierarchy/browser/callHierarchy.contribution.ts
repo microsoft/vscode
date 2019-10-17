@@ -59,10 +59,6 @@ class CallHierarchyController implements IEditorContribution {
 		this._dispoables.dispose();
 	}
 
-	getId(): string {
-		return CallHierarchyController.Id;
-	}
-
 	async startCallHierarchy(): Promise<void> {
 		this._sessionDisposables.clear();
 
@@ -115,7 +111,7 @@ class CallHierarchyController implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(CallHierarchyController);
+registerEditorContribution(CallHierarchyController.Id, CallHierarchyController);
 
 registerEditorAction(class extends EditorAction {
 

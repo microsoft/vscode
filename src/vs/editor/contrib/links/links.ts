@@ -99,7 +99,7 @@ class LinkOccurrence {
 
 class LinkDetector implements editorCommon.IEditorContribution {
 
-	private static readonly ID: string = 'editor.linkDetector';
+	public static readonly ID: string = 'editor.linkDetector';
 
 	public static get(editor: ICodeEditor): LinkDetector {
 		return editor.getContribution<LinkDetector>(LinkDetector.ID);
@@ -168,10 +168,6 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;
 		this.beginCompute();
-	}
-
-	public getId(): string {
-		return LinkDetector.ID;
 	}
 
 	private onModelChanged(): void {
@@ -390,7 +386,7 @@ class OpenLinkAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(LinkDetector);
+registerEditorContribution(LinkDetector.ID, LinkDetector);
 registerEditorAction(OpenLinkAction);
 
 registerThemingParticipant((theme, collector) => {

@@ -70,7 +70,7 @@ export interface IFindStartOptions {
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.findController';
+	public static readonly ID = 'editor.contrib.findController';
 
 	protected _editor: ICodeEditor;
 	private readonly _findWidgetVisible: IContextKey<boolean>;
@@ -141,10 +141,6 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 			this._model.dispose();
 			this._model = null;
 		}
-	}
-
-	public getId(): string {
-		return CommonFindController.ID;
 	}
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
@@ -735,7 +731,7 @@ export class StartFindReplaceAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(FindController);
+registerEditorContribution(CommonFindController.ID, FindController);
 
 registerEditorAction(StartFindAction);
 registerEditorAction(StartFindWithSelectionAction);

@@ -35,7 +35,7 @@ const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessi
 
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.accessibilityHelpController';
+	public static readonly ID = 'editor.contrib.accessibilityHelpController';
 
 	public static get(editor: ICodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(AccessibilityHelpController.ID);
@@ -52,10 +52,6 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 
 		this._editor = editor;
 		this._widget = this._register(instantiationService.createInstance(AccessibilityHelpWidget, this._editor));
-	}
-
-	public getId(): string {
-		return AccessibilityHelpController.ID;
 	}
 
 	public show(): void {
@@ -299,7 +295,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController);
+registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
 registerEditorAction(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
