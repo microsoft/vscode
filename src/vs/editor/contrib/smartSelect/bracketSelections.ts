@@ -51,7 +51,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				setTimeout(() => BracketSelectionRangeProvider._bracketsRightYield(resolve, round + 1, model, pos, ranges));
 				break;
 			}
-			const key = bracket.close;
+			const key = bracket.close[0];
 			if (bracket.isOpen) {
 				// wait for closing
 				let val = counts.has(key) ? counts.get(key)! : 0;
@@ -96,7 +96,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				setTimeout(() => BracketSelectionRangeProvider._bracketsLeftYield(resolve, round + 1, model, pos, ranges, bucket));
 				break;
 			}
-			const key = bracket.close;
+			const key = bracket.close[0];
 			if (!bracket.isOpen) {
 				// wait for opening
 				let val = counts.has(key) ? counts.get(key)! : 0;

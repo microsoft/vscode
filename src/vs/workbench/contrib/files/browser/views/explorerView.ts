@@ -323,7 +323,7 @@ export class ExplorerView extends ViewletPanel {
 		const explorerNavigator = new TreeResourceNavigator2(this.tree);
 		this._register(explorerNavigator);
 		// Open when selecting via keyboard
-		this._register(explorerNavigator.onDidOpenResource(e => {
+		this._register(explorerNavigator.onDidOpenResource(async e => {
 			const selection = this.tree.getSelection();
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
@@ -335,8 +335,7 @@ export class ExplorerView extends ViewletPanel {
 					return;
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
-					.then(undefined, onUnexpectedError);
+				await this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			}
 		}));
 

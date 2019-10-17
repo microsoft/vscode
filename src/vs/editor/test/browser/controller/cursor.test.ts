@@ -2591,7 +2591,37 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(5, 1));
+			assertCursor(cursor, new Position(4, 1));
+		});
+
+		model.dispose();
+	});
+
+	test('issue #40695: maintain cursor position when copying lines using ctrl+c, ctrl+v', () => {
+		let model = createTextModel(
+			[
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        // Another line',
+				'        return 3;',
+				'    }',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			editor.setSelections([new Selection(4, 10, 4, 10)]);
+			cursorCommand(cursor, H.Paste, { text: '        // I\'m gonna copy this line\n', pasteOnNewLine: true });
+
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        // Another line',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(5, 10));
 		});
 
 		model.dispose();
@@ -4837,6 +4867,32 @@ suite('autoClosingPairs', () => {
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
 
 			assert.equal(model.getValue(), 'è');
+		});
+		mode.dispose();
+	});
+
+	test('issue #53357: Over typing ignores characters after backslash', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'console.log();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [new Selection(1, 13, 1, 13)]);
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'\');');
+
+			cursorCommand(cursor, H.Type, { text: 'it' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\');');
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\\\');');
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\\\'\'\');');
 		});
 		mode.dispose();
 	});

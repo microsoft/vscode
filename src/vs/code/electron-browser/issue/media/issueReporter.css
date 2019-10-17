@@ -352,7 +352,7 @@ a {
 	text-overflow: ellipsis;
 }
 
-.issues-container > .issue > .issue-state .octicon {
+.issues-container > .issue > .issue-state .codicon {
 	width: 16px;
 }
 

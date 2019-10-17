@@ -462,6 +462,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: 750,
 			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled.")
 		},
+		'diffEditor.maxComputationTime': {
+			type: 'number',
+			default: 5000,
+			description: nls.localize('maxComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
+		},
 		'diffEditor.renderSideBySide': {
 			type: 'boolean',
 			default: true,

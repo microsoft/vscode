@@ -864,6 +864,11 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	readonly renderIndicators: boolean;
+	/**
+	 * Timeout in milliseconds after which diff computation is cancelled.
+	 * @internal
+	 */
+	readonly maxComputationTime: number;
 
 	/**
 	 * @see ICodeEditor.getDomNode

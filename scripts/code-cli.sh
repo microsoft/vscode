@@ -22,8 +22,7 @@ function code() {
 	test -d node_modules || yarn
 
 	# Get electron
-	node build/lib/electron.js || ./node_modules/.bin/gulp electron
-
+	yarn electron
 
 	# Manage built-in extensions
 	if [[ "$1" == "--builtin" ]]; then

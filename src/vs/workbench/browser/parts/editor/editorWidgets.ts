@@ -101,7 +101,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 		return editor.getContribution<OpenWorkspaceButtonContribution>(OpenWorkspaceButtonContribution.ID);
 	}
 
-	private static readonly ID = 'editor.contrib.openWorkspaceButton';
+	public static readonly ID = 'editor.contrib.openWorkspaceButton';
 
 	private openWorkspaceButton: FloatingClickWidget | undefined;
 
@@ -120,10 +120,6 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 
 	private registerListeners(): void {
 		this._register(this.editor.onDidChangeModel(e => this.update()));
-	}
-
-	getId(): string {
-		return OpenWorkspaceButtonContribution.ID;
 	}
 
 	private update(): void {

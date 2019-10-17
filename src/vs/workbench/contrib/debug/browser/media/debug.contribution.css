@@ -14,6 +14,7 @@
 
 .debug-breakpoint-hint {
 	background: url('breakpoint-hint.svg') center center no-repeat;
+	cursor: pointer;
 }
 
 .debug-breakpoint-disabled,

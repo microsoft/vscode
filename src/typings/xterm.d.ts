@@ -83,6 +83,16 @@ declare module 'xterm' {
 		drawBoldTextInBrightColors?: boolean;
 
 		/**
+		 * The modifier key hold to multiply scroll speed.
+		 */
+		fastScrollModifier?: 'alt' | 'ctrl' | 'shift' | undefined;
+
+		/**
+		 * The scroll speed multiplier used for fast scrolling.
+		 */
+		fastScrollSensitivity?: number;
+
+		/**
 		 * The font size used to render text.
 		 */
 		fontSize?: number;
@@ -352,12 +362,12 @@ declare module 'xterm' {
 		/**
 		 * The element containing the terminal.
 		 */
-		readonly element: HTMLElement;
+		readonly element: HTMLElement | undefined;
 
 		/**
 		 * The textarea that accepts input for the terminal.
 		 */
-		readonly textarea: HTMLTextAreaElement;
+		readonly textarea: HTMLTextAreaElement | undefined;
 
 		/**
 		 * The number of rows in the terminal's viewport. Use

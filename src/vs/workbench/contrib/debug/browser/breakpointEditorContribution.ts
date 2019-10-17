@@ -145,10 +145,6 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
 	}
 
-	getId(): string {
-		return BREAKPOINT_EDITOR_CONTRIBUTION_ID;
-	}
-
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			const data = e.target.detail as IMarginData;
@@ -221,7 +217,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
 			let showBreakpointHintAtLineNumber = -1;
 			const model = this.editor.getModel();
-			if (model && e.target.position && e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
+			if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
 				this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 				const data = e.target.detail as IMarginData;
 				if (!data.isAfterLines) {
@@ -587,4 +583,4 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 	}
 }
 
-registerEditorContribution(BreakpointEditorContribution);
+registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointEditorContribution);

@@ -43,8 +43,7 @@ class WebviewIconsManager {
 			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
 			if (URI.isUri(value)) {
 				cssRules.push(`${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value)}; }`);
-			}
-			else {
+			} else {
 				cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`);
 				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`);
 			}
@@ -130,15 +129,15 @@ export class WebviewInput extends EditorInput {
 		return this._group;
 	}
 
+	public updateGroup(group: GroupIdentifier): void {
+		this._group = group;
+	}
+
 	public async resolve(): Promise<IEditorModel> {
 		return new EditorModel();
 	}
 
 	public supportsSplitEditor() {
 		return false;
-	}
-
-	public updateGroup(group: GroupIdentifier): void {
-		this._group = group;
 	}
 }

@@ -224,7 +224,6 @@ export class Separator extends Action {
 	constructor(label?: string) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
 		this.checked = false;
-		this.radio = false;
 		this.enabled = false;
 	}
 }

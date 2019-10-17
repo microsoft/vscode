@@ -250,7 +250,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
 	private indentGuidesDisposable: IDisposable = Disposable.None;
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
@@ -458,7 +458,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		this.renderedNodes.clear();
 		this.renderedElements.clear();
 		this.indentGuidesDisposable.dispose();
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
 	}
 }
 
@@ -471,7 +471,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
 
 	private _pattern: string = '';
 	private _lowercasePattern: string = '';
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	set pattern(pattern: string) {
 		this._pattern = pattern;
@@ -546,7 +546,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
 	}
 }
 
@@ -581,8 +581,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private readonly _onDidChangePattern = new Emitter<string>();
 	readonly onDidChangePattern = this._onDidChangePattern.event;
 
-	private enabledDisposables: IDisposable[] = [];
-	private disposables: IDisposable[] = [];
+	private readonly enabledDisposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private tree: AbstractTree<T, TFilterData, any>,
@@ -682,7 +682,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		}
 
 		this.domNode.remove();
-		this.enabledDisposables = dispose(this.enabledDisposables);
+		this.enabledDisposables.clear();
 		this.tree.refilter();
 		this.render();
 		this._enabled = false;
@@ -744,7 +744,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const containerWidth = container.clientWidth;
 		const midContainerWidth = containerWidth / 2;
 		const width = this.domNode.clientWidth;
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 		let positionClassName = this.positionClassName;
 
 		const updatePosition = () => {
@@ -790,13 +790,13 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		removeClass(this.domNode, positionClassName);
 
 		addClass(this.domNode, 'dragging');
-		disposables.push(toDisposable(() => removeClass(this.domNode, 'dragging')));
+		disposables.add(toDisposable(() => removeClass(this.domNode, 'dragging')));
 
 		domEvent(document, 'dragover')(onDragOver, null, disposables);
 		domEvent(this.domNode, 'dragend')(onDragEnd, null, disposables);
 
 		StaticDND.CurrentDragAndDropData = new DragAndDropData('vscode-ui');
-		disposables.push(toDisposable(() => StaticDND.CurrentDragAndDropData = undefined));
+		disposables.add(toDisposable(() => StaticDND.CurrentDragAndDropData = undefined));
 	}
 
 	private onDidSpliceModel(): void {
@@ -857,13 +857,13 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	dispose() {
 		if (this._enabled) {
 			this.domNode.remove();
-			this.enabledDisposables = dispose(this.enabledDisposables);
+			this.enabledDisposables.dispose();
 			this._enabled = false;
 			this.triggered = false;
 		}
 
 		this._onDidChangePattern.dispose();
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
 	}
 }
 
@@ -1181,7 +1181,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private typeFilterController?: TypeFilterController<T, TFilterData>;
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	private styleElement: HTMLStyleElement;
-	protected disposables: IDisposable[] = [];
+	protected readonly disposables = new DisposableStore();
 
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 
@@ -1230,16 +1230,17 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
 		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
 		const activeNodes = new EventCollection(onDidChangeActiveNodes.event);
-
 		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, _options));
-		this.disposables.push(...this.renderers);
+		for (let r of this.renderers) {
+			this.disposables.add(r);
+		}
 
 		let filter: TypeFilter<T> | undefined;
 
 		if (_options.keyboardNavigationLabelProvider) {
 			filter = new TypeFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as any as ITreeFilter<T, FuzzyScore>);
 			_options = { ..._options, filter: filter as ITreeFilter<T, TFilterData> }; // TODO need typescript help here
-			this.disposables.push(filter);
+			this.disposables.add(filter);
 		}
 
 		this.focus = new Trait(_options.identityProvider);
@@ -1293,7 +1294,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			const delegate = _options.keyboardNavigationDelegate || DefaultKeyboardNavigationDelegate;
 			this.typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, delegate);
 			this.focusNavigationFilter = node => this.typeFilterController!.shouldAllowFocus(node);
-			this.disposables.push(this.typeFilterController!);
+			this.disposables.add(this.typeFilterController!);
 		}
 
 		this.styleElement = createStyleSheet(this.view.getHTMLElement());
@@ -1647,7 +1648,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
 		this.view.dispose();
 	}
 }

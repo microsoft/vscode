@@ -127,7 +127,7 @@ export abstract class Part extends Component implements ISerializableView {
 	private _onDidChange = this._register(new Emitter<IViewSize | undefined>());
 	get onDidChange(): Event<IViewSize | undefined> { return this._onDidChange.event; }
 
-	element: HTMLElement;
+	element!: HTMLElement;
 
 	abstract minimumWidth: number;
 	abstract maximumWidth: number;

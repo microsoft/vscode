@@ -556,7 +556,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 export class DirtyDiffController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.dirtydiff';
+	public static readonly ID = 'editor.contrib.dirtydiff';
 
 	static get(editor: ICodeEditor): DirtyDiffController {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
@@ -586,10 +586,6 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			this._register(editor.onMouseUp(e => this.onEditorMouseUp(e)));
 			this._register(editor.onDidChangeModel(() => this.close()));
 		}
-	}
-
-	getId(): string {
-		return DirtyDiffController.ID;
 	}
 
 	canNavigate(): boolean {
@@ -676,7 +672,10 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 
 		const disposables = new DisposableStore();
 		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
-		disposables.add(model.onDidChange(this.onDidModelChange, this));
+		Event.chain(model.onDidChange)
+			.filter(e => e.diff.length > 0)
+			.map(e => e.diff)
+			.event(this.onDidModelChange, this, disposables);
 
 		disposables.add(this.widget);
 		disposables.add(toDisposable(() => {
@@ -979,13 +978,11 @@ export class DirtyDiffModel extends Disposable {
 	private repositoryDisposables = new Set<IDisposable>();
 	private readonly originalModelDisposables = this._register(new DisposableStore());
 
-	private readonly _onDidChange = new Emitter<ISplice<IChange>[]>();
-	readonly onDidChange: Event<ISplice<IChange>[]> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<{ changes: IChange[], diff: ISplice<IChange>[] }>();
+	readonly onDidChange: Event<{ changes: IChange[], diff: ISplice<IChange>[] }> = this._onDidChange.event;
 
 	private _changes: IChange[] = [];
-	get changes(): IChange[] {
-		return this._changes;
-	}
+	get changes(): IChange[] { return this._changes; }
 
 	private _editorModel: ITextModel | null;
 
@@ -1039,10 +1036,7 @@ export class DirtyDiffModel extends Disposable {
 
 				const diff = sortedDiff(this._changes, changes, compareChanges);
 				this._changes = changes;
-
-				if (diff.length > 0) {
-					this._onDidChange.fire(diff);
-				}
+				this._onDidChange.fire({ changes, diff });
 			});
 	}
 
@@ -1206,6 +1200,10 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		const onDidChangeDiffWidthConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterWidth'));
 		onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this);
 		this.onDidChangeDiffWidthConfiguration();
+
+		const onDidChangeDiffVisibilityConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterVisibility'));
+		onDidChangeDiffVisibilityConfiguration(this.onDidChangeDiffVisibiltiyConfiguration, this);
+		this.onDidChangeDiffVisibiltiyConfiguration();
 	}
 
 	private onDidChangeConfiguration(): void {
@@ -1226,6 +1224,16 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		}
 
 		this.stylesheet.innerHTML = `.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${width}px;}`;
+	}
+
+	private onDidChangeDiffVisibiltiyConfiguration(): void {
+		const visibility = this.configurationService.getValue<string>('scm.diffDecorationsGutterVisibility');
+
+		this.stylesheet.innerHTML = `
+			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
+				opacity: ${visibility === 'always' ? 1 : 0};
+			}
+		`;
 	}
 
 	private enable(): void {
@@ -1307,7 +1315,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	}
 }
 
-registerEditorContribution(DirtyDiffController);
+registerEditorContribution(DirtyDiffController.ID, DirtyDiffController);
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
@@ -1315,9 +1323,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-modified {
 				border-left: 3px solid ${editorGutterModifiedBackgroundColor};
+				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-modified:before {
 				background: ${editorGutterModifiedBackgroundColor};
+			}
+			.monaco-editor .margin:hover .dirty-diff-modified {
+				opacity: 1;
 			}
 		`);
 	}
@@ -1327,9 +1339,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-added {
 				border-left: 3px solid ${editorGutterAddedBackgroundColor};
+				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-added:before {
 				background: ${editorGutterAddedBackgroundColor};
+			}
+			.monaco-editor .margin:hover .dirty-diff-added {
+				opacity: 1;
 			}
 		`);
 	}
@@ -1339,9 +1355,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-deleted:after {
 				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
+				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-deleted:before {
 				background: ${editorGutteDeletedBackgroundColor};
+			}
+			.monaco-editor .margin:hover .dirty-diff-added {
+				opacity: 1;
 			}
 		`);
 	}

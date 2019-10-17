@@ -9,7 +9,7 @@ import { LinkedMap } from 'vs/base/common/map';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskSummary, TaskTerminateResponse, TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -71,7 +71,7 @@ export interface ITaskService {
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
-	getTask(workspaceFolder: IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Promise<Task | undefined>;
+	getTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Promise<Task | undefined>;
 	getTasksForGroup(group: string): Promise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 	createSorter(): TaskSorter;

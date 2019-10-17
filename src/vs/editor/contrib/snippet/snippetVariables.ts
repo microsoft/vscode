@@ -46,6 +46,8 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'LINE_COMMENT': true,
 	'WORKSPACE_NAME': true,
 	'WORKSPACE_FOLDER': true,
+	'RANDOM': true,
+	'RANDOM_HEX': true,
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -314,5 +316,20 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
 		}
 		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
+	}
+}
+
+export class RandomBasedVariableResolver implements VariableResolver {
+	resolve(variable: Variable): string | undefined {
+		const { name } = variable;
+
+		if (name === 'RANDOM') {
+			return Math.random().toString().slice(-6);
+		}
+		else if (name === 'RANDOM_HEX') {
+			return Math.random().toString(16).slice(-6);
+		}
+
+		return undefined;
 	}
 }

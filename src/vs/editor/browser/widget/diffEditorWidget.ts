@@ -44,8 +44,9 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDiffLinesChange, InlineDiffMargin } from 'vs/editor/browser/widget/inlineDiffMargin';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Constants } from 'vs/base/common/uint';
-import { IDiffEditorContributionCtor, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -168,6 +169,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly id: number;
 	private _state: editorBrowser.DiffEditorState;
+	private _updatingDiffProgress: IProgressRunner | null;
 
 	private readonly _domElement: HTMLElement;
 	protected readonly _containerDomElement: HTMLElement;
@@ -201,6 +203,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _originalIsEditable: boolean;
 
 	private _renderSideBySide: boolean;
+	private _maxComputationTime: number;
 	private _renderIndicators: boolean;
 	private _enableSplitViewResizing: boolean;
 	private _strategy!: IDiffEditorWidgetStyle;
@@ -226,6 +229,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService
 	) {
 		super();
 
@@ -238,6 +242,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this.id = (++DIFF_EDITOR_ID);
 		this._state = editorBrowser.DiffEditorState.Idle;
+		this._updatingDiffProgress = null;
 
 		this._domElement = domElement;
 		options = options || {};
@@ -246,6 +251,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._renderSideBySide = true;
 		if (typeof options.renderSideBySide !== 'undefined') {
 			this._renderSideBySide = options.renderSideBySide;
+		}
+
+		// maxComputationTime
+		this._maxComputationTime = 5000;
+		if (typeof options.maxComputationTime !== 'undefined') {
+			this._maxComputationTime = options.maxComputationTime;
 		}
 
 		// ignoreTrimWhitespace
@@ -369,10 +380,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getTheme(), this._renderSideBySide);
 		}));
 
-		const contributions: IDiffEditorContributionCtor[] = EditorExtensionsRegistry.getDiffEditorContributions();
-		for (const ctor of contributions) {
+		const contributions: IDiffEditorContributionDescription[] = EditorExtensionsRegistry.getDiffEditorContributions();
+		for (const desc of contributions) {
 			try {
-				this._register(instantiationService.createInstance(ctor, this));
+				this._register(instantiationService.createInstance(desc.ctor, this));
 			} catch (err) {
 				onUnexpectedError(err);
 			}
@@ -389,15 +400,28 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._renderSideBySide;
 	}
 
+	public get maxComputationTime(): number {
+		return this._maxComputationTime;
+	}
+
 	public get renderIndicators(): boolean {
 		return this._renderIndicators;
 	}
 
 	private _setState(newState: editorBrowser.DiffEditorState): void {
-		if (this._state !== newState) {
+		if (this._state === newState) {
 			return;
 		}
 		this._state = newState;
+
+		if (this._updatingDiffProgress) {
+			this._updatingDiffProgress.done();
+			this._updatingDiffProgress = null;
+		}
+
+		if (this._state === editorBrowser.DiffEditorState.ComputingDiff) {
+			this._updatingDiffProgress = this._editorProgressService.show(true, 1000);
+		}
 	}
 
 	public hasWidgetFocus(): boolean {
@@ -607,6 +631,13 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			if (this._renderSideBySide !== newOptions.renderSideBySide) {
 				this._renderSideBySide = newOptions.renderSideBySide;
 				renderSideBySideChanged = true;
+			}
+		}
+
+		if (typeof newOptions.maxComputationTime !== 'undefined') {
+			this._maxComputationTime = newOptions.maxComputationTime;
+			if (this._isVisible) {
+				this._beginUpdateDecorationsSoon();
 			}
 		}
 
@@ -955,7 +986,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			return;
 		}
 
-		this._editorWorkerService.computeDiff(currentOriginalModel.uri, currentModifiedModel.uri, this._ignoreTrimWhitespace).then((result) => {
+		this._editorWorkerService.computeDiff(currentOriginalModel.uri, currentModifiedModel.uri, this._ignoreTrimWhitespace, this._maxComputationTime).then((result) => {
 			if (currentToken === this._diffComputationToken
 				&& currentOriginalModel === this.originalEditor.getModel()
 				&& currentModifiedModel === this.modifiedEditor.getModel()

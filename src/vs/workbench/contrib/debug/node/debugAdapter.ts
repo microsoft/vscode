@@ -133,7 +133,6 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 			this.socket.end();
 			this.socket = undefined;
 		}
-		return Promise.resolve(undefined);
 	}
 }
 

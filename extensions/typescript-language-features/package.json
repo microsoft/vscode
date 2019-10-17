@@ -685,6 +685,12 @@
           "default": true,
           "description": "%configuration.tsserver.useSeparateSyntaxServer%",
           "scope": "window"
+        },
+        "typescript.tsserver.maxTsServerMemory": {
+          "type": "number",
+          "default": 0,
+          "description": "%configuration.tsserver.maxTsServerMemory%",
+          "scope": "window"
         }
       }
     },

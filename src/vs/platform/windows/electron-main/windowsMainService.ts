@@ -224,13 +224,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// React to HC color scheme changes (Windows)
 		if (isWindows) {
-			systemPreferences.on('inverted-color-scheme-changed', () => {
-				if (systemPreferences.isInvertedColorScheme()) {
+			const onHighContrastChange = () => {
+				if (systemPreferences.isInvertedColorScheme() || systemPreferences.isHighContrastColorScheme()) {
 					this.sendToAll('vscode:enterHighContrast');
 				} else {
 					this.sendToAll('vscode:leaveHighContrast');
 				}
-			});
+			};
+
+			systemPreferences.on('inverted-color-scheme-changed', () => onHighContrastChange());
+			systemPreferences.on('high-contrast-color-scheme-changed', () => onHighContrastChange());
 		}
 
 		// Handle various lifecycle events around windows

@@ -522,7 +522,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const tip = this._importantExeBasedRecommendations[extensionId];
 
 			/* __GDPR__
-			exeExtensionRecommendations:alreadyInstalled" : {
+			"exeExtensionRecommendations:alreadyInstalled" : {
 				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 				"exeName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 			}

@@ -1488,8 +1488,8 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState)
 			});
 
-		this.disposables = [];
-		this.disposables.push(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+		this.disposables.clear();
+		this.disposables.add(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
 				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
@@ -1539,7 +1539,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 
 		this.getHTMLElement().classList.add(treeClass);
 
-		this.disposables.push(attachStyler(themeService, {
+		this.disposables.add(attachStyler(themeService, {
 			listActiveSelectionBackground: transparent(Color.white, 0),
 			listActiveSelectionForeground: foreground,
 			listFocusAndSelectionBackground: transparent(Color.white, 0),

@@ -60,7 +60,7 @@ export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
 export const STOP_LABEL = nls.localize('stop', "Stop");
 export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
 
-function getThreadAndRun(accessor: ServicesAccessor, threadId: number | any, run: (thread: IThread) => Promise<void>): void {
+async function getThreadAndRun(accessor: ServicesAccessor, threadId: number | any, run: (thread: IThread) => Promise<void>): Promise<void> {
 	const debugService = accessor.get(IDebugService);
 	let thread: IThread | undefined;
 	if (typeof threadId === 'number') {
@@ -79,7 +79,7 @@ function getThreadAndRun(accessor: ServicesAccessor, threadId: number | any, run
 	}
 
 	if (thread) {
-		run(thread).then(undefined, onUnexpectedError);
+		await run(thread);
 	}
 }
 
@@ -449,14 +449,11 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
-		handler: (accessor) => {
+		handler: async (accessor) => {
 			const viewletService = accessor.get(IViewletService);
-			return viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-				.then(viewlet => viewlet as IExtensionsViewlet)
-				.then(viewlet => {
-					viewlet.search('tag:debuggers @sort:installs');
-					viewlet.focus();
-				});
+			const viewlet = await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true) as IExtensionsViewlet;
+			viewlet.search('tag:debuggers @sort:installs');
+			viewlet.focus();
 		}
 	});
 
@@ -465,24 +462,23 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
-		handler: (accessor, launchUri: string) => {
+		handler: async (accessor, launchUri: string) => {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
 			if (accessor.get(IWorkspaceContextService).getWorkbenchState() === WorkbenchState.EMPTY) {
 				accessor.get(INotificationService).info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-				return undefined;
+				return;
 			}
-			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
 
-			return launch!.openConfigFile(false, false).then(({ editor, created }) => {
+			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
+			if (launch) {
+				const { editor, created } = await launch.openConfigFile(false, false);
 				if (editor && !created) {
 					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {
-						return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
+						await codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
 					}
 				}
-
-				return undefined;
-			});
+			}
 		}
 	});
 

@@ -59,8 +59,8 @@ const enum WindowError {
 
 export class CodeWindow extends Disposable implements ICodeWindow {
 
-	private static readonly MIN_WIDTH = 200;
-	private static readonly MIN_HEIGHT = 120;
+	private static readonly MIN_WIDTH = 600;
+	private static readonly MIN_HEIGHT = 600;
 
 	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
