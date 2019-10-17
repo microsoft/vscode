@@ -1747,7 +1747,7 @@ export class CommandCenter {
 
 		const remoteRefs = repository.refs;
 		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
-		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name })) as { label: string; description: string }[];
+		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name! }));
 		const branchPlaceHolder = localize('pick branch pull', "Pick a branch to pull from");
 		const branchPick = await window.showQuickPick(branchPicks, { placeHolder: branchPlaceHolder });
 
@@ -1854,15 +1854,24 @@ export class CommandCenter {
 			}
 		} else {
 			const branchName = repository.HEAD.name;
-			const picks = remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl! }));
+			const addRemote = new AddRemoteItem(this);
+			const picks = [...remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
 			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-			const pick = await window.showQuickPick(picks, { placeHolder });
+			const choice = await window.showQuickPick(picks, { placeHolder });
 
-			if (!pick) {
+			if (!choice) {
 				return;
 			}
 
-			await repository.pushTo(pick.label, branchName, undefined, forcePushMode);
+			if (choice === addRemote) {
+				const newRemote = await this.addRemote(repository);
+
+				if (newRemote) {
+					await repository.pushTo(newRemote, branchName, undefined, forcePushMode);
+				}
+			} else {
+				await repository.pushTo(choice.label, branchName, undefined, forcePushMode);
+			}
 		}
 	}
 
@@ -2057,10 +2066,8 @@ export class CommandCenter {
 		}
 
 		const addRemote = new AddRemoteItem(this);
-
+		const picks = [...repository.remotes.map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
 		const branchName = repository.HEAD && repository.HEAD.name || '';
-
-		const picks = [...repository.remotes.map(r => ({ label: r.name, description: '' })), addRemote];
 		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
@@ -2068,19 +2075,15 @@ export class CommandCenter {
 			return;
 		}
 
-		let remote = choice.label;
-
 		if (choice === addRemote) {
 			const newRemote = await this.addRemote(repository);
 
 			if (newRemote) {
-				remote = newRemote;
-			} else {
-				return;
+				await repository.pushTo(newRemote, branchName, true);
 			}
+		} else {
+			await repository.pushTo(choice.label, branchName, true);
 		}
-
-		await repository.pushTo(remote, branchName, true);
 	}
 
 	@command('git.ignore')
