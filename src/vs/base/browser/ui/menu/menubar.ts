@@ -274,6 +274,10 @@ export class MenuBar extends Disposable {
 			}));
 
 			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_UP, (e) => {
+				if (e.defaultPrevented) {
+					return;
+				}
+
 				if (!this.ignoreNextMouseUp) {
 					if (this.isFocused) {
 						this.onMenuTriggered(menuIndex, true);

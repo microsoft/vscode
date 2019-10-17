@@ -16,7 +16,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 
@@ -66,9 +66,6 @@ export class Menu extends ActionBar {
 	private readonly menuDisposables: DisposableStore;
 	private scrollableElement: DomScrollableElement;
 	private menuElement: HTMLElement;
-	private scrollTopHold: number | undefined;
-
-	private readonly _onScroll: Emitter<void>;
 
 	constructor(container: HTMLElement, actions: ReadonlyArray<IAction>, options: IMenuOptions = {}) {
 		addClass(container, 'monaco-menu-container');
@@ -87,8 +84,6 @@ export class Menu extends ActionBar {
 		});
 
 		this.menuElement = menuElement;
-
-		this._onScroll = this._register(new Emitter<void>());
 
 		this.actionsList.setAttribute('role', 'menu');
 
@@ -153,15 +148,9 @@ export class Menu extends ActionBar {
 			let relatedTarget = e.relatedTarget as HTMLElement;
 			if (!isAncestor(relatedTarget, this.domNode)) {
 				this.focusedItem = undefined;
-				this.scrollTopHold = this.menuElement.scrollTop;
 				this.updateFocus();
 				e.stopPropagation();
 			}
-		}));
-
-		this._register(addDisposableListener(this.domNode, EventType.MOUSE_UP, e => {
-			// Absorb clicks in menu dead space https://github.com/Microsoft/vscode/issues/63575
-			EventHelper.stop(e, true);
 		}));
 
 		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OVER, e => {
@@ -176,7 +165,6 @@ export class Menu extends ActionBar {
 
 			if (hasClass(target, 'action-item')) {
 				const lastFocusedItem = this.focusedItem;
-				this.scrollTopHold = this.menuElement.scrollTop;
 				this.setFocusedItem(target);
 
 				if (lastFocusedItem !== this.focusedItem) {
@@ -191,8 +179,6 @@ export class Menu extends ActionBar {
 
 		this.mnemonics = new Map<string, Array<BaseMenuActionViewItem>>();
 
-		this.push(actions, { icon: true, label: true, isMenu: true });
-
 		// Scroll Logic
 		this.scrollableElement = this._register(new DomScrollableElement(menuElement, {
 			alwaysConsumeMouseWheel: true,
@@ -206,19 +192,15 @@ export class Menu extends ActionBar {
 		const scrollElement = this.scrollableElement.getDomNode();
 		scrollElement.style.position = '';
 
+		this._register(addDisposableListener(scrollElement, EventType.MOUSE_UP, e => {
+			// Absorb clicks in menu dead space https://github.com/Microsoft/vscode/issues/63575
+			// We do this on the scroll element so the scroll bar doesn't dismiss the menu either
+			e.preventDefault();
+		}));
+
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
 
-		this.menuDisposables.add(this.scrollableElement.onScroll(() => {
-			this._onScroll.fire();
-		}, this));
-
-		this._register(addDisposableListener(this.menuElement, EventType.SCROLL, (e: ScrollEvent) => {
-			if (this.scrollTopHold !== undefined) {
-				this.menuElement.scrollTop = this.scrollTopHold;
-				this.scrollTopHold = undefined;
-			}
-			this.scrollableElement.scanDomNode();
-		}));
+		this.push(actions, { icon: true, label: true, isMenu: true });
 
 		container.appendChild(this.scrollableElement.getDomNode());
 		this.scrollableElement.scanDomNode();
@@ -254,8 +236,8 @@ export class Menu extends ActionBar {
 		return this.scrollableElement.getDomNode();
 	}
 
-	get onScroll(): Event<void> {
-		return this._onScroll.event;
+	get onScroll(): Event<ScrollEvent> {
+		return this.scrollableElement.onScroll;
 	}
 
 	get scrollOffset(): number {
@@ -292,6 +274,19 @@ export class Menu extends ActionBar {
 				this.focusedItem = i;
 				break;
 			}
+		}
+	}
+
+	protected updateFocus(fromRight?: boolean): void {
+		super.updateFocus(fromRight, true);
+
+		if (typeof this.focusedItem !== 'undefined') {
+			// Workaround for #80047 caused by an issue in chromium
+			// https://bugs.chromium.org/p/chromium/issues/detail?id=414283
+			// When that's fixed, just call this.scrollableElement.scanDomNode()
+			this.scrollableElement.setScrollPosition({
+				scrollTop: Math.round(this.menuElement.scrollTop)
+			});
 		}
 	}
 
