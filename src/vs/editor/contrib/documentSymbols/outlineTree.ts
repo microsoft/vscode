@@ -274,24 +274,35 @@ export class OutlineDataSource implements IDataSource<OutlineModel, OutlineItem>
 	}
 }
 
-
-export const OUTLINE_DEFAULT_SYMBOL_FOREGROUND = registerColor('outlineDefaultSymbol.foreground', {
+export const OUTLINE_ARRAY_SYMBOL_FOREGROUND = registerColor('outlineArraySymbol.foreground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineDefaultSymbol.foreground', 'The foreground color for default symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('outlineArraySymbol.foreground', 'The foreground color for array symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_METHOD_SYMBOL_FOREGROUND = registerColor('outlineMethodSymbol.foreground', {
-	dark: '#B180D7',
-	light: '#652D90',
-	hc: '#B180D7'
-}, localize('outlineMethodSymbol.foreground', 'The foreground color for method symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+export const OUTLINE_BOOLEAN_SYMBOL_FOREGROUND = registerColor('outlineBooleanSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineBooleanSymbol.foreground', 'The foreground color for boolean symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
 export const OUTLINE_CLASS_SYMBOL_FOREGROUND = registerColor('outlineClassSymbol.foreground', {
 	dark: '#EE9D28',
 	light: '#D67E00',
 	hc: '#EE9D28'
 }, localize('outlineClassSymbol.foreground', 'The foreground color for class symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_CONSTANT_SYMBOL_FOREGROUND = registerColor('outlineContstantSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineContstantSymbol.foreground', 'The foreground color for contstant symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_CONSTRUCTOR_SYMBOL_FOREGROUND = registerColor('outlineConstructorSymbol.foreground', {
+	dark: '#B180D7',
+	light: '#652D90',
+	hc: '#B180D7'
+}, localize('outlineConstructorSymbol.foreground', 'The foreground color for constructor symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
 export const OUTLINE_ENUMERATOR_SYMBOL_FOREGROUND = registerColor('outlineEnumeratorSymbol.foreground', {
 	dark: '#EE9D28',
@@ -317,11 +328,101 @@ export const OUTLINE_FIELD_SYMBOL_FOREGROUND = registerColor('outlineFieldSymbol
 	hc: '#75BEFF'
 }, localize('outlineFieldSymbol.foreground', 'The foreground color for field symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
+export const OUTLINE_FILE_SYMBOL_FOREGROUND = registerColor('outlineFileSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineFileSymbol.foreground', 'The foreground color for file symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_FUNCTION_SYMBOL_FOREGROUND = registerColor('outlineFunctionSymbol.foreground', {
+	dark: '#B180D7',
+	light: '#652D90',
+	hc: '#B180D7'
+}, localize('outlineFunctionSymbol.foreground', 'The foreground color for function symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
 export const OUTLINE_INTERFACE_SYMBOL_FOREGROUND = registerColor('outlineInterfaceSymbol.foreground', {
 	dark: '#75BEFF',
 	light: '#007ACC',
 	hc: '#75BEFF'
 }, localize('outlineInterfaceSymbol.foreground', 'The foreground color for interface symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_KEY_SYMBOL_FOREGROUND = registerColor('outlineKeySymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineKeySymbol.foreground', 'The foreground color for key symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_METHOD_SYMBOL_FOREGROUND = registerColor('outlineMethodSymbol.foreground', {
+	dark: '#B180D7',
+	light: '#652D90',
+	hc: '#B180D7'
+}, localize('outlineMethodSymbol.foreground', 'The foreground color for method symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_MODULE_SYMBOL_FOREGROUND = registerColor('outlineModuleSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineModuleSymbol.foreground', 'The foreground color for module symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_NAMESPACE_SYMBOL_FOREGROUND = registerColor('outlineNamespaceSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineNamespaceSymbol.foreground', 'The foreground color for namespace symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_NULL_SYMBOL_FOREGROUND = registerColor('outlineNullSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineNullSymbol.foreground', 'The foreground color for null symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_NUMBER_SYMBOL_FOREGROUND = registerColor('outlineNumberSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineNumberSymbol.foreground', 'The foreground color for number symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_OBJECT_SYMBOL_FOREGROUND = registerColor('outlineObjectSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineObjectSymbol.foreground', 'The foreground color for object symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_OPERATOR_SYMBOL_FOREGROUND = registerColor('outlineOperatorSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineOperatorSymbol.foreground', 'The foreground color for operator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_PACKAGE_SYMBOL_FOREGROUND = registerColor('outlinePackageSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlinePackageSymbol.foreground', 'The foreground color for package symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_PROPERTY_SYMBOL_FOREGROUND = registerColor('outlinePropertySymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlinePropertySymbol.foreground', 'The foreground color for property symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_STRING_SYMBOL_FOREGROUND = registerColor('outlineStringSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineStringSymbol.foreground', 'The foreground color for string symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_STRUCT_SYMBOL_FOREGROUND = registerColor('outlineStructSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineStructSymbol.foreground', 'The foreground color for struct symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const OUTLINE_TYPEPARAMETER_SYMBOL_FOREGROUND = registerColor('outlineTypeParameterSymbol.foreground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, localize('outlineTypeParameterSymbol.foreground', 'The foreground color for type parameter symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
 export const OUTLINE_VARIABLE_SYMBOL_FOREGROUND = registerColor('outlineVariableSymbol.foreground', {
 	dark: '#75BEFF',
@@ -331,22 +432,20 @@ export const OUTLINE_VARIABLE_SYMBOL_FOREGROUND = registerColor('outlineVariable
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
-	const outlineDefaultSymbolColor = theme.getColor(OUTLINE_DEFAULT_SYMBOL_FOREGROUND);
-	if (outlineDefaultSymbolColor) {
+	const outlineArraySymbolColor = theme.getColor(OUTLINE_ARRAY_SYMBOL_FOREGROUND);
+	if (outlineArraySymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon[class*='codicon-symbol-']:before {
-				color: ${outlineDefaultSymbolColor};
+			.monaco-workbench .codicon-symbol-array:before {
+				color: ${outlineArraySymbolColor};
 			}
 		`);
 	}
 
-	const outlineMethodSymbolColor = theme.getColor(OUTLINE_METHOD_SYMBOL_FOREGROUND);
-	if (outlineMethodSymbolColor) {
+	const outlineBooleanSymbolColor = theme.getColor(OUTLINE_BOOLEAN_SYMBOL_FOREGROUND);
+	if (outlineBooleanSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-method:before,
-			.monaco-workbench .codicon-symbol-function:before,
-			.monaco-workbench .codicon-symbol-constructor:before {
-				color: ${outlineMethodSymbolColor} !important;
+			.monaco-workbench .codicon-symbol-boolean:before {
+				color: ${outlineBooleanSymbolColor};
 			}
 		`);
 	}
@@ -355,7 +454,34 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (outlineClassSymbolColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-class:before {
-				color: ${outlineClassSymbolColor} !important;
+				color: ${outlineClassSymbolColor};
+			}
+		`);
+	}
+
+	const outlineMethodSymbolColor = theme.getColor(OUTLINE_METHOD_SYMBOL_FOREGROUND);
+	if (outlineMethodSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-method:before {
+				color: ${outlineMethodSymbolColor};
+			}
+		`);
+	}
+
+	const outlineConstantSymbolColor = theme.getColor(OUTLINE_CONSTANT_SYMBOL_FOREGROUND);
+	if (outlineConstantSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-constant:before {
+				color: ${outlineConstantSymbolColor};
+			}
+		`);
+	}
+
+	const outlineConstructorSymbolColor = theme.getColor(OUTLINE_CONSTRUCTOR_SYMBOL_FOREGROUND);
+	if (outlineConstructorSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-constructor:before {
+				color: ${outlineConstructorSymbolColor};
 			}
 		`);
 	}
@@ -365,7 +491,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-value:before,
 			.monaco-workbench .codicon-symbol-enum:before {
-				color: ${outlineEnumeratorSymbolColor} !important;
+				color: ${outlineEnumeratorSymbolColor};
 			}
 		`);
 	}
@@ -374,7 +500,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (outlineEnumeratorMemberSymbolColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-enum-member:before {
-				color: ${outlineEnumeratorMemberSymbolColor} !important;
+				color: ${outlineEnumeratorMemberSymbolColor};
 			}
 		`);
 	}
@@ -383,7 +509,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (outlineEventSymbolColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-event:before {
-				color: ${outlineEventSymbolColor} !important;
+				color: ${outlineEventSymbolColor};
 			}
 		`);
 	}
@@ -392,7 +518,25 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (outlineFieldSymbolColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-field:before {
-				color: ${outlineFieldSymbolColor} !important;
+				color: ${outlineFieldSymbolColor};
+			}
+		`);
+	}
+
+	const outlineFileSymbolColor = theme.getColor(OUTLINE_FILE_SYMBOL_FOREGROUND);
+	if (outlineFileSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-file:before {
+				color: ${outlineFileSymbolColor};
+			}
+		`);
+	}
+
+	const outlineFunctionSymbolColor = theme.getColor(OUTLINE_FUNCTION_SYMBOL_FOREGROUND);
+	if (outlineFunctionSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-function:before {
+				color: ${outlineFunctionSymbolColor};
 			}
 		`);
 	}
@@ -401,7 +545,115 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (outlineInterfaceSymbolColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-interface:before {
-				color: ${outlineInterfaceSymbolColor} !important;
+				color: ${outlineInterfaceSymbolColor};
+			}
+		`);
+	}
+
+	const outlineKeySymbolColor = theme.getColor(OUTLINE_KEY_SYMBOL_FOREGROUND);
+	if (outlineKeySymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-key:before {
+				color: ${outlineKeySymbolColor};
+			}
+		`);
+	}
+
+	const outlineModuleSymbolColor = theme.getColor(OUTLINE_MODULE_SYMBOL_FOREGROUND);
+	if (outlineModuleSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-module:before {
+				color: ${outlineModuleSymbolColor};
+			}
+		`);
+	}
+
+	const outlineNamespaceColor = theme.getColor(OUTLINE_NAMESPACE_SYMBOL_FOREGROUND);
+	if (outlineNamespaceColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-namespace:before {
+				color: ${outlineNamespaceColor};
+			}
+		`);
+	}
+
+	const outlineNullSymbolColor = theme.getColor(OUTLINE_NULL_SYMBOL_FOREGROUND);
+	if (outlineNullSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-null:before {
+				color: ${outlineNullSymbolColor};
+			}
+		`);
+	}
+
+	const outlineNumberSymbolColor = theme.getColor(OUTLINE_NUMBER_SYMBOL_FOREGROUND);
+	if (outlineNumberSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-number:before {
+				color: ${outlineNumberSymbolColor};
+			}
+		`);
+	}
+
+	const outlineObjectSymbolColor = theme.getColor(OUTLINE_OBJECT_SYMBOL_FOREGROUND);
+	if (outlineObjectSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-object:before {
+				color: ${outlineObjectSymbolColor};
+			}
+		`);
+	}
+
+	const outlineOperatorSymbolColor = theme.getColor(OUTLINE_OPERATOR_SYMBOL_FOREGROUND);
+	if (outlineOperatorSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-operator:before {
+				color: ${outlineOperatorSymbolColor};
+			}
+		`);
+	}
+
+	const outlinePackageSymbolColor = theme.getColor(OUTLINE_PACKAGE_SYMBOL_FOREGROUND);
+	if (outlinePackageSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-package:before {
+				color: ${outlinePackageSymbolColor};
+			}
+		`);
+	}
+
+	const outlinePropertySymbolColor = theme.getColor(OUTLINE_PROPERTY_SYMBOL_FOREGROUND);
+	if (outlinePropertySymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-property:before {
+				color: ${outlinePropertySymbolColor};
+			}
+		`);
+	}
+
+	const outlineStringSymbolColor = theme.getColor(OUTLINE_STRING_SYMBOL_FOREGROUND);
+	if (outlineStringSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-string:before {
+				color: ${outlineStringSymbolColor};
+			}
+		`);
+	}
+
+	const outlineStructSymbolColor = theme.getColor(OUTLINE_STRUCT_SYMBOL_FOREGROUND);
+	if (outlineStructSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-struct:before {
+				color: ${outlineStructSymbolColor};
+			}
+		`);
+	}
+
+	const outlineTypeParameterSymbolColor = theme.getColor(OUTLINE_TYPEPARAMETER_SYMBOL_FOREGROUND);
+	if (outlineTypeParameterSymbolColor) {
+		collector.addRule(`
+			.monaco-workbench .codicon-symbol-type-parameter:before {
+				color: ${outlineTypeParameterSymbolColor};
 			}
 		`);
 	}
@@ -410,7 +662,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (outlineVariableSymbolColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-variable:before {
-				color: ${outlineVariableSymbolColor} !important;
+				color: ${outlineVariableSymbolColor};
 			}
 		`);
 	}

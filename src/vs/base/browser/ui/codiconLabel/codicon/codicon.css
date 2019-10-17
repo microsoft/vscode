@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?8bc0a4b799630e62a8ac4e66fd0f64c4") format("truetype");
+	src: url("./codicon.ttf?3a05fcfc657285cdb4cd3eba790b7462") format("truetype");
 }
 
 .codicon[class*='codicon-']::before {
@@ -109,6 +109,7 @@
 .codicon-clock:before { content: "\ea82" }
 .codicon-folder:before { content: "\ea83" }
 .codicon-file-directory:before { content: "\ea83" }
+.codicon-symbol-folder:before { content: "\ea83" }
 .codicon-logo-github:before { content: "\ea84" }
 .codicon-mark-github:before { content: "\ea84" }
 .codicon-github:before { content: "\ea84" }
