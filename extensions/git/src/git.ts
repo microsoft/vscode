@@ -1401,8 +1401,9 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number } = {}): Promise<void> {
+	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean } = {}): Promise<void> {
 		const args = ['fetch'];
+		const spawnOptions: SpawnOptions = {};
 
 		if (options.remote) {
 			args.push(options.remote);
@@ -1422,8 +1423,12 @@ export class Repository {
 			args.push(`--depth=${options.depth}`);
 		}
 
+		if (options.silent) {
+			spawnOptions.env = { 'VSCODE_GIT_FETCH_SILENT': 'true' };
+		}
+
 		try {
-			await this.run(args);
+			await this.run(args, spawnOptions);
 		} catch (err) {
 			if (/No remote repository specified\./.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;
