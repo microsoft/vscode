@@ -9,8 +9,9 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewExtensionDescription, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { URI } from 'vs/base/common/uri';
+import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -25,6 +26,12 @@ export const enum WebviewMessageChannels {
 	webviewReady = 'webview-ready',
 }
 
+interface WebviewContent {
+	readonly html: string;
+	readonly options: WebviewContentOptions;
+	readonly state: string | undefined;
+}
+
 export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private _element: T | undefined;
@@ -32,14 +39,23 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _ready: Promise<void>;
 
+	protected content: WebviewContent;
+
 	public extension: WebviewExtensionDescription | undefined;
 
 	constructor(
 		options: WebviewOptions,
+		contentOptions: WebviewContentOptions,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environementService: IEnvironmentService,
 	) {
 		super();
+
+		this.content = {
+			html: '',
+			options: contentOptions,
+			state: undefined
+		};
 
 		this._element = this.createElement(options);
 
@@ -67,6 +83,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 		this._register(this.on(WebviewMessageChannels.didScroll, (scrollYPercentage: number) => {
 			this._onDidScroll.fire({ scrollYPercentage: scrollYPercentage });
+		}));
+
+		this._register(this.on(WebviewMessageChannels.doReload, () => {
+			this.reload();
 		}));
 	}
 
@@ -97,6 +117,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			.catch(err => console.error(err));
 	}
 
+	protected abstract readonly extraContentOptions: { readonly [key: string]: string };
+
 	protected abstract createElement(options: WebviewOptions): T;
 
 	protected abstract on<T = unknown>(channel: string, handler: (data: T) => void): IDisposable;
@@ -126,5 +148,52 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 				extension: this.extension.id.value
 			});
 		}
+	}
+
+	public reload(): void {
+		this.doUpdateContent();
+	}
+
+	public set html(value: string) {
+		this.content = {
+			html: value,
+			options: this.content.options,
+			state: this.content.state,
+		};
+		this.doUpdateContent();
+	}
+
+	public set contentOptions(options: WebviewContentOptions) {
+		if (areWebviewInputOptionsEqual(options, this.content.options)) {
+			return;
+		}
+
+		this.content = {
+			html: this.content.html,
+			options: options,
+			state: this.content.state,
+		};
+		this.doUpdateContent();
+	}
+
+	public set state(state: string | undefined) {
+		this.content = {
+			html: this.content.html,
+			options: this.content.options,
+			state,
+		};
+	}
+
+	public set initialScrollProgress(value: number) {
+		this._send('initial-scroll-position', value);
+	}
+
+	private doUpdateContent() {
+		this._send('content', {
+			contents: this.content.html,
+			options: this.content.options,
+			state: this.content.state,
+			...this.extraContentOptions
+		});
 	}
 }

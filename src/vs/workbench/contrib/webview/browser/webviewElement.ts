@@ -12,7 +12,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
@@ -21,14 +20,7 @@ import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webvie
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-interface WebviewContent {
-	readonly html: string;
-	readonly options: WebviewContentOptions;
-	readonly state: string | undefined;
-}
-
 export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Webview {
-	private content: WebviewContent;
 	private _focused = false;
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
@@ -45,7 +37,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEnvironmentService environementService: IEnvironmentService,
 	) {
-		super(options, telemetryService, environementService);
+		super(options, contentOptions, telemetryService, environementService);
 		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.webviewExternalEndpoint !== 'string')) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewExternalEndpoint`');
 		}
@@ -55,16 +47,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			() => this.content.options.portMapping || [],
 			tunnelService
 		));
-
-		this.content = {
-			html: '',
-			options: contentOptions,
-			state: undefined
-		};
-
-		this._register(this.on(WebviewMessageChannels.doReload, () => {
-			this.reload();
-		}));
 
 		this._register(this.on(WebviewMessageChannels.doUpdateState, (state: any) => {
 			this.state = state;
@@ -123,26 +105,8 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		}
 	}
 
-	public set contentOptions(options: WebviewContentOptions) {
-		if (areWebviewInputOptionsEqual(options, this.content.options)) {
-			return;
-		}
-
-		this.content = {
-			html: this.content.html,
-			options: options,
-			state: this.content.state,
-		};
-		this.doUpdateContent();
-	}
-
 	public set html(value: string) {
-		this.content = {
-			html: this.preprocessHtml(value),
-			options: this.content.options,
-			state: this.content.state,
-		};
-		this.doUpdateContent();
+		super.html = this.preprocessHtml(value);
 	}
 
 	private preprocessHtml(value: string): string {
@@ -151,13 +115,10 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		});
 	}
 
-	private doUpdateContent() {
-		this._send('content', {
-			contents: this.content.html,
-			options: this.content.options,
-			state: this.content.state,
+	protected get extraContentOptions() {
+		return {
 			endpoint: this.externalEndpoint,
-		});
+		};
 	}
 
 	private handleFocusChange(isFocused: boolean): void {
@@ -166,8 +127,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			this._onDidFocus.fire();
 		}
 	}
-
-	initialScrollProgress: number = 0;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocus.event;
@@ -183,10 +142,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		if (this.element) {
 			this.element.focus();
 		}
-	}
-
-	reload(): void {
-		this.doUpdateContent();
 	}
 
 	showFind(): void {

@@ -22,7 +22,6 @@ import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resou
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { areWebviewInputOptionsEqual } from '../browser/webviewWorkbenchService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 
 interface IKeydownEvent {
@@ -227,16 +226,9 @@ class WebviewKeyboardHandler extends Disposable {
 	}
 }
 
-interface WebviewContent {
-	readonly html: string;
-	readonly options: WebviewContentOptions;
-	readonly state: string | undefined;
-}
-
 export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> implements Webview, WebviewFindDelegate {
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
-	private content: WebviewContent;
 
 	private _focused = false;
 
@@ -255,13 +247,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEnvironmentService environementService: IEnvironmentService,
 	) {
-		super(options, telemetryService, environementService);
-
-		this.content = {
-			html: '',
-			options: contentOptions,
-			state: undefined
-		};
+		super(options, contentOptions, telemetryService, environementService);
 
 		const webviewAndContents = this._register(new WebviewTagHandle(this.element!));
 		const session = this._register(new WebviewSession(webviewAndContents));
@@ -321,10 +307,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			}
 		}));
 
-		this._register(this.on(WebviewMessageChannels.doReload, () => {
-			this.reload();
-		}));
-
 		this._register(this.on(WebviewMessageChannels.doUpdateState, (state: any) => {
 			this.state = state;
 			this._onDidUpdateState.fire(state);
@@ -371,6 +353,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		return element;
 	}
 
+	protected readonly extraContentOptions = {};
+
 	public mountTo(parent: HTMLElement) {
 		if (!this.element) {
 			return;
@@ -389,48 +373,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		if (this.element) {
 			this.element.send(channel, data);
 		}
-	}
-
-	public set initialScrollProgress(value: number) {
-		this._send('initial-scroll-position', value);
-	}
-
-	public set state(state: string | undefined) {
-		this.content = {
-			html: this.content.html,
-			options: this.content.options,
-			state,
-		};
-	}
-
-	public set contentOptions(options: WebviewContentOptions) {
-		if (areWebviewInputOptionsEqual(options, this.content.options)) {
-			return;
-		}
-
-		this.content = {
-			html: this.content.html,
-			options: options,
-			state: this.content.state,
-		};
-		this.doUpdateContent();
-	}
-
-	public set html(value: string) {
-		this.content = {
-			html: value,
-			options: this.content.options,
-			state: this.content.state,
-		};
-		this.doUpdateContent();
-	}
-
-	private doUpdateContent() {
-		this._send('content', {
-			contents: this.content.html,
-			options: this.content.options,
-			state: this.content.state
-		});
 	}
 
 	public focus(): void {
@@ -542,10 +484,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		if (this._webviewFindWidget) {
 			this._webviewFindWidget.find(previous);
 		}
-	}
-
-	public reload() {
-		this.doUpdateContent();
 	}
 
 	public selectAll() {
