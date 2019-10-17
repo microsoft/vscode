@@ -10,6 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { URI } from 'vs/base/common/uri';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -55,6 +56,18 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._register(this.on('no-csp-found', () => {
 			this.handleNoCspFound();
 		}));
+
+		this._register(this.on(WebviewMessageChannels.didClickLink, (uri: string) => {
+			this._onDidClickLink.fire(URI.parse(uri));
+		}));
+
+		this._register(this.on(WebviewMessageChannels.onmessage, (data: any) => {
+			this._onMessage.fire(data);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didScroll, (scrollYPercentage: number) => {
+			this._onDidScroll.fire({ scrollYPercentage: scrollYPercentage });
+		}));
 	}
 
 	dispose(): void {
@@ -68,6 +81,15 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp = this._onMissingCsp.event;
+
+	private readonly _onDidClickLink = this._register(new Emitter<URI>());
+	public readonly onDidClickLink = this._onDidClickLink.event;
+
+	private readonly _onMessage = this._register(new Emitter<any>());
+	public readonly onMessage = this._onMessage.event;
+
+	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
+	public readonly onDidScroll = this._onDidScroll.event;
 
 	protected _send(channel: string, data?: any): void {
 		this._ready

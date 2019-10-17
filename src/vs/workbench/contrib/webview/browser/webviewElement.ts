@@ -62,20 +62,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			state: undefined
 		};
 
-		this._register(this.on(WebviewMessageChannels.onmessage, (data: any) => {
-			this._onMessage.fire(data);
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didClickLink, (uri: string) => {
-			this._onDidClickLink.fire(URI.parse(uri));
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didScroll, () => {
-			// if (e.args && typeof e.args[0] === 'number') {
-			// 	this._onDidScroll.fire({ scrollYPercentage: e.args[0] });
-			// }
-		}));
-
 		this._register(this.on(WebviewMessageChannels.doReload, () => {
 			this.reload();
 		}));
@@ -186,17 +172,8 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocus.event;
 
-	private readonly _onDidClickLink = this._register(new Emitter<URI>());
-	public readonly onDidClickLink = this._onDidClickLink.event;
-
-	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number }>());
-	public readonly onDidScroll = this._onDidScroll.event;
-
 	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
 	public readonly onDidUpdateState = this._onDidUpdateState.event;
-
-	private readonly _onMessage = this._register(new Emitter<any>());
-	public readonly onMessage = this._onMessage.event;
 
 	sendMessage(data: any): void {
 		this._send('message', data);

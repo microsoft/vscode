@@ -295,14 +295,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			console.error('embedded page crashed');
 		}));
 
-		this._register(this.on(WebviewMessageChannels.onmessage, (data: any) => {
-			this._onMessage.fire(data);
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didClickLink, (uri: string) => {
-			this._onDidClickLink.fire(URI.parse(uri));
-		}));
-
 		this._register(this.on('synthetic-mouse-event', (rawEvent: any) => {
 			if (!this.element) {
 				return;
@@ -327,10 +319,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 				this.element.style.width = '100%';
 				this.element.style.height = '100%';
 			}
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didScroll, (scrollYPercentage: number) => {
-			this._onDidScroll.fire({ scrollYPercentage: scrollYPercentage });
 		}));
 
 		this._register(this.on(WebviewMessageChannels.doReload, () => {
@@ -394,17 +382,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		parent.appendChild(this.element);
 	}
 
-	private readonly _onDidClickLink = this._register(new Emitter<URI>());
-	public readonly onDidClickLink = this._onDidClickLink.event;
-
-	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number; }>());
-	public readonly onDidScroll = this._onDidScroll.event;
-
 	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
 	public readonly onDidUpdateState = this._onDidUpdateState.event;
-
-	private readonly _onMessage = this._register(new Emitter<any>());
-	public readonly onMessage = this._onMessage.event;
 
 	protected postMessage(channel: string, data?: any): void {
 		if (this.element) {
