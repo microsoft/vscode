@@ -775,13 +775,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 					this.parentData.parent.focus();
 
-					if (this.parentData.submenu) {
-						this.parentData.submenu.dispose();
-						this.parentData.submenu = undefined;
-					}
-
-					this.submenuDisposables.clear();
-					this.submenuContainer = undefined;
+					this.cleanupExistingSubmenu(true);
 				}
 			}));
 
@@ -796,13 +790,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuDisposables.add(this.parentData.submenu.onDidCancel(() => {
 				this.parentData.parent.focus();
 
-				if (this.parentData.submenu) {
-					this.parentData.submenu.dispose();
-					this.parentData.submenu = undefined;
-				}
-
-				this.submenuDisposables.clear();
-				this.submenuContainer = undefined;
+				this.cleanupExistingSubmenu(true);
 			}));
 
 			this.parentData.submenu.focus(selectFirstItem);
