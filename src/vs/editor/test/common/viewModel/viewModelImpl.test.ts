@@ -210,7 +210,7 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			true,
-			'ine2'
+			['ine2', 'line3']
 		);
 	});
 

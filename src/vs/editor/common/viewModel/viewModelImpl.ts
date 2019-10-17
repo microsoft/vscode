@@ -628,9 +628,19 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		ranges = ranges.slice(0);
 		ranges.sort(Range.compareRangesUsingStarts);
-		const nonEmptyRanges = ranges.filter((r) => !r.isEmpty());
 
-		if (nonEmptyRanges.length === 0) {
+		let hasEmptyRange = false;
+		let hasNonEmptyRange = false;
+		for (const range of ranges) {
+			if (range.isEmpty()) {
+				hasEmptyRange = true;
+			} else {
+				hasNonEmptyRange = true;
+			}
+		}
+
+		if (!hasNonEmptyRange) {
+			// all ranges are empty
 			if (!emptySelectionClipboard) {
 				return '';
 			}
@@ -650,9 +660,29 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			return result;
 		}
 
+		if (hasEmptyRange && emptySelectionClipboard) {
+			// mixed empty selections and non-empty selections
+			let result: string[] = [];
+			let prevModelLineNumber = 0;
+			for (const range of ranges) {
+				const modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
+				if (range.isEmpty()) {
+					if (modelLineNumber !== prevModelLineNumber) {
+						result.push(this.model.getLineContent(modelLineNumber));
+					}
+				} else {
+					result.push(this.getValueInRange(range, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+				}
+				prevModelLineNumber = modelLineNumber;
+			}
+			return result.length === 1 ? result[0] : result;
+		}
+
 		let result: string[] = [];
-		for (const nonEmptyRange of nonEmptyRanges) {
-			result.push(this.getValueInRange(nonEmptyRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		for (const range of ranges) {
+			if (!range.isEmpty()) {
+				result.push(this.getValueInRange(range, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+			}
 		}
 		return result.length === 1 ? result[0] : result;
 	}
