@@ -487,11 +487,24 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(2, mockCommandService.callCount);
 		});
 	});
+	test('contributed variable', () => {
+		const buildTask = 'npm: compile';
+		const variable = 'defaultBuildTask';
+		const configuration = {
+			'name': '${' + variable + '}',
+		};
+		configurationResolverService!.contributeVariable(variable, async () => { return buildTask; });
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration).then(result => {
+			assert.deepEqual(result, {
+				'name': `${buildTask}`
+			});
+		});
+	});
 });
 
 
 class MockConfigurationService implements IConfigurationService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: undefined, folder: undefined }; }
@@ -518,7 +531,7 @@ class MockConfigurationService implements IConfigurationService {
 
 class MockCommandService implements ICommandService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public callCount = 0;
 
 	onWillExecuteCommand = () => Disposable.None;
@@ -538,7 +551,7 @@ class MockCommandService implements ICommandService {
 }
 
 class MockQuickInputService implements IQuickInputService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
@@ -632,6 +645,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 class MockWorkbenchEnvironmentService extends WorkbenchEnvironmentService {
 
 	constructor(env: platform.IProcessEnvironment) {
-		super({ userEnv: env } as IWindowConfiguration, process.execPath);
+		super({ userEnv: env } as IWindowConfiguration, process.execPath, 0);
 	}
 }

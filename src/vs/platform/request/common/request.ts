@@ -14,12 +14,14 @@ import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/r
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
 export interface IRequestService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
+
+	resolveProxy(url: string): Promise<string | undefined>;
 }
 
-function isSuccess(context: IRequestContext): boolean {
+export function isSuccess(context: IRequestContext): boolean {
 	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
 }
 

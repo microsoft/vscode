@@ -14,7 +14,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IDecorationsService, IResourceDecorationChangeEvent, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG, IFileService } from 'vs/platform/files/common/files';
 import { ITextModel } from 'vs/editor/common/model';
@@ -34,7 +34,7 @@ export interface IResourceLabelProps {
 
 export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	fileKind?: FileKind;
-	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
+	fileDecorations?: { colors: boolean, badges: boolean };
 	descriptionVerbosity?: Verbosity;
 }
 
@@ -211,7 +211,7 @@ export class ResourceLabel extends ResourceLabels {
 
 	constructor(
 		container: HTMLElement,
-		options: IIconLabelCreationOptions,
+		options: IIconLabelCreationOptions | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -252,7 +252,7 @@ class ResourceLabelWidget extends IconLabel {
 
 	constructor(
 		container: HTMLElement,
-		options: IIconLabelCreationOptions,
+		options: IIconLabelCreationOptions | undefined,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
@@ -434,7 +434,7 @@ class ResourceLabelWidget extends IconLabel {
 			return;
 		}
 
-		const iconLabelOptions: IIconLabelValueOptions = {
+		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[] } = {
 			title: '',
 			italic: this.options && this.options.italic,
 			matches: this.options && this.options.matches,
@@ -462,14 +462,13 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.options && this.options.extraClasses) {
-			iconLabelOptions.extraClasses!.push(...this.options.extraClasses);
+			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
 
 		if (this.options && this.options.fileDecorations && resource) {
 			const deco = this.decorationsService.getDecoration(
 				resource,
-				this.options.fileKind !== FileKind.FILE,
-				this.options.fileDecorations.data
+				this.options.fileKind !== FileKind.FILE
 			);
 
 			if (deco) {
@@ -478,11 +477,11 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (this.options.fileDecorations.colors) {
-					iconLabelOptions.extraClasses!.push(deco.labelClassName);
+					iconLabelOptions.extraClasses.push(deco.labelClassName);
 				}
 
 				if (this.options.fileDecorations.badges) {
-					iconLabelOptions.extraClasses!.push(deco.badgeClassName);
+					iconLabelOptions.extraClasses.push(deco.badgeClassName);
 				}
 			}
 		}

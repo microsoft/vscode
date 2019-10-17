@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as electron from 'electron';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { State, IUpdate, StateType, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -18,9 +18,9 @@ import { IRequestService } from 'vs/platform/request/common/request';
 
 export class DarwinUpdateService extends AbstractUpdateService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
@@ -28,14 +28,14 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, date) => ({ releaseNotes, version, productVersion: version, date })); }
 
 	constructor(
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {
-		super(lifecycleService, configurationService, environmentService, requestService, logService);
+		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
 		this.onRawError(this.onError, this, this.disposables);
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
 		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this.disposables);
@@ -104,6 +104,6 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
@@ -16,7 +16,7 @@ export const IStorageMainService = createDecorator<IStorageMainService>('storage
 
 export interface IStorageMainService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -85,9 +85,9 @@ export interface IStorageChangeEvent {
 
 export class StorageMainService extends Disposable implements IStorageMainService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
-	private static STORAGE_NAME = 'state.vscdb';
+	private static readonly STORAGE_NAME = 'state.vscdb';
 
 	private readonly _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage: Event<IStorageChangeEvent> = this._onDidChangeStorage.event;
@@ -99,7 +99,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private storage: IStorage;
 
-	private initializePromise: Promise<void>;
+	private initializePromise: Promise<void> | undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

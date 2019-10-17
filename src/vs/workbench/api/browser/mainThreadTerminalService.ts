@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -21,7 +21,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcesses = new Map<number, Promise<ITerminalProcessExtHostProxy>>();
 	private readonly _terminalProcessesReady = new Map<number, (proxy: ITerminalProcessExtHostProxy) => void>();
-	private readonly _terminalOnDidWriteDataListeners = new Map<number, IDisposable>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
 
 	constructor(
@@ -131,30 +130,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	/** @deprecated */
-	public $registerOnDataListener(terminalId: number): void {
-		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
-		if (!terminalInstance) {
-			return;
-		}
-
-		// Listener already registered
-		if (this._terminalOnDidWriteDataListeners.has(terminalId)) {
-			return;
-		}
-
-		// Register
-		const listener = terminalInstance.onData(data => {
-			this._onTerminalData(terminalId, data);
-		});
-		this._terminalOnDidWriteDataListeners.set(terminalId, listener);
-		terminalInstance.addDisposable(listener);
-	}
-
 	public $startSendingDataEvents(): void {
 		if (!this._dataEventTracker) {
 			this._dataEventTracker = this._instantiationService.createInstance(TerminalDataEventTracker, (id, data) => {
-				this._onTerminalData2(id, data);
+				this._onTerminalData(id, data);
 			});
 		}
 	}
@@ -170,13 +149,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptActiveTerminalChanged(terminalId);
 	}
 
-	/** @deprecated */
 	private _onTerminalData(terminalId: number, data: string): void {
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
-	}
-
-	private _onTerminalData2(terminalId: number, data: string): void {
-		this._proxy.$acceptTerminalProcessData2(terminalId, data);
 	}
 
 	private _onTitleChanged(terminalId: number, name: string): void {

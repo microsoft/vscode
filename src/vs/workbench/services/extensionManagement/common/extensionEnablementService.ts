@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionIdentifier, DidInstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -17,17 +17,17 @@ import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensi
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
 const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
 
 export class ExtensionEnablementService extends Disposable implements IExtensionEnablementService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	private _onEnablementChanged = new Emitter<IExtension[]>();
-	public readonly onEnablementChanged: Event<IExtension[]> = this._onEnablementChanged.event;
+	private readonly _onEnablementChanged = new Emitter<readonly IExtension[]>();
+	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;
 
 	private readonly storageManger: StorageManager;
 
@@ -43,7 +43,6 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
 		this._register(this.storageManger.onDidChange(extensions => this.onDidChangeStorage(extensions)));
-		this._register(extensionManagementService.onDidInstallExtension(this._onDidInstallExtension, this));
 		this._register(extensionManagementService.onDidUninstallExtension(this._onDidUninstallExtension, this));
 	}
 
@@ -148,8 +147,11 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const server = isUIExtension(extension.manifest, this.productService, this.configurationService) ? this.extensionManagementServerService.localExtensionManagementServer : this.extensionManagementServerService.remoteExtensionManagementServer;
-			return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
+			if (!isUIExtension(extension.manifest, this.productService, this.configurationService)) {
+				// workspace extensions must run on the remote, but UI extensions can run on either side
+				const server = this.extensionManagementServerService.remoteExtensionManagementServer;
+				return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
+			}
 		}
 		return false;
 	}
@@ -281,16 +283,6 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const extensions = installedExtensions.filter(installedExtension => extensionIdentifiers.some(identifier => areSameExtensions(identifier, installedExtension.identifier)));
 		this._onEnablementChanged.fire(extensions);
-	}
-
-	private _onDidInstallExtension(event: DidInstallExtensionEvent): void {
-		if (event.local && event.operation === InstallOperation.Install) {
-			const wasDisabled = !this.isEnabled(event.local);
-			this._reset(event.local.identifier);
-			if (wasDisabled) {
-				this._onEnablementChanged.fire([event.local]);
-			}
-		}
 	}
 
 	private _onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {

@@ -280,8 +280,8 @@ class ApplyCompletionCodeActionCommand implements Command {
 				description: '',
 				index: i
 			})), {
-				placeHolder: localize('selectCodeAction', 'Select code action to apply')
-			}
+			placeHolder: localize('selectCodeAction', 'Select code action to apply')
+		}
 		);
 
 		if (!selection) {
@@ -416,7 +416,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
 			isMemberCompletion = response.body.isMemberCompletion;
 			if (isMemberCompletion) {
-				const dotMatch = line.text.slice(0, position.character).match(/\.\s*$/) || undefined;
+				const dotMatch = line.text.slice(0, position.character).match(/\??\.\s*$/) || undefined;
 				if (dotMatch) {
 					const range = new vscode.Range(position.translate({ characterDelta: -dotMatch[0].length }), position);
 					const text = document.getText(range);

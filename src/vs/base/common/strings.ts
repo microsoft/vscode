@@ -5,11 +5,6 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 
-/**
- * The empty string.
- */
-export const empty = '';
-
 export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	if (!str || typeof str !== 'string') {
 		return true;
@@ -70,7 +65,7 @@ export function escape(html: string): string {
  * Escapes regular expression characters in a given string
  */
 export function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[\-\\\{\}\*\+\?\|\^\$\.\[\]\(\)\#]/g, '\\$&');
+	return value.replace(/[\\\{\}\*\+\?\|\^\$\.\[\]\(\)]/g, '\\$&');
 }
 
 /**
@@ -355,21 +350,10 @@ function isAsciiLetter(code: number): boolean {
 }
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
-	const len1 = a ? a.length : 0;
-	const len2 = b ? b.length : 0;
-
-	if (len1 !== len2) {
-		return false;
-	}
-
-	return doEqualsIgnoreCase(a, b);
+	return a.length === b.length && doEqualsIgnoreCase(a, b);
 }
 
 function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
-	if (typeof a !== 'string' || typeof b !== 'string') {
-		return false;
-	}
-
 	for (let i = 0; i < stopAt; i++) {
 		const codeA = a.charCodeAt(i);
 		const codeB = b.charCodeAt(i);
@@ -608,7 +592,7 @@ export function lcut(text: string, n: number) {
 		re.lastIndex += 1;
 	}
 
-	return text.substring(i).replace(/^\s/, empty);
+	return text.substring(i).replace(/^\s/, '');
 }
 
 // Escape codes
@@ -636,7 +620,7 @@ export const removeAccents: (str: string) => string = (function () {
 		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
 		const regex = /[\u0300-\u036f]/g;
 		return function (str: string) {
-			return (str as any).normalize('NFD').replace(regex, empty);
+			return (str as any).normalize('NFD').replace(regex, '');
 		};
 	}
 })();

@@ -20,12 +20,12 @@ import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { Extensions as QuickOpenExtensions, IQuickOpenRegistry, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, DeleteToLineStartTerminalAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, FindNext, FindPrevious, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, MoveToLineEndTerminalAction, MoveToLineStartTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SendSequenceTerminalCommand, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, TERMINAL_PICKER_PREFIX, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, DeleteToLineStartTerminalAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, FindNext, FindPrevious, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, MoveToLineEndTerminalAction, MoveToLineStartTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SendSequenceTerminalCommand, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, TERMINAL_PICKER_PREFIX, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, CreateNewWithCwdTerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import { TerminalPickerHandler } from 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, ITerminalService, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { setupTerminalCommands, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
+import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { setupTerminalMenu } from 'vs/workbench/contrib/terminal/common/terminalMenu';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
@@ -34,6 +34,7 @@ import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalS
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalShellConfig';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 registerSingleton(ITerminalService, TerminalService, true);
 
@@ -194,10 +195,16 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			default: 1000
 		},
-		'terminal.integrated.setLocaleVariables': {
-			markdownDescription: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal."),
-			type: 'boolean',
-			default: true
+		'terminal.integrated.detectLocale': {
+			markdownDescription: nls.localize('terminal.integrated.detectLocale', "Controls whether to detect and set the `$LANG` environment variable to a UTF-8 compliant option since VS Code's terminal only supports UTF-8 encoded data coming from the shell."),
+			type: 'string',
+			enum: ['auto', 'off', 'on'],
+			enumDescriptions: [
+				nls.localize('terminal.integrated.detectLocale.auto', "Set the `$LANG` environment variable if the existing variable does not exist or it does not end in `'.UTF-8'`."),
+				nls.localize('terminal.integrated.detectLocale.off', "Do not set the `$LANG` environment variable."),
+				nls.localize('terminal.integrated.detectLocale.on', "Always set the `$LANG` environment variable.")
+			],
+			default: 'auto'
 		},
 		'terminal.integrated.rendererType': {
 			type: 'string',
@@ -243,6 +250,11 @@ configurationRegistry.registerConfiguration({
 				type: 'string'
 			},
 			default: []
+		},
+		'terminal.integrated.allowChords': {
+			markdownDescription: nls.localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass `terminal.integrated.commandsToSkipShell`, setting this to false is particularly useful when you want ctrl+k to go to your shell (not VS Code)."),
+			type: 'boolean',
+			default: true
 		},
 		'terminal.integrated.inheritEnv': {
 			markdownDescription: nls.localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code. This is not supported on Windows."),
@@ -303,6 +315,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
 			type: 'boolean',
 			default: false
+		},
+		'terminal.integrated.enableFileLinks': {
+			description: nls.localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system."),
+			type: 'boolean',
+			default: true
 		}
 	}
 });
@@ -543,27 +560,43 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, Fi
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3, KeyCode.Enter] },
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Find previous');
 
-
-const sendSequenceTerminalCommand = new SendSequenceTerminalCommand({
+(new SendSequenceTerminalCommand({
 	id: SendSequenceTerminalCommand.ID,
 	precondition: undefined,
 	description: {
-		description: `Send Custom Sequence To Terminal`,
+		description: SendSequenceTerminalCommand.LABEL,
 		args: [{
 			name: 'args',
 			schema: {
-				'type': 'object',
-				'required': ['text'],
-				'properties': {
-					'text': {
-						'type': 'string'
+				type: 'object',
+				required: ['text'],
+				properties: {
+					text: { type: 'string' }
+				},
+			}
+		}]
+	}
+})).register();
+(new CreateNewWithCwdTerminalCommand({
+	id: CreateNewWithCwdTerminalCommand.ID,
+	precondition: undefined,
+	description: {
+		description: CreateNewWithCwdTerminalCommand.LABEL,
+		args: [{
+			name: 'args',
+			schema: {
+				type: 'object',
+				required: ['cwd'],
+				properties: {
+					cwd: {
+						description: CreateNewWithCwdTerminalCommand.CWD_ARG_LABEL,
+						type: 'string'
 					}
 				},
 			}
 		}]
 	}
-});
-sendSequenceTerminalCommand.register();
+})).register();
 
 setupTerminalCommands();
 setupTerminalMenu();

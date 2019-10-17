@@ -49,15 +49,18 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 
 	public parse(): Promise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
-			try {
-				const manifest = JSON.parse(manifestContents.toString());
+			const errors: json.ParseError[] = [];
+			const manifest = json.parse(manifestContents.toString(), errors);
+			if (!!manifest && errors.length === 0) {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
 				}
 				delete manifest.__metadata;
 				return manifest;
-			} catch (e) {
-				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, getParseErrorMessage(e.message)));
+			} else {
+				errors.forEach(e => {
+					this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: [{1}, {2}] {3}.", this._absoluteManifestPath, e.offset, e.length, getParseErrorMessage(e.error)));
+				});
 			}
 			return null;
 		}, (err) => {
@@ -390,15 +393,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 	}
 
 	private static _isStringArray(arr: string[]): boolean {
-		if (!Array.isArray(arr)) {
-			return false;
-		}
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (typeof arr[i] !== 'string') {
-				return false;
-			}
-		}
-		return true;
+		return Array.isArray(arr) && arr.every(value => typeof value === 'string');
 	}
 }
 

@@ -56,7 +56,7 @@ jobs:
   - template: linux/snap-build-linux.yml
 
 - job: LinuxArmhf
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -78,7 +78,7 @@ jobs:
   - template: linux/product-build-linux-multiarch.yml
 
 - job: LinuxAlpine
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:

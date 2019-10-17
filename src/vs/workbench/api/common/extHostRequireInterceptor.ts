@@ -129,6 +129,7 @@ interface IKeytarModule {
 	setPassword(service: string, account: string, password: string): Promise<void>;
 	deletePassword(service: string, account: string): Promise<boolean>;
 	findPassword(service: string): Promise<string | null>;
+	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
 }
 
 class KeytarNodeModuleFactory implements INodeModuleFactory {
@@ -169,6 +170,9 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 			},
 			findPassword: (service: string): Promise<string | null> => {
 				return mainThreadKeytar.$findPassword(service);
+			},
+			findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+				return mainThreadKeytar.$findCredentials(service);
 			}
 		};
 	}

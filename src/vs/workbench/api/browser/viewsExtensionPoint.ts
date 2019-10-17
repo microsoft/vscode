@@ -80,7 +80,10 @@ interface IUserFriendlyViewDescriptor {
 	id: string;
 	name: string;
 	when?: string;
+
+	// From 'remoteViewDescriptor' type
 	group?: string;
+	remoteName?: string | string[];
 }
 
 const viewDescriptor: IJSONSchema = {
@@ -101,7 +104,7 @@ const viewDescriptor: IJSONSchema = {
 	}
 };
 
-const nestableViewDescriptor: IJSONSchema = {
+const remoteViewDescriptor: IJSONSchema = {
 	type: 'object',
 	properties: {
 		id: {
@@ -119,6 +122,13 @@ const nestableViewDescriptor: IJSONSchema = {
 		group: {
 			description: localize('vscode.extension.contributes.view.group', 'Nested group in the viewlet'),
 			type: 'string'
+		},
+		remoteName: {
+			description: localize('vscode.extension.contributes.view.remoteName', 'The name of the remote type associated with this view'),
+			type: ['string', 'array'],
+			items: {
+				type: 'string'
+			}
 		}
 	}
 };
@@ -153,7 +163,7 @@ const viewsContribution: IJSONSchema = {
 		'remote': {
 			description: localize('views.remote', "Contributes views to Remote container in the Activity bar. To contribute to this container, enableProposedApi needs to be turned on"),
 			type: 'array',
-			items: nestableViewDescriptor,
+			items: remoteViewDescriptor,
 			default: []
 		}
 	},
@@ -427,7 +437,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						order: order,
 						extensionId: extension.description.identifier,
 						originalContainerId: entry.key,
-						group: item.group
+						group: item.group,
+						remoteAuthority: item.remoteName || (<any>item).remoteAuthority // TODO@roblou - delete after remote extensions are updated
 					};
 
 					viewIds.push(viewDescriptor.id);

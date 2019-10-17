@@ -14,7 +14,7 @@ interface PackageInfo {
 }
 
 export default interface TelemetryReporter {
-	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
+	logTelemetry(eventName: string, properties?: { readonly [prop: string]: string }): void;
 
 	dispose(): void;
 }

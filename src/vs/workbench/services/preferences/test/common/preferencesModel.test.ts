@@ -328,4 +328,10 @@ suite('Preferences Model test', () => {
 
 		arr.rejects(['a']).withMessage(`err: must be friendly`);
 	});
+
+	test('uniqueItems', () => {
+		const arr = new ArrayTester({ type: 'array', items: { type: 'string' }, uniqueItems: true });
+
+		arr.rejects(['a', 'a']).withMessage(`Array has duplicate items`);
+	});
 });

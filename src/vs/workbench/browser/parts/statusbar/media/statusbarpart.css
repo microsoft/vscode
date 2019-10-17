@@ -10,6 +10,19 @@
 	height: 22px;
 	font-size: 12px;
 	display: flex;
+	overflow: visible;
+}
+
+.monaco-workbench .part.statusbar.status-border-top::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 5;
+	pointer-events: none;
+	background-color: var(--status-border-top-color);
+	width: 100%;
+	height: 1px;
 }
 
 .monaco-workbench .part.statusbar > .left-items,
@@ -40,7 +53,7 @@
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
 	content: '';
 	position: absolute;
-	left: calc(50% - 8px); /* 3px (margin) + 5px (padding) = 8px */
+	left: calc(50% - 9px); /* 3px (margin) + 5px (padding) + 1px (icon) = 9px */
 	top: -5px;
 	border-bottom-width: 5px;
 	border-bottom-style: solid;
@@ -91,7 +104,8 @@
 	pointer-events: none;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.octicon {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.codicon {
 	text-align: center;
 	font-size: 14px;
+	color: inherit;
 }

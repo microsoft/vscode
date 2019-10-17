@@ -9,7 +9,7 @@ import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/par
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Action } from 'vs/base/common/actions';

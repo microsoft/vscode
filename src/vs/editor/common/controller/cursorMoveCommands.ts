@@ -122,20 +122,19 @@ export class CursorMoveCommands {
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 
-			const viewSelection = cursor.viewState.selection;
-			const startLineNumber = viewSelection.startLineNumber;
-			const lineCount = context.viewModel.getLineCount();
+			const startLineNumber = cursor.modelState.selection.startLineNumber;
+			const lineCount = context.model.getLineCount();
 
-			let endLineNumber = viewSelection.endLineNumber;
+			let endLineNumber = cursor.modelState.selection.endLineNumber;
 			let endColumn: number;
 			if (endLineNumber === lineCount) {
-				endColumn = context.viewModel.getLineMaxColumn(lineCount);
+				endColumn = context.model.getLineMaxColumn(lineCount);
 			} else {
 				endLineNumber++;
 				endColumn = 1;
 			}
 
-			result[i] = CursorState.fromViewState(new SingleCursorState(
+			result[i] = CursorState.fromModelState(new SingleCursorState(
 				new Range(startLineNumber, 1, startLineNumber, 1), 0,
 				new Position(endLineNumber, endColumn), 0
 			));

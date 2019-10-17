@@ -146,7 +146,7 @@ export interface ITranslation {
 }
 
 export interface IExtensionGalleryService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
@@ -186,7 +186,7 @@ export const INSTALL_ERROR_MALICIOUS = 'malicious';
 export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 
 export interface IExtensionManagementService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;

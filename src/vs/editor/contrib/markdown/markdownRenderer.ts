@@ -15,6 +15,7 @@ import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
@@ -57,7 +58,7 @@ export class MarkdownRenderer extends Disposable {
 					}
 					return tokenizeToString(value, undefined);
 				}).then(code => {
-					return `<span style="font-family: ${this._editor.getConfiguration().fontInfo.fontFamily}">${code}</span>`;
+					return `<span style="font-family: ${this._editor.getOption(EditorOption.fontInfo).fontFamily}">${code}</span>`;
 				});
 			},
 			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire(),

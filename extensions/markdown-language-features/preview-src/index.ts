@@ -19,7 +19,7 @@ const settings = getSettings();
 const vscode = acquireVsCodeApi();
 
 // Set VS Code state
-let state = getData<{ line: number, fragment: string }>('data-state');
+let state = getData<{ line: number; fragment: string; }>('data-state');
 vscode.setState(state);
 
 const messaging = createPosterForVsCode(vscode);
@@ -67,7 +67,7 @@ const onUpdateView = (() => {
 })();
 
 let updateImageSizes = throttle(() => {
-	const imageInfo: { id: string, height: number, width: number }[] = [];
+	const imageInfo: { id: string, height: number, width: number; }[] = [];
 	let images = document.getElementsByTagName('img');
 	if (images) {
 		let i;
@@ -129,6 +129,8 @@ document.addEventListener('dblclick', event => {
 	}
 });
 
+const passThroughLinkSchemes = ['http:', 'https:', 'mailto:', 'vscode:', 'vscode-insiders'];
+
 document.addEventListener('click', event => {
 	if (!event) {
 		return;
@@ -138,36 +140,40 @@ document.addEventListener('click', event => {
 	while (node) {
 		if (node.tagName && node.tagName === 'A' && node.href) {
 			if (node.getAttribute('href').startsWith('#')) {
-				break;
+				return;
 			}
-			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:') || node.href.startsWith(settings.webviewResourceRoot)) {
-				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').replace(new RegExp(`^${escapeRegExp(settings.webviewResourceRoot)}`)).split('#');
-				messaging.postMessage('clickLink', { path, fragment });
+
+			// Pass through known schemes
+			if (passThroughLinkSchemes.some(scheme => node.href.startsWith(scheme))) {
+				return;
+			}
+
+			const hrefText = node.getAttribute('data-href') || node.getAttribute('href');
+
+			// If original link doesn't look like a url, delegate back to VS Code to resolve
+			if (!/^[a-z\-]+:/i.test(hrefText)) {
+				messaging.postMessage('openLink', { href: hrefText });
 				event.preventDefault();
 				event.stopPropagation();
-				break;
+				return;
 			}
-			break;
+
+			return;
 		}
 		node = node.parentNode;
 	}
 }, true);
 
-if (settings.scrollEditorWithPreview) {
-	window.addEventListener('scroll', throttle(() => {
-		if (scrollDisabled) {
-			scrollDisabled = false;
-		} else {
-			const line = getEditorLineNumberForPageOffset(window.scrollY);
-			if (typeof line === 'number' && !isNaN(line)) {
-				messaging.postMessage('revealLine', { line });
-				state.line = line;
-				vscode.setState(state);
-			}
+window.addEventListener('scroll', throttle(() => {
+	if (scrollDisabled) {
+		scrollDisabled = false;
+	} else {
+		const line = getEditorLineNumberForPageOffset(window.scrollY);
+		if (typeof line === 'number' && !isNaN(line)) {
+			messaging.postMessage('revealLine', { line });
+			state.line = line;
+			vscode.setState(state);
 		}
-	}, 50));
-}
+	}
+}, 50));
 
-function escapeRegExp(text: string) {
-	return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-}

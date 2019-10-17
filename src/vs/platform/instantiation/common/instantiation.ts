@@ -22,40 +22,42 @@ export namespace _util {
 
 // --- interfaces ------
 
+type BrandedService = { _serviceBrand: undefined };
+
 export interface IConstructorSignature0<T> {
-	new(...services: { _serviceBrand: any; }[]): T;
+	new(...services: BrandedService[]): T;
 }
 
 export interface IConstructorSignature1<A1, T> {
-	new(first: A1, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, ...services: BrandedService[]): T;
 }
 
 export interface IConstructorSignature2<A1, A2, T> {
-	new(first: A1, second: A2, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, ...services: BrandedService[]): T;
 }
 
 export interface IConstructorSignature3<A1, A2, A3, T> {
-	new(first: A1, second: A2, third: A3, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, ...services: BrandedService[]): T;
 }
 
 export interface IConstructorSignature4<A1, A2, A3, A4, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, ...services: BrandedService[]): T;
 }
 
 export interface IConstructorSignature5<A1, A2, A3, A4, A5, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, ...services: BrandedService[]): T;
 }
 
 export interface IConstructorSignature6<A1, A2, A3, A4, A5, A6, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, ...services: BrandedService[]): T;
 }
 
 export interface IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, ...services: BrandedService[]): T;
 }
 
 export interface IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...services: BrandedService[]): T;
 }
 
 export interface ServicesAccessor {
@@ -67,7 +69,7 @@ export const IInstantiationService = createDecorator<IInstantiationService>('ins
 
 export interface IInstantiationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Synchronously creates an instance that is denoted by

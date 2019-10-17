@@ -62,6 +62,8 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar {
 	visibility: hidden;
+	display: flex;
+	align-items: center;
 }
 
 .explorer-viewlet .panel-header .count {
@@ -84,9 +86,16 @@
 	display: block;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .close-editor-action {
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon {
+	color: inherit;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon-close {
 	width: 8px;
 	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
@@ -153,4 +162,17 @@
 .hc-black .monaco-workbench .explorer-viewlet .open-editor,
 .hc-black .monaco-workbench .explorer-viewlet .editor-group {
 	line-height: 20px;
+}
+
+/* TODO @misolori convert these to use icon font, for the debug viewlet */
+.monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-light.svg") 50% no-repeat;
+}
+
+.vs-dark .monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-dark.svg") 50% no-repeat;
+}
+
+.hc-black .monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-hc.svg") 50% no-repeat;
 }

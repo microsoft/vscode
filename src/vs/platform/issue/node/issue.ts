@@ -87,7 +87,7 @@ export interface ProcessExplorerData extends WindowData {
 }
 
 export interface IIssueService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	openReporter(data: IssueReporterData): Promise<void>;
 	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
 	getSystemStatus(): Promise<string>;

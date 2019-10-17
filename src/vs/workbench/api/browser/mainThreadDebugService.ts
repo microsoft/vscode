@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { URI as uri, UriComponents } from 'vs/base/common/uri';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto
+	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration
 } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import severity from 'vs/base/common/severity';
@@ -21,7 +21,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	private readonly _proxy: ExtHostDebugServiceShape;
 	private readonly _toDispose = new DisposableStore();
-	private _breakpointEventsActive: boolean;
+	private _breakpointEventsActive: boolean | undefined;
 	private readonly _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
 	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
@@ -35,6 +35,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose.add(debugService.onDidNewSession(session => {
 			this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
+			this._toDispose.add(session.onDidChangeName(name => {
+				this._proxy.$acceptDebugSessionNameChanged(this.getSessionDto(session), name);
+			}));
 		}));
 		// Need to start listening early to new session events because a custom event can come while a session is initialising
 		this._toDispose.add(debugService.onWillNewSession(session => {
@@ -215,14 +218,26 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return undefined;
 	}
 
-	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig, parentSessionID: DebugSessionUUID | undefined): Promise<boolean> {
-		const folderUri = _folderUri ? uri.revive(_folderUri) : undefined;
+	public $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
+		const folderUri = folder ? uri.revive(folder) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
-		return this.debugService.startDebugging(launch, nameOrConfiguration, false, this.getSession(parentSessionID)).then(success => {
+		const debugOptions: IDebugSessionOptions = {
+			noDebug: false,
+			parentSession: this.getSession(options.parentSessionID),
+			repl: options.repl
+		};
+		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
 			return success;
 		}, err => {
 			return Promise.reject(new Error(err && err.message ? err.message : 'cannot start debugging'));
 		});
+	}
+
+	public $setDebugSessionName(sessionId: DebugSessionUUID, name: string): void {
+		const session = this.debugService.getModel().getSession(sessionId);
+		if (session) {
+			session.setName(name);
+		}
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
@@ -351,23 +366,24 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 		super();
 	}
 
-	public fireError(handle: number, err: Error) {
+	fireError(handle: number, err: Error) {
 		this._onError.fire(err);
 	}
 
-	public fireExit(handle: number, code: number, signal: string) {
+	fireExit(handle: number, code: number, signal: string) {
 		this._onExit.fire(code);
 	}
 
-	public startSession(): Promise<void> {
+	startSession(): Promise<void> {
 		return Promise.resolve(this._proxy.$startDASession(this._handle, this._ds.getSessionDto(this._session)));
 	}
 
-	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
+	sendMessage(message: DebugProtocol.ProtocolMessage): void {
 		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, true));
 	}
 
-	public stopSession(): Promise<void> {
+	async stopSession(): Promise<void> {
+		await this.cancelPendingRequests();
 		return Promise.resolve(this._proxy.$stopDASession(this._handle));
 	}
 }

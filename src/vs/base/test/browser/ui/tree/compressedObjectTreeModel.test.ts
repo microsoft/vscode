@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { compress, ICompressedTreeElement, ICompressedTreeNode, decompress, CompressedTreeModel } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { compress, ICompressedTreeElement, ICompressedTreeNode, decompress, CompressedObjectTreeModel } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { Iterator } from 'vs/base/common/iterator';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
@@ -305,7 +305,7 @@ suite('CompressedObjectTree', function () {
 
 		test('ctor', () => {
 			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedTreeModel<number>(toSpliceable(list));
+			const model = new CompressedObjectTreeModel<number>('test', toSpliceable(list));
 			assert(model);
 			assert.equal(list.length, 0);
 			assert.equal(model.size, 0);
@@ -313,7 +313,7 @@ suite('CompressedObjectTree', function () {
 
 		test('flat', () => {
 			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedTreeModel<number>(toSpliceable(list));
+			const model = new CompressedObjectTreeModel<number>('test', toSpliceable(list));
 
 			model.setChildren(null, Iterator.fromArray([
 				{ element: 0 },
@@ -340,7 +340,7 @@ suite('CompressedObjectTree', function () {
 
 		test('nested', () => {
 			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedTreeModel<number>(toSpliceable(list));
+			const model = new CompressedObjectTreeModel<number>('test', toSpliceable(list));
 
 			model.setChildren(null, Iterator.fromArray([
 				{
@@ -376,7 +376,7 @@ suite('CompressedObjectTree', function () {
 
 		test('compressed', () => {
 			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedTreeModel<number>(toSpliceable(list));
+			const model = new CompressedObjectTreeModel<number>('test', toSpliceable(list));
 
 			model.setChildren(null, Iterator.fromArray([
 				{

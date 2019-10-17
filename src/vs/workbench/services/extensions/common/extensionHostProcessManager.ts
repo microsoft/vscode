@@ -26,6 +26,7 @@ import { IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -213,12 +214,12 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessRPCProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
 	}
 
-	public async activate(extension: ExtensionIdentifier, activationEvent: string): Promise<boolean> {
+	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
 		const proxy = await this._getExtensionHostProcessProxy();
 		if (!proxy) {
 			return false;
 		}
-		return proxy.$activate(extension, activationEvent);
+		return proxy.$activate(extension, reason);
 	}
 
 	public activateByEvent(activationEvent: string): Promise<void> {
@@ -237,18 +238,17 @@ export class ExtensionHostProcessManager extends Disposable {
 		});
 	}
 
-	public getInspectPort(): number {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
 		if (this._extensionHostProcessWorker) {
+			if (tryEnableInspector) {
+				await this._extensionHostProcessWorker.enableInspectPort();
+			}
 			let port = this._extensionHostProcessWorker.getInspectPort();
 			if (port) {
 				return port;
 			}
 		}
 		return 0;
-	}
-
-	public canProfileExtensionHost(): boolean {
-		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
 	}
 
 	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {

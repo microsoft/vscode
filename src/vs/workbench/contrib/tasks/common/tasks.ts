@@ -5,12 +5,13 @@
 
 import * as nls from 'vs/nls';
 import * as Types from 'vs/base/common/types';
+import * as resources from 'vs/base/common/resources';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
-import { UriComponents } from 'vs/base/common/uri';
+import { UriComponents, URI } from 'vs/base/common/uri';
 
 import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -273,7 +274,7 @@ export namespace PresentationOptions {
 export enum RuntimeType {
 	Shell = 1,
 	Process = 2,
-	CustomExecution2 = 3
+	CustomExecution = 3
 }
 
 export namespace RuntimeType {
@@ -283,8 +284,8 @@ export namespace RuntimeType {
 				return RuntimeType.Shell;
 			case 'process':
 				return RuntimeType.Process;
-			case 'customExecution2':
-				return RuntimeType.CustomExecution2;
+			case 'customExecution':
+				return RuntimeType.CustomExecution;
 			default:
 				return RuntimeType.Process;
 		}
@@ -374,10 +375,13 @@ export namespace TaskSourceKind {
 	export const Workspace: 'workspace' = 'workspace';
 	export const Extension: 'extension' = 'extension';
 	export const InMemory: 'inMemory' = 'inMemory';
+	export const WorkspaceFile: 'workspaceFile' = 'workspaceFile';
+	export const User: 'user' = 'user';
 }
 
 export interface TaskSourceConfigElement {
-	workspaceFolder: IWorkspaceFolder;
+	workspaceFolder?: IWorkspaceFolder;
+	workspace?: IWorkspace;
 	file: string;
 	index: number;
 	element: any;
@@ -410,8 +414,20 @@ export interface InMemoryTaskSource extends BaseTaskSource {
 	readonly kind: 'inMemory';
 }
 
-export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | InMemoryTaskSource;
+export interface UserTaskSource extends BaseTaskSource {
+	readonly kind: 'user';
+	readonly config: TaskSourceConfigElement;
+	readonly customizes?: KeyedTaskIdentifier;
+}
 
+export interface WorkspaceFileTaskSource extends BaseTaskSource {
+	readonly kind: 'workspaceFile';
+	readonly config: TaskSourceConfigElement;
+	readonly customizes?: KeyedTaskIdentifier;
+}
+
+export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | InMemoryTaskSource | UserTaskSource | WorkspaceFileTaskSource;
+export type FileBasedTaskSource = WorkspaceTaskSource | UserTaskSource | WorkspaceFileTaskSource;
 export interface TaskIdentifier {
 	type: string;
 	[name: string]: any;
@@ -422,7 +438,7 @@ export interface KeyedTaskIdentifier extends TaskIdentifier {
 }
 
 export interface TaskDependency {
-	workspaceFolder: IWorkspaceFolder;
+	uri: URI;
 	task: string | KeyedTaskIdentifier | undefined;
 }
 
@@ -566,6 +582,10 @@ export abstract class CommonTask {
 		return undefined;
 	}
 
+	public getWorkspaceFileName(): string | undefined {
+		return undefined;
+	}
+
 	public getTelemetryKind(): string {
 		return 'unknown';
 	}
@@ -619,7 +639,7 @@ export class CustomTask extends CommonTask {
 	/**
 	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 */
-	_source: WorkspaceTaskSource;
+	_source: FileBasedTaskSource;
 
 	hasDefinedMatchers: boolean;
 
@@ -628,7 +648,7 @@ export class CustomTask extends CommonTask {
 	 */
 	command: CommandConfiguration = {};
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string, type: string, command: CommandConfiguration | undefined,
+	public constructor(id: string, source: FileBasedTaskSource, label: string, type: string, command: CommandConfiguration | undefined,
 		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, undefined, runOptions, configurationProperties, source);
 		this._source = source;
@@ -660,8 +680,8 @@ export class CustomTask extends CommonTask {
 					type = 'process';
 					break;
 
-				case RuntimeType.CustomExecution2:
-					type = 'customExecution2';
+				case RuntimeType.CustomExecution:
+					type = 'customExecution';
 					break;
 
 				case undefined:
@@ -700,12 +720,20 @@ export class CustomTask extends CommonTask {
 		if (!workspaceFolder) {
 			return undefined;
 		}
-		let key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder.uri.toString(), id: this.configurationProperties.identifier! };
+		let id: string = this.configurationProperties.identifier!;
+		if (this._source.kind !== TaskSourceKind.Workspace) {
+			id += this._source.kind;
+		}
+		let key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder.uri.toString(), id };
 		return JSON.stringify(key);
 	}
 
-	public getWorkspaceFolder(): IWorkspaceFolder {
+	public getWorkspaceFolder(): IWorkspaceFolder | undefined {
 		return this._source.config.workspaceFolder;
+	}
+
+	public getWorkspaceFileName(): string | undefined {
+		return (this._source.config.workspace && this._source.config.workspace.configuration) ? resources.basename(this._source.config.workspace.configuration) : undefined;
 	}
 
 	public getTelemetryKind(): string {
@@ -726,11 +754,11 @@ export class ConfiguringTask extends CommonTask {
 	/**
 	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 */
-	_source: WorkspaceTaskSource;
+	_source: FileBasedTaskSource;
 
 	configures: KeyedTaskIdentifier;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string | undefined, type: string | undefined,
+	public constructor(id: string, source: FileBasedTaskSource, label: string | undefined, type: string | undefined,
 		configures: KeyedTaskIdentifier, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
 		this._source = source;
@@ -747,6 +775,10 @@ export class ConfiguringTask extends CommonTask {
 
 	public getDefinition(): KeyedTaskIdentifier {
 		return this.configures;
+	}
+
+	public getWorkspaceFileName(): string | undefined {
+		return (this._source.config.workspace && this._source.config.workspace.configuration) ? resources.basename(this._source.config.workspace.configuration) : undefined;
 	}
 }
 

@@ -15,6 +15,7 @@ import { Location, LocationLink } from 'vs/editor/common/modes';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Position } from 'vs/editor/common/core/position';
 import { IMatch } from 'vs/base/common/filters';
+import { Constants } from 'vs/base/common/uint';
 
 export class OneReference {
 	readonly id: string;
@@ -72,11 +73,11 @@ export class FilePreview implements IDisposable {
 		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 		const word = model.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
 		const beforeRange = new Range(startLineNumber, word.startColumn, startLineNumber, startColumn);
-		const afterRange = new Range(endLineNumber, endColumn, endLineNumber, Number.MAX_VALUE);
+		const afterRange = new Range(endLineNumber, endColumn, endLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
 
-		const before = model.getValueInRange(beforeRange).replace(/^\s+/, strings.empty);
+		const before = model.getValueInRange(beforeRange).replace(/^\s+/, '');
 		const inside = model.getValueInRange(range);
-		const after = model.getValueInRange(afterRange).replace(/\s+$/, strings.empty);
+		const after = model.getValueInRange(afterRange).replace(/\s+$/, '');
 
 		return {
 			value: before + inside + after,

@@ -59,7 +59,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 
 export class OutputService extends Disposable implements IOutputService, ITextModelContentProvider {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 	private activeChannelIdInStorage: string;
@@ -155,7 +155,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private onDidPanelOpen(panel: IPanel | null, preserveFocus: boolean): Promise<void> {
+	private onDidPanelOpen(panel: IPanel | undefined, preserveFocus: boolean): Promise<void> {
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {

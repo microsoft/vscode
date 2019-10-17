@@ -16,7 +16,7 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IIssueService private readonly issueService: IIssueService,

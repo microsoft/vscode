@@ -74,7 +74,8 @@ const dependsOn: IJSONSchema = {
 				]
 			}
 		}
-	]
+	],
+	description: nls.localize('JsonSchema.tasks.dependsOn', 'Either a string representing another task or an array of other tasks that this task depends on.')
 };
 
 const dependsOrder: IJSONSchema = {
@@ -98,7 +99,7 @@ const presentation: IJSONSchema = {
 		showReuseMessage: true,
 		clear: false,
 	},
-	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s ouput and reads its input.'),
+	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s output and reads its input.'),
 	additionalProperties: false,
 	properties: {
 		echo: {
@@ -481,6 +482,7 @@ tasks.items = {
 definitionsTaskRunnerConfigurationProperties.inputs = inputsSchema.definitions!.inputs;
 
 definitions.commandConfiguration.properties!.isShellCommand = Objects.deepClone(shellCommand);
+definitions.commandConfiguration.properties!.args = Objects.deepClone(args);
 definitions.options.properties!.shell = {
 	$ref: '#/definitions/shellConfiguration'
 };

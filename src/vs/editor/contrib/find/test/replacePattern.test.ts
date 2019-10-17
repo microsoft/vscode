@@ -183,6 +183,23 @@ suite('Replace Pattern test', () => {
 		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar-newabc'), 'Newfoo-Newbar-Newabc');
 		actual = ['Foo-Bar-abc'];
 		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar'), 'Newfoo-newbar');
+		actual = ['foo-Bar'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar'), 'newfoo-Newbar');
+		actual = ['foo-BAR'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar'), 'newfoo-NEWBAR');
+
+		actual = ['Foo_Bar'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo_newbar'), 'Newfoo_Newbar');
+		actual = ['Foo_Bar_Abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo_newbar_newabc'), 'Newfoo_Newbar_Newabc');
+		actual = ['Foo_Bar_abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo_newbar'), 'Newfoo_newbar');
+		actual = ['Foo_Bar-abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo_newbar-abc'), 'Newfoo_newbar-abc');
+		actual = ['foo_Bar'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo_newbar'), 'newfoo_Newbar');
+		actual = ['Foo_BAR'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo_newbar'), 'Newfoo_NEWBAR');
 	});
 
 	test('preserve case', () => {
@@ -217,5 +234,37 @@ suite('Replace Pattern test', () => {
 		replacePattern = parseReplaceString('newfoo-newbar');
 		actual = replacePattern.buildReplaceString(['Foo-Bar-abc'], true);
 		assert.equal(actual, 'Newfoo-newbar');
+
+		replacePattern = parseReplaceString('newfoo-newbar');
+		actual = replacePattern.buildReplaceString(['foo-Bar'], true);
+		assert.equal(actual, 'newfoo-Newbar');
+
+		replacePattern = parseReplaceString('newfoo-newbar');
+		actual = replacePattern.buildReplaceString(['foo-BAR'], true);
+		assert.equal(actual, 'newfoo-NEWBAR');
+
+		replacePattern = parseReplaceString('newfoo_newbar');
+		actual = replacePattern.buildReplaceString(['Foo_Bar'], true);
+		assert.equal(actual, 'Newfoo_Newbar');
+
+		replacePattern = parseReplaceString('newfoo_newbar_newabc');
+		actual = replacePattern.buildReplaceString(['Foo_Bar_Abc'], true);
+		assert.equal(actual, 'Newfoo_Newbar_Newabc');
+
+		replacePattern = parseReplaceString('newfoo_newbar');
+		actual = replacePattern.buildReplaceString(['Foo_Bar_abc'], true);
+		assert.equal(actual, 'Newfoo_newbar');
+
+		replacePattern = parseReplaceString('newfoo_newbar-abc');
+		actual = replacePattern.buildReplaceString(['Foo_Bar-abc'], true);
+		assert.equal(actual, 'Newfoo_newbar-abc');
+
+		replacePattern = parseReplaceString('newfoo_newbar');
+		actual = replacePattern.buildReplaceString(['foo_Bar'], true);
+		assert.equal(actual, 'newfoo_Newbar');
+
+		replacePattern = parseReplaceString('newfoo_newbar');
+		actual = replacePattern.buildReplaceString(['foo_BAR'], true);
+		assert.equal(actual, 'newfoo_NEWBAR');
 	});
 });

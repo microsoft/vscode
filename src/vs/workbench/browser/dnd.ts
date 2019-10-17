@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IRecentFile, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -20,7 +20,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
@@ -28,10 +28,10 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IRecentFile } from 'vs/platform/history/common/history';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -160,13 +160,14 @@ export class ResourcesDropHandler {
 	constructor(
 		private options: IResourcesDropHandlerOptions,
 		@IFileService private readonly fileService: IFileService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IHostService private readonly hostService: IHostService
 	) {
 	}
 
@@ -177,7 +178,7 @@ export class ResourcesDropHandler {
 		}
 
 		// Make the window active to handle the drop properly within
-		await this.windowService.focusWindow();
+		await this.hostService.focus();
 
 		// Check for special things being dropped
 		const isWorkspaceOpening = await this.doHandleDrop(untitledOrFileResources);
@@ -187,9 +188,9 @@ export class ResourcesDropHandler {
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
-		const recents: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
-		if (recents.length) {
-			this.windowService.addRecentlyOpened(recents);
+		const recentFiles: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
+		if (recentFiles.length) {
+			this.workspacesService.addRecentlyOpened(recentFiles);
 		}
 
 		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
@@ -242,11 +243,13 @@ export class ResourcesDropHandler {
 		}
 
 		// Resolve the contents of the dropped dirty resource from source
-		try {
-			const content = await this.backupFileService.resolveBackupContent((droppedDirtyEditor.backupResource!));
-			await this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
-		} catch (e) {
-			// Ignore error
+		if (droppedDirtyEditor.backupResource) {
+			try {
+				const content = await this.backupFileService.resolveBackupContent((droppedDirtyEditor.backupResource));
+				await this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
+			} catch (e) {
+				// Ignore error
+			}
 		}
 
 		return false;
@@ -262,14 +265,14 @@ export class ResourcesDropHandler {
 	}
 
 	private async handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
-		const urisToOpen: IURIToOpen[] = [];
+		const toOpen: IWindowOpenable[] = [];
 		const folderURIs: IWorkspaceFolderCreationData[] = [];
 
 		await Promise.all(fileOnDiskResources.map(async fileOnDiskResource => {
 
 			// Check for Workspace
 			if (hasWorkspaceFileExtension(fileOnDiskResource)) {
-				urisToOpen.push({ workspaceUri: fileOnDiskResource });
+				toOpen.push({ workspaceUri: fileOnDiskResource });
 
 				return;
 			}
@@ -278,7 +281,7 @@ export class ResourcesDropHandler {
 			try {
 				const stat = await this.fileService.resolve(fileOnDiskResource);
 				if (stat.isDirectory) {
-					urisToOpen.push({ folderUri: stat.resource });
+					toOpen.push({ folderUri: stat.resource });
 					folderURIs.push({ uri: stat.resource });
 				}
 			} catch (error) {
@@ -287,16 +290,16 @@ export class ResourcesDropHandler {
 		}));
 
 		// Return early if no external resource is a folder or workspace
-		if (urisToOpen.length === 0) {
+		if (toOpen.length === 0) {
 			return false;
 		}
 
 		// Pass focus to window
-		this.windowService.focusWindow();
+		this.hostService.focus();
 
 		// Open in separate windows if we drop workspaces or just one folder
-		if (urisToOpen.length > folderURIs.length || folderURIs.length === 1) {
-			await this.windowService.openWindow(urisToOpen, { forceReuseWindow: true });
+		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {
+			await this.hostService.openWindow(toOpen, { forceReuseWindow: true });
 		}
 
 		// folders.length > 1: Multiple folders: Create new workspace with folders and open
@@ -328,9 +331,12 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath)) : source.resource.toString()).join(lineDelimiter));
 
 	const envService = accessor.get(IWorkbenchEnvironmentService);
-	if (!(isLinux && envService.configuration.remoteAuthority)) {
+	const hasRemote = !!envService.configuration.remoteAuthority;
+	if (
+		!(isLinux && hasRemote) && 	// Not supported on linux remote due to chrome limitation https://github.com/microsoft/vscode-remote-release/issues/849
+		!isWeb 						// Does not seem to work anymore when running from web, the file ends up being empty (and PWA crashes)
+	) {
 		// Download URL: enables support to drag a tab as file to desktop (only single file supported)
-		// Not supported on linux remote due to chrome limitation https://github.com/microsoft/vscode-remote-release/issues/849
 		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), firstSource.resource.toString()].join(':'));
 	}
 

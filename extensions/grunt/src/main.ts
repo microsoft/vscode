@@ -127,8 +127,8 @@ class FolderDetector {
 			let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
 			let source = 'grunt';
 			let task = gruntTask.indexOf(' ') === -1
-				? new vscode.Task(kind, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand} ${name}`, options))
-				: new vscode.Task(kind, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand} "${name}"`, options));
+				? new vscode.Task(kind, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand} ${gruntTask.name}`, options))
+				: new vscode.Task(kind, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand} "${gruntTask.name}"`, options));
 			return task;
 		}
 		return undefined;

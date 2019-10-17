@@ -257,7 +257,7 @@ export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 export interface IQuickInputService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.

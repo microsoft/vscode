@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class SignService implements ISignService {
 
-	_serviceBrand!: ServiceIdentifier<ISignService>;
+	_serviceBrand: undefined;
 
 	private readonly _tkn: string | null;
 

@@ -12,7 +12,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export class DownloadService implements IDownloadService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,

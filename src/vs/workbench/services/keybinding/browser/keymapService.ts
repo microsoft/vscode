@@ -495,7 +495,7 @@ class UserKeyboardLayout extends Disposable {
 }
 
 class BrowserKeymapService extends Disposable implements IKeymapService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;

@@ -203,16 +203,16 @@ export const toggleClass: (node: HTMLElement | SVGElement, className: string, sh
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;
-	private _node: Element | Window | Document;
+	private _node: EventTarget;
 	private readonly _type: string;
-	private readonly _useCapture: boolean;
+	private readonly _options: boolean | AddEventListenerOptions;
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture?: boolean) {
+	constructor(node: EventTarget, type: string, handler: (e: any) => void, options?: boolean | AddEventListenerOptions) {
 		this._node = node;
 		this._type = type;
 		this._handler = handler;
-		this._useCapture = (useCapture || false);
-		this._node.addEventListener(this._type, this._handler, this._useCapture);
+		this._options = (options || false);
+		this._node.addEventListener(this._type, this._handler, this._options);
 	}
 
 	public dispose(): void {
@@ -221,7 +221,7 @@ class DomListener implements IDisposable {
 			return;
 		}
 
-		this._node.removeEventListener(this._type, this._handler, this._useCapture);
+		this._node.removeEventListener(this._type, this._handler, this._options);
 
 		// Prevent leakers from holding on to the dom or handler func
 		this._node = null!;
@@ -229,9 +229,10 @@ class DomListener implements IDisposable {
 	}
 }
 
-export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: Element | Window | Document, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture: AddEventListenerOptions): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean | AddEventListenerOptions): IDisposable {
 	return new DomListener(node, type, handler, useCapture);
 }
 
@@ -559,13 +560,11 @@ class SizeUtils {
 // Position & Dimension
 
 export class Dimension {
-	public width: number;
-	public height: number;
 
-	constructor(width: number, height: number) {
-		this.width = width;
-		this.height = height;
-	}
+	constructor(
+		public readonly width: number,
+		public readonly height: number,
+	) { }
 
 	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
@@ -780,6 +779,12 @@ export function createStyleSheet(container: HTMLElement = document.getElementsBy
 	style.media = 'screen';
 	container.appendChild(style);
 	return style;
+}
+
+export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
+	let meta = document.createElement('meta');
+	container.appendChild(meta);
+	return meta;
 }
 
 let _sharedStyleSheet: HTMLStyleElement | null = null;
@@ -1193,7 +1198,7 @@ export function asDomUri(uri: URI): URI {
 		return uri;
 	}
 	if (Schemas.vscodeRemote === uri.scheme) {
-		return RemoteAuthorities.rewrite(uri.authority, uri.path);
+		return RemoteAuthorities.rewrite(uri);
 	}
 	return uri;
 }

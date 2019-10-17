@@ -42,7 +42,7 @@ type ConfigurationInspect<T> = {
 
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;

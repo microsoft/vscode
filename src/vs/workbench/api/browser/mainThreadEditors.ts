@@ -15,7 +15,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorOptions, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions, IResourceInput, EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
@@ -118,7 +118,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.pinned,
-			selection: options.selection
+			selection: options.selection,
+			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
+			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined
 		};
 
 		const input: IResourceInput = {

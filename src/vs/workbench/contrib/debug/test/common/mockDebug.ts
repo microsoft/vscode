@@ -6,15 +6,15 @@
 import { URI as uri } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Position } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { CompletionItem } from 'vs/editor/common/modes';
 import Severity from 'vs/base/common/severity';
 
 export class MockDebugService implements IDebugService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public get state(): State {
 		throw new Error('not implemented');
@@ -40,7 +40,8 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	public focusStackFrame(focusedStackFrame: IStackFrame): void {
+	public focusStackFrame(focusedStackFrame: IStackFrame): Promise<void> {
+		throw new Error('not implemented');
 	}
 
 	sendAllBreakpoints(session?: IDebugSession): Promise<any> {
@@ -102,7 +103,7 @@ export class MockDebugService implements IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): Promise<boolean> {
+	public startDebugging(launch: ILaunch, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 
@@ -132,6 +133,11 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+
+	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]> {
+		throw new Error('Method not implemented.');
+	}
+
 	dataBreakpointInfo(name: string, variablesReference?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined; }> {
 		throw new Error('Method not implemented.');
 	}
@@ -152,6 +158,10 @@ export class MockSession implements IDebugSession {
 
 	getReplElements(): IReplElement[] {
 		return [];
+	}
+
+	hasSeparateRepl(): boolean {
+		return true;
 	}
 
 	removeReplExpressions(): void { }
@@ -180,6 +190,10 @@ export class MockSession implements IDebugSession {
 		return 'mockname';
 	}
 
+	setName(name: string): void {
+		throw new Error('not implemented');
+	}
+
 	getSourceForUri(modelUri: uri): Source {
 		throw new Error('not implemented');
 	}
@@ -201,6 +215,10 @@ export class MockSession implements IDebugSession {
 	}
 
 	get onDidEndAdapter(): Event<AdapterEndEvent> {
+		throw new Error('not implemented');
+	}
+
+	get onDidChangeName(): Event<string> {
 		throw new Error('not implemented');
 	}
 
@@ -256,7 +274,7 @@ export class MockSession implements IDebugSession {
 	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse> {
 		throw new Error('Method not implemented.');
 	}
-	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse> {
+	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse> {
 		throw new Error('Method not implemented.');
 	}
 	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse> {

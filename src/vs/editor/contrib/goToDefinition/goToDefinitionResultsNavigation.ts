@@ -18,13 +18,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { isEqual } from 'vs/base/common/resources';
 
 export const ctxHasSymbols = new RawContextKey('hasSymbols', false);
 
 export const ISymbolNavigationService = createDecorator<ISymbolNavigationService>('ISymbolNavigationService');
 
 export interface ISymbolNavigationService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	reset(): void;
 	put(anchor: OneReference): void;
 	revealNext(source: ICodeEditor): Promise<any>;
@@ -32,7 +33,7 @@ export interface ISymbolNavigationService {
 
 class SymbolNavigationService implements ISymbolNavigationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _ctxHasSymbols: IContextKey<boolean>;
 
@@ -92,7 +93,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 			let seenUri: boolean = false;
 			let seenPosition: boolean = false;
 			for (const reference of refModel.references) {
-				if (reference.uri.toString() === model.uri.toString()) {
+				if (isEqual(reference.uri, model.uri)) {
 					seenUri = true;
 					seenPosition = seenPosition || Range.containsPosition(reference.range, position);
 				} else if (seenUri) {

@@ -8,7 +8,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -23,6 +23,7 @@ import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCom
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 // copy lines
 
@@ -96,6 +97,47 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 	}
 }
 
+export class DuplicateSelectionAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.duplicateSelection',
+			label: nls.localize('duplicateSelection', "Duplicate Selection"),
+			alias: 'Duplicate Selection',
+			precondition: EditorContextKeys.writable,
+			menubarOpts: {
+				menuId: MenuId.MenubarSelectionMenu,
+				group: '2_line',
+				title: nls.localize({ key: 'miDuplicateSelection', comment: ['&& denotes a mnemonic'] }, "&&Duplicate Selection"),
+				order: 5
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
+		const model = editor.getModel();
+
+		for (const selection of selections) {
+			if (selection.isEmpty()) {
+				commands.push(new CopyLinesCommand(selection, true));
+			} else {
+				const insertSelection = new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn);
+				commands.push(new ReplaceCommandThatSelectsText(insertSelection, model.getValueInRange(selection)));
+			}
+		}
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
+	}
+}
+
 // move lines
 
 abstract class AbstractMoveLinesAction extends EditorAction {
@@ -111,7 +153,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections() || [];
-		let autoIndent = editor.getConfiguration().autoIndent;
+		const autoIndent = editor.getOption(EditorOption.autoIndent);
 
 		for (const selection of selections) {
 			commands.push(new MoveLinesCommand(selection, this.down, autoIndent));
@@ -886,7 +928,7 @@ export abstract class AbstractCaseAction extends EditorAction {
 			return;
 		}
 
-		let wordSeparators = editor.getConfiguration().wordSeparators;
+		let wordSeparators = editor.getOption(EditorOption.wordSeparators);
 
 		let commands: ICommand[] = [];
 
@@ -988,6 +1030,7 @@ export class TitleCaseAction extends AbstractCaseAction {
 
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
+registerEditorAction(DuplicateSelectionAction);
 registerEditorAction(MoveLinesUpAction);
 registerEditorAction(MoveLinesDownAction);
 registerEditorAction(SortLinesAscendingAction);

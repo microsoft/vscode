@@ -150,6 +150,10 @@ export const enum ProtocolConstants {
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	 */
 	ReconnectionGraceTime = 3 * 60 * 60 * 1000, // 3hrs
+	/**
+	 * Maximal grace time between the first and the last reconnection...
+	 */
+	ReconnectionShortGraceTime = 5 * 60 * 1000, // 5min
 }
 
 class ProtocolMessage {
@@ -347,10 +351,10 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
 
-	private _onMessage = new Emitter<VSBuffer>();
+	private readonly _onMessage = new Emitter<VSBuffer>();
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-	private _onClose = new Emitter<void>();
+	private readonly _onClose = new Emitter<void>();
 	readonly onClose: Event<void> = this._onClose.event;
 
 	constructor(socket: ISocket) {
@@ -420,7 +424,7 @@ export class BufferedEmitter<T> {
 				// it is important to deliver these messages after this call, but before
 				// other messages have a chance to be received (to guarantee in order delivery)
 				// that's why we're using here nextTick and not other types of timeouts
-				process.nextTick(() => this._deliverMessages);
+				process.nextTick(() => this._deliverMessages());
 			},
 			onLastListenerRemove: () => {
 				this._hasListeners = false;
@@ -443,7 +447,11 @@ export class BufferedEmitter<T> {
 
 	public fire(event: T): void {
 		if (this._hasListeners) {
-			this._emitter.fire(event);
+			if (this._bufferedMessages.length > 0) {
+				this._bufferedMessages.push(event);
+			} else {
+				this._emitter.fire(event);
+			}
 		} else {
 			this._bufferedMessages.push(event);
 		}

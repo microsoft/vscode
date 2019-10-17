@@ -16,7 +16,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IRange } from 'vs/editor/common/core/range';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -50,8 +50,9 @@ export class GotoLineAction extends QuickOpenAction {
 		let restoreOptions: IEditorOptions | null = null;
 
 		if (isCodeEditor(activeTextEditorWidget)) {
-			const config = activeTextEditorWidget.getConfiguration();
-			if (config.viewInfo.renderLineNumbers === RenderLineNumbersType.Relative) {
+			const options = activeTextEditorWidget.getOptions();
+			const lineNumbers = options.get(EditorOption.lineNumbers);
+			if (lineNumbers.renderType === RenderLineNumbersType.Relative) {
 				activeTextEditorWidget.updateOptions({
 					lineNumbers: 'on'
 				});
@@ -87,8 +88,10 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 
 	private parseInput(line: string) {
 		const numbers = line.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
-		this.line = numbers[0];
+		const endLine = this.getMaxLineNumber() + 1;
+
 		this.column = numbers[1];
+		this.line = numbers[0] > 0 ? numbers[0] : endLine + numbers[0];
 	}
 
 	getLabel(): string {
@@ -113,7 +116,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 	}
 
 	private invalidRange(maxLineNumber: number = this.getMaxLineNumber()): boolean {
-		return !this.line || !types.isNumber(this.line) || (maxLineNumber > 0 && types.isNumber(this.line) && this.line > maxLineNumber);
+		return !this.line || !types.isNumber(this.line) || (maxLineNumber > 0 && types.isNumber(this.line) && this.line > maxLineNumber) || this.line < 0;
 	}
 
 	private getMaxLineNumber(): number {

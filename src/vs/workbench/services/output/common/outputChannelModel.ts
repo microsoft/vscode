@@ -31,7 +31,7 @@ export interface IOutputChannelModel extends IDisposable {
 export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
 
 export interface IOutputChannelModelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel;
 
@@ -365,7 +365,7 @@ export class BufferredOutputChannel extends Disposable implements IOutputChannel
 
 class BufferedContent {
 
-	private static MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
+	private static readonly MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
 
 	private data: string[] = [];
 	private dataIds: number[] = [];

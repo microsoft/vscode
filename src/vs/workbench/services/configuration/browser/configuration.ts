@@ -337,7 +337,7 @@ export class WorkspaceConfiguration extends Disposable {
 
 	setFolders(folders: IStoredWorkspaceFolder[], jsonEditingService: JSONEditingService): Promise<void> {
 		if (this._workspaceIdentifier) {
-			return jsonEditingService.write(this._workspaceIdentifier.configPath, { key: 'folders', value: folders }, true)
+			return jsonEditingService.write(this._workspaceIdentifier.configPath, [{ key: 'folders', value: folders }], true)
 				.then(() => this.reload());
 		}
 		return Promise.resolve();
@@ -465,7 +465,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWork
 	}
 
 	private consolidate(): void {
-		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel);
+		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel, this.workspaceConfigurationModelParser.tasksModel);
 	}
 
 	private watchWorkspaceConfigurationFile(): IDisposable {
@@ -509,7 +509,7 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 			const contents = await this.configurationCache.read(key);
 			this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(key.key);
 			this.workspaceConfigurationModelParser.parseContent(contents);
-			this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel);
+			this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel, this.workspaceConfigurationModelParser.tasksModel);
 		} catch (e) {
 		}
 	}

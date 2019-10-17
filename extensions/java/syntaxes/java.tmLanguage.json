@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/759a0ac02dc091018a112b25a5a6d894918a0aa8",
+	"version": "https://github.com/atom/language-java/commit/ed8ad7451b4d0454374885a102dbe63befdea509",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -379,10 +379,10 @@
 					"include": "#annotations"
 				},
 				{
-					"include": "#member-variables"
+					"include": "#storage-modifiers"
 				},
 				{
-					"include": "#storage-modifiers"
+					"include": "#member-variables"
 				},
 				{
 					"include": "#code"

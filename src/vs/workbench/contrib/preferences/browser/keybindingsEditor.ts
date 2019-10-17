@@ -29,7 +29,6 @@ import {
 } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -46,6 +45,7 @@ import { attachStylerCallback, attachInputBoxStyler } from 'vs/platform/theme/co
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
+import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
 
 const $ = DOM.$;
 
@@ -78,7 +78,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private keybindingsListContainer: HTMLElement;
 	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry | null;
 	private listEntries: IListEntry[];
-	private keybindingsList: List<IListEntry>;
+	private keybindingsList: WorkbenchList<IListEntry>;
 
 	private dimension: DOM.Dimension;
 	private delayedFiltering: Delayer<void>;
@@ -126,7 +126,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.createBody(keybindingsEditorElement);
 	}
 
-	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		this.keybindingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => this.render(!!(options && options.preserveFocus)));
@@ -316,7 +316,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		const fullTextSearchPlaceholder = localize('SearchKeybindings.FullTextSearchPlaceholder', "Type to search in keybindings");
 		const keybindingsSearchPlaceholder = localize('SearchKeybindings.KeybindingsSearchPlaceholder', "Recording Keys. Press Escape to exit");
 
-		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), 'clear-input', false, () => { this.search(''); return Promise.resolve(null); });
+		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), 'codicon-clear-all', false, () => { this.search(''); return Promise.resolve(null); });
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, searchContainer, <KeybindingsSearchOptions>{
@@ -339,7 +339,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		const sortByPrecedenceActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE);
 		const sortByPrecedenceActionLabel = localize('sortByPrecedeneLabel', "Sort by Precedence");
-		this.sortByPrecedenceAction = new Action('keybindings.editor.sortByPrecedence', sortByPrecedenceActionKeybinding ? localize('sortByPrecedeneLabelWithKeybinding', "{0} ({1})", sortByPrecedenceActionLabel, sortByPrecedenceActionKeybinding.getLabel()) : sortByPrecedenceActionLabel, 'sort-by-precedence');
+		this.sortByPrecedenceAction = new Action('keybindings.editor.sortByPrecedence', sortByPrecedenceActionKeybinding ? localize('sortByPrecedeneLabelWithKeybinding', "{0} ({1})", sortByPrecedenceActionLabel, sortByPrecedenceActionKeybinding.getLabel()) : sortByPrecedenceActionLabel, 'codicon-sort-precedence');
 		this.sortByPrecedenceAction.checked = false;
 		this._register(this.sortByPrecedenceAction.onDidChange(e => {
 			if (e.checked !== undefined) {
@@ -350,7 +350,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		const recordKeysActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS);
 		const recordKeysActionLabel = localize('recordKeysLabel', "Record Keys");
-		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, 'record-keys');
+		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, 'codicon-record-keys');
 		this.recordKeysAction.checked = false;
 		this._register(this.recordKeysAction.onDidChange(e => {
 			if (e.checked !== undefined) {
@@ -401,13 +401,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		const recordingBadge = DOM.append(container, DOM.$('.recording-badge.disabled'));
 		recordingBadge.textContent = localize('recording', "Recording Keys");
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder, badgeForeground }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
-			const color = colors.badgeForeground ? colors.badgeForeground.toString() : null;
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+			const color = colors.badgeForeground ? colors.badgeForeground.toString() : '';
 
 			recordingBadge.style.backgroundColor = background;
-			recordingBadge.style.borderWidth = border ? '1px' : null;
-			recordingBadge.style.borderStyle = border ? 'solid' : null;
+			recordingBadge.style.borderWidth = border ? '1px' : '';
+			recordingBadge.style.borderStyle = border ? 'solid' : '';
 			recordingBadge.style.borderColor = border;
 			recordingBadge.style.color = color ? color.toString() : null;
 		}));
@@ -452,7 +452,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private createList(parent: HTMLElement): void {
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
-		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingItemRenderer(this, this.instantiationService)], {
+		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, 'KeybindingsEditor', this.keybindingsListContainer, new Delegate(), [new KeybindingItemRenderer(this, this.instantiationService)], {
 			identityProvider: { getId: (e: IListEntry) => e.id },
 			ariaLabel: localize('keybindingsLabel', "Keybindings"),
 			setRowLineHeight: false,
@@ -489,11 +489,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (this.input) {
 			const input: KeybindingsEditorInput = this.input as KeybindingsEditorInput;
 			this.keybindingsEditorModel = await input.resolve();
-			const editorActionsLabels: Map<string, string> = EditorExtensionsRegistry.getEditorActions().reduce((editorActions, editorAction) => {
-				editorActions.set(editorAction.id, editorAction.label);
-				return editorActions;
-			}, new Map<string, string>());
-			await this.keybindingsEditorModel.resolve(editorActionsLabels);
+			await this.keybindingsEditorModel.resolve(this.getActionsLabels());
 			this.renderKeybindingsEntries(false, preserveFocus);
 			if (input.searchOptions) {
 				this.recordKeysAction.checked = input.searchOptions.recordKeybindings;
@@ -503,6 +499,19 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				this.updateSearchOptions();
 			}
 		}
+	}
+
+	private getActionsLabels(): Map<string, string> {
+		const actionsLabels: Map<string, string> = new Map<string, string>();
+		EditorExtensionsRegistry.getEditorActions().forEach(editorAction => actionsLabels.set(editorAction.id, editorAction.label));
+		for (const menuItem of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
+			if (isIMenuItem(menuItem)) {
+				const title = typeof menuItem.command.title === 'string' ? menuItem.command.title : menuItem.command.title.value;
+				const category = menuItem.command.category ? typeof menuItem.command.category === 'string' ? menuItem.command.category : menuItem.command.category.value : undefined;
+				actionsLabels.set(menuItem.command.id, category ? `${category}: ${title}` : title);
+			}
+		}
+		return actionsLabels;
 	}
 
 	private filterKeybindings(): void {
@@ -716,7 +725,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private createCopyCommandAction(keybinding: IKeybindingItemEntry): IAction {
 		return <IAction>{
-			label: localize('copyCommandLabel', "Copy Command"),
+			label: localize('copyCommandLabel', "Copy Command ID"),
 			enabled: true,
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND,
 			run: () => this.copyKeybindingCommand(keybinding)
@@ -878,7 +887,7 @@ class ActionsColumn extends Column {
 	private createEditAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
 		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
-			class: 'edit',
+			class: 'codicon-edit',
 			enabled: true,
 			id: 'editKeybinding',
 			tooltip: keybinding ? localize('editKeybindingLabelWithKey', "Change Keybinding {0}", `(${keybinding.getLabel()})`) : localize('editKeybindingLabel', "Change Keybinding"),
@@ -889,7 +898,7 @@ class ActionsColumn extends Column {
 	private createAddAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
 		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
-			class: 'add',
+			class: 'codicon-add',
 			enabled: true,
 			id: 'addKeybinding',
 			tooltip: keybinding ? localize('addKeybindingLabelWithKey', "Add Keybinding {0}", `(${keybinding.getLabel()})`) : localize('addKeybindingLabel', "Add Keybinding"),

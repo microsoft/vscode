@@ -29,8 +29,8 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	private readonly _fileSearchUsedSchemes = new Set<string>();
 	private _handlePool: number = 0;
 
-	private _internalFileSearchHandle: number;
-	private _internalFileSearchProvider: SearchService | null;
+	private _internalFileSearchHandle: number = -1;
+	private _internalFileSearchProvider: SearchService | null = null;
 
 	private _fileSearchManager: FileSearchManager;
 

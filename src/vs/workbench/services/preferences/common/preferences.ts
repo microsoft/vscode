@@ -167,19 +167,11 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 
 	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
 		const options = new SettingsEditorOptions();
+		options.overwrite(settings);
 
 		options.target = settings.target;
 		options.folderUri = settings.folderUri;
 		options.query = settings.query;
-
-		// IEditorOptions
-		options.preserveFocus = settings.preserveFocus;
-		options.forceReload = settings.forceReload;
-		options.revealIfVisible = settings.revealIfVisible;
-		options.revealIfOpened = settings.revealIfOpened;
-		options.pinned = settings.pinned;
-		options.index = settings.index;
-		options.inactive = settings.inactive;
 
 		return options;
 	}
@@ -191,7 +183,7 @@ export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
 
 export interface IPreferencesService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI | null;

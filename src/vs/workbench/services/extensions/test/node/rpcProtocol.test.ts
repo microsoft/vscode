@@ -187,4 +187,17 @@ suite('RPCProtocol', () => {
 			done(null);
 		});
 	});
+
+	test('issue #72798: null errors are hard to digest', function (done) {
+		delegate = (a1: number, a2: number) => {
+			throw { 'what': 'what' };
+		};
+		bProxy.$m(4, 1).then((res) => {
+			assert.fail('unexpected');
+			done(null);
+		}, (err) => {
+			assert.equal(err.what, 'what');
+			done(null);
+		});
+	});
 });

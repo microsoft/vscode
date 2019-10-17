@@ -68,9 +68,19 @@ abstract class BaseNavigationAction extends Action {
 			return false;
 		}
 
-		const activePanelId = this.panelService.getActivePanel()!.getId();
+		const activePanel = this.panelService.getActivePanel();
+		if (!activePanel) {
+			return false;
+		}
 
-		return this.panelService.openPanel(activePanelId, true)!;
+		const activePanelId = activePanel.getId();
+
+		const res = this.panelService.openPanel(activePanelId, true);
+		if (!res) {
+			return false;
+		}
+
+		return res;
 	}
 
 	protected async navigateToSidebar(): Promise<IViewlet | boolean> {
@@ -84,8 +94,8 @@ abstract class BaseNavigationAction extends Action {
 		}
 		const activeViewletId = activeViewlet.getId();
 
-		const value = await this.viewletService.openViewlet(activeViewletId, true);
-		return value === null ? false : value;
+		const viewlet = await this.viewletService.openViewlet(activeViewletId, true);
+		return !!viewlet;
 	}
 
 	protected navigateAcrossEditorGroup(direction: GroupDirection): boolean {

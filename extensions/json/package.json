@@ -27,7 +27,8 @@
           ".swcrc",
           ".webmanifest",
           ".js.map",
-          ".css.map"
+          ".css.map",
+          ".har"
         ],
         "filenames": [
           "composer.lock",
@@ -50,8 +51,7 @@
           ".babelrc",
           ".jsonc",
           ".eslintrc",
-          ".eslintrc.json",
-          "tslint.json"
+          ".eslintrc.json"
         ],
         "configuration": "./language-configuration.json"
       }

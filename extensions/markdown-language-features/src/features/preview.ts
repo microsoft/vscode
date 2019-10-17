@@ -25,7 +25,7 @@ interface WebviewMessage {
 
 interface CacheImageSizesMessage extends WebviewMessage {
 	readonly type: 'cacheImageSizes';
-	readonly body: { id: string, width: number, height: number }[];
+	readonly body: { id: string, width: number, height: number; }[];
 }
 
 interface RevealLineMessage extends WebviewMessage {
@@ -43,10 +43,9 @@ interface DidClickMessage extends WebviewMessage {
 }
 
 interface ClickLinkMessage extends WebviewMessage {
-	readonly type: 'clickLink';
+	readonly type: 'openLink';
 	readonly body: {
-		readonly path: string;
-		readonly fragment?: string;
+		readonly href: string;
 	};
 }
 
@@ -88,7 +87,7 @@ export class MarkdownPreview extends Disposable {
 	private forceUpdate = false;
 	private isScrolling = false;
 	private _disposed: boolean = false;
-	private imageInfo: { id: string, width: number, height: number }[] = [];
+	private imageInfo: { id: string, width: number, height: number; }[] = [];
 	private scrollToFragment: string | undefined;
 
 	public static async revive(
@@ -140,9 +139,9 @@ export class MarkdownPreview extends Disposable {
 			MarkdownPreview.viewType,
 			MarkdownPreview.getPreviewTitle(resource, locked),
 			previewColumn, {
-				enableFindWidget: true,
-				...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
-			});
+			enableFindWidget: true,
+			...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
+		});
 
 		return new MarkdownPreview(
 			webview,
@@ -202,8 +201,8 @@ export class MarkdownPreview extends Disposable {
 					this.onDidClickPreview(e.body.line);
 					break;
 
-				case 'clickLink':
-					this.onDidClickPreviewLink(e.body.path, e.body.fragment);
+				case 'openLink':
+					this.onDidClickPreviewLink(e.body.href);
 					break;
 
 				case 'showPreviewSecuritySelector':
@@ -271,7 +270,6 @@ export class MarkdownPreview extends Disposable {
 	}
 
 	public dispose() {
-		super.dispose();
 		if (this._disposed) {
 			return;
 		}
@@ -282,17 +280,23 @@ export class MarkdownPreview extends Disposable {
 
 		this._onDidChangeViewStateEmitter.dispose();
 		this.editor.dispose();
+		super.dispose();
 	}
 
-	public update(resource: vscode.Uri) {
-		const editor = vscode.window.activeTextEditor;
+	public update(resource: vscode.Uri, isRefresh = true) {
 		// Reposition scroll preview, position scroll to the top if active text editor
 		// doesn't corresponds with preview
-		if (editor && editor.document.uri.fsPath === resource.fsPath) {
-			this.line = getVisibleLine(editor);
-		} else {
-			this.line = 0;
+		const editor = vscode.window.activeTextEditor;
+		if (editor) {
+			if (!isRefresh || this._previewConfigurations.loadAndCacheConfiguration(this._resource).scrollEditorWithPreview) {
+				if (editor.document.uri.fsPath === resource.fsPath) {
+					this.line = getVisibleLine(editor);
+				} else {
+					this.line = 0;
+				}
+			}
 		}
+
 
 		// If we have changed resources, cancel any pending updates
 		const isResourceChange = resource.fsPath !== this._resource.fsPath;
@@ -317,7 +321,7 @@ export class MarkdownPreview extends Disposable {
 
 	public refresh() {
 		this.forceUpdate = true;
-		this.update(this._resource);
+		this.update(this._resource, true);
 	}
 
 	public updateConfiguration() {
@@ -481,6 +485,12 @@ export class MarkdownPreview extends Disposable {
 
 	private onDidScrollPreview(line: number) {
 		this.line = line;
+
+		const config = this._previewConfigurations.loadAndCacheConfiguration(this._resource);
+		if (!config.scrollEditorWithPreview) {
+			return;
+		}
+
 		for (const editor of vscode.window.visibleTextEditors) {
 			if (!this.isPreviewOf(editor.document.uri)) {
 				continue;
@@ -525,12 +535,19 @@ export class MarkdownPreview extends Disposable {
 		this.editor.webview.html = html;
 	}
 
-	private async onDidClickPreviewLink(path: string, fragment: string | undefined) {
-		this.scrollToFragment = undefined;
+	private async onDidClickPreviewLink(href: string) {
+		let [hrefPath, fragment] = decodeURIComponent(href).split('#');
+
+		// We perviously already resolve absolute paths.
+		// Now make sure we handle relative file paths
+		if (hrefPath[0] !== '/') {
+			hrefPath = path.join(path.dirname(this.resource.path), hrefPath);
+		}
+
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
-			const markdownLink = await resolveLinkToMarkdownFile(path);
+			const markdownLink = await resolveLinkToMarkdownFile(hrefPath);
 			if (markdownLink) {
 				if (fragment) {
 					this.scrollToFragment = fragment;
@@ -540,10 +557,10 @@ export class MarkdownPreview extends Disposable {
 			}
 		}
 
-		vscode.commands.executeCommand('_markdown.openDocumentLink', { path, fragment });
+		vscode.commands.executeCommand('_markdown.openDocumentLink', { path: hrefPath, fragment, fromResource: this.resource });
 	}
 
-	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number }[]) {
+	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number; }[]) {
 		this.imageInfo = imageInfo;
 	}
 }

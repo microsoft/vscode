@@ -30,6 +30,8 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 export interface Ctor<T> {
 	new(): T;
@@ -46,8 +48,9 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 		serviceCollection: new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
 			[IStorageService, new InMemoryStorageService()],
+			[IKeybindingService, new MockKeybindingService()],
 			[ISuggestMemoryService, new class implements ISuggestMemoryService {
-				_serviceBrand: any;
+				_serviceBrand: undefined;
 				memorize(): void {
 				}
 				select(): number {
@@ -56,7 +59,7 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 			}],
 		),
 	});
-	editor.registerAndInstantiateContribution(SnippetController2);
+	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 	return editor;
 }
 
@@ -672,12 +675,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				_insertSuggestion(item: ISelectedSuggestion) {
-					super._insertSuggestion(item, false, true);
+				_insertSuggestion(item: ISelectedSuggestion, flags: number = 0) {
+					super._insertSuggestion(item, flags);
 				}
 			}
-			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);
-			editor.registerAndInstantiateContribution(SnippetController2);
+			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl.ID, TestCtrl);
+			editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 
 			await assertEvent(sugget.onDidSuggest, () => {
 				editor.setPosition({ lineNumber: 1, column: 3 });

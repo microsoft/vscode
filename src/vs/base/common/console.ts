@@ -114,9 +114,9 @@ export function log(entry: IRemoteConsoleLog, label: string): void {
 	// First arg is a string
 	if (typeof args[0] === 'string') {
 		if (topFrame && isOneStringArg) {
-			consoleArgs = [`%c[${label}] %c${args[0]} %c${topFrame}`, color('blue'), color('black'), color('grey')];
+			consoleArgs = [`%c[${label}] %c${args[0]} %c${topFrame}`, color('blue'), color(''), color('grey')];
 		} else {
-			consoleArgs = [`%c[${label}] %c${args[0]}`, color('blue'), color('black'), ...args.slice(1)];
+			consoleArgs = [`%c[${label}] %c${args[0]}`, color('blue'), color(''), ...args.slice(1)];
 		}
 	}
 

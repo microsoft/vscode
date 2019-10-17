@@ -38,7 +38,7 @@ const defaultOpts = {
 
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
-	private checkbox!: Checkbox;
+	private checkbox: Checkbox | undefined;
 	private readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
@@ -51,7 +51,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 			title: this._action.label
 		});
 		this.disposables.add(this.checkbox);
-		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox!.checked, this));
+		this.disposables.add(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked, this));
 		this.element.appendChild(this.checkbox.domNode);
 	}
 
@@ -99,7 +99,7 @@ export class Checkbox extends Widget {
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = 'monaco-custom-checkbox ' + (this._opts.actionClassName || '') + ' ' + (this._checked ? 'checked' : 'unchecked');
+		this.domNode.className = 'monaco-custom-checkbox codicon ' + (this._opts.actionClassName || '') + ' ' + (this._checked ? 'checked' : 'unchecked');
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
@@ -219,7 +219,7 @@ export class SimpleCheckbox extends Widget {
 
 	protected applyStyles(): void {
 		this.domNode.style.color = this.styles.checkboxForeground ? this.styles.checkboxForeground.toString() : null;
-		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : null;
-		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : null;
+		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : '';
+		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : '';
 	}
 }

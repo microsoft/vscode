@@ -36,7 +36,7 @@ export interface NodeRequestOptions extends IRequestOptions {
  */
 export class RequestService extends Disposable implements IRequestService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private proxyUrl?: string;
 	private strictSSL: boolean | undefined;
@@ -141,7 +141,9 @@ export class RequestService extends Disposable implements IRequestService {
 				e(canceled());
 			});
 		});
-
 	}
 
+	async resolveProxy(url: string): Promise<string | undefined> {
+		return undefined; // currently not implemented in node
+	}
 }

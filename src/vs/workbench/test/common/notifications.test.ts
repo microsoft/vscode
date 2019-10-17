@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemLabelKind, IStatusMessageChangeEvent, StatusMessageChangeType } from 'vs/workbench/common/notifications';
 import { Action } from 'vs/base/common/actions';
-import { INotification, Severity } from 'vs/platform/notification/common/notification';
+import { INotification, Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 suite('Notifications', () => {
@@ -127,6 +127,13 @@ suite('Notifications', () => {
 		assert.equal(links[2].title, 'Click to execute command \'without.title\'');
 		assert.equal(links[2].length, '[Link 3](command:without.title)'.length);
 		assert.equal(links[2].offset, 'Unable to [Link 1](http://link1.com) open [Link 2](command:open.me "Open This") and '.length);
+
+		// Filter
+		let item8 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.SILENT)!;
+		assert.equal(item8.silent, true);
+
+		let item9 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.OFF)!;
+		assert.equal(item9.silent, false);
 	});
 
 	test('Model', () => {

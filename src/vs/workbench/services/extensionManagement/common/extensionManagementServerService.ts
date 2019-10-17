@@ -15,7 +15,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly localExtensionManagementServer: IExtensionManagementServer | null = null;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null = null;

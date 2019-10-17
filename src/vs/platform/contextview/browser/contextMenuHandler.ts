@@ -24,8 +24,8 @@ export interface IContextMenuHandlerOptions {
 }
 
 export class ContextMenuHandler {
-	private focusToReturn: HTMLElement;
-	private block: HTMLElement | null;
+	private focusToReturn: HTMLElement | null = null;
+	private block: HTMLElement | null = null;
 	private options: IContextMenuHandlerOptions = { blockMouse: true };
 
 	constructor(

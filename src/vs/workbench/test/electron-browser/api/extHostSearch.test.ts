@@ -28,7 +28,7 @@ const disposables = new DisposableStore();
 
 let mockMainThreadSearch: MockMainThreadSearch;
 class MockMainThreadSearch implements MainThreadSearchShape {
-	lastHandle: number;
+	lastHandle!: number;
 
 	results: Array<UriComponents | IRawFileMatch2> = [];
 

@@ -57,7 +57,7 @@ export class CommentNode extends Disposable {
 	protected toolbar: ToolBar | undefined;
 	private _commentFormActions: CommentFormActions | null = null;
 
-	private _onDidDelete = new Emitter<CommentNode>();
+	private readonly _onDidDelete = new Emitter<CommentNode>();
 
 	public get domNode(): HTMLElement {
 		return this._domNode;

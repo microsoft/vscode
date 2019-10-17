@@ -14,7 +14,7 @@ import { isEqualOrParent, basename } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
 
 export interface ILabelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	/**
 	 * Gets the human readable label for a uri.
 	 * If relative is passed returns a label relative to the workspace root that the uri belongs to.

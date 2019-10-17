@@ -177,11 +177,9 @@ class SyncedBuffer {
 			fileContent: this.document.getText(),
 		};
 
-		if (this.client.apiVersion.gte(API.v203)) {
-			const scriptKind = mode2ScriptKind(this.document.languageId);
-			if (scriptKind) {
-				args.scriptKindName = scriptKind;
-			}
+		const scriptKind = mode2ScriptKind(this.document.languageId);
+		if (scriptKind) {
+			args.scriptKindName = scriptKind;
 		}
 
 		if (this.client.apiVersion.gte(API.v230)) {

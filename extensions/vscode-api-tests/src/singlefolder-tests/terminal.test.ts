@@ -152,22 +152,6 @@ suite('window namespace tests', () => {
 		// });
 
 		suite('hideFromUser', () => {
-			// test('should fire onDidWriteData correctly', done => {
-			// 	const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
-			// 	let data = '';
-			// 	terminal.onDidWriteData(e => {
-			// 		data += e;
-			// 		if (data.indexOf('foo') !== -1) {
-			// 			const reg3 = window.onDidCloseTerminal(() => {
-			// 				reg3.dispose();
-			// 				done();
-			// 			});
-			// 			terminal.dispose();
-			// 		}
-			// 	});
-			// 	terminal.sendText('foo');
-			// });
-
 			test('should be available to terminals API', done => {
 				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
 				window.onDidOpenTerminal(t => {
@@ -245,33 +229,6 @@ suite('window namespace tests', () => {
 					close: () => {}
 				};
 				window.createTerminal({ name: 'c', pty });
-			});
-
-			test('should fire Terminal.onData on write', (done) => {
-				const reg1 = window.onDidOpenTerminal(async term => {
-					equal(terminal, term);
-					reg1.dispose();
-					const reg2 = terminal.onDidWriteData(data => {
-						equal(data, 'bar');
-						reg2.dispose();
-						const reg3 = window.onDidCloseTerminal(() => {
-							reg3.dispose();
-							done();
-						});
-						terminal.dispose();
-					});
-					await startPromise;
-					writeEmitter.fire('bar');
-				});
-				let startResolve: () => void;
-				const startPromise: Promise<void> = new Promise<void>(r => startResolve = r);
-				const writeEmitter = new EventEmitter<string>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					open: () => startResolve(),
-					close: () => {}
-				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
 
 			// The below tests depend on global UI state and each other

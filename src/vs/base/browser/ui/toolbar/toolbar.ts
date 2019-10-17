@@ -65,7 +65,7 @@ export class ToolBar extends Disposable {
 						this.options.actionViewItemProvider,
 						this.actionRunner,
 						this.options.getKeyBinding,
-						'toolbar-toggle-more',
+						'codicon-more',
 						this.options.anchorAlignmentProvider
 					);
 					this.toggleMenuActionViewItem.value.setActionContext(this.actionBar.context);

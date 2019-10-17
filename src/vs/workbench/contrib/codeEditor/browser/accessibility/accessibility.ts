@@ -17,7 +17,7 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
@@ -35,7 +35,7 @@ const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessi
 
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.accessibilityHelpController';
+	public static readonly ID = 'editor.contrib.accessibilityHelpController';
 
 	public static get(editor: ICodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(AccessibilityHelpController.ID);
@@ -52,10 +52,6 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 
 		this._editor = editor;
 		this._widget = this._register(instantiationService.createInstance(AccessibilityHelpWidget, this._editor));
-	}
-
-	public getId(): string {
-		return AccessibilityHelpController.ID;
 	}
 
 	public show(): void {
@@ -185,13 +181,13 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _buildContent() {
-		let opts = this._editor.getConfiguration();
+		const options = this._editor.getOptions();
 		let text = nls.localize('introMsg', "Thank you for trying out VS Code's accessibility options.");
 
 		text += '\n\n' + nls.localize('status', "Status:");
 
-		const configuredValue = this._configurationService.getValue<editorOptions.IEditorOptions>('editor').accessibilitySupport;
-		const actualValue = opts.accessibilitySupport;
+		const configuredValue = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
+		const actualValue = options.get(EditorOption.accessibilitySupport);
 
 		const emergencyTurnOnMessage = (
 			platform.isMacintosh
@@ -229,7 +225,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		const NLS_TAB_FOCUS_MODE_OFF = nls.localize('tabFocusModeOffMsg', "Pressing Tab in the current editor will insert the tab character. Toggle this behavior by pressing {0}.");
 		const NLS_TAB_FOCUS_MODE_OFF_NO_KB = nls.localize('tabFocusModeOffMsgNoKb', "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
 
-		if (opts.tabFocusMode) {
+		if (options.get(EditorOption.tabFocusMode)) {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
 		} else {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
@@ -299,7 +295,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController);
+registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
 registerEditorAction(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);

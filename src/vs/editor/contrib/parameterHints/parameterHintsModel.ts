@@ -12,6 +12,7 @@ import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursor
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import * as modes from 'vs/editor/common/modes';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface TriggerContext {
 	readonly triggerKind: modes.SignatureHelpTriggerKind;
@@ -125,7 +126,7 @@ export class ParameterHintsModel extends Disposable {
 		const length = this.state.hints.signatures.length;
 		const activeSignature = this.state.hints.activeSignature;
 		const last = (activeSignature % length) === (length - 1);
-		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
+		const cycle = this.editor.getOption(EditorOption.parameterHints).cycle;
 
 		// If there is only one signature, or we're on last signature of list
 		if ((length < 2 || last) && !cycle) {
@@ -144,7 +145,7 @@ export class ParameterHintsModel extends Disposable {
 		const length = this.state.hints.signatures.length;
 		const activeSignature = this.state.hints.activeSignature;
 		const first = activeSignature === 0;
-		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
+		const cycle = this.editor.getOption(EditorOption.parameterHints).cycle;
 
 		// If there is only one signature, or we're on first signature of list
 		if ((length < 2 || first) && !cycle) {
@@ -271,7 +272,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private onEditorConfigurationChange(): void {
-		this.triggerOnType = this.editor.getConfiguration().contribInfo.parameterHints.enabled;
+		this.triggerOnType = this.editor.getOption(EditorOption.parameterHints).enabled;
 
 		if (!this.triggerOnType) {
 			this.cancel();

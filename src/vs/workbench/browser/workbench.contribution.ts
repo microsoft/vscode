@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 
 // Configuration
 (function registerConfiguration(): void {
@@ -233,17 +233,6 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
 				'default': true,
 				'tags': ['usesOnlineServices']
-			},
-			'workbench.useExperimentalGridLayout': {
-				'type': 'boolean',
-				'description': nls.localize('workbench.useExperimentalGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION
-			},
-			'workbench.octiconsUpdate.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'description': nls.localize('workbench.octiconsUpdate.enabled', "Controls the visibility of the new Octicons style in the workbench.")
 			}
 		}
 	});
@@ -263,6 +252,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 		nls.localize('rootName', "`\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace)."),
 		nls.localize('rootPath', "`\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace)."),
 		nls.localize('appName', "`\${appName}`: e.g. VS Code."),
+		nls.localize('remoteName', "`\${remoteName}`: e.g. SSH"),
 		nls.localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is dirty."),
 		nls.localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
@@ -275,19 +265,31 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 		'properties': {
 			'window.title': {
 				'type': 'string',
-				'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
+				'default': (() => {
+					if (isMacintosh && isNative) {
+						return '${activeEditorShort}${separator}${rootName}'; // macOS has native dirty indicator
+					}
+
+					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}';
+					if (isWeb) {
+						return base + '${separator}${remoteName}'; // Web: always show remote indicator
+					}
+
+					return base;
+				})(),
 				'markdownDescription': windowTitleDescription
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
-				'enum': ['default', 'visible', 'toggle', 'hidden'],
+				'enum': ['default', 'visible', 'toggle', 'hidden', 'compact'],
 				'enumDescriptions': [
 					nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
 					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
 					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
-					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden.")
+					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
+					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar.")
 				],
-				'default': 'default',
+				'default': isWeb ? 'compact' : 'default',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen."),
 				'included': isWindows || isLinux || isWeb
@@ -362,6 +364,11 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'type': 'boolean',
 				'default': false,
 				'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
+			},
+			'zenMode.silentNotifications': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, all notifications are silent and they will only appear in the status bar.")
 			}
 		}
 	});

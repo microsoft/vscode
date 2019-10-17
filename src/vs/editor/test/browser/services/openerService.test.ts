@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
@@ -14,9 +15,9 @@ suite('OpenerService', function () {
 	let lastCommand: { id: string; args: any[] } | undefined;
 
 	const commandService = new (class implements ICommandService {
-		_serviceBrand: any;
-		onWillExecuteCommand = () => ({ dispose: () => { } });
-		onDidExecuteCommand = () => ({ dispose: () => { } });
+		_serviceBrand: undefined;
+		onWillExecuteCommand = () => Disposable.None;
+		onDidExecuteCommand = () => Disposable.None;
 		executeCommand(id: string, ...args: any[]): Promise<any> {
 			lastCommand = { id, args };
 			return Promise.resolve(undefined);

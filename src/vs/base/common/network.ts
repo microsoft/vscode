@@ -56,40 +56,49 @@ export namespace Schemas {
 }
 
 class RemoteAuthoritiesImpl {
-	private readonly _hosts: { [authority: string]: string; };
-	private readonly _ports: { [authority: string]: number; };
-	private readonly _connectionTokens: { [authority: string]: string; };
-	private _preferredWebSchema: 'http' | 'https';
+	private readonly _hosts: { [authority: string]: string | undefined; } = Object.create(null);
+	private readonly _ports: { [authority: string]: number | undefined; } = Object.create(null);
+	private readonly _connectionTokens: { [authority: string]: string | undefined; } = Object.create(null);
+	private _preferredWebSchema: 'http' | 'https' = 'http';
+	private _delegate: ((uri: URI) => URI) | null = null;
 
-	constructor() {
-		this._hosts = Object.create(null);
-		this._ports = Object.create(null);
-		this._connectionTokens = Object.create(null);
-		this._preferredWebSchema = 'http';
-	}
-
-	public setPreferredWebSchema(schema: 'http' | 'https') {
+	setPreferredWebSchema(schema: 'http' | 'https') {
 		this._preferredWebSchema = schema;
 	}
 
-	public set(authority: string, host: string, port: number): void {
+	setDelegate(delegate: (uri: URI) => URI): void {
+		this._delegate = delegate;
+	}
+
+	set(authority: string, host: string, port: number): void {
 		this._hosts[authority] = host;
 		this._ports[authority] = port;
 	}
 
-	public setConnectionToken(authority: string, connectionToken: string): void {
+	setConnectionToken(authority: string, connectionToken: string): void {
 		this._connectionTokens[authority] = connectionToken;
 	}
 
-	public rewrite(authority: string, path: string): URI {
-		const host = this._hosts[authority];
+	rewrite(uri: URI): URI {
+		if (this._delegate) {
+			return this._delegate(uri);
+		}
+		const authority = uri.authority;
+		let host = this._hosts[authority];
+		if (host && host.indexOf(':') !== -1) {
+			host = `[${host}]`;
+		}
 		const port = this._ports[authority];
 		const connectionToken = this._connectionTokens[authority];
+		let query = `path=${encodeURIComponent(uri.path)}`;
+		if (typeof connectionToken === 'string') {
+			query += `&tkn=${encodeURIComponent(connectionToken)}`;
+		}
 		return URI.from({
 			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
 			authority: `${host}:${port}`,
 			path: `/vscode-remote-resource`,
-			query: `path=${encodeURIComponent(path)}&tkn=${encodeURIComponent(connectionToken)}`
+			query
 		});
 	}
 }

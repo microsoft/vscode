@@ -25,7 +25,7 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRp
 
 export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 
-	public _serviceBrand = undefined;
+	public _serviceBrand: undefined;
 	public remoteAuthority = null!;
 
 	private _callCountValue: number = 0;

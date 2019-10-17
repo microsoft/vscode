@@ -49,7 +49,7 @@ bootstrapWindow.load([
  * @param {{
  *	partsSplashPath?: string,
  *	highContrast?: boolean,
- *	extensionDevelopmentPath?: string | string[],
+ *	extensionDevelopmentPath?: string[],
  *	folderUri?: object,
  *	workspace?: object
  * }} configuration

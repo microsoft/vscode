@@ -5,8 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
-import product from 'vs/platform/product/node/product';
-import { app } from 'electron';
+import product from 'vs/platform/product/common/product';
+import { app, Event as ElectronEvent } from 'electron';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -28,7 +28,7 @@ export class ElectronURLListener {
 	constructor(
 		initial: string | string[],
 		@IURLService private readonly urlService: IURLService,
-		@IWindowsMainService windowsService: IWindowsMainService
+		@IWindowsMainService windowsMainService: IWindowsMainService
 	) {
 		const globalBuffer = ((<any>global).getOpenUrls() || []) as string[];
 		const rawBuffer = [
@@ -48,7 +48,7 @@ export class ElectronURLListener {
 		}
 
 		const onOpenElectronUrl = Event.map(
-			Event.fromNodeEventEmitter(app, 'open-url', (event: Electron.Event, url: string) => ({ event, url })),
+			Event.fromNodeEventEmitter(app, 'open-url', (event: ElectronEvent, url: string) => ({ event, url })),
 			({ event, url }) => {
 				// always prevent default and return the url as string
 				event.preventDefault();
@@ -58,14 +58,14 @@ export class ElectronURLListener {
 		const onOpenUrl = Event.filter(Event.map(onOpenElectronUrl, uriFromRawUrl), uri => !!uri);
 		onOpenUrl(this.urlService.open, this.urlService, this.disposables);
 
-		const isWindowReady = windowsService.getWindows()
+		const isWindowReady = windowsMainService.getWindows()
 			.filter(w => w.isReady)
 			.length > 0;
 
 		if (isWindowReady) {
 			flush();
 		} else {
-			Event.once(windowsService.onWindowReady)(flush);
+			Event.once(windowsMainService.onWindowReady)(flush);
 		}
 	}
 

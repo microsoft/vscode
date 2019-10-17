@@ -711,7 +711,7 @@ suite('Editor Controller - Cursor', () => {
 				position: new Position(4, 4),
 				viewPosition: new Position(4, 4),
 				mouseColumn: 15,
-				setAnchorIfNotSet: false
+				doColumnSelect: true
 			});
 
 			let expectedSelections = [
@@ -747,7 +747,7 @@ suite('Editor Controller - Cursor', () => {
 			position: new Position(4, 1),
 			viewPosition: new Position(4, 1),
 			mouseColumn: 1,
-			setAnchorIfNotSet: false
+			doColumnSelect: true
 		});
 
 		assertCursor(cursor, [
@@ -787,7 +787,7 @@ suite('Editor Controller - Cursor', () => {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
 			mouseColumn: 1,
-			setAnchorIfNotSet: false
+			doColumnSelect: true
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -806,7 +806,7 @@ suite('Editor Controller - Cursor', () => {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
 			mouseColumn: 1,
-			setAnchorIfNotSet: false
+			doColumnSelect: true
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -1494,6 +1494,25 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #74722: Pasting whole line does not replace selection', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line sel 2',
+				'line3'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 6, 2, 9)]);
+
+			cursorCommand(cursor, H.Paste, { text: 'line1\n', pasteOnNewLine: true });
+
+			assert.equal(model.getLineContent(1), 'line1');
+			assert.equal(model.getLineContent(2), 'line line1');
+			assert.equal(model.getLineContent(3), ' 2');
+			assert.equal(model.getLineContent(4), 'line3');
+		});
+	});
+
 	test('issue #4996: Multiple cursor paste pastes contents of all cursors', () => {
 		usingCursor({
 			text: [
@@ -1562,6 +1581,37 @@ suite('Editor Controller - Regression tests', () => {
 				'bbb',
 				'ccc',
 				'',
+			].join('\n'));
+		});
+	});
+
+	test('issue #43722: Multiline paste doesn\'t work anymore', () => {
+		usingCursor({
+			text: [
+				'test',
+				'test',
+				'test',
+				'test'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+				new Selection(4, 1, 4, 5),
+			]);
+
+			cursorCommand(cursor, H.Paste, {
+				text: 'aaa\r\nbbb\r\nccc\r\nddd\r\n',
+				pasteOnNewLine: false,
+				multicursorText: null
+			});
+
+			assert.equal(model.getValue(), [
+				'aaa',
+				'bbb',
+				'ccc',
+				'ddd',
 			].join('\n'));
 		});
 	});
@@ -2541,7 +2591,37 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(5, 1));
+			assertCursor(cursor, new Position(4, 1));
+		});
+
+		model.dispose();
+	});
+
+	test('issue #40695: maintain cursor position when copying lines using ctrl+c, ctrl+v', () => {
+		let model = createTextModel(
+			[
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        // Another line',
+				'        return 3;',
+				'    }',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			editor.setSelections([new Selection(4, 10, 4, 10)]);
+			cursorCommand(cursor, H.Paste, { text: '        // I\'m gonna copy this line\n', pasteOnNewLine: true });
+
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        // Another line',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(5, 10));
 		});
 
 		model.dispose();
@@ -4740,6 +4820,37 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #78833 - Add config to use old brackets/quotes overtyping', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingOvertype: 'always'
+			}
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(2, 4, 2, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(2), 'y=();');
+		});
+		mode.dispose();
+	});
+
 	test('issue #15825: accents on mac US intl keyboard', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -4756,6 +4867,32 @@ suite('autoClosingPairs', () => {
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
 
 			assert.equal(model.getValue(), 'è');
+		});
+		mode.dispose();
+	});
+
+	test('issue #53357: Over typing ignores characters after backslash', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'console.log();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [new Selection(1, 13, 1, 13)]);
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'\');');
+
+			cursorCommand(cursor, H.Type, { text: 'it' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\');');
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\\\');');
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\\\'\'\');');
 		});
 		mode.dispose();
 	});

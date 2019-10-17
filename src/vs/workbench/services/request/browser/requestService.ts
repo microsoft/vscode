@@ -9,9 +9,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RequestService as BrowserRequestService } from 'vs/platform/request/browser/requestService';
+import { RequestService } from 'vs/platform/request/browser/requestService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IRequestService } from 'vs/platform/request/common/request';
 
-export class RequestService extends BrowserRequestService {
+export class BrowserRequestService extends RequestService {
 
 	private readonly remoteRequestChannel: RequestChannelClient | null;
 
@@ -40,5 +42,6 @@ export class RequestService extends BrowserRequestService {
 			throw error;
 		}
 	}
-
 }
+
+registerSingleton(IRequestService, BrowserRequestService, true);

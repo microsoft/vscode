@@ -111,9 +111,9 @@ export class AtaProgressReporter {
 					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed or configure 'typescript.npm' in your user settings. Click [here]({0}) to learn more.",
 					'https://go.microsoft.com/fwlink/?linkid=847635'
 				), {
-					title: localize('typesInstallerInitializationFailed.doNotCheckAgain', "Don't Show Again"),
-					id: 1
-				}
+				title: localize('typesInstallerInitializationFailed.doNotCheckAgain', "Don't Show Again"),
+				id: 1
+			}
 			).then(selected => {
 				if (!selected) {
 					return;

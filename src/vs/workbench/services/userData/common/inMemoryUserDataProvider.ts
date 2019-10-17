@@ -50,7 +50,7 @@ class Directory implements IStat {
 
 export type Entry = File | Directory;
 
-export class InMemoryUserDataProvider extends Disposable implements IFileSystemProvider {
+export class InMemoryFileSystemProvider extends Disposable implements IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.FileReadWrite;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
@@ -205,8 +205,8 @@ export class InMemoryUserDataProvider extends Disposable implements IFileSystemP
 
 	// --- manage file events
 
-	private readonly _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
-	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChangeFile.event;
+	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
 	private _bufferedChanges: IFileChange[] = [];
 	private _fireSoonHandle?: any;

@@ -23,14 +23,15 @@ import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/co
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	protected readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidRegisterExtensions = this._onDidRegisterExtensions.event;
@@ -255,8 +256,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
-	public getInspectPort(): number {
-		return 0;
+	public getInspectPort(_tryEnableInspector: boolean): Promise<number> {
+		return Promise.resolve(0);
 	}
 
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
@@ -290,17 +291,21 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _isEnabled(extension: IExtensionDescription): boolean {
+		return !this._isDisabled(extension);
+	}
+
+	protected _isDisabled(extension: IExtensionDescription): boolean {
 		if (this._isExtensionUnderDevelopment(extension)) {
 			// Never disable extensions under development
-			return true;
+			return false;
 		}
 
 		if (ExtensionIdentifier.equals(extension.identifier, BetterMergeId)) {
 			// Check if this is the better merge extension which was migrated to a built-in extension
-			return false;
+			return true;
 		}
 
-		return this._extensionEnablementService.isEnabled(toExtension(extension));
+		return !this._extensionEnablementService.isEnabled(toExtension(extension));
 	}
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
@@ -406,9 +411,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	public async _activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
+	public async _activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		const results = await Promise.all(
-			this._extensionHostProcessManagers.map(manager => manager.activate(extensionId, activationEvent))
+			this._extensionHostProcessManagers.map(manager => manager.activate(extensionId, reason))
 		);
 		const activated = results.some(e => e);
 		if (!activated) {
@@ -420,8 +425,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._extensionHostActiveExtensions.set(ExtensionIdentifier.toKey(extensionId), extensionId);
 	}
 
-	public _onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
-		this._extensionHostProcessActivationTimes.set(ExtensionIdentifier.toKey(extensionId), new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent));
+	public _onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
+		this._extensionHostProcessActivationTimes.set(ExtensionIdentifier.toKey(extensionId), new ActivationTimes(codeLoadingTime, activateCallTime, activateResolvedTime, activationReason));
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 
@@ -443,7 +448,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 class ProposedApiController {
 
-	private readonly enableProposedApiFor: string | string[];
+	private readonly enableProposedApiFor: string[];
 	private readonly enableProposedApiForAll: boolean;
 	private readonly productAllowProposedApi: Set<string>;
 
@@ -451,19 +456,13 @@ class ProposedApiController {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService
 	) {
-		this.enableProposedApiFor = environmentService.args['enable-proposed-api'] || [];
-		if (this.enableProposedApiFor.length) {
-			// Make enabled proposed API be lowercase for case insensitive comparison
-			if (Array.isArray(this.enableProposedApiFor)) {
-				this.enableProposedApiFor = this.enableProposedApiFor.map(id => id.toLowerCase());
-			} else {
-				this.enableProposedApiFor = this.enableProposedApiFor.toLowerCase();
-			}
-		}
+		// Make enabled proposed API be lowercase for case insensitive comparison
+		this.enableProposedApiFor = (environmentService.args['enable-proposed-api'] || []).map(id => id.toLowerCase());
 
-		this.enableProposedApiForAll = !environmentService.isBuilt ||
-			(!!environmentService.extensionDevelopmentLocationURI && productService.nameLong !== 'Visual Studio Code') ||
-			(this.enableProposedApiFor.length === 0 && 'enable-proposed-api' in environmentService.args);
+		this.enableProposedApiForAll =
+			!environmentService.isBuilt || // always allow proposed API when running out of sources
+			(!!environmentService.extensionDevelopmentLocationURI && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
+			(this.enableProposedApiFor.length === 0 && 'enable-proposed-api' in environmentService.args); // always allow proposed API if --enable-proposed-api is provided without extension ID
 
 		this.productAllowProposedApi = new Set<string>();
 		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {

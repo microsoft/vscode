@@ -247,7 +247,7 @@ export class StandardAutoClosingPairConditional {
 
 		if (Array.isArray(source.notIn)) {
 			for (let i = 0, len = source.notIn.length; i < len; i++) {
-				let notIn = source.notIn[i];
+				const notIn: string = source.notIn[i];
 				switch (notIn) {
 					case 'string':
 						this._standardTokenMask |= StandardTokenType.String;

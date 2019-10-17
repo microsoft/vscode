@@ -153,7 +153,7 @@ export class HideWelcomeOverlayAction extends Action {
 class WelcomeOverlay extends Disposable {
 
 	private _overlayVisible: IContextKey<boolean>;
-	private _overlay: HTMLElement;
+	private _overlay!: HTMLElement;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -212,7 +212,7 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private updateProblemsKey() {
-		const problems = document.querySelector('div[id="workbench.parts.statusbar"] .statusbar-item.left .octicon.octicon-warning');
+		const problems = document.querySelector('div[id="workbench.parts.statusbar"] .statusbar-item.left .codicon.codicon-warning');
 		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
 		if (problems instanceof HTMLElement) {
 			const target = problems.getBoundingClientRect();
@@ -222,8 +222,8 @@ class WelcomeOverlay extends Disposable {
 			key.style.bottom = bottom + 'px';
 			key.style.left = left + 'px';
 		} else {
-			key.style.bottom = null;
-			key.style.left = null;
+			key.style.bottom = '';
+			key.style.left = '';
 		}
 	}
 

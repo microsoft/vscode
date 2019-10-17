@@ -208,7 +208,7 @@ export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
 export class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private readonly _storagePrefix = 'suggest/memories';
 
@@ -292,7 +292,7 @@ export class SuggestMemoryService extends Disposable implements ISuggestMemorySe
 export const ISuggestMemoryService = createDecorator<ISuggestMemoryService>('ISuggestMemories');
 
 export interface ISuggestMemoryService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void;
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number;
 }

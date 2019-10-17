@@ -69,6 +69,26 @@ suite('Search-integration', function () {
 		return doSearchTest(config, 4);
 	});
 
+	test('Text: GameOfLife (unicode escape sequences)', () => {
+		const config: ITextQuery = {
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'G\\u{0061}m\\u0065OfLife', isRegExp: true }
+		};
+
+		return doSearchTest(config, 4);
+	});
+
+	test('Text: GameOfLife (unicode escape sequences, force PCRE2)', () => {
+		const config: ITextQuery = {
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: '(?<!a)G\\u{0061}m\\u0065OfLife', isRegExp: true }
+		};
+
+		return doSearchTest(config, 4);
+	});
+
 	test('Text: GameOfLife (PCRE2 RegExp)', () => {
 		const config: ITextQuery = {
 			type: QueryType.Text,
@@ -356,7 +376,7 @@ suite('Search-integration', function () {
 			});
 		});
 
-		test('invalid regex', () => {
+		test('invalid regex case 1', () => {
 			const config: ITextQuery = {
 				type: QueryType.Text,
 				folderQueries: ROOT_FOLDER_QUERY,
@@ -367,10 +387,29 @@ suite('Search-integration', function () {
 				throw new Error('expected fail');
 			}, err => {
 				const searchError = deserializeSearchError(err.message);
-				assert.equal(searchError.message, 'Regex parse error');
+				let regexParseErrorForUnclosedParenthesis = 'Regex parse error: unmatched closing parenthesis';
+				assert.equal(searchError.message, regexParseErrorForUnclosedParenthesis);
 				assert.equal(searchError.code, SearchErrorCode.regexParseError);
 			});
 		});
+
+		test('invalid regex case 2', () => {
+			const config: ITextQuery = {
+				type: QueryType.Text,
+				folderQueries: ROOT_FOLDER_QUERY,
+				contentPattern: { pattern: '(?<!a.*)', isRegExp: true },
+			};
+
+			return doSearchTest(config, 0).then(() => {
+				throw new Error('expected fail');
+			}, err => {
+				const searchError = deserializeSearchError(err.message);
+				let regexParseErrorForLookAround = 'Regex parse error: lookbehind assertion is not fixed length';
+				assert.equal(searchError.message, regexParseErrorForLookAround);
+				assert.equal(searchError.code, SearchErrorCode.regexParseError);
+			});
+		});
+
 
 		test('invalid glob', () => {
 			const config: ITextQuery = {

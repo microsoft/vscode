@@ -17,6 +17,7 @@
 		"inputOption.activeBorder": "#a57a4c",
 		"selection.background": "#84613daa",
 		"editor.selectionBackground": "#84613daa",
+		"minimap.selectionHighlight": "#84613daa",
 		"editorWidget.background": "#131510",
 		"editorHoverWidget.background": "#221a14",
 		"editorGroupHeader.tabsBackground": "#131510",

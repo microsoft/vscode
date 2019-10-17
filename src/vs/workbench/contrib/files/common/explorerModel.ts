@@ -21,7 +21,7 @@ export class ExplorerModel implements IDisposable {
 
 	private _roots!: ExplorerItem[];
 	private _listener: IDisposable;
-	private _onDidChangeRoots = new Emitter<void>();
+	private readonly _onDidChangeRoots = new Emitter<void>();
 
 	constructor(private readonly contextService: IWorkspaceContextService) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders

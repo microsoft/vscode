@@ -45,7 +45,8 @@ export class SearchParams {
 				matchCase: this.matchCase,
 				wholeWord: false,
 				multiline: multiline,
-				global: true
+				global: true,
+				unicode: true
 			});
 		} catch (err) {
 			return null;
@@ -84,7 +85,7 @@ export function isMultilineRegexSource(searchString: string): boolean {
 			}
 
 			const nextChCode = searchString.charCodeAt(i);
-			if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W) {
+			if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W || nextChCode === CharCode.w) {
 				return true;
 			}
 		}

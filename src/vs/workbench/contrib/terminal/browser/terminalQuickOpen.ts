@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';

@@ -16,6 +16,7 @@ import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, 
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { HIGH_CONTRAST, ThemeType } from 'vs/platform/theme/common/themeService';
+import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -76,21 +77,23 @@ export class ViewLineOptions {
 	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
-	public readonly fontLigatures: boolean;
+	public readonly fontLigatures: string;
 
 	constructor(config: IConfiguration, themeType: ThemeType) {
 		this.themeType = themeType;
-		this.renderWhitespace = config.editor.viewInfo.renderWhitespace;
-		this.renderControlCharacters = config.editor.viewInfo.renderControlCharacters;
-		this.spaceWidth = config.editor.fontInfo.spaceWidth;
+		const options = config.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
+		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
+		this.spaceWidth = fontInfo.spaceWidth;
 		this.useMonospaceOptimizations = (
-			config.editor.fontInfo.isMonospace
-			&& !config.editor.viewInfo.disableMonospaceOptimizations
+			fontInfo.isMonospace
+			&& !options.get(EditorOption.disableMonospaceOptimizations)
 		);
-		this.canUseHalfwidthRightwardsArrow = config.editor.fontInfo.canUseHalfwidthRightwardsArrow;
-		this.lineHeight = config.editor.lineHeight;
-		this.stopRenderingLineAfter = config.editor.viewInfo.stopRenderingLineAfter;
-		this.fontLigatures = config.editor.viewInfo.fontLigatures;
+		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
+		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
+		this.fontLigatures = options.get(EditorOption.fontLigatures);
 	}
 
 	public equals(other: ViewLineOptions): boolean {
@@ -214,7 +217,7 @@ export class ViewLine implements IVisibleLine {
 			options.stopRenderingLineAfter,
 			options.renderWhitespace,
 			options.renderControlCharacters,
-			options.fontLigatures,
+			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine
 		);
 

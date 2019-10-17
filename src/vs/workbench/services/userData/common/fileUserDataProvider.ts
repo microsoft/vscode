@@ -17,8 +17,8 @@ export class FileUserDataProvider extends Disposable implements IFileSystemProvi
 	readonly capabilities: FileSystemProviderCapabilities = this.fileSystemProvider.capabilities;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
-	private readonly _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
-	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChangeFile.event;
+	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
 	private readonly userDataHome: URI;
 
@@ -103,7 +103,7 @@ export class FileUserDataProvider extends Disposable implements IFileSystemProvi
 		return this.fileSystemProvider.delete(this.toFileSystemResource(resource), opts);
 	}
 
-	private handleFileChanges(changes: IFileChange[]): void {
+	private handleFileChanges(changes: readonly IFileChange[]): void {
 		const userDataChanges: IFileChange[] = [];
 		for (const change of changes) {
 			const userDataResource = this.toUserDataResource(change.resource);

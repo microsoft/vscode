@@ -136,8 +136,8 @@ type EditKey = 'none' | 'create' | number;
 
 export class ListSettingListModel {
 	private _dataItems: IListDataItem[] = [];
-	private _editKey: EditKey;
-	private _selectedIdx: number | null;
+	private _editKey: EditKey | null = null;
+	private _selectedIdx: number | null = null;
 
 	get items(): IListViewItem[] {
 		const items = this._dataItems.map((item, i) => {
@@ -352,7 +352,7 @@ export class ListSettingWidget extends Disposable {
 
 	private createDeleteAction(key: string, idx: number): IAction {
 		return <IAction>{
-			class: 'setting-listAction-remove',
+			class: 'codicon-close',
 			enabled: true,
 			id: 'workbench.action.removeListItem',
 			tooltip: this.getLocalizedStrings().deleteActionTooltip,
@@ -362,7 +362,7 @@ export class ListSettingWidget extends Disposable {
 
 	private createEditAction(idx: number): IAction {
 		return <IAction>{
-			class: 'setting-listAction-edit',
+			class: 'codicon-edit',
 			enabled: true,
 			id: 'workbench.action.editListItem',
 			tooltip: this.getLocalizedStrings().editActionTooltip,
@@ -457,6 +457,7 @@ export class ListSettingWidget extends Disposable {
 				onSubmit(false);
 				e.preventDefault();
 			}
+			rowElement.focus();
 		};
 
 		const valueInput = new InputBox(rowElement, this.contextViewService, {

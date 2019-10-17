@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -227,6 +227,20 @@ export interface IStatusMessageOptions {
 	hideAfter?: number;
 }
 
+export enum NotificationsFilter {
+
+	/**
+	 * No filter is enabled.
+	 */
+	OFF,
+
+	/**
+	 * All notifications are configured as silent. See
+	 * `INotificationProperties.silent` for more info.
+	 */
+	SILENT
+}
+
 /**
  * A service to bring up notifications and non-modal prompts.
  *
@@ -234,7 +248,7 @@ export interface IStatusMessageOptions {
  */
 export interface INotificationService {
 
-	_serviceBrand: ServiceIdentifier<INotificationService>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
@@ -286,6 +300,13 @@ export interface INotificationService {
 	 * @returns a disposable to hide the status message
 	 */
 	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+
+	/**
+	 * Allows to configure a filter for notifications.
+	 *
+	 * @param filter the filter to use
+	 */
+	setFilter(filter: NotificationsFilter): void;
 }
 
 export class NoOpNotification implements INotificationHandle {

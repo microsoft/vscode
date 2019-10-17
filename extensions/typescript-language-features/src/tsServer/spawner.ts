@@ -72,7 +72,7 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions(kind));
+		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions(kind, configuration));
 		this._logger.info(`<${kind}> Starting...`);
 
 		return new ProcessBasedTsServer(
@@ -85,10 +85,13 @@ export class TypeScriptServerSpawner {
 			this._tracer);
 	}
 
-	private getForkOptions(kind: ServerKind) {
+	private getForkOptions(kind: ServerKind, configuration: TypeScriptServiceConfiguration) {
 		const debugPort = TypeScriptServerSpawner.getDebugPort(kind);
 		const tsServerForkOptions: electron.ForkOptions = {
-			execArgv: debugPort ? [`--inspect=${debugPort}`] : [],
+			execArgv: [
+				...(debugPort ? [`--inspect=${debugPort}`] : []),
+				...(configuration.maxTsServerMemory ? [`--max-old-space-size=${configuration.maxTsServerMemory}`] : [])
+			]
 		};
 		return tsServerForkOptions;
 	}
@@ -108,19 +111,17 @@ export class TypeScriptServerSpawner {
 			args.push('--syntaxOnly');
 		}
 
-		if (apiVersion.gte(API.v206)) {
-			if (apiVersion.gte(API.v250)) {
-				args.push('--useInferredProjectPerProjectRoot');
-			} else {
-				args.push('--useSingleInferredProject');
-			}
-
-			if (configuration.disableAutomaticTypeAcquisition || kind === 'syntax') {
-				args.push('--disableAutomaticTypingAcquisition');
-			}
+		if (apiVersion.gte(API.v250)) {
+			args.push('--useInferredProjectPerProjectRoot');
+		} else {
+			args.push('--useSingleInferredProject');
 		}
 
-		if (apiVersion.gte(API.v208) && kind !== 'syntax') {
+		if (configuration.disableAutomaticTypeAcquisition || kind === 'syntax') {
+			args.push('--disableAutomaticTypingAcquisition');
+		}
+
+		if (kind !== 'syntax') {
 			args.push('--enableTelemetry');
 		}
 

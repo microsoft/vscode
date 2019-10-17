@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class NotificationService extends Disposable implements INotificationService {
 
-	_serviceBrand!: ServiceIdentifier<INotificationService>;
+	_serviceBrand: undefined;
 
 	private _model: INotificationsModel = this._register(new NotificationsModel());
-
-	get model(): INotificationsModel {
-		return this._model;
-	}
+	get model(): INotificationsModel { return this._model; }
 
 	constructor(@IStorageService private readonly storageService: IStorageService) {
 		super();
+	}
+
+	setFilter(filter: NotificationsFilter): void {
+		this._model.setFilter(filter);
 	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {

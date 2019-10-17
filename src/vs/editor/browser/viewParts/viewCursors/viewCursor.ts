@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as strings from 'vs/base/common/strings';
 import { Configuration } from 'vs/editor/browser/config/configuration';
-import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -51,11 +51,13 @@ export class ViewCursor {
 
 	constructor(context: ViewContext) {
 		this._context = context;
+		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
-		this._lineCursorWidth = Math.min(this._context.configuration.editor.viewInfo.cursorWidth, this._typicalHalfwidthCharacterWidth);
+		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
+		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
 
 		this._isVisible = true;
 
@@ -65,7 +67,7 @@ export class ViewCursor {
 		this._domNode.setHeight(this._lineHeight);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
-		Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
+		Configuration.applyFontInfo(this._domNode, fontInfo);
 		this._domNode.setDisplay('none');
 
 		this._position = new Position(1, 1);
@@ -97,17 +99,14 @@ export class ViewCursor {
 	}
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.fontInfo) {
-			Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
-			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
-		}
-		if (e.viewInfo) {
-			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-			this._lineCursorWidth = Math.min(this._context.configuration.editor.viewInfo.cursorWidth, this._typicalHalfwidthCharacterWidth);
-		}
+		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+
+		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
+		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
+		Configuration.applyFontInfo(this._domNode, fontInfo);
 
 		return true;
 	}
