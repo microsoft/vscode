@@ -363,7 +363,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return {
 				id: a.id,
 				label: a.label,
-				detail: Language.isDefaultVariant() ? undefined : a.alias,
+				detail: (Language.isDefaultVariant() || a.label === a.alias) ? undefined : a.alias,
 				run: () => {
 					activeTextEditorWidget.focus();
 					a.run();
@@ -1133,14 +1133,19 @@ export class ChangeEncodingAction extends Action {
 			return this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
 
-		let saveWithEncodingPick: IQuickPickItem;
-		let reopenWithEncodingPick: IQuickPickItem;
-		if (Language.isDefaultVariant()) {
-			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
-			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
-		} else {
-			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding"), detail: 'Save with Encoding', };
-			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding"), detail: 'Reopen with Encoding' };
+		const saveWithEncodingPick: IQuickPickItem = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
+		const reopenWithEncodingPick: IQuickPickItem = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
+
+		if (!Language.isDefaultVariant()) {
+			const saveWithEncodingAlias = 'Save with Encoding';
+			if (saveWithEncodingAlias !== saveWithEncodingPick.label) {
+				saveWithEncodingPick.detail = saveWithEncodingAlias;
+			}
+
+			const reopenWithEncodingAlias = 'Reopen with Encoding';
+			if (reopenWithEncodingAlias !== reopenWithEncodingPick.label) {
+				reopenWithEncodingPick.detail = reopenWithEncodingAlias;
+			}
 		}
 
 		let action: IQuickPickItem;

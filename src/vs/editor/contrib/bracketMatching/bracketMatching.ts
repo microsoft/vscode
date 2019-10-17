@@ -56,16 +56,36 @@ class SelectToBracketAction extends EditorAction {
 			id: 'editor.action.selectToBracket',
 			label: nls.localize('smartSelect.selectToBracket', "Select to Bracket"),
 			alias: 'Select to Bracket',
-			precondition: undefined
+			precondition: undefined,
+			description: {
+				description: `Select to Bracket`,
+				args: [{
+					name: 'args',
+					schema: {
+						type: 'object',
+						properties: {
+							'selectBrackets': {
+								type: 'boolean',
+								default: true
+							}
+						},
+					}
+				}]
+			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = BracketMatchingController.get(editor);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		const controller = BracketMatchingController.get(editor);
 		if (!controller) {
 			return;
 		}
-		controller.selectToBracket();
+
+		let selectBrackets = true;
+		if (args && args.selectBrackets === false) {
+			selectBrackets = false;
+		}
+		controller.selectToBracket(selectBrackets);
 	}
 }
 
@@ -182,7 +202,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._editor.revealRange(newSelections[0]);
 	}
 
-	public selectToBracket(): void {
+	public selectToBracket(selectBrackets: boolean): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -194,9 +214,6 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			const position = selection.getStartPosition();
 			let brackets = model.matchBracket(position);
 
-			let openBracket: Position | null = null;
-			let closeBracket: Position | null = null;
-
 			if (!brackets) {
 				brackets = model.findEnclosingBrackets(position);
 				if (!brackets) {
@@ -207,25 +224,20 @@ export class BracketMatchingController extends Disposable implements editorCommo
 				}
 			}
 
+			let selectFrom: Position | null = null;
+			let selectTo: Position | null = null;
+
 			if (brackets) {
-				if (brackets[0].startLineNumber === brackets[1].startLineNumber) {
-					openBracket = brackets[1].startColumn < brackets[0].startColumn ?
-						brackets[1].getStartPosition() : brackets[0].getStartPosition();
-					closeBracket = brackets[1].startColumn < brackets[0].startColumn ?
-						brackets[0].getEndPosition() : brackets[1].getEndPosition();
-				} else {
-					openBracket = brackets[1].startLineNumber < brackets[0].startLineNumber ?
-						brackets[1].getStartPosition() : brackets[0].getStartPosition();
-					closeBracket = brackets[1].startLineNumber < brackets[0].startLineNumber ?
-						brackets[0].getEndPosition() : brackets[1].getEndPosition();
-				}
+				brackets.sort(Range.compareRangesUsingStarts);
+				const [open, close] = brackets;
+				selectFrom = selectBrackets ? open.getStartPosition() : open.getEndPosition();
+				selectTo = selectBrackets ? close.getEndPosition() : close.getStartPosition();
 			}
 
-			if (openBracket && closeBracket) {
-				newSelections.push(new Selection(openBracket.lineNumber, openBracket.column, closeBracket.lineNumber, closeBracket.column));
+			if (selectFrom && selectTo) {
+				newSelections.push(new Selection(selectFrom.lineNumber, selectFrom.column, selectTo.lineNumber, selectTo.column));
 			}
 		});
-
 
 		if (newSelections.length > 0) {
 			this._editor.setSelections(newSelections);
@@ -269,6 +281,14 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			return;
 		}
 
+		const selections = this._editor.getSelections();
+		if (selections.length > 100) {
+			// no bracket matching for high numbers of selections
+			this._lastBracketsData = [];
+			this._lastVersionId = 0;
+			return;
+		}
+
 		const model = this._editor.getModel();
 		const versionId = model.getVersionId();
 		let previousData: BracketsData[] = [];
@@ -276,8 +296,6 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			// use the previous data only if the model is at the same version id
 			previousData = this._lastBracketsData;
 		}
-
-		const selections = this._editor.getSelections();
 
 		let positions: Position[] = [], positionsLen = 0;
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -307,6 +325,9 @@ export class BracketMatchingController extends Disposable implements editorCommo
 				newData[newDataLen++] = previousData[previousIndex];
 			} else {
 				let brackets = model.matchBracket(position);
+				if (!brackets) {
+					brackets = model.findEnclosingBrackets(position);
+				}
 				newData[newDataLen++] = new BracketsData(position, brackets);
 			}
 		}
