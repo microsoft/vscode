@@ -206,6 +206,11 @@ export class Menu extends ActionBar {
 		const scrollElement = this.scrollableElement.getDomNode();
 		scrollElement.style.position = '';
 
+		console.log(`Window Inner Height: ${window.innerHeight}px`);
+		console.log(`Menu Container Bounding Rect Top: ${container.getBoundingClientRect().top}px`);
+		console.log(container);
+
+
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
 
 		this.menuDisposables.add(this.scrollableElement.onScroll(() => {
@@ -744,6 +749,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
 
+			// Set the top value of the menu container before construction
+			// This allows the menu constructor to calculate the proper max height
+			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
+			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
+			this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
+
 			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
 			if (this.menuStyle) {
 				this.parentData.submenu.style(this.menuStyle);
@@ -751,8 +762,6 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 			const boundingRect = this.element.getBoundingClientRect();
 			const childBoundingRect = this.submenuContainer.getBoundingClientRect();
-			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
-			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 
 			if (this.expandDirection === Direction.Right) {
 				if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
