@@ -274,13 +274,6 @@ export class MenuBar extends Disposable {
 			}));
 
 			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_UP, (e) => {
-				const target = e.target as HTMLElement;
-
-				// If target is scrollbar, do nothing
-				if (target.classList.contains('slider')) {
-					return;
-				}
-
 				if (!this.ignoreNextMouseUp) {
 					if (this.isFocused) {
 						this.onMenuTriggered(menuIndex, true);
