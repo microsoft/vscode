@@ -2914,6 +2914,11 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
+		/**
+		 * Number of recent items tracked in
+		 * tasks quick open dialog
+		 */
+		tasksQuickOpenHistory?: number;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {

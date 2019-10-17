@@ -515,6 +515,11 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+	/**
+	 * Number of recent items tracked in
+	 * tasks quick open dialog
+	 */
+	tasksQuickOpenHistory?: number;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -2793,6 +2798,7 @@ export const enum EditorOption {
 	suggestOnTriggerCharacters,
 	suggestSelection,
 	tabCompletion,
+	tasksQuickOpenHistory,
 	useTabStops,
 	wordSeparators,
 	wordWrap,
@@ -3251,6 +3257,14 @@ export const EditorOptions = {
 				nls.localize('tabCompletion.onlySnippets', "Tab complete snippets when their prefix match. Works best when 'quickSuggestions' aren't enabled."),
 			],
 			description: nls.localize('tabCompletion', "Enables tab completions.")
+		}
+	)),
+	tasksQuickOpenHistory: register(new EditorIntOption(
+		EditorOption.tasksQuickOpenHistory, 'tasksQuickOpenHistory',
+		5, 0, 30,
+		{
+			markdownDescription: nls.localize('tasksQuickOpenHistory',
+			"Controls the number of recent items tracked in task quick open dialog.")
 		}
 	)),
 	useTabStops: register(new EditorBooleanOption(
