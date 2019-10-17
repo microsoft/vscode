@@ -80,7 +80,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
-const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'tasks.quickOpen.history';
+const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'quickOpen.history';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -1975,18 +1975,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return entries;
 		}), {
-				placeHolder,
-				matchOnDescription: true,
-				onDidTriggerItemButton: context => {
-					let task = context.item.task;
-					this.quickInputService.cancel();
-					if (ContributedTask.is(task)) {
-						this.customize(task, undefined, true);
-					} else if (CustomTask.is(task)) {
-						this.openConfig(task);
-					}
+			placeHolder,
+			matchOnDescription: true,
+			onDidTriggerItemButton: context => {
+				let task = context.item.task;
+				this.quickInputService.cancel();
+				if (ContributedTask.is(task)) {
+					this.customize(task, undefined, true);
+				} else if (CustomTask.is(task)) {
+					this.openConfig(task);
 				}
-			});
+			}
+		});
 	}
 
 	private showIgnoredFoldersMessage(): Promise<void> {
