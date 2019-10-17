@@ -493,7 +493,7 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(_, token) => this.git.clone(url!, parentPath, token)
+				(progress, token) => this.git.clone(url!, parentPath, progress, token)
 			);
 
 			let message = localize('proposeopen', "Would you like to open the cloned repository?");
