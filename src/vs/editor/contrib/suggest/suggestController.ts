@@ -86,6 +86,13 @@ class LineSuffix {
 	}
 }
 
+const enum InsertFlags {
+	NoBeforeUndoStop = 1,
+	NoAfterUndoStop = 2,
+	KeepAlternativeSuggestions = 4,
+	AlternativeOverwriteConfig = 8
+}
+
 export class SuggestController implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.contrib.suggestController';
@@ -115,10 +122,10 @@ export class SuggestController implements IEditorContribution {
 			const widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
 
 			this._toDispose.add(widget);
-			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, false, true, true, true), this));
+			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, 0), this));
 
 			// Wire up logic to accept a suggestion on certain characters
-			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true, false, true));
+			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, InsertFlags.NoAfterUndoStop));
 			this._toDispose.add(commitCharacterController);
 			this._toDispose.add(this._model.onDidSuggest(e => {
 				if (e.completionModel.items.length === 0) {
@@ -220,9 +227,7 @@ export class SuggestController implements IEditorContribution {
 
 	protected _insertSuggestion(
 		event: ISelectedSuggestion | undefined,
-		keepAlternativeSuggestions: boolean,
-		undoStopBefore: boolean, undoStopAfter: boolean,
-		keepSuffix: boolean
+		flags: InsertFlags
 	): void {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
@@ -241,7 +246,7 @@ export class SuggestController implements IEditorContribution {
 
 		// pushing undo stops *before* additional text edits and
 		// *after* the main edit
-		if (undoStopBefore) {
+		if (!(flags & InsertFlags.NoBeforeUndoStop)) {
 			this._editor.pushUndoStop();
 		}
 
@@ -261,7 +266,11 @@ export class SuggestController implements IEditorContribution {
 		let overwriteAfter = suggestion.range.endColumn - position.column;
 		let suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(this._editor.getPosition()) : 0;
 		let word: IWordAtPosition | null;
-		if (!keepSuffix) {
+
+		const overwriteConfig = flags & InsertFlags.AlternativeOverwriteConfig
+			? !this._editor.getOption(EditorOption.suggest).overwriteOnAccept
+			: this._editor.getOption(EditorOption.suggest).overwriteOnAccept;
+		if (!overwriteConfig) {
 			// don't overwrite anything right of the cursor
 			overwriteAfter = 0;
 
@@ -278,7 +287,7 @@ export class SuggestController implements IEditorContribution {
 			adjustWhitespace: !(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
 		});
 
-		if (undoStopAfter) {
+		if (!(flags & InsertFlags.NoAfterUndoStop)) {
 			this._editor.pushUndoStop();
 		}
 
@@ -299,7 +308,7 @@ export class SuggestController implements IEditorContribution {
 			this._model.cancel();
 		}
 
-		if (keepAlternativeSuggestions) {
+		if (flags & InsertFlags.KeepAlternativeSuggestions) {
 			this._alternatives.getValue().set(event, next => {
 				// this is not so pretty. when inserting the 'next'
 				// suggestion we undo until we are at the state at
@@ -308,7 +317,10 @@ export class SuggestController implements IEditorContribution {
 					if (modelVersionNow !== model.getAlternativeVersionId()) {
 						model.undo();
 					}
-					this._insertSuggestion(next, false, false, false, keepSuffix);
+					this._insertSuggestion(
+						next,
+						InsertFlags.NoBeforeUndoStop | InsertFlags.NoAfterUndoStop | (flags & InsertFlags.AlternativeOverwriteConfig ? InsertFlags.AlternativeOverwriteConfig : 0)
+					);
 					break;
 				}
 			});
@@ -390,7 +402,7 @@ export class SuggestController implements IEditorContribution {
 					return;
 				}
 				this._editor.pushUndoStop();
-				this._insertSuggestion({ index, item, model: completionModel }, true, false, false, false);
+				this._insertSuggestion({ index, item, model: completionModel }, InsertFlags.KeepAlternativeSuggestions | InsertFlags.NoBeforeUndoStop | InsertFlags.NoAfterUndoStop);
 
 			}, undefined, listener);
 		});
@@ -400,9 +412,16 @@ export class SuggestController implements IEditorContribution {
 		this._editor.focus();
 	}
 
-	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, keepSuffix: boolean): void {
+	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, alternativeOverwriteConfig: boolean): void {
 		const item = this._widget.getValue().getFocusedItem();
-		this._insertSuggestion(item, keepAlternativeSuggestions, true, true, keepSuffix);
+		let flags = 0;
+		if (keepAlternativeSuggestions) {
+			flags |= InsertFlags.KeepAlternativeSuggestions;
+		}
+		if (alternativeOverwriteConfig) {
+			flags |= InsertFlags.AlternativeOverwriteConfig;
+		}
+		this._insertSuggestion(item, flags);
 	}
 
 	acceptNextSuggestion() {
@@ -497,43 +516,40 @@ const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(Sugge
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
 	precondition: SuggestContext.Visible,
-	kbOpts: {
-		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.Tab
-	},
 	handler(x, args) {
-		let keepSuffix: boolean;
-		if (typeof args !== 'object') {
-			keepSuffix = true;
-		} else if (typeof args.keepSuffix !== 'boolean') {
-			keepSuffix = true;
-		} else {
-			keepSuffix = args.keepSuffix;
-		}
-		x.acceptSelectedSuggestion(true, keepSuffix);
+		const alternative: boolean = typeof args === 'object' && typeof args.alternative === 'boolean'
+			? args.alternative
+			: false;
+		x.acceptSelectedSuggestion(true, alternative);
 	}
 }));
 
+// normal tab
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'acceptSelectedSuggestion',
+	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+	primary: KeyCode.Tab,
+	weight
+});
+
+// accept on enter has special rules
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'acceptSelectedSuggestion',
+	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
+	primary: KeyCode.Enter,
+	weight
+});
+
+// shift+enter and shift+tab use the alternative-flag so that the suggest controller
+// is doing the opposite of the editor.suggest.overwriteOnAccept-configuration
 KeybindingsRegistry.registerKeybindingRule({
 	id: 'acceptSelectedSuggestion',
 	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
 	primary: KeyMod.Shift | KeyCode.Tab,
 	secondary: [KeyMod.Shift | KeyCode.Enter],
-	args: { keepSuffix: false },
+	args: { alternative: true },
 	weight
 });
-
-registerEditorCommand(new SuggestCommand({
-	id: 'acceptSelectedSuggestionOnEnter',
-	precondition: SuggestContext.Visible,
-	handler: x => x.acceptSelectedSuggestion(false, true),
-	kbOpts: {
-		weight: weight,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
-		primary: KeyCode.Enter
-	}
-}));
 
 registerEditorCommand(new SuggestCommand({
 	id: 'hideSuggestWidget',
