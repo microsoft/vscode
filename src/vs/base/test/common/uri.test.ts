@@ -439,6 +439,19 @@ suite('URI', () => {
 		assert.equal(uri.path, uri2.path);
 	});
 
+
+	test('Links in markdown are broken if url contains encoded parameters #79474', function () {
+		this.skip();
+		// fails!!
+		let strIn = 'https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom';
+		let uri1 = URI.parse(strIn);
+		let strOut = uri1.toString();
+		let uri2 = URI.parse(strOut);
+
+		assert.equal(uri1.query, uri2.query);
+		assert.equal(strIn, strOut);
+	});
+
 	test('URI - (de)serialize', function () {
 
 		const values = [
