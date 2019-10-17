@@ -206,11 +206,6 @@ export class Menu extends ActionBar {
 		const scrollElement = this.scrollableElement.getDomNode();
 		scrollElement.style.position = '';
 
-		console.log(`Window Inner Height: ${window.innerHeight}px`);
-		console.log(`Menu Container Bounding Rect Top: ${container.getBoundingClientRect().top}px`);
-		console.log(container);
-
-
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
 
 		this.menuDisposables.add(this.scrollableElement.onScroll(() => {
