@@ -362,8 +362,8 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 	constructor(
 		action: ActivityAction,
-		private getOverflowingComposites: () => { id: string, name: string }[],
-		private getActiveCompositeId: () => string,
+		private getOverflowingComposites: () => { id: string, name?: string }[],
+		private getActiveCompositeId: () => string | undefined,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
 		colors: (theme: ITheme) => ICompositeBarColors,
@@ -404,7 +404,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 			if (suffix) {
 				action.label = nls.localize('numberBadge', "{0} ({1})", composite.name, suffix);
 			} else {
-				action.label = composite.name;
+				action.label = composite.name || '';
 			}
 
 			return action;
