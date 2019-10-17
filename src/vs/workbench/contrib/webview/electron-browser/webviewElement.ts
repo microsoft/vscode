@@ -12,7 +12,6 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
@@ -253,10 +252,10 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
 		@ITunnelService tunnelService: ITunnelService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly _environementService: IEnvironmentService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IEnvironmentService environementService: IEnvironmentService,
 	) {
-		super(options);
+		super(options, telemetryService, environementService);
 
 		this.content = {
 			html: '',
@@ -351,10 +350,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			this.handleFocusChange(false);
 		}));
 
-		this._register(this.on('no-csp-found', () => {
-			this.handleNoCspFound();
-		}));
-
 		this._register(addDisposableListener(this.element!, 'devtools-opened', () => {
 			this._send('devtools-opened');
 		}));
@@ -410,9 +405,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
-
-	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
-	public readonly onMissingCsp = this._onMissingCsp.event;
 
 	protected postMessage(channel: string, data?: any): void {
 		if (this.element) {
@@ -481,32 +473,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		this._focused = isFocused;
 		if (isFocused) {
 			this._onDidFocus.fire();
-		}
-	}
-
-	private _hasAlertedAboutMissingCsp = false;
-
-	private handleNoCspFound(): void {
-		if (this._hasAlertedAboutMissingCsp) {
-			return;
-		}
-		this._hasAlertedAboutMissingCsp = true;
-
-		if (this.extension && this.extension.id) {
-			if (this._environementService.isExtensionDevelopment) {
-				this._onMissingCsp.fire(this.extension.id);
-			}
-
-			type TelemetryClassification = {
-				extension?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			};
-			type TelemetryData = {
-				extension?: string,
-			};
-
-			this._telemetryService.publicLog2<TelemetryData, TelemetryClassification>('webviewMissingCsp', {
-				extension: this.extension.id.value
-			});
 		}
 	}
 

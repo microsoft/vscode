@@ -9,16 +9,17 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { Webview, WebviewContentOptions, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface WebviewContent {
 	readonly html: string;
@@ -32,8 +33,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
-	public extension: WebviewExtensionDescription | undefined;
-
 	constructor(
 		private readonly id: string,
 		options: WebviewOptions,
@@ -43,8 +42,10 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IEnvironmentService environementService: IEnvironmentService,
 	) {
-		super(options);
+		super(options, telemetryService, environementService);
 		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.webviewExternalEndpoint !== 'string')) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewExternalEndpoint`');
 		}
@@ -196,10 +197,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
-
-	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
-	public readonly onMissingCsp = this._onMissingCsp.event;
-
 
 	sendMessage(data: any): void {
 		this._send('message', data);
