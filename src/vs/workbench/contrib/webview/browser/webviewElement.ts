@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClass, addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -18,6 +18,7 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 
 interface WebviewContent {
 	readonly html: string;
@@ -25,36 +26,13 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
-const enum WebviewMessageChannels {
-	onmessage = 'onmessage',
-	didClickLink = 'did-click-link',
-	didScroll = 'did-scroll',
-	didFocus = 'did-focus',
-	didBlur = 'did-blur',
-	doUpdateState = 'do-update-state',
-	doReload = 'do-reload',
-	loadResource = 'load-resource',
-	loadLocalhost = 'load-localhost',
-	webviewReady = 'webview-ready',
-}
-
-interface WebviewEventEmitter {
-	on(channel: WebviewMessageChannels, handler: (data: unknown) => void): IDisposable;
-}
-
-export class IFrameWebview extends Disposable implements Webview {
-	private element?: HTMLIFrameElement;
-
-	private readonly _ready: Promise<void>;
-
+export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Webview {
 	private content: WebviewContent;
 	private _focused = false;
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
 	public extension: WebviewExtensionDescription | undefined;
-
-	private webviewEventEmitter: WebviewEventEmitter;
 
 	constructor(
 		private readonly id: string,
@@ -66,7 +44,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
-		super();
+		super(options);
 		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.webviewExternalEndpoint !== 'string')) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewExternalEndpoint`');
 		}
@@ -83,86 +61,65 @@ export class IFrameWebview extends Disposable implements Webview {
 			state: undefined
 		};
 
-		this.element = document.createElement('iframe');
-		this.element.className = `webview ${options.customClasses}`;
-		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
-		this.element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
-		this.element.style.border = 'none';
-		this.element.style.width = '100%';
-		this.element.style.height = '100%';
-
-		this.webviewEventEmitter = {
-			on: (channel, handler) => {
-				return addDisposableListener(window, 'message', e => {
-					if (!e || !e.data || e.data.target !== this.id) {
-						return;
-					}
-					if (e.data.channel === channel) {
-						handler(e.data.data);
-					}
-				});
-			}
-		};
-
-		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.onmessage, (data) => {
+		this._register(this.on(WebviewMessageChannels.onmessage, (data: any) => {
 			this._onMessage.fire(data);
 		}));
 
-		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.didClickLink, (uri) => {
-			if (typeof uri === 'string') {
-				this._onDidClickLink.fire(URI.parse(uri));
-			}
+		this._register(this.on(WebviewMessageChannels.didClickLink, (uri: string) => {
+			this._onDidClickLink.fire(URI.parse(uri));
 		}));
 
-		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.didScroll, () => {
+		this._register(this.on(WebviewMessageChannels.didScroll, () => {
 			// if (e.args && typeof e.args[0] === 'number') {
 			// 	this._onDidScroll.fire({ scrollYPercentage: e.args[0] });
 			// }
 		}));
 
-		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.doReload, () => {
+		this._register(this.on(WebviewMessageChannels.doReload, () => {
 			this.reload();
 		}));
 
-		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.doUpdateState, (state: any) => {
+		this._register(this.on(WebviewMessageChannels.doUpdateState, (state: any) => {
 			this.state = state;
 			this._onDidUpdateState.fire(state);
 		}));
 
-		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.didFocus, () => {
+		this._register(this.on(WebviewMessageChannels.didFocus, () => {
 			this.handleFocusChange(true);
 		}));
 
-		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.didBlur, () => {
+		this._register(this.on(WebviewMessageChannels.didBlur, () => {
 			this.handleFocusChange(false);
 		}));
 
-		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.loadResource, (entry: any) => {
+		this._register(this.on(WebviewMessageChannels.loadResource, (entry: any) => {
 			const rawPath = entry.path;
 			const normalizedPath = decodeURIComponent(rawPath);
 			const uri = URI.parse(normalizedPath.replace(/^\/(\w+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
 			this.loadResource(rawPath, uri);
 		}));
 
-		this._register(this.webviewEventEmitter.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
+		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
 			this.localLocalhost(entry.origin);
 		}));
-
-		this._ready = new Promise(resolve => {
-			const subscription = this._register(this.webviewEventEmitter.on(WebviewMessageChannels.webviewReady, () => {
-				if (this.element) {
-					addClass(this.element, 'ready');
-				}
-				subscription.dispose();
-				resolve();
-			}));
-		});
 
 		this.style();
 		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
 
+	protected createElement(options: WebviewOptions) {
+		const element = document.createElement('iframe');
+		element.className = `webview ${options.customClasses}`;
+		element.sandbox.add('allow-scripts', 'allow-same-origin');
+		element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
+		element.style.border = 'none';
+		element.style.width = '100%';
+		element.style.height = '100%';
+		return element;
+	}
+
 	private get externalEndpoint(): string {
+		return 'http://127.0.0.1:8080';
 		const endpoint = this.environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
@@ -255,17 +212,6 @@ export class IFrameWebview extends Disposable implements Webview {
 		}
 	}
 
-	dispose(): void {
-		if (this.element) {
-			if (this.element.parentElement) {
-				this.element.parentElement.removeChild(this.element);
-			}
-		}
-
-		this.element = undefined!;
-		super.dispose();
-	}
-
 	reload(): void {
 		this.doUpdateContent();
 	}
@@ -337,6 +283,17 @@ export class IFrameWebview extends Disposable implements Webview {
 		return this._send('did-load-localhost', {
 			origin,
 			location: redirect
+		});
+	}
+
+	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T) => void): IDisposable {
+		return addDisposableListener(window, 'message', e => {
+			if (!e || !e.data || e.data.target !== this.id) {
+				return;
+			}
+			if (e.data.channel === channel) {
+				handler(e.data.data);
+			}
 		});
 	}
 }
