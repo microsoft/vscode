@@ -12,6 +12,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewExtensionDescription, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { URI } from 'vs/base/common/uri';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -37,6 +39,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private _element: T | undefined;
 	protected get element(): T | undefined { return this._element; }
 
+	private _focused: boolean;
+	protected get focused(): boolean { return this._focused; }
+
 	private readonly _ready: Promise<void>;
 
 	protected content: WebviewContent;
@@ -44,10 +49,14 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	public extension: WebviewExtensionDescription | undefined;
 
 	constructor(
+		// TODO: matb, this should not be protected. The only reason it needs to be is that the base class ends up using it in the call to createElement
+		protected readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environementService: IEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -88,6 +97,22 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._register(this.on(WebviewMessageChannels.doReload, () => {
 			this.reload();
 		}));
+
+		this._register(this.on(WebviewMessageChannels.doUpdateState, (state: any) => {
+			this.state = state;
+			this._onDidUpdateState.fire(state);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didFocus, () => {
+			this.handleFocusChange(true);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didBlur, () => {
+			this.handleFocusChange(false);
+		}));
+
+		this.style();
+		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
 
 	dispose(): void {
@@ -110,6 +135,16 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
 	public readonly onDidScroll = this._onDidScroll.event;
+
+	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
+	public readonly onDidUpdateState = this._onDidUpdateState.event;
+
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	public readonly onDidFocus = this._onDidFocus.event;
+
+	public sendMessage(data: any): void {
+		this._send('message', data);
+	}
 
 	protected _send(channel: string, data?: any): void {
 		this._ready
@@ -195,5 +230,17 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			state: this.content.state,
 			...this.extraContentOptions
 		});
+	}
+
+	protected style(): void {
+		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
+		this._send('styles', { styles, activeTheme });
+	}
+
+	protected handleFocusChange(isFocused: boolean): void {
+		this._focused = isFocused;
+		if (isFocused) {
+			this._onDidFocus.fire();
+		}
 	}
 }

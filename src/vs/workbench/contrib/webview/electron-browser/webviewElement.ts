@@ -23,6 +23,7 @@ import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/th
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface IKeydownEvent {
 	key: string;
@@ -230,24 +231,21 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
 
-	private _focused = false;
-
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
-
 	public extension: WebviewExtensionDescription | undefined;
 
 	constructor(
+		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
+		private readonly _webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
 		@ITunnelService tunnelService: ITunnelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEnvironmentService environementService: IEnvironmentService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
-		super(options, contentOptions, telemetryService, environementService);
+		super(id, options, contentOptions, _webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
 
 		const webviewAndContents = this._register(new WebviewTagHandle(this.element!));
 		const session = this._register(new WebviewSession(webviewAndContents));
@@ -272,7 +270,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		}));
 		this._register(addDisposableListener(this.element!, 'dom-ready', () => {
 			// Workaround for https://github.com/electron/electron/issues/14474
-			if (this.element && (this._focused || document.activeElement === this.element)) {
+			if (this.element && (this.focused || document.activeElement === this.element)) {
 				this.element.blur();
 				this.element.focus();
 			}
@@ -307,19 +305,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			}
 		}));
 
-		this._register(this.on(WebviewMessageChannels.doUpdateState, (state: any) => {
-			this.state = state;
-			this._onDidUpdateState.fire(state);
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didFocus, () => {
-			this.handleFocusChange(true);
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didBlur, () => {
-			this.handleFocusChange(false);
-		}));
-
 		this._register(addDisposableListener(this.element!, 'devtools-opened', () => {
 			this._send('devtools-opened');
 		}));
@@ -331,9 +316,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 				this._hasFindResult.fire(e.result.matches > 0);
 			}));
 		}
-
-		this.style();
-		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
 
 	protected createElement(options: WebviewOptions) {
@@ -366,9 +348,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		parent.appendChild(this.element);
 	}
 
-	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
-	public readonly onDidUpdateState = this._onDidUpdateState.event;
-
 	protected postMessage(channel: string, data?: any): void {
 		if (this.element) {
 			this.element.send(channel, data);
@@ -390,23 +369,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		this.handleFocusChange(true);
 	}
 
-	private handleFocusChange(isFocused: boolean): void {
-		this._focused = isFocused;
-		if (isFocused) {
-			this._onDidFocus.fire();
-		}
-	}
-
-	public sendMessage(data: any): void {
-		this._send('message', data);
-	}
-
-	private style(): void {
-		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
-		this._send('styles', { styles, activeTheme });
+	protected style(): void {
+		super.style();
 
 		if (this._webviewFindWidget) {
-			this._webviewFindWidget.updateTheme(this.webviewThemeDataProvider.getTheme());
+			this._webviewFindWidget.updateTheme(this._webviewThemeDataProvider.getTheme());
 		}
 	}
 

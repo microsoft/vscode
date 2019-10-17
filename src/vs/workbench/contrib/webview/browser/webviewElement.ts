@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -21,24 +20,23 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Webview {
-	private _focused = false;
-
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
 	constructor(
-		private readonly id: string,
+		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
+		webviewThemeDataProvider: WebviewThemeDataProvider,
 		@ITunnelService tunnelService: ITunnelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEnvironmentService environementService: IEnvironmentService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
-		super(options, contentOptions, telemetryService, environementService);
-		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.webviewExternalEndpoint !== 'string')) {
+		super(id, options, contentOptions, webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
+
+		if (!this.useExternalEndpoint && (!workbenchEnvironmentService.options || typeof workbenchEnvironmentService.webviewExternalEndpoint !== 'string')) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewExternalEndpoint`');
 		}
 
@@ -47,19 +45,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			() => this.content.options.portMapping || [],
 			tunnelService
 		));
-
-		this._register(this.on(WebviewMessageChannels.doUpdateState, (state: any) => {
-			this.state = state;
-			this._onDidUpdateState.fire(state);
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didFocus, () => {
-			this.handleFocusChange(true);
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didBlur, () => {
-			this.handleFocusChange(false);
-		}));
 
 		this._register(this.on(WebviewMessageChannels.loadResource, (entry: any) => {
 			const rawPath = entry.path;
@@ -71,9 +56,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
 			this.localLocalhost(entry.origin);
 		}));
-
-		this.style();
-		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
 
 	protected createElement(options: WebviewOptions) {
@@ -88,7 +70,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private get externalEndpoint(): string {
-		const endpoint = this.environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
+		const endpoint = this.workbenchEnvironmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}
@@ -121,23 +103,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		};
 	}
 
-	private handleFocusChange(isFocused: boolean): void {
-		this._focused = isFocused;
-		if (this._focused) {
-			this._onDidFocus.fire();
-		}
-	}
-
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	public readonly onDidFocus = this._onDidFocus.event;
-
-	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
-	public readonly onDidUpdateState = this._onDidUpdateState.event;
-
-	sendMessage(data: any): void {
-		this._send('message', data);
-	}
-
 	focus(): void {
 		if (this.element) {
 			this.element.focus();
@@ -154,19 +119,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	runFindAction(previous: boolean): void {
 		throw new Error('Method not implemented.');
-	}
-
-	public set state(state: string | undefined) {
-		this.content = {
-			html: this.content.html,
-			options: this.content.options,
-			state,
-		};
-	}
-
-	private style(): void {
-		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
-		this._send('styles', { styles, activeTheme });
 	}
 
 	private async loadResource(requestPath: string, uri: URI) {
