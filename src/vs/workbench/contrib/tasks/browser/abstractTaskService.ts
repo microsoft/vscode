@@ -1054,8 +1054,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 		let resolver: ITaskResolver = {
-			resolve: (workspaceFolder: IWorkspaceFolder, alias: string) => {
-				let data = resolverData.get(workspaceFolder.uri.toString());
+			resolve: (uri: URI, alias: string) => {
+				let data = resolverData.get(uri.toString());
 				if (!data) {
 					return undefined;
 				}
@@ -1086,7 +1086,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				{ reevaluateOnRerun: true },
 				{
 					identifier: id,
-					dependsOn: extensionTasks.map((extensionTask) => { return { workspaceFolder: extensionTask.getWorkspaceFolder()!, task: extensionTask._id }; }),
+					dependsOn: extensionTasks.map((extensionTask) => { return { uri: extensionTask.getWorkspaceFolder()!.uri, task: extensionTask._id }; }),
 					name: id,
 				}
 			);
@@ -1119,9 +1119,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 		});
+
 		return {
-			resolve: (workspaceFolder: IWorkspaceFolder, identifier: string | TaskIdentifier | undefined) => {
-				let data = resolverData.get(workspaceFolder.uri.toString());
+			resolve: (uri: URI, identifier: string | TaskIdentifier | undefined) => {
+				let data = uri ? resolverData.get(uri.toString()) : undefined;
 				if (!data || !identifier) {
 					return undefined;
 				}
@@ -1949,7 +1950,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				let resolver = this.createResolver(grouped);
 				let folders = this.contextService.getWorkspace().folders;
 				for (let folder of folders) {
-					let task = resolver.resolve(folder, identifier);
+					let task = resolver.resolve(folder.uri, identifier);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here

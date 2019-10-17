@@ -347,7 +347,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
 			for (const dependency of task.configurationProperties.dependsOn) {
-				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
+				let dependencyTask = resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
 					let key = dependencyTask.getMapKey();
 					let promise = this.activeTasks[key] ? this.activeTasks[key].promise : undefined;
@@ -363,7 +363,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					this.log(nls.localize('dependencyFailed',
 						'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'',
 						Types.isString(dependency.task) ? dependency.task : JSON.stringify(dependency.task, undefined, 0),
-						dependency.workspaceFolder.name
+						dependency.uri.toString()
 					));
 					this.showOutput();
 				}
