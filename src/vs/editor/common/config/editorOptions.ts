@@ -3264,7 +3264,7 @@ export const EditorOptions = {
 		5, 0, 30,
 		{
 			markdownDescription: nls.localize('tasksQuickOpenHistory',
-			"Controls the number of recent items tracked in task quick open dialog.")
+				"Controls the number of recent items tracked in task quick open dialog.")
 		}
 	)),
 	useTabStops: register(new EditorBooleanOption(

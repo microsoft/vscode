@@ -1975,18 +1975,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return entries;
 		}), {
-			placeHolder,
-			matchOnDescription: true,
-			onDidTriggerItemButton: context => {
-				let task = context.item.task;
-				this.quickInputService.cancel();
-				if (ContributedTask.is(task)) {
-					this.customize(task, undefined, true);
-				} else if (CustomTask.is(task)) {
-					this.openConfig(task);
+				placeHolder,
+				matchOnDescription: true,
+				onDidTriggerItemButton: context => {
+					let task = context.item.task;
+					this.quickInputService.cancel();
+					if (ContributedTask.is(task)) {
+						this.customize(task, undefined, true);
+					} else if (CustomTask.is(task)) {
+						this.openConfig(task);
+					}
 				}
-			}
-		});
+			});
 	}
 
 	private showIgnoredFoldersMessage(): Promise<void> {
