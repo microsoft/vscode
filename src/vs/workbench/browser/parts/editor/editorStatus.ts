@@ -30,7 +30,7 @@ import { IModeService, ILanguageSelection } from 'vs/editor/common/services/mode
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
+import { TabFocus , ReadOnly} from 'vs/editor/common/config/commonEditorConfig';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
@@ -141,6 +141,7 @@ class StateChange {
 	encoding: boolean = false;
 	EOL: boolean = false;
 	tabFocusMode: boolean = false;
+	readOnlyMode: boolean = false;
 	screenReaderMode: boolean = false;
 	metadata: boolean = false;
 
@@ -151,6 +152,7 @@ class StateChange {
 		this.encoding = this.encoding || other.encoding;
 		this.EOL = this.EOL || other.EOL;
 		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
+		this.readOnlyMode = this.readOnlyMode || other.readOnlyMode;
 		this.screenReaderMode = this.screenReaderMode || other.screenReaderMode;
 		this.metadata = this.metadata || other.metadata;
 	}
@@ -162,6 +164,7 @@ class StateChange {
 			|| this.encoding
 			|| this.EOL
 			|| this.tabFocusMode
+			|| this.readOnlyMode
 			|| this.screenReaderMode
 			|| this.metadata;
 	}
@@ -174,6 +177,7 @@ interface StateDelta {
 	EOL?: string;
 	indentation?: string;
 	tabFocusMode?: boolean;
+	readOnlyMode?: boolean;
 	screenReaderMode?: boolean;
 	metadata?: string | undefined;
 }
@@ -196,6 +200,9 @@ class State {
 
 	private _tabFocusMode: boolean | undefined;
 	get tabFocusMode(): boolean | undefined { return this._tabFocusMode; }
+
+	private _readOnlyMode: boolean | undefined;
+	get readOnlyMode(): boolean | undefined { return this._readOnlyMode;}
 
 	private _screenReaderMode: boolean | undefined;
 	get screenReaderMode(): boolean | undefined { return this._screenReaderMode; }
@@ -248,6 +255,13 @@ class State {
 			}
 		}
 
+		if ('readOnlyMode' in update){
+			if (this._readOnlyMode !== update.readOnlyMode) {
+				this._readOnlyMode = update.readOnlyMode;
+				change.readOnlyMode = true;
+			}
+		}
+
 		if ('screenReaderMode' in update) {
 			if (this._screenReaderMode !== update.screenReaderMode) {
 				this._screenReaderMode = update.screenReaderMode;
@@ -274,6 +288,7 @@ const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
 export class EditorStatus extends Disposable implements IWorkbenchContribution {
+	private readonly readOnlyModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly screenRedearModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly indentationElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -312,6 +327,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this._register(this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
 		this._register(this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange((e.resource))));
 		this._register(TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()));
+		this._register(ReadOnly.onDidChangeReadOnly(e => this.onReadOnlyModeChange()));
 	}
 
 	private registerCommands(): void {
@@ -376,6 +392,20 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		const action = await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
 		return action && action.run();
+	}
+
+	private updateReadOnlyModeElement(visible: boolean): void {
+		if (visible) {
+			if (!this.readOnlyModeElement.value) {
+				this.readOnlyModeElement.value = this.statusbarService.addEntry({
+					text: nls.localize('readOnlyModeEnabled', "Read Only"),
+					tooltip: nls.localize('disableReadOnlyMode', "Disable Read Only Mode"),
+					command: 'editor.action.toggleReadOnlyMode'
+				}, 'status.editor.readOnlyMode', nls.localize('status.editor.readOnlyMode', "Accessibility Mode"), StatusbarAlignment.RIGHT, 100.7);
+			}
+		} else {
+			this.readOnlyModeElement.clear();
+		}
 	}
 
 	private updateTabFocusModeElement(visible: boolean): void {
@@ -527,6 +557,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private doRenderNow(changed: StateChange): void {
+		this.updateReadOnlyModeElement(!!this.state.readOnlyMode);
 		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
 		this.updateScreenReaderModeElement(!!this.state.screenReaderMode);
 		this.updateIndentationElement(this.state.indentation);
@@ -802,6 +833,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private onTabFocusModeChange(): void {
 		const info: StateDelta = { tabFocusMode: TabFocus.getTabFocusMode() };
+
+		this.updateState(info);
+	}
+
+	private onReadOnlyModeChange(): void {
+		const info: StateDelta = { readOnlyMode: ReadOnly.getReadOnlyMode() };
 
 		this.updateState(info);
 	}

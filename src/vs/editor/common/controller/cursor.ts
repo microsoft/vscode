@@ -161,6 +161,9 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
 
+	private readonly _onDidAttemptReadOnlyMode: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidAttemptReadOnlyMode: Event<void> = this._onDidAttemptReadOnlyMode.event;
+
 	private readonly _onDidChange: Emitter<CursorStateChangedEvent> = this._register(new Emitter<CursorStateChangedEvent>());
 	public readonly onDidChange: Event<CursorStateChangedEvent> = this._onDidChange.event;
 
@@ -678,6 +681,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			// All the remaining handlers will try to edit the model,
 			// but we cannot edit when read only...
 			this._onDidAttemptReadOnlyEdit.fire(undefined);
+			return;
+		}
+
+		if (this._configuration.options.get(EditorOption.readOnlyMode)) {
+			this._onDidAttemptReadOnlyMode.fire(undefined);
 			return;
 		}
 

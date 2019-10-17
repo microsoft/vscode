@@ -614,6 +614,7 @@ export interface IEnvironmentalOptions {
 	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
+	readonly readOnlyMode: boolean;
 	readonly accessibilitySupport: AccessibilitySupport;
 }
 
@@ -2475,6 +2476,22 @@ class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode,
 
 //#endregion
 
+//#region readOnlyMode
+
+class EditorReadOnlyMode extends ComputedEditorOption<EditorOption.readOnlyMode, boolean> {
+
+	constructor() {
+		super(EditorOption.readOnlyMode, [EditorOption.readOnly]);
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: boolean): boolean {
+		const readOnly = options.get(EditorOption.readOnly);
+		return (readOnly ? true : env.readOnlyMode);
+	}
+}
+
+//#endregion
+
 //#region wrappingIndent
 
 /**
@@ -2739,6 +2756,7 @@ export const enum EditorOption {
 	tabFocusMode,
 	layoutInfo,
 	wrappingInfo,
+	readOnlyMode
 }
 
 /**
@@ -3275,6 +3293,7 @@ export const EditorOptions = {
 	tabFocusMode: register(new EditorTabFocusMode()),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
+	readOnlyMode: register(new EditorReadOnlyMode()),
 };
 
 /**

@@ -48,6 +48,7 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 		this._editor = editor;
 		this._visible = MessageController.MESSAGE_VISIBLE.bindTo(contextKeyService);
 		this._register(this._editor.onDidAttemptReadOnlyEdit(() => this._onDidAttemptReadOnlyEdit()));
+		this._register(this._editor.onDidAttemptReadOnlyMode(() => this._onDidAttemptReadOnlyMode()));
 	}
 
 	dispose(): void {
@@ -105,6 +106,12 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 	private _onDidAttemptReadOnlyEdit(): void {
 		if (this._editor.hasModel()) {
 			this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
+		}
+	}
+
+	private _onDidAttemptReadOnlyMode(): void {
+		if (this._editor.hasModel()) {
+			this.showMessage(nls.localize('editor.readonlymode', "Cannot edit in read-only mode"), this._editor.getPosition());
 		}
 	}
 }

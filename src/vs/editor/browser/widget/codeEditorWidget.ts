@@ -140,6 +140,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
 
+	private readonly _onDidAttemptReadOnlyMode: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidAttemptReadOnlyMode: Event<void> = this._onDidAttemptReadOnlyMode.event;
+
 	private readonly _onDidLayoutChange: Emitter<EditorLayoutInfo> = this._register(new Emitter<EditorLayoutInfo>());
 	public readonly onDidLayoutChange: Event<EditorLayoutInfo> = this._onDidLayoutChange.event;
 
@@ -1342,6 +1345,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		listenersToRemove.push(cursor.onDidAttemptReadOnlyEdit(() => {
 			this._onDidAttemptReadOnlyEdit.fire(undefined);
+		}));
+
+		listenersToRemove.push(cursor.onDidAttemptReadOnlyMode(() => {
+			this._onDidAttemptReadOnlyMode.fire(undefined);
 		}));
 
 		listenersToRemove.push(cursor.onDidChange((e: CursorStateChangedEvent) => {

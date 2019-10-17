@@ -48,6 +48,32 @@ export const TabFocus: ITabFocus = new class implements ITabFocus {
 	}
 };
 
+export interface IReadOnly {
+	onDidChangeReadOnly: Event<boolean>;
+	getReadOnlyMode(): boolean;
+	setReadOnlyMode(readOnlyMode: boolean): void;
+}
+
+export const ReadOnly: IReadOnly = new class implements IReadOnly {
+	private _readOnly: boolean = false;
+
+	private readonly _onDidChangeReadOnly = new Emitter<boolean>();
+	public readonly onDidChangeReadOnly: Event<boolean> = this._onDidChangeReadOnly.event;
+
+	public getReadOnlyMode(): boolean {
+		return this._readOnly;
+	}
+
+	public setReadOnlyMode(readOnlyMode: boolean): void {
+		if (this._readOnly === readOnlyMode) {
+			return;
+		}
+
+		this._readOnly = readOnlyMode;
+		this._onDidChangeReadOnly.fire(this._readOnly);
+	}
+};
+
 export interface IEnvConfiguration {
 	extraEditorClassName: string;
 	outerWidth: number;
@@ -243,6 +269,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
+		this._register(ReadOnly.onDidChangeReadOnly(_ => this._recomputeOptions()));
 	}
 
 	public observeReferenceElement(dimension?: editorCommon.IDimension): void {
@@ -288,6 +315,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode(),
+			readOnlyMode: ReadOnly.getReadOnlyMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport
 		};
 		return EditorConfiguration2.computeOptions(this._validatedOptions, env);
