@@ -28,10 +28,6 @@ function main(argv: string[]): void {
 		return fatal('Missing pipe');
 	}
 
-	if (process.env['VSCODE_GIT_COMMAND'] === 'fetch') {
-		return fatal('Skip fetch commands');
-	}
-
 	const output = process.env['VSCODE_GIT_ASKPASS_PIPE'] as string;
 	const socketPath = process.env['VSCODE_GIT_ASKPASS_HANDLE'] as string;
 	const request = argv[2];
