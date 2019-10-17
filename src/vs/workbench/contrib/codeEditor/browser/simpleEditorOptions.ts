@@ -41,12 +41,12 @@ export function getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
 		isSimpleWidget: true,
 		contributions: [
-			MenuPreventer,
-			SelectionClipboard,
-			ContextMenuController,
-			SuggestController,
-			SnippetController2,
-			TabCompletionController,
+			{ id: MenuPreventer.ID, ctor: MenuPreventer },
+			{ id: SelectionClipboard.ID, ctor: SelectionClipboard },
+			{ id: ContextMenuController.ID, ctor: ContextMenuController },
+			{ id: SuggestController.ID, ctor: SuggestController },
+			{ id: SnippetController2.ID, ctor: SnippetController2 },
+			{ id: TabCompletionController.ID, ctor: TabCompletionController },
 		]
 	};
 }

@@ -40,7 +40,7 @@ function contextKeyForSupportedActions(kind: CodeActionKind) {
 
 export class QuickFixController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.quickFixController';
+	public static readonly ID = 'editor.contrib.quickFixController';
 
 	public static get(editor: ICodeEditor): QuickFixController {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);
@@ -88,10 +88,6 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 	public showCodeActions(actions: CodeActionSet, at: IAnchor | IPosition) {
 		return this._ui.getValue().showCodeActionList(actions, at);
-	}
-
-	public getId(): string {
-		return QuickFixController.ID;
 	}
 
 	public manualTriggerAtCurrentPosition(

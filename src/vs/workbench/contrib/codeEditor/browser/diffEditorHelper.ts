@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
@@ -19,7 +19,9 @@ const enum WidgetState {
 	HintWhitespace
 }
 
-class DiffEditorHelperContribution extends Disposable implements IEditorContribution {
+class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
+
+	public static ID = 'editor.contrib.diffEditorHelper';
 
 	private _helperWidget: FloatingClickWidget | null;
 	private _helperWidgetListener: IDisposable | null;
@@ -99,10 +101,6 @@ class DiffEditorHelperContribution extends Disposable implements IEditorContribu
 	dispose(): void {
 		super.dispose();
 	}
-
-	getId(): string {
-		return 'editor.contrib.diffEditorHelper';
-	}
 }
 
-registerDiffEditorContribution(DiffEditorHelperContribution);
+registerDiffEditorContribution(DiffEditorHelperContribution.ID, DiffEditorHelperContribution);

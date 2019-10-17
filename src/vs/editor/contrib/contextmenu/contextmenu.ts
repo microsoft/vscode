@@ -26,7 +26,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class ContextMenuController implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.contextmenu';
+	public static readonly ID = 'editor.contrib.contextmenu';
 
 	public static get(editor: ICodeEditor): ContextMenuController {
 		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);
@@ -209,10 +209,6 @@ export class ContextMenuController implements IEditorContribution {
 		return this._keybindingService.lookupKeybinding(action.id);
 	}
 
-	public getId(): string {
-		return ContextMenuController.ID;
-	}
-
 	public dispose(): void {
 		if (this._contextMenuIsBeingShownCount > 0) {
 			this._contextViewService.hideContextView();
@@ -244,5 +240,5 @@ class ShowContextMenu extends EditorAction {
 	}
 }
 
-registerEditorContribution(ContextMenuController);
+registerEditorContribution(ContextMenuController.ID, ContextMenuController);
 registerEditorAction(ShowContextMenu);

@@ -489,10 +489,6 @@ export interface IDiffEditor extends IEditor {
  */
 export interface IEditorContribution {
 	/**
-	 * Get a unique identifier for this contribution.
-	 */
-	getId(): string;
-	/**
 	 * Dispose this contribution.
 	 */
 	dispose(): void;
@@ -511,10 +507,6 @@ export interface IEditorContribution {
  * @internal
  */
 export interface IDiffEditorContribution {
-	/**
-	 * Get a unique identifier for this contribution.
-	 */
-	getId(): string;
 	/**
 	 * Dispose this contribution.
 	 */

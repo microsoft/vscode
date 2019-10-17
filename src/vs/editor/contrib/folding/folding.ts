@@ -34,7 +34,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
-export const ID = 'editor.contrib.folding';
 
 export interface RangeProvider {
 	readonly id: string;
@@ -50,11 +49,12 @@ interface FoldingStateMemento {
 
 export class FoldingController extends Disposable implements IEditorContribution {
 
+	public static ID = 'editor.contrib.folding';
+
 	static readonly MAX_FOLDING_REGIONS = 5000;
 
-
 	public static get(editor: ICodeEditor): FoldingController {
-		return editor.getContribution<FoldingController>(ID);
+		return editor.getContribution<FoldingController>(FoldingController.ID);
 	}
 
 	private readonly editor: ICodeEditor;
@@ -132,10 +132,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 		}));
 		this.onModelChanged();
-	}
-
-	public getId(): string {
-		return ID;
 	}
 
 	/**
@@ -856,7 +852,7 @@ class FoldLevelAction extends FoldingAction<void> {
 	}
 }
 
-registerEditorContribution(FoldingController);
+registerEditorContribution(FoldingController.ID, FoldingController);
 registerEditorAction(UnfoldAction);
 registerEditorAction(UnFoldRecursivelyAction);
 registerEditorAction(FoldAction);

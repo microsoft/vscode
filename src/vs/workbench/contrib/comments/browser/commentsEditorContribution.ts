@@ -314,10 +314,6 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	public getId(): string {
-		return ID;
-	}
-
 	public dispose(): void {
 		this.globalToDispose.dispose();
 		this.localToDispose.dispose();
@@ -694,7 +690,7 @@ export class NextCommentThreadAction extends EditorAction {
 }
 
 
-registerEditorContribution(CommentController);
+registerEditorContribution(ID, CommentController);
 registerEditorAction(NextCommentThreadAction);
 
 CommandsRegistry.registerCommand({

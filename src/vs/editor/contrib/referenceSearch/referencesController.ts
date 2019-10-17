@@ -30,7 +30,7 @@ export interface RequestOptions {
 
 export abstract class ReferencesController implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.referencesController';
+	public static readonly ID = 'editor.contrib.referencesController';
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _editor: ICodeEditor;
@@ -57,10 +57,6 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	) {
 		this._editor = editor;
 		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
-	}
-
-	public getId(): string {
-		return ReferencesController.ID;
 	}
 
 	public dispose(): void {

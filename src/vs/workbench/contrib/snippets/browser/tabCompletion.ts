@@ -23,7 +23,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class TabCompletionController implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.tabCompletionController';
+	public static readonly ID = 'editor.tabCompletionController';
 	static readonly ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
 	public static get(editor: ICodeEditor): TabCompletionController {
@@ -48,10 +48,6 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 			}
 		});
 		this._update();
-	}
-
-	getId(): string {
-		return TabCompletionController.ID;
 	}
 
 	dispose(): void {
@@ -143,7 +139,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	}
 }
 
-registerEditorContribution(TabCompletionController);
+registerEditorContribution(TabCompletionController.ID, TabCompletionController);
 
 const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(TabCompletionController.get);
 

@@ -20,7 +20,7 @@ import { TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsM
 
 class ParameterHintsController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.controller.parameterHints';
+	public static readonly ID = 'editor.controller.parameterHints';
 
 	public static get(editor: ICodeEditor): ParameterHintsController {
 		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
@@ -33,10 +33,6 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 		super();
 		this.editor = editor;
 		this.widget = this._register(instantiationService.createInstance(ParameterHintsWidget, this.editor));
-	}
-
-	getId(): string {
-		return ParameterHintsController.ID;
 	}
 
 	cancel(): void {
@@ -82,7 +78,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ParameterHintsController);
+registerEditorContribution(ParameterHintsController.ID, ParameterHintsController);
 registerEditorAction(TriggerParameterHintsAction);
 
 const weight = KeybindingWeight.EditorContrib + 75;

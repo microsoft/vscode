@@ -25,10 +25,16 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
 export type IDiffEditorContributionCtor = IConstructorSignature1<IDiffEditor, IDiffEditorContribution>;
-export type EditorTelemetryDataFragment = {
-	target: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
-	snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true, };
-};
+
+export interface IEditorContributionDescription {
+	id: string;
+	ctor: IEditorContributionCtor;
+}
+
+export interface IDiffEditorContributionDescription {
+	id: string;
+	ctor: IDiffEditorContributionCtor;
+}
 
 //#region Command
 
@@ -297,12 +303,12 @@ export function registerInstantiatedEditorAction(editorAction: EditorAction): vo
 	EditorContributionRegistry.INSTANCE.registerEditorAction(editorAction);
 }
 
-export function registerEditorContribution(ctor: IEditorContributionCtor): void {
-	EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
+export function registerEditorContribution(id: string, ctor: IEditorContributionCtor): void {
+	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor);
 }
 
-export function registerDiffEditorContribution(ctor: IDiffEditorContributionCtor): void {
-	EditorContributionRegistry.INSTANCE.registerDiffEditorContribution(ctor);
+export function registerDiffEditorContribution(id: string, ctor: IDiffEditorContributionCtor): void {
+	EditorContributionRegistry.INSTANCE.registerDiffEditorContribution(id, ctor);
 }
 
 export namespace EditorExtensionsRegistry {
@@ -315,11 +321,11 @@ export namespace EditorExtensionsRegistry {
 		return EditorContributionRegistry.INSTANCE.getEditorActions();
 	}
 
-	export function getEditorContributions(): IEditorContributionCtor[] {
+	export function getEditorContributions(): IEditorContributionDescription[] {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
 	}
 
-	export function getDiffEditorContributions(): IDiffEditorContributionCtor[] {
+	export function getDiffEditorContributions(): IDiffEditorContributionDescription[] {
 		return EditorContributionRegistry.INSTANCE.getDiffEditorContributions();
 	}
 }
@@ -333,8 +339,8 @@ class EditorContributionRegistry {
 
 	public static readonly INSTANCE = new EditorContributionRegistry();
 
-	private readonly editorContributions: IEditorContributionCtor[];
-	private readonly diffEditorContributions: IDiffEditorContributionCtor[];
+	private readonly editorContributions: IEditorContributionDescription[];
+	private readonly diffEditorContributions: IDiffEditorContributionDescription[];
 	private readonly editorActions: EditorAction[];
 	private readonly editorCommands: { [commandId: string]: EditorCommand; };
 
@@ -345,19 +351,19 @@ class EditorContributionRegistry {
 		this.editorCommands = Object.create(null);
 	}
 
-	public registerEditorContribution(ctor: IEditorContributionCtor): void {
-		this.editorContributions.push(ctor);
+	public registerEditorContribution(id: string, ctor: IEditorContributionCtor): void {
+		this.editorContributions.push({ id, ctor });
 	}
 
-	public getEditorContributions(): IEditorContributionCtor[] {
+	public getEditorContributions(): IEditorContributionDescription[] {
 		return this.editorContributions.slice(0);
 	}
 
-	public registerDiffEditorContribution(ctor: IDiffEditorContributionCtor): void {
-		this.diffEditorContributions.push(ctor);
+	public registerDiffEditorContribution(id: string, ctor: IDiffEditorContributionCtor): void {
+		this.diffEditorContributions.push({ id, ctor });
 	}
 
-	public getDiffEditorContributions(): IDiffEditorContributionCtor[] {
+	public getDiffEditorContributions(): IDiffEditorContributionDescription[] {
 		return this.diffEditorContributions.slice(0);
 	}
 

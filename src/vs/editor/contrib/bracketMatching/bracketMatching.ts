@@ -82,7 +82,7 @@ class BracketsData {
 }
 
 export class BracketMatchingController extends Disposable implements editorCommon.IEditorContribution {
-	private static readonly ID = 'editor.contrib.bracketMatchingController';
+	public static readonly ID = 'editor.contrib.bracketMatchingController';
 
 	public static get(editor: ICodeEditor): BracketMatchingController {
 		return editor.getContribution<BracketMatchingController>(BracketMatchingController.ID);
@@ -138,10 +138,6 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			}
 			this._updateBracketsSoon.schedule();
 		}));
-	}
-
-	public getId(): string {
-		return BracketMatchingController.ID;
 	}
 
 	public jumpToBracket(): void {
@@ -311,7 +307,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	}
 }
 
-registerEditorContribution(BracketMatchingController);
+registerEditorContribution(BracketMatchingController.ID, BracketMatchingController);
 registerEditorAction(SelectToBracketAction);
 registerEditorAction(JumpToBracketAction);
 registerThemingParticipant((theme, collector) => {

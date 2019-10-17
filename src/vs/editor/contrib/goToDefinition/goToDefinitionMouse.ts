@@ -29,7 +29,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
+	public static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
 	static readonly MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private readonly editor: ICodeEditor;
@@ -295,16 +295,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}
 
-	public getId(): string {
-		return GotoDefinitionWithMouseEditorContribution.ID;
-	}
-
 	public dispose(): void {
 		this.toUnhook.dispose();
 	}
 }
 
-registerEditorContribution(GotoDefinitionWithMouseEditorContribution);
+registerEditorContribution(GotoDefinitionWithMouseEditorContribution.ID, GotoDefinitionWithMouseEditorContribution);
 
 registerThemingParticipant((theme, collector) => {
 	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);

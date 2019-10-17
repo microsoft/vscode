@@ -88,7 +88,7 @@ class LineSuffix {
 
 export class SuggestController implements IEditorContribution {
 
-	private static readonly ID: string = 'editor.contrib.suggestController';
+	public static readonly ID: string = 'editor.contrib.suggestController';
 
 	public static get(editor: ICodeEditor): SuggestController {
 		return editor.getContribution<SuggestController>(SuggestController.ID);
@@ -208,11 +208,6 @@ export class SuggestController implements IEditorContribution {
 		};
 		this._toDispose.add(this._editor.onDidChangeConfiguration(() => updateFromConfig()));
 		updateFromConfig();
-	}
-
-
-	getId(): string {
-		return SuggestController.ID;
 	}
 
 	dispose(): void {
@@ -491,7 +486,7 @@ export class TriggerSuggestAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(SuggestController);
+registerEditorContribution(SuggestController.ID, SuggestController);
 registerEditorAction(TriggerSuggestAction);
 
 const weight = KeybindingWeight.EditorContrib + 90;
