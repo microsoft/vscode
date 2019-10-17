@@ -29,7 +29,7 @@ dependencies = [
 
 [[package]]
 name = "inno_updater"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "byteorder 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "crc 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",

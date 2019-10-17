@@ -3369,6 +3369,10 @@ declare namespace monaco.editor {
 	 */
 	export interface ISuggestOptions {
 		/**
+		 * Overwrite word ends on accept. Default to false.
+		 */
+		overwriteOnAccept?: boolean;
+		/**
 		 * Enable graceful matching. Defaults to true.
 		 */
 		filterGraceful?: boolean;

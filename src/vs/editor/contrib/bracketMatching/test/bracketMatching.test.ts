@@ -143,6 +143,31 @@ suite('bracket matching', () => {
 		mode.dispose();
 	});
 
+	test('issue #1772: jump to enclosing brackets', () => {
+		const text = [
+			'const x = {',
+			'    something: [0, 1, 2],',
+			'    another: true,',
+			'    somethingmore: [0, 2, 4]',
+			'};',
+		].join('\n');
+		const mode = new BracketMode();
+		const model = TextModel.createFromString(text, undefined, mode.getLanguageIdentifier());
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			const bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController.ID, BracketMatchingController);
+
+			editor.setPosition(new Position(3, 5));
+			bracketMatchingController.jumpToBracket();
+			assert.deepEqual(editor.getSelection(), new Selection(5, 1, 5, 1));
+
+			bracketMatchingController.dispose();
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
+
 	test('issue #45369: Select to Bracket with multicursor', () => {
 		let mode = new BracketMode();
 		let model = TextModel.createFromString('{  }   {   }   { }', undefined, mode.getLanguageIdentifier());

@@ -2287,6 +2287,10 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
  */
 export interface ISuggestOptions {
 	/**
+	 * Overwrite word ends on accept. Default to false.
+	 */
+	overwriteOnAccept?: boolean;
+	/**
 	 * Enable graceful matching. Defaults to true.
 	 */
 	filterGraceful?: boolean;
@@ -2322,6 +2326,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 
 	constructor() {
 		const defaults: InternalSuggestOptions = {
+			overwriteOnAccept: false,
 			filterGraceful: true,
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
@@ -2333,6 +2338,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		super(
 			EditorOption.suggest, 'suggest', defaults,
 			{
+				'editor.suggest.overwriteOnAccept': {
+					type: 'boolean',
+					default: defaults.overwriteOnAccept,
+					description: nls.localize('suggest.overwriteOnAccept', "Controls whether words are overwritten when accepting completions.")
+				},
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
 					default: defaults.filterGraceful,
@@ -2505,6 +2515,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		}
 		const input = _input as ISuggestOptions;
 		return {
+			overwriteOnAccept: EditorBooleanOption.boolean(input.overwriteOnAccept, this.defaultValue.overwriteOnAccept),
 			filterGraceful: EditorBooleanOption.boolean(input.filterGraceful, this.defaultValue.filterGraceful),
 			snippetsPreventQuickSuggestions: EditorBooleanOption.boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),

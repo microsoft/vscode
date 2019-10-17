@@ -159,10 +159,16 @@ export class BracketMatchingController extends Disposable implements editorCommo
 					newCursorPosition = brackets[0].getStartPosition();
 				}
 			} else {
-				// find the next bracket if the position isn't on a matching bracket
-				const nextBracket = model.findNextBracket(position);
-				if (nextBracket && nextBracket.range) {
-					newCursorPosition = nextBracket.range.getStartPosition();
+				// find the enclosing brackets if the position isn't on a matching bracket
+				const enclosingBrackets = model.findEnclosingBrackets(position);
+				if (enclosingBrackets) {
+					newCursorPosition = enclosingBrackets[0].getStartPosition();
+				} else {
+					// no enclosing brackets, try the very first next bracket
+					const nextBracket = model.findNextBracket(position);
+					if (nextBracket && nextBracket.range) {
+						newCursorPosition = nextBracket.range.getStartPosition();
+					}
 				}
 			}
 
@@ -192,9 +198,12 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			let closeBracket: Position | null = null;
 
 			if (!brackets) {
-				const nextBracket = model.findNextBracket(position);
-				if (nextBracket && nextBracket.range) {
-					brackets = model.matchBracket(nextBracket.range.getStartPosition());
+				brackets = model.findEnclosingBrackets(position);
+				if (!brackets) {
+					const nextBracket = model.findNextBracket(position);
+					if (nextBracket && nextBracket.range) {
+						brackets = model.matchBracket(nextBracket.range.getStartPosition());
+					}
 				}
 			}
 

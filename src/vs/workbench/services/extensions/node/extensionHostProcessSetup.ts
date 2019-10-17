@@ -222,7 +222,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 						promise.catch(e => {
 							unhandledPromises.splice(idx, 1);
 							console.warn(`rejected promise not handled within 1 second: ${e}`);
-							if (e.stack) {
+							if (e && e.stack) {
 								console.warn(`stack trace: ${e.stack}`);
 							}
 							onUnexpectedError(reason);

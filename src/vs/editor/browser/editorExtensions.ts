@@ -325,6 +325,10 @@ export namespace EditorExtensionsRegistry {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
 	}
 
+	export function getSomeEditorContributions(ids: string[]): IEditorContributionDescription[] {
+		return EditorContributionRegistry.INSTANCE.getEditorContributions().filter(c => ids.indexOf(c.id) >= 0);
+	}
+
 	export function getDiffEditorContributions(): IDiffEditorContributionDescription[] {
 		return EditorContributionRegistry.INSTANCE.getDiffEditorContributions();
 	}
