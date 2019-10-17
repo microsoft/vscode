@@ -40,7 +40,7 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { basename } from 'vs/base/common/resources';
@@ -247,9 +247,8 @@ export class OutlinePanel extends ViewletPanel {
 	private _treeDataSource!: OutlineDataSource;
 	private _treeRenderer!: OutlineElementRenderer;
 	private _treeComparator!: OutlineItemComparator;
+	private _treeFilter!: OutlineFilter;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
-
-	private _treeFakeUIEvent = new UIEvent('me');
 
 	private readonly _contextKeyFocused: IContextKey<boolean>;
 	private readonly _contextKeyFiltered: IContextKey<boolean>;
@@ -315,6 +314,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._treeRenderer = this._instantiationService.createInstance(OutlineElementRenderer);
 		this._treeDataSource = new OutlineDataSource();
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
+		this._treeFilter = this._instantiationService.createInstance(OutlineFilter, 'outline.filteredTypes');
 		this._tree = this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			'OutlinePanel',
@@ -328,6 +328,7 @@ export class OutlinePanel extends ViewletPanel {
 				multipleSelectionSupport: false,
 				filterOnType: this._outlineViewState.filterOnType,
 				sorter: this._treeComparator,
+				filter: this._treeFilter,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider()
 			}
@@ -365,6 +366,10 @@ export class OutlinePanel extends ViewletPanel {
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
 				this._tree.updateChildren();
+			}
+			if (e.affectsConfiguration('outline.filteredTypes')) {
+				this._treeFilter.update();
+				this._tree.refilter();
 			}
 		}));
 
@@ -447,7 +452,6 @@ export class OutlinePanel extends ViewletPanel {
 	private async _doUpdate(editor: ICodeEditor | undefined, event: IModelContentChangedEvent | undefined): Promise<void> {
 		this._editorDisposables.clear();
 
-		this._progressBar.infinite().show(150);
 
 		const oldModel = this._tree.getInput();
 
@@ -460,16 +464,16 @@ export class OutlinePanel extends ViewletPanel {
 			return this._showMessage(localize('no-editor', "The active editor cannot provide outline information."));
 		}
 
-		let textModel = editor.getModel();
-		let loadingMessage: IDisposable | undefined;
-		if (!oldModel) {
-			loadingMessage = new TimeoutTimer(
-				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(textModel.uri))),
-				100
-			);
-		}
+		const textModel = editor.getModel();
+		const loadingMessage = oldModel && new TimeoutTimer(
+			() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(textModel.uri))),
+			100
+		);
 
-		let createdModel = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
+		const requestDelay = OutlineModel.getRequestDelay(textModel);
+		this._progressBar.infinite().show(requestDelay);
+
+		const createdModel = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
 		dispose(loadingMessage);
 		if (!createdModel) {
 			return;
@@ -519,7 +523,7 @@ export class OutlinePanel extends ViewletPanel {
 			newModel = oldModel;
 		} else {
 			let state = this._treeStates.get(newModel.textModel.uri.toString());
-			await this._tree.setInput(newModel, state);
+			this._tree.setInput(newModel, state);
 		}
 
 		// transfer focus from domNode to the tree
@@ -531,10 +535,8 @@ export class OutlinePanel extends ViewletPanel {
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorDisposables.add(this._tree.onDidChangeSelection(e => {
-			if (e.browserEvent === this._treeFakeUIEvent /* || e.payload && e.payload.didClickOnTwistie */) {
-				return;
-			}
+		this._editorDisposables.add(this._tree.onDidOpen(e => {
+
 			let [first] = e.elements;
 			if (!(first instanceof OutlineElement)) {
 				return;
@@ -636,7 +638,7 @@ export class OutlinePanel extends ViewletPanel {
 		if (top === null) {
 			this._tree.reveal(item, 0.5);
 		}
-		this._tree.setFocus([item], this._treeFakeUIEvent);
-		this._tree.setSelection([item], this._treeFakeUIEvent);
+		this._tree.setFocus([item]);
+		this._tree.setSelection([item]);
 	}
 }

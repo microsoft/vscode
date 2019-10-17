@@ -445,7 +445,8 @@
 	background: url('add-dark.svg') center center no-repeat;
 }
 
-.hc-black .debug-viewlet .debug-action.add-watch-expression {
+.hc-black .debug-viewlet .debug-action.add-watch-expression,
+.hc-black .debug-viewlet .debug-action.add-function-breakpoint {
 	background: url('add-hc.svg') center center no-repeat;
 }
 

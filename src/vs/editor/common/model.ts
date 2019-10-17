@@ -459,8 +459,8 @@ export class FindMatch {
  */
 export interface IFoundBracket {
 	range: Range;
-	open: string;
-	close: string;
+	open: string[];
+	close: string[];
 	isOpen: boolean;
 }
 
@@ -880,6 +880,13 @@ export interface ITextModel {
 	 * @internal
 	 */
 	findNextBracket(position: IPosition): IFoundBracket | null;
+
+	/**
+	 * Find the enclosing brackets that contain `position`.
+	 * @param position The position at which to start the search.
+	 * @internal
+	 */
+	findEnclosingBrackets(position: IPosition): [Range, Range] | null;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,

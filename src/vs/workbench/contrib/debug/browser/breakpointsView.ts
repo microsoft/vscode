@@ -14,7 +14,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IListVirtualDelegate, IListContextMenuEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
@@ -161,21 +161,19 @@ export class BreakpointsView extends ViewletPanel {
 
 		const breakpointType = element instanceof Breakpoint && element.logMessage ? nls.localize('Logpoint', "Logpoint") : nls.localize('Breakpoint', "Breakpoint");
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
-			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), '', true, () => {
+			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), '', true, async () => {
 				if (element instanceof Breakpoint) {
-					return openBreakpointSource(element, false, false, this.debugService, this.editorService).then(editor => {
-						if (editor) {
-							const codeEditor = editor.getControl();
-							if (isCodeEditor(codeEditor)) {
-								codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
-							}
+					const editor = await openBreakpointSource(element, false, false, this.debugService, this.editorService);
+					if (editor) {
+						const codeEditor = editor.getControl();
+						if (isCodeEditor(codeEditor)) {
+							codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
 						}
-					});
+					}
+				} else {
+					this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+					this.onBreakpointsChange();
 				}
-
-				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
-				this.onBreakpointsChange();
-				return Promise.resolve(undefined);
 			}));
 			actions.push(new Separator());
 		}

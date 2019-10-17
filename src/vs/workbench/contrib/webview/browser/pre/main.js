@@ -409,19 +409,20 @@
 					newFrame.contentDocument.open();
 				}
 
-				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
-
 				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
-					if (host.fakeLoad) {
-						newFrame.contentDocument.open();
-						newFrame.contentDocument.write(newDocument);
-						newFrame.contentDocument.close();
-						hookupOnLoadHandlers(newFrame);
-					}
-					const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
-					if (contentDocument) {
-						applyStyles(contentDocument, contentDocument.body);
-					}
+					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
+					setTimeout(() => {
+						if (host.fakeLoad) {
+							newFrame.contentDocument.open();
+							newFrame.contentDocument.write(newDocument);
+							newFrame.contentDocument.close();
+							hookupOnLoadHandlers(newFrame);
+						}
+						const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
+						if (contentDocument) {
+							applyStyles(contentDocument, contentDocument.body);
+						}
+					}, 0);
 				});
 
 				const onLoad = (contentDocument, contentWindow) => {
@@ -474,9 +475,10 @@
 						}
 					});
 
-					// Bubble out link clicks
+					// Bubble out various events
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
 					newFrame.contentWindow.addEventListener('auxclick', handleAuxClick);
+					newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 
 					if (host.onIframeLoaded) {
 						host.onIframeLoaded(newFrame);

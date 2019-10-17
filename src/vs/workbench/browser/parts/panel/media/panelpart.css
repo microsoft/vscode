@@ -124,6 +124,8 @@
 	margin-right: 10px;
 }
 
+/* Rotate icons when panel is on right */
+.monaco-workbench .part.panel.right .title-actions .codicon-split-horizontal,
 .monaco-workbench .part.panel.right .title-actions .codicon-chevron-up,
 .monaco-workbench .part.panel.right .title-actions .codicon-chevron-down {
 	transform: rotate(-90deg);

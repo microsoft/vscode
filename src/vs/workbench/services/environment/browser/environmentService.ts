@@ -19,19 +19,19 @@ import product from 'vs/platform/product/common/product';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
-	_: any[];
+	_!: any[];
 
-	machineId: string;
-	windowId: number;
-	logLevel: LogLevel;
+	machineId!: string;
+	windowId!: number;
+	logLevel!: LogLevel;
 
-	mainPid: number;
+	mainPid!: number;
 
-	appRoot: string;
-	execPath: string;
+	appRoot!: string;
+	execPath!: string;
 	isInitialStartup?: boolean;
 
-	userEnv: IProcessEnvironment;
+	userEnv!: IProcessEnvironment;
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
@@ -54,7 +54,7 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
-	perfEntries: ExportData;
+	perfEntries!: ExportData;
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
@@ -85,9 +85,10 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		this.userRoamingDataHome = URI.file('/User').with({ scheme: Schemas.userData });
 		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
 		this.settingsSyncPreviewResource = joinPath(this.userRoamingDataHome, '.settings.json');
+		this.userDataSyncLogResource = joinPath(options.logsPath, 'userDataSync.log');
 		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
 		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
-		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
+		this.argvResource = joinPath(this.userRoamingDataHome, 'argv.json');
 		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
 		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, options.workspaceId);
 		this.configuration.connectionToken = options.connectionToken || getCookieValue('vscode-tkn');
@@ -132,52 +133,52 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	untitledWorkspacesHome: URI;
 	extensionTestsLocationURI?: URI;
 	args: any;
-	execPath: string;
-	cliPath: string;
+	execPath!: string;
+	cliPath!: string;
 	appRoot: string;
-	userHome: string;
-	userDataPath: string;
+	userHome!: string;
+	userDataPath!: string;
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: URI;
+	appSettingsHome!: URI;
 	userRoamingDataHome: URI;
 	settingsResource: URI;
-	settingsSyncPreviewResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
-	localeResource: URI;
-	machineSettingsHome: URI;
-	machineSettingsResource: URI;
-	globalStorageHome: string;
-	workspaceStorageHome: string;
+	argvResource: URI;
+	settingsSyncPreviewResource: URI;
+	userDataSyncLogResource: URI;
+	machineSettingsHome!: URI;
+	machineSettingsResource!: URI;
+	globalStorageHome!: string;
+	workspaceStorageHome!: string;
 	backupHome: URI;
-	backupWorkspacesPath: string;
-	workspacesHome: string;
-	isExtensionDevelopment: boolean;
-	disableExtensions: boolean | string[];
-	builtinExtensionsPath: string;
+	backupWorkspacesPath!: string;
+	workspacesHome!: string;
+	isExtensionDevelopment!: boolean;
+	disableExtensions!: boolean | string[];
+	builtinExtensionsPath!: string;
 	extensionsPath?: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsPath?: string;
 	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch: IDebugParams;
-	logExtensionHostCommunication: boolean;
-	isBuilt: boolean;
-	wait: boolean;
-	status: boolean;
+	debugSearch!: IDebugParams;
+	logExtensionHostCommunication!: boolean;
+	isBuilt!: boolean;
+	wait!: boolean;
+	status!: boolean;
 	log?: string;
 	logsPath: string;
-	verbose: boolean;
-	skipGettingStarted: boolean;
-	skipReleaseNotes: boolean;
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
+	verbose!: boolean;
+	skipReleaseNotes!: boolean;
+	mainIPCHandle!: string;
+	sharedIPCHandle!: string;
 	nodeCachedDataDir?: string;
-	installSourcePath: string;
-	disableUpdates: boolean;
-	disableCrashReporter: boolean;
+	installSourcePath!: string;
+	disableUpdates!: boolean;
+	disableCrashReporter!: boolean;
 	driverHandle?: string;
-	driverVerbose: boolean;
+	driverVerbose!: boolean;
 	galleryMachineIdResource?: URI;
 	readonly logFile: URI;
 
@@ -188,7 +189,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	}
 
 	get webviewResourceRoot(): string {
-		return `${this.webviewExternalEndpoint}/vscode-resource{{resource}}`;
+		return `${this.webviewExternalEndpoint}/vscode-resource/{{resource}}`;
 	}
 
 	get webviewCspSource(): string {

@@ -432,13 +432,18 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 					return;
 				}
 
-				if (typeof descriptor.viewDescriptor.remoteAuthority === 'undefined' ||
-					descriptor.viewDescriptor.remoteAuthority === actualRemoteAuthority ||
-					descriptor.viewDescriptor.id === HelpPanel.ID
-				) {
+				const descriptorAuthority = descriptor.viewDescriptor.remoteAuthority;
+				if (typeof descriptorAuthority === 'undefined') {
 					panel.setExpanded(true);
+				} else if (descriptor.viewDescriptor.id === HelpPanel.ID) {
+					// Do nothing, keep the default behavior for Help
 				} else {
-					panel.setExpanded(false);
+					const descriptorAuthorityArr = Array.isArray(descriptorAuthority) ? descriptorAuthority : [descriptorAuthority];
+					if (descriptorAuthorityArr.indexOf(actualRemoteAuthority) >= 0) {
+						panel.setExpanded(true);
+					} else {
+						panel.setExpanded(false);
+					}
 				}
 			});
 		}
@@ -463,7 +468,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 class OpenRemoteViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static LABEL = nls.localize('toggleRemoteViewlet', "Show Remote Explorer");
+	static readonly LABEL = nls.localize('toggleRemoteViewlet', "Show Remote Explorer");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);

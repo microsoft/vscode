@@ -295,29 +295,11 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			}
 			localDispose.add(value);
 
-			// update: title and subtitle
-			let node: callHTree.Call | undefined = element;
-			let names = [element.item.name];
-			while (node) {
-				let parent = this._tree.getParentElement(node);
-				let name: string;
-				if (parent instanceof callHTree.Call) {
-					name = parent.item.name;
-					node = parent;
-				} else {
-					name = this._tree.getInput()!.word;
-					node = undefined;
-				}
-				if (this._direction === CallHierarchyDirection.CallsTo) {
-					names.push(name);
-				} else {
-					names.unshift(name);
-				}
-			}
+			// update: title
 			const title = this._direction === CallHierarchyDirection.CallsFrom
 				? localize('callFrom', "Calls from '{0}'", this._tree.getInput()!.word)
 				: localize('callsTo', "Callers of '{0}'", this._tree.getInput()!.word);
-			this.setTitle(title, names.join(' → '));
+			this.setTitle(title);
 		}));
 
 		this._disposables.add(this._editor.onMouseDown(e => {

@@ -5,7 +5,7 @@
 
 import { ipcMain as ipc, app } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/common/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -13,6 +13,7 @@ import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Barrier } from 'vs/base/common/async';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -81,6 +82,11 @@ export interface ILifecycleMainService {
 	 * the window from unloading.
 	 */
 	readonly onBeforeWindowUnload: Event<IWindowUnloadEvent>;
+
+	/**
+	 * Reload a window. All lifecycle event handlers are triggered.
+	 */
+	reload(window: ICodeWindow, cli?: ParsedArgs): Promise<void>;
 
 	/**
 	 * Unload a window for the provided reason. All lifecycle event handlers are triggered.
@@ -358,6 +364,15 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				this.beginOnWillShutdown();
 			}
 		});
+	}
+
+	async reload(window: ICodeWindow, cli?: ParsedArgs): Promise<void> {
+
+		// Only reload when the window has not vetoed this
+		const veto = await this.unload(window, UnloadReason.RELOAD);
+		if (!veto) {
+			window.reload(undefined, cli);
+		}
 	}
 
 	async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {

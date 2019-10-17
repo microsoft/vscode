@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncSource, IUserDataSyncService, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncSource, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -44,10 +44,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	stop(): void {
 		this.channel.call('stop');
-	}
-
-	getRemoteExtensions(): Promise<ISyncExtension[]> {
-		return this.channel.call('getRemoteExtensions');
 	}
 
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {

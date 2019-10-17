@@ -2,14 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as dom from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
+import { Lazy } from 'vs/base/common/lazy';
+import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 
 const WebviewPanelResourceScheme = 'webview-panel';
 
@@ -42,8 +43,7 @@ class WebviewIconsManager {
 			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
 			if (URI.isUri(value)) {
 				cssRules.push(`${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value)}; }`);
-			}
-			else {
+			} else {
 				cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`);
 				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`);
 			}
@@ -61,24 +61,19 @@ export class WebviewInput extends EditorInput {
 	private _name: string;
 	private _iconPath?: { light: URI, dark: URI };
 	private _group?: GroupIdentifier;
-	private readonly _webview: WebviewEditorOverlay;
+	private readonly _webview: Lazy<WebviewEditorOverlay>;
 
 	constructor(
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		public readonly extension: undefined | {
-			readonly location: URI;
-			readonly id: ExtensionIdentifier;
-		},
-		webview: Unowned<WebviewEditorOverlay>
+		webview: Lazy<Unowned<WebviewEditorOverlay>>
 	) {
 		super();
 
 		this._name = name;
-		this.extension = extension;
 
-		this._webview = this._register(webview.acquire()); // The input owns this webview
+		this._webview = webview.map(value => this._register(value.acquire())); // The input owns this webview
 	}
 
 	public getTypeId(): string {
@@ -100,7 +95,7 @@ export class WebviewInput extends EditorInput {
 		return this.getName();
 	}
 
-	public getDescription() {
+	public getDescription(): string | undefined {
 		return undefined;
 	}
 
@@ -109,8 +104,12 @@ export class WebviewInput extends EditorInput {
 		this._onDidChangeLabel.fire();
 	}
 
-	public get webview() {
-		return this._webview;
+	public get webview(): WebviewEditorOverlay {
+		return this._webview.getValue();
+	}
+
+	public get extension() {
+		return this._webview.getValue().extension;
 	}
 
 	public get iconPath() {
@@ -130,41 +129,15 @@ export class WebviewInput extends EditorInput {
 		return this._group;
 	}
 
+	public updateGroup(group: GroupIdentifier): void {
+		this._group = group;
+	}
+
 	public async resolve(): Promise<IEditorModel> {
 		return new EditorModel();
 	}
 
 	public supportsSplitEditor() {
 		return false;
-	}
-
-	public updateGroup(group: GroupIdentifier): void {
-		this._group = group;
-	}
-}
-
-export class RevivedWebviewEditorInput extends WebviewInput {
-	private _revived: boolean = false;
-
-	constructor(
-		id: string,
-		viewType: string,
-		name: string,
-		extension: undefined | {
-			readonly location: URI;
-			readonly id: ExtensionIdentifier
-		},
-		private readonly reviver: (input: WebviewInput) => Promise<void>,
-		webview: Unowned<WebviewEditorOverlay>
-	) {
-		super(id, viewType, name, extension, webview);
-	}
-
-	public async resolve(): Promise<IEditorModel> {
-		if (!this._revived) {
-			this._revived = true;
-			await this.reviver(this);
-		}
-		return super.resolve();
 	}
 }

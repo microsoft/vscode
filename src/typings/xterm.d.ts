@@ -83,6 +83,16 @@ declare module 'xterm' {
 		drawBoldTextInBrightColors?: boolean;
 
 		/**
+		 * The modifier key hold to multiply scroll speed.
+		 */
+		fastScrollModifier?: 'alt' | 'ctrl' | 'shift' | undefined;
+
+		/**
+		 * The scroll speed multiplier used for fast scrolling.
+		 */
+		fastScrollSensitivity?: number;
+
+		/**
 		 * The font size used to render text.
 		 */
 		fontSize?: number;
@@ -352,12 +362,12 @@ declare module 'xterm' {
 		/**
 		 * The element containing the terminal.
 		 */
-		readonly element: HTMLElement;
+		readonly element: HTMLElement | undefined;
 
 		/**
 		 * The textarea that accepts input for the terminal.
 		 */
-		readonly textarea: HTMLTextAreaElement;
+		readonly textarea: HTMLTextAreaElement | undefined;
 
 		/**
 		 * The number of rows in the terminal's viewport. Use
@@ -650,24 +660,32 @@ declare module 'xterm' {
 		clear(): void;
 
 		/**
-		 * Writes text to the terminal.
-		 * @param data The text to write to the terminal.
+		 * Write data to the terminal.
+		 * @param data The data to write to the terminal. This can either be raw
+		 * bytes given as Uint8Array from the pty or a string. Raw bytes will always
+		 * be treated as UTF-8 encoded, string data as UTF-16.
+		 * @param callback Optional callback that fires when the data was processed
+		 * by the parser.
 		 */
-		write(data: string): void;
+		write(data: string | Uint8Array, callback?: () => void): void;
 
 		/**
-		 * Writes text to the terminal, followed by a break line character (\n).
-		 * @param data The text to write to the terminal.
+		 * Writes data to the terminal, followed by a break line character (\n).
+		 * @param data The data to write to the terminal. This can either be raw
+		 * bytes given as Uint8Array from the pty or a string. Raw bytes will always
+		 * be treated as UTF-8 encoded, string data as UTF-16.
+		 * @param callback Optional callback that fires when the data was processed
+		 * by the parser.
 		 */
-		writeln(data: string): void;
+		writeln(data: string | Uint8Array, callback?: () => void): void;
 
 		/**
-		 * Writes UTF8 data to the terminal. This has a slight performance advantage
-		 * over the string based write method due to lesser data conversions needed
-		 * on the way from the pty to xterm.js.
+		 * Write UTF8 data to the terminal.
 		 * @param data The data to write to the terminal.
+		 * @param callback Optional callback when data was processed.
+		 * @deprecated use `write` instead
 		 */
-		writeUtf8(data: Uint8Array): void;
+		writeUtf8(data: Uint8Array, callback?: () => void): void;
 
 		/**
 		 * Writes text to the terminal, performing the necessary transformations for pasted text.
@@ -804,7 +822,7 @@ declare module 'xterm' {
 	 */
 	export interface ITerminalAddon extends IDisposable {
 		/**
-		 * (EXPERIMENTAL) This is called when the addon is activated.
+		 * This is called when the addon is activated.
 		 */
 		activate(terminal: Terminal): void;
 	}

@@ -7,14 +7,14 @@ import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class SaveWorkspaceAsAction extends Action {
 
 	static readonly ID = 'workbench.action.saveWorkspaceAs';
-	static LABEL = nls.localize('saveWorkspaceAsAction', "Save Workspace As...");
+	static readonly LABEL = nls.localize('saveWorkspaceAsAction', "Save Workspace As...");
 
 	constructor(
 		id: string,
@@ -65,6 +65,6 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		const newWorkspace = await this.workspacesService.createUntitledWorkspace(folders, remoteAuthority);
 		await this.workspaceEditingService.copyWorkspaceSettings(newWorkspace);
 
-		return this.hostService.openInWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
+		return this.hostService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
 	}
 }

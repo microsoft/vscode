@@ -10,7 +10,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
 import 'vs/css!./media/referencesWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -66,7 +66,7 @@ class DecorationsManager implements IDisposable {
 		const model = this._editor.getModel();
 		if (model) {
 			for (const ref of this._model.groups) {
-				if (ref.uri.toString() === model.uri.toString()) {
+				if (isEqual(ref.uri, model.uri)) {
 					this._addDecorations(ref);
 					return;
 				}
@@ -158,8 +158,8 @@ class DecorationsManager implements IDisposable {
 }
 
 export class LayoutData {
-	ratio: number = 0.7;
-	heightInLines: number = 18;
+	public ratio: number = 0.7;
+	public heightInLines: number = 18;
 
 	static fromJSON(raw: string): LayoutData {
 		let ratio: number | undefined;
@@ -179,9 +179,9 @@ export class LayoutData {
 }
 
 export interface SelectionEvent {
-	kind: 'goto' | 'show' | 'side' | 'open';
-	source: 'editor' | 'tree' | 'title';
-	element?: Location;
+	readonly kind: 'goto' | 'show' | 'side' | 'open';
+	readonly source: 'editor' | 'tree' | 'title';
+	readonly element?: Location;
 }
 
 export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('referenceSearchTreeFocused', true);
@@ -365,21 +365,6 @@ export class ReferenceWidget extends PeekViewWidget {
 		};
 		this._tree.onDidChangeFocus(e => {
 			onEvent(e.elements[0], 'show');
-		});
-		this._tree.onDidChangeSelection(e => {
-			let aside = false;
-			let goto = false;
-			if (e.browserEvent instanceof KeyboardEvent) {
-				// todo@joh make this a command
-				goto = true;
-			}
-			if (aside) {
-				onEvent(e.elements[0], 'side');
-			} else if (goto) {
-				onEvent(e.elements[0], 'goto');
-			} else {
-				onEvent(e.elements[0], 'show');
-			}
 		});
 		this._tree.onDidOpen(e => {
 			const aside = (e.browserEvent instanceof MouseEvent) && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);

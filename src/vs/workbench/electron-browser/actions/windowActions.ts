@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -19,6 +18,7 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -137,10 +137,10 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 }
 
-export class RestartWithExtensionsDisabledAction extends Action {
+export class ReloadWindowWithExtensionsDisabledAction extends Action {
 
-	static readonly ID = 'workbench.action.restartWithExtensionsDisabled';
-	static LABEL = nls.localize('restartWithExtensionsDisabled', "Restart With Extensions Disabled");
+	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
+	static readonly LABEL = nls.localize('reloadWindowWithExtensionsDisabled', "Reload With Extensions Disabled");
 
 	constructor(
 		id: string,
@@ -151,7 +151,7 @@ export class RestartWithExtensionsDisabledAction extends Action {
 	}
 
 	async run(): Promise<boolean> {
-		await this.electronService.relaunch({ addArgs: ['--disable-extensions'] });
+		await this.electronService.reload({ disableExtensions: true });
 
 		return true;
 	}
@@ -167,7 +167,7 @@ export abstract class BaseSwitchWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private windowService: IWindowService,
+		private electronEnvironmentService: IElectronEnvironmentService,
 		private quickInputService: IQuickInputService,
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
@@ -180,7 +180,7 @@ export abstract class BaseSwitchWindow extends Action {
 	protected abstract isQuickNavigate(): boolean;
 
 	async run(): Promise<void> {
-		const currentWindowId = this.windowService.windowId;
+		const currentWindowId = this.electronEnvironmentService.windowId;
 
 		const windows = await this.electronService.getWindows();
 		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
@@ -217,19 +217,19 @@ export abstract class BaseSwitchWindow extends Action {
 export class SwitchWindow extends BaseSwitchWindow {
 
 	static readonly ID = 'workbench.action.switchWindow';
-	static LABEL = nls.localize('switchWindow', "Switch Window...");
+	static readonly LABEL = nls.localize('switchWindow', "Switch Window...");
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService windowService: IWindowService,
+		@IElectronEnvironmentService electronEnvironmentService: IElectronEnvironmentService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, windowService, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, electronEnvironmentService, quickInputService, keybindingService, modelService, modeService, electronService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -240,19 +240,19 @@ export class SwitchWindow extends BaseSwitchWindow {
 export class QuickSwitchWindow extends BaseSwitchWindow {
 
 	static readonly ID = 'workbench.action.quickSwitchWindow';
-	static LABEL = nls.localize('quickSwitchWindow', "Quick Switch Window...");
+	static readonly LABEL = nls.localize('quickSwitchWindow', "Quick Switch Window...");
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService windowService: IWindowService,
+		@IElectronEnvironmentService electronEnvironmentService: IElectronEnvironmentService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, windowService, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, electronEnvironmentService, quickInputService, keybindingService, modelService, modeService, electronService);
 	}
 
 	protected isQuickNavigate(): boolean {

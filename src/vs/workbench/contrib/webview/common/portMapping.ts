@@ -14,7 +14,7 @@ export class WebviewPortMappingManager extends Disposable {
 	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
 
 	constructor(
-		private readonly extensionLocation: URI | undefined,
+		private readonly getExtensionLocation: () => URI | undefined,
 		private readonly mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
 		private readonly tunnelService: ITunnelService
 	) {
@@ -30,9 +30,13 @@ export class WebviewPortMappingManager extends Disposable {
 
 		for (const mapping of this.mappings()) {
 			if (mapping.webviewPort === requestLocalHostInfo.port) {
-				if (this.extensionLocation && this.extensionLocation.scheme === REMOTE_HOST_SCHEME) {
+				const extensionLocation = this.getExtensionLocation();
+				if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
 					const tunnel = await this.getOrCreateTunnel(mapping.extensionHostPort);
 					if (tunnel) {
+						if (tunnel.tunnelLocalPort === mapping.webviewPort) {
+							return undefined;
+						}
 						return encodeURI(uri.with({
 							authority: `127.0.0.1:${tunnel.tunnelLocalPort}`,
 						}).toString(true));

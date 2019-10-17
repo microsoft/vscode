@@ -14,7 +14,7 @@ import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateForType } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateForType, toggleCollapseState } from 'vs/editor/contrib/folding/foldingModel';
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { FoldingRegions, FoldingRegion } from './foldingRanges';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -34,7 +34,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
-export const ID = 'editor.contrib.folding';
 
 export interface RangeProvider {
 	readonly id: string;
@@ -50,11 +49,12 @@ interface FoldingStateMemento {
 
 export class FoldingController extends Disposable implements IEditorContribution {
 
-	static MAX_FOLDING_REGIONS = 5000;
+	public static ID = 'editor.contrib.folding';
 
+	static readonly MAX_FOLDING_REGIONS = 5000;
 
 	public static get(editor: ICodeEditor): FoldingController {
-		return editor.getContribution<FoldingController>(ID);
+		return editor.getContribution<FoldingController>(FoldingController.ID);
 	}
 
 	private readonly editor: ICodeEditor;
@@ -132,10 +132,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 		}));
 		this.onModelChanged();
-	}
-
-	public getId(): string {
-		return ID;
 	}
 
 	/**
@@ -656,6 +652,30 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 	}
 }
 
+
+class ToggleFoldAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.toggleFold',
+			label: nls.localize('toggleFoldAction.label', "Toggle Fold"),
+			alias: 'Toggle Fold',
+			precondition: CONTEXT_FOLDING_ENABLED,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_L),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
+		let selectedLines = this.getSelectedLines(editor);
+		toggleCollapseState(foldingModel, 1, selectedLines);
+	}
+}
+
+
 class FoldRecursivelyAction extends FoldingAction<void> {
 
 	constructor() {
@@ -832,7 +852,7 @@ class FoldLevelAction extends FoldingAction<void> {
 	}
 }
 
-registerEditorContribution(FoldingController);
+registerEditorContribution(FoldingController.ID, FoldingController);
 registerEditorAction(UnfoldAction);
 registerEditorAction(UnFoldRecursivelyAction);
 registerEditorAction(FoldAction);
@@ -842,6 +862,7 @@ registerEditorAction(UnfoldAllAction);
 registerEditorAction(FoldAllBlockCommentsAction);
 registerEditorAction(FoldAllRegionsAction);
 registerEditorAction(UnfoldAllRegionsAction);
+registerEditorAction(ToggleFoldAction);
 
 for (let i = 1; i <= 7; i++) {
 	registerInstantiatedEditorAction(

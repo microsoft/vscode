@@ -17,7 +17,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
-import { ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
@@ -37,7 +37,7 @@ import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editor
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqualOrParent } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
@@ -163,11 +163,11 @@ function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor |
 
 class DirtyDiffWidget extends PeekViewWidget {
 
-	private diffEditor: EmbeddedDiffEditorWidget;
+	private diffEditor!: EmbeddedDiffEditorWidget;
 	private title: string;
 	private menu: IMenu;
-	private index: number;
-	private change: IChange;
+	private index: number = 0;
+	private change: IChange | undefined;
 	private height: number | undefined = undefined;
 	private contextKeyService: IContextKeyService;
 
@@ -320,7 +320,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		super._doLayoutBody(height, width);
 		this.diffEditor.layout({ height, width });
 
-		if (typeof this.height === 'undefined') {
+		if (typeof this.height === 'undefined' && this.change) {
 			this.revealChange(this.change);
 		}
 
@@ -556,7 +556,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 export class DirtyDiffController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.dirtydiff';
+	public static readonly ID = 'editor.contrib.dirtydiff';
 
 	static get(editor: ICodeEditor): DirtyDiffController {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
@@ -567,7 +567,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 	private model: DirtyDiffModel | null = null;
 	private widget: DirtyDiffWidget | null = null;
 	private currentIndex: number = -1;
-	private readonly isDirtyDiffVisible: IContextKey<boolean>;
+	private readonly isDirtyDiffVisible!: IContextKey<boolean>;
 	private session: IDisposable = Disposable.None;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private enabled = false;
@@ -586,10 +586,6 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			this._register(editor.onMouseUp(e => this.onEditorMouseUp(e)));
 			this._register(editor.onDidChangeModel(() => this.close()));
 		}
-	}
-
-	getId(): string {
-		return DirtyDiffController.ID;
 	}
 
 	canNavigate(): boolean {
@@ -676,7 +672,10 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 
 		const disposables = new DisposableStore();
 		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
-		disposables.add(model.onDidChange(this.onDidModelChange, this));
+		Event.chain(model.onDidChange)
+			.filter(e => e.diff.length > 0)
+			.map(e => e.diff)
+			.event(this.onDidModelChange, this, disposables);
 
 		disposables.add(this.widget);
 		disposables.add(toDisposable(() => {
@@ -951,9 +950,26 @@ function compareChanges(a: IChange, b: IChange): number {
 	return a.originalEndLineNumber - b.originalEndLineNumber;
 }
 
+function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) => number {
+	return (a, b) => {
+		const aIsParent = isEqualOrParent(uri, a.rootUri!);
+		const bIsParent = isEqualOrParent(uri, b.rootUri!);
+
+		if (aIsParent && bIsParent) {
+			return a.rootUri!.fsPath.length - b.rootUri!.fsPath.length;
+		} else if (aIsParent) {
+			return -1;
+		} else if (bIsParent) {
+			return 1;
+		} else {
+			return 0;
+		}
+	};
+}
+
 export class DirtyDiffModel extends Disposable {
 
-	private _originalModel: ITextModel | null;
+	private _originalModel: ITextModel | null = null;
 	get original(): ITextModel | null { return this._originalModel; }
 	get modified(): ITextModel | null { return this._editorModel; }
 
@@ -962,13 +978,11 @@ export class DirtyDiffModel extends Disposable {
 	private repositoryDisposables = new Set<IDisposable>();
 	private readonly originalModelDisposables = this._register(new DisposableStore());
 
-	private readonly _onDidChange = new Emitter<ISplice<IChange>[]>();
-	readonly onDidChange: Event<ISplice<IChange>[]> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<{ changes: IChange[], diff: ISplice<IChange>[] }>();
+	readonly onDidChange: Event<{ changes: IChange[], diff: ISplice<IChange>[] }> = this._onDidChange.event;
 
 	private _changes: IChange[] = [];
-	get changes(): IChange[] {
-		return this._changes;
-	}
+	get changes(): IChange[] { return this._changes; }
 
 	private _editorModel: ITextModel | null;
 
@@ -1022,10 +1036,7 @@ export class DirtyDiffModel extends Disposable {
 
 				const diff = sortedDiff(this._changes, changes, compareChanges);
 				this._changes = changes;
-
-				if (diff.length > 0) {
-					this._onDidChange.fire(diff);
-				}
+				this._onDidChange.fire({ changes, diff });
 			});
 	}
 
@@ -1082,13 +1093,25 @@ export class DirtyDiffModel extends Disposable {
 		});
 	}
 
-	private getOriginalResource(): Promise<URI | null> {
+	private async getOriginalResource(): Promise<URI | null> {
 		if (!this._editorModel) {
 			return Promise.resolve(null);
 		}
 
 		const uri = this._editorModel.uri;
-		return first(this.scmService.repositories.map(r => () => r.provider.getOriginalResource(uri)));
+		const providers = this.scmService.repositories.map(r => r.provider);
+		const rootedProviders = providers.filter(p => !!p.rootUri);
+
+		rootedProviders.sort(createProviderComparer(uri));
+
+		const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
+
+		if (result) {
+			return result;
+		}
+
+		const nonRootedProviders = providers.filter(p => !p.rootUri);
+		return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true): number {
@@ -1177,6 +1200,10 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		const onDidChangeDiffWidthConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterWidth'));
 		onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this);
 		this.onDidChangeDiffWidthConfiguration();
+
+		const onDidChangeDiffVisibilityConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterVisibility'));
+		onDidChangeDiffVisibilityConfiguration(this.onDidChangeDiffVisibiltiyConfiguration, this);
+		this.onDidChangeDiffVisibiltiyConfiguration();
 	}
 
 	private onDidChangeConfiguration(): void {
@@ -1197,6 +1224,16 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		}
 
 		this.stylesheet.innerHTML = `.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${width}px;}`;
+	}
+
+	private onDidChangeDiffVisibiltiyConfiguration(): void {
+		const visibility = this.configurationService.getValue<string>('scm.diffDecorationsGutterVisibility');
+
+		this.stylesheet.innerHTML = `
+			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
+				opacity: ${visibility === 'always' ? 1 : 0};
+			}
+		`;
 	}
 
 	private enable(): void {
@@ -1278,7 +1315,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	}
 }
 
-registerEditorContribution(DirtyDiffController);
+registerEditorContribution(DirtyDiffController.ID, DirtyDiffController);
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
@@ -1286,9 +1323,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-modified {
 				border-left: 3px solid ${editorGutterModifiedBackgroundColor};
+				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-modified:before {
 				background: ${editorGutterModifiedBackgroundColor};
+			}
+			.monaco-editor .margin:hover .dirty-diff-modified {
+				opacity: 1;
 			}
 		`);
 	}
@@ -1298,9 +1339,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-added {
 				border-left: 3px solid ${editorGutterAddedBackgroundColor};
+				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-added:before {
 				background: ${editorGutterAddedBackgroundColor};
+			}
+			.monaco-editor .margin:hover .dirty-diff-added {
+				opacity: 1;
 			}
 		`);
 	}
@@ -1310,9 +1355,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-deleted:after {
 				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
+				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-deleted:before {
 				background: ${editorGutteDeletedBackgroundColor};
+			}
+			.monaco-editor .margin:hover .dirty-diff-added {
+				opacity: 1;
 			}
 		`);
 	}

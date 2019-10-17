@@ -19,7 +19,7 @@
     "cpx": "^1.5.0",
     "htmlparser2": "^3.9.2",
     "mkdirp": "^0.5.1",
-    "mocha": "^5.2.0",
+    "mocha": "^6.1.4",
     "mocha-junit-reporter": "^1.17.0",
     "mocha-multi-reporters": "^1.1.7",
     "ncp": "^2.0.0",

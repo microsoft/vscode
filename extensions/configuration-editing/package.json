@@ -37,7 +37,8 @@
           "launch.json",
           "tasks.json",
           "keybindings.json",
-          "extensions.json"
+          "extensions.json",
+          "argv.json"
         ]
       }
     ],
@@ -71,8 +72,8 @@
         "url": "vscode://schemas/workspaceConfig"
       },
       {
-        "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
-        "url": "vscode://schemas/locale"
+        "fileMatch": "**/argv.json",
+        "url": "vscode://schemas/argv"
       },
       {
         "fileMatch": "/.vscode/settings.json",
@@ -105,6 +106,10 @@
       {
         "fileMatch": "/.devcontainer.json",
         "url": "./schemas/devContainer.schema.json"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/imageConfigs/*.json",
+        "url": "./schemas/attachContainer.schema.json"
       }
     ]
   },

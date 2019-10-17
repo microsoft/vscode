@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, addDisposableListener, EventType, addClass } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, addClass, EventHelper } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -25,6 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import * as browser from 'vs/base/browser/browser';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -32,7 +33,7 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, IWorkspace } from 'vs/workbench/workbench.web.api';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
@@ -46,8 +47,9 @@ import { FileLogService } from 'vs/platform/log/common/fileLogService';
 import { toLocalISOString } from 'vs/base/common/date';
 import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedDBLogProvider';
 import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
+import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 
-class CodeRendererMain extends Disposable {
+class BrowserMain extends Disposable {
 
 	constructor(
 		private readonly domElement: HTMLElement,
@@ -72,26 +74,8 @@ class CodeRendererMain extends Disposable {
 			services.logService
 		);
 
-		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
-
-		// Prevent the back/forward gestures in macOS
-		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
-			e.preventDefault();
-		}, { passive: false }));
-
-		// Workbench Lifecycle
-		this._register(workbench.onBeforeShutdown(event => {
-			if (services.storageService.hasPendingUpdate) {
-				console.warn('Unload prevented: pending storage update');
-				event.veto(true); // prevent data loss from pending storage update
-			}
-		}));
-		this._register(workbench.onWillShutdown(() => {
-			services.storageService.close();
-			this.saveBaseTheme();
-		}));
-		this._register(workbench.onShutdown(() => this.dispose()));
+		// Listeners
+		this.registerListeners(workbench, services.storageService);
 
 		// Driver
 		if (this.configuration.driver) {
@@ -100,6 +84,44 @@ class CodeRendererMain extends Disposable {
 
 		// Startup
 		workbench.startup();
+	}
+
+	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
+
+		// Layout
+		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
+
+		// Prevent the back/forward gestures in macOS
+		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
+			e.preventDefault();
+		}, { passive: false }));
+
+		// Prevent native context menus in web
+		this._register(addDisposableListener(this.domElement, EventType.CONTEXT_MENU, (e) => EventHelper.stop(e, true)));
+
+		// Workbench Lifecycle
+		this._register(workbench.onBeforeShutdown(event => {
+			if (storageService.hasPendingUpdate) {
+				console.warn('Unload prevented: pending storage update');
+				event.veto(true); // prevent data loss from pending storage update
+			}
+		}));
+		this._register(workbench.onWillShutdown(() => {
+			storageService.close();
+			this.saveBaseTheme();
+		}));
+		this._register(workbench.onShutdown(() => this.dispose()));
+
+		// Fullscreen
+		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
+			this._register(addDisposableListener(document, event, () => {
+				if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+					browser.setFullscreen(true);
+				} else {
+					browser.setFullscreen(false);
+				}
+			}));
+		});
 	}
 
 	private restoreBaseTheme(): void {
@@ -198,8 +220,8 @@ class CodeRendererMain extends Disposable {
 
 				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
 			} catch (error) {
-				(<ILogService>logService).info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
-				(<ILogService>logService).error(error);
+				logService.info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
+				logService.error(error);
 
 				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
 			}
@@ -263,21 +285,25 @@ class CodeRendererMain extends Disposable {
 	}
 
 	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+		let workspace: IWorkspace | undefined = undefined;
+		if (this.configuration.workspaceProvider) {
+			workspace = this.configuration.workspaceProvider.workspace;
+		}
 
 		// Multi-root workspace
-		if (this.configuration.workspaceUri) {
-			return { id: hash(this.configuration.workspaceUri.toString()).toString(16), configPath: this.configuration.workspaceUri };
+		if (workspace && isWorkspaceToOpen(workspace)) {
+			return { id: hash(workspace.workspaceUri.toString()).toString(16), configPath: workspace.workspaceUri };
 		}
 
 		// Single-folder workspace
-		if (this.configuration.folderUri) {
-			return { id: hash(this.configuration.folderUri.toString()).toString(16), folder: this.configuration.folderUri };
+		if (workspace && isFolderToOpen(workspace)) {
+			return { id: hash(workspace.folderUri.toString()).toString(16), folder: workspace.folderUri };
 		}
 
 		return { id: 'empty-window' };
 	}
 
-	private getRemoteUserDataUri(): URI | null {
+	private getRemoteUserDataUri(): URI | undefined {
 		const element = document.getElementById('vscode-remote-user-data-uri');
 		if (element) {
 			const remoteUserDataPath = element.getAttribute('data-settings');
@@ -286,12 +312,12 @@ class CodeRendererMain extends Disposable {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 }
 
 export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
-	const renderer = new CodeRendererMain(domElement, options);
+	const renderer = new BrowserMain(domElement, options);
 
 	return renderer.open();
 }

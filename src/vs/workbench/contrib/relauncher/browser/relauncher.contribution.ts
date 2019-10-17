@@ -6,7 +6,7 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -26,6 +26,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	telemetry: { enableCrashReporter: boolean };
 	workbench: { list: { horizontalScrolling: boolean } };
 	debug: { console: { wordWrap: boolean } };
+	configurationSync: { enableAuth: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -38,10 +39,10 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private enableCrashReporter: boolean | undefined;
 	private treeHorizontalScrolling: boolean | undefined;
 	private debugConsoleWordWrap: boolean | undefined;
+	private enableConfigSyncAuth: boolean | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
-		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly envService: IEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService
@@ -106,6 +107,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			}
 		}
 
+		// Configuration Sync Auth
+		if (config.configurationSync && typeof config.configurationSync.enableAuth === 'boolean' && config.configurationSync.enableAuth !== this.enableConfigSyncAuth) {
+			this.enableConfigSyncAuth = config.configurationSync.enableAuth;
+			changed = true;
+		}
+
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
 		if (notify && changed) {
 			this.doConfirm(
@@ -123,23 +130,13 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 	}
 
-	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
-		this.windowService.isFocused().then(focused => {
-			if (focused) {
-				return this.dialogService.confirm({
-					type: 'info',
-					message,
-					detail,
-					primaryButton
-				}).then(res => {
-					if (res.confirmed) {
-						confirmed();
-					}
-				});
+	private async doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): Promise<void> {
+		if (this.hostService.hasFocus) {
+			const res = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton });
+			if (res.confirmed) {
+				confirmed();
 			}
-
-			return undefined;
-		});
+		}
 	}
 }
 

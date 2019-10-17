@@ -51,7 +51,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
 			const manifest = json.parse(manifestContents.toString(), errors);
-			if (errors.length === 0) {
+			if (!!manifest && errors.length === 0) {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
 				}
@@ -393,15 +393,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 	}
 
 	private static _isStringArray(arr: string[]): boolean {
-		if (!Array.isArray(arr)) {
-			return false;
-		}
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (typeof arr[i] !== 'string') {
-				return false;
-			}
-		}
-		return true;
+		return Array.isArray(arr) && arr.every(value => typeof value === 'string');
 	}
 }
 

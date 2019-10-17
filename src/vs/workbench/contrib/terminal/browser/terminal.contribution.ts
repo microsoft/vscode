@@ -252,6 +252,11 @@ configurationRegistry.registerConfiguration({
 			},
 			default: []
 		},
+		'terminal.integrated.allowChords': {
+			markdownDescription: nls.localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass `terminal.integrated.commandsToSkipShell`, setting this to false is particularly useful when you want ctrl+k to go to your shell (not VS Code)."),
+			type: 'boolean',
+			default: true
+		},
 		'terminal.integrated.inheritEnv': {
 			markdownDescription: nls.localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code. This is not supported on Windows."),
 			type: 'boolean',
@@ -311,6 +316,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
 			type: 'boolean',
 			default: false
+		},
+		'terminal.integrated.enableFileLinks': {
+			description: nls.localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system."),
+			type: 'boolean',
+			default: true
 		}
 	}
 });

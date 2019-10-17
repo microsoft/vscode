@@ -8,7 +8,7 @@ import 'vs/css!./codicon/codicon-animations';
 import { escape } from 'vs/base/common/strings';
 
 function expand(text: string): string {
-	return text.replace(/\$\(((.+?)(~(.*?))?)\)/g, (_match, _g1, name, _g3, animation) => {
+	return text.replace(/\$\((([a-z0-9\-]+?)(~([a-z0-9\-]*?))?)\)/gi, (_match, _g1, name, _g3, animation) => {
 		return `<span class="codicon codicon-${name} ${animation ? `codicon-animation-${animation}` : ''}"></span>`;
 	});
 }

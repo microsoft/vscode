@@ -186,7 +186,7 @@
 	overflow: visible; /* ...but still show the close button on hover, focus and when dirty */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off > .tab-close {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off:not(.dirty) > .tab-close {
 	display: none; /* hide the close action bar when we are configured to hide it */
 }
 
@@ -232,11 +232,16 @@
 	padding-right: 5px; /* we need less room when sizing is shrink */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty-border-top > .tab-close {
+	display: none; /* hide dirty state when highlightModifiedTabs is enabled and when running without close button */
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top) {
-	background-repeat: no-repeat;
-	background-position-y: center;
-	background-position-x: calc(100% - 6px); /* to the right of the tab label */
-	padding-right: 28px; /* make room for dirty indication when we are running without close button */
+	padding-right: 0; /* remove extra padding when we are running without close button */
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off > .tab-close {
+	pointer-events: none; /* don't allow dirty state/close button to be clicked when running without close button */
 }
 
 /* Editor Actions */

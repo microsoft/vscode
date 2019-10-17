@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SaveDialogOptions, OpenDialogOptions } from 'electron';
-import { INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -46,8 +46,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 	private shouldUseSimplified(schema: string): { useSimplified: boolean, isSetting: boolean } {
 		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
-
-		return { useSimplified: (schema !== Schemas.file) || setting, isSetting: (schema === Schemas.file) && setting };
+		const newWindowSetting = (this.configurationService.getValue('window.openFilesInNewWindow') === 'on');
+		return { useSimplified: (schema !== Schemas.file) || setting, isSetting: newWindowSetting };
 	}
 
 	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
@@ -149,7 +149,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const defaultUri = options.defaultUri;
 
-		const newOptions: OpenDialogOptions = {
+		const newOptions: OpenDialogOptions & { properties: string[] } = {
 			title: options.title,
 			defaultPath: defaultUri && defaultUri.fsPath,
 			buttonLabel: options.openLabel,
@@ -157,22 +157,28 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			properties: []
 		};
 
-		newOptions.properties!.push('createDirectory');
+		newOptions.properties.push('createDirectory');
 
 		if (options.canSelectFiles) {
-			newOptions.properties!.push('openFile');
+			newOptions.properties.push('openFile');
 		}
 
 		if (options.canSelectFolders) {
-			newOptions.properties!.push('openDirectory');
+			newOptions.properties.push('openDirectory');
 		}
 
 		if (options.canSelectMany) {
-			newOptions.properties!.push('multiSelections');
+			newOptions.properties.push('multiSelections');
 		}
 
 		const result = await this.electronService.showOpenDialog(newOptions);
 		return result && Array.isArray(result.filePaths) && result.filePaths.length > 0 ? result.filePaths.map(URI.file) : undefined;
+	}
+
+	protected addFileSchemaIfNeeded(schema: string): string[] {
+		// Include File schema unless the schema is web
+		// Don't allow untitled schema through.
+		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 }
 

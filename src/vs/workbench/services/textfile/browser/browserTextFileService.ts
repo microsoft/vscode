@@ -57,6 +57,10 @@ export class BrowserTextFileService extends AbstractTextFileService {
 
 		return false; // dirty with backups: no veto
 	}
+
+	protected async getWindowCount(): Promise<number> {
+		return 1; // Browser only ever is 1 window
+	}
 }
 
 registerSingleton(ITextFileService, BrowserTextFileService);

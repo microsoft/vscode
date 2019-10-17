@@ -11,7 +11,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass, addDisposableListener, addStandardDisposableListener } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent, IListGestureEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -116,7 +116,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
-		data.iconLabel = new IconLabel(main, { supportHighlights: true, supportOcticons: true });
+		data.iconLabel = new IconLabel(main, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
 
 		data.typeLabel = append(main, $('span.type-label'));
@@ -174,10 +174,9 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
-			labelOptions.extraClasses = flatten([
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FILE),
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE)
-			]);
+			const labelClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FILE);
+			const detailClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE);
+			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
 
 		} else if (suggestion.kind === CompletionItemKind.Folder && this._themeService.getIconTheme().hasFolderIcons) {
 			// special logic for 'folder' completion items
@@ -524,7 +523,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}));
 		this.toDispose.add(themeService.onThemeChange(t => this.onThemeChange(t)));
 		this.toDispose.add(editor.onDidLayoutChange(() => this.onEditorLayoutChange()));
-		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDown(e)));
+		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDownOrTap(e)));
+		this.toDispose.add(this.list.onTap(e => this.onListMouseDownOrTap(e)));
 		this.toDispose.add(this.list.onSelectionChange(e => this.onListSelection(e)));
 		this.toDispose.add(this.list.onFocusChange(e => this.onListFocus(e)));
 		this.toDispose.add(this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()));
@@ -572,7 +572,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
-	private onListMouseDown(e: IListMouseEvent<CompletionItem>): void {
+	private onListMouseDownOrTap(e: IListMouseEvent<CompletionItem> | IListGestureEvent<CompletionItem>): void {
 		if (typeof e.element === 'undefined' || typeof e.index === 'undefined') {
 			return;
 		}

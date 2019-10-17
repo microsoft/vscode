@@ -15,7 +15,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
+import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -28,6 +28,7 @@ const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
 const URL_TO_HANDLE = 'extensionUrlHandler.urlToHandle';
 const CONFIRMED_EXTENSIONS_CONFIGURATION_KEY = 'extensions.confirmedUriHandlerExtensionIds';
+const CONFIRMED_EXTENSIONS_STORAGE_KEY = 'extensionUrlHandler.confirmedExtensions';
 
 function isExtensionId(value: string): boolean {
 	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
@@ -74,7 +75,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
 		if (urlToHandleValue) {
 			this.storageService.remove(URL_TO_HANDLE, StorageScope.WORKSPACE);
-			this.handleURL(URI.revive(JSON.parse(urlToHandleValue)), true);
+			this.handleURL(URI.revive(JSON.parse(urlToHandleValue)), { trusted: true });
 		}
 
 		this.disposable = combinedDisposable(
@@ -86,7 +87,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		setTimeout(() => cache.forEach(uri => this.handleURL(uri)));
 	}
 
-	async handleURL(uri: URI, confirmed?: boolean): Promise<boolean> {
+	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		if (!isExtensionId(uri.authority)) {
 			return false;
 		}
@@ -100,12 +101,15 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			return true;
 		}
 
-		if (!confirmed) {
+		let showConfirm: boolean;
+		if (options && options.trusted) {
+			showConfirm = false;
+		} else {
 			const confirmedExtensionIds = this.getConfirmedExtensionIds();
-			confirmed = confirmedExtensionIds.has(ExtensionIdentifier.toKey(extensionId));
+			showConfirm = !confirmedExtensionIds.has(ExtensionIdentifier.toKey(extensionId));
 		}
 
-		if (!confirmed) {
+		if (showConfirm) {
 			let uriString = uri.toString();
 
 			if (uriString.length > 40) {
@@ -127,7 +131,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 
 			if (result.checkboxChecked) {
-				await this.addConfirmedExtensionIdToStorage(extensionId);
+				this.addConfirmedExtensionIdToStorage(extensionId);
 			}
 		}
 
@@ -136,7 +140,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		if (handler) {
 			if (!wasHandlerAvailable) {
 				// forward it directly
-				return await handler.handleURL(uri);
+				return await handler.handleURL(uri, options);
 			}
 
 			// let the ExtensionUrlHandler instance handle this
@@ -289,8 +293,10 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private getConfirmedExtensionIds(): Set<string> {
-		const ids = this.getConfirmedExtensionIdsFromConfiguration()
-			.map(extensionId => ExtensionIdentifier.toKey(extensionId));
+		const ids = [
+			...this.getConfirmedExtensionIdsFromStorage(),
+			...this.getConfirmedExtensionIdsFromConfiguration(),
+		].map(extensionId => ExtensionIdentifier.toKey(extensionId));
 
 		return new Set(ids);
 	}
@@ -305,12 +311,26 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		return confirmedExtensionIds;
 	}
 
-	private async addConfirmedExtensionIdToStorage(extensionId: string): Promise<void> {
-		const confirmedExtensionIds = this.configurationService.getValue<Array<string>>(CONFIRMED_EXTENSIONS_CONFIGURATION_KEY);
-		const set = new Set(confirmedExtensionIds);
-		set.add(extensionId);
+	private getConfirmedExtensionIdsFromStorage(): Array<string> {
+		const confirmedExtensionIdsJson = this.storageService.get(CONFIRMED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
 
-		await this.configurationService.updateValue(CONFIRMED_EXTENSIONS_CONFIGURATION_KEY, [...set.values()]);
+		try {
+			return JSON.parse(confirmedExtensionIdsJson);
+		} catch (err) {
+			return [];
+		}
+	}
+
+	private addConfirmedExtensionIdToStorage(extensionId: string): void {
+		const existingConfirmedExtensionIds = this.getConfirmedExtensionIdsFromStorage();
+		this.storageService.store(
+			CONFIRMED_EXTENSIONS_STORAGE_KEY,
+			JSON.stringify([
+				...existingConfirmedExtensionIds,
+				ExtensionIdentifier.toKey(extensionId),
+			]),
+			StorageScope.GLOBAL,
+		);
 	}
 
 	dispose(): void {
@@ -343,7 +363,7 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 		ExtensionUrlBootstrapHandler.disposable = urlService.registerHandler(this);
 	}
 
-	handleURL(uri: URI): Promise<boolean> {
+	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		ExtensionUrlBootstrapHandler._cache.push(uri);
 		return Promise.resolve(true);
 	}

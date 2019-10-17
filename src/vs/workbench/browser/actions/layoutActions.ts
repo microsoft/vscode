@@ -340,7 +340,7 @@ class ToggleTabsVisibilityAction extends Action {
 }
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTabsVisibilityAction, ToggleTabsVisibilityAction.ID, ToggleTabsVisibilityAction.LABEL, {
-	primary: undefined!,
+	primary: undefined,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, },
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
 }), 'View: Toggle Tab Visibility', viewCategory);
@@ -396,7 +396,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 export class ToggleMenuBarAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleMenuBar';
-	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
+	static readonly LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
 	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
 
@@ -446,7 +446,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 export abstract class BaseResizeViewAction extends Action {
 
-	protected static RESIZE_INCREMENT = 6.5; // This is a media-size percentage
+	protected static readonly RESIZE_INCREMENT = 6.5; // This is a media-size percentage
 
 	constructor(
 		id: string,

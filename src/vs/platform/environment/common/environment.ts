@@ -71,11 +71,16 @@ export interface ParsedArgs {
 	'driver-verbose'?: boolean;
 	remote?: string;
 	'disable-user-env-probe'?: boolean;
-	'disable-inspect'?: boolean;
 	'force'?: boolean;
 	'force-user-env'?: boolean;
 
-	// node flags
+	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
+	'no-proxy-server'?: boolean;
+	'proxy-server'?: string;
+	'proxy-bypass-list'?: string;
+	'proxy-pac-url'?: string;
+	'inspect'?: string;
+	'inspect-brk'?: string;
 	'js-flags'?: string;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
@@ -114,10 +119,13 @@ export interface IEnvironmentService {
 	// user roaming data
 	userRoamingDataHome: URI;
 	settingsResource: URI;
-	settingsSyncPreviewResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
-	localeResource: URI;
+	argvResource: URI;
+
+	// sync resources
+	userDataSyncLogResource: URI;
+	settingsSyncPreviewResource: URI;
 
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;

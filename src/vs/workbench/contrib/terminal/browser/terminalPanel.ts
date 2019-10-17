@@ -25,6 +25,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { assertIsDefined } from 'vs/base/common/types';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -70,7 +71,8 @@ export class TerminalPanel extends Panel {
 
 		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 
-		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
+		const container = assertIsDefined(this.getContainer());
+		this._terminalService.setContainers(container, this._terminalContainer);
 
 		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {

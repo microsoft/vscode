@@ -44,7 +44,7 @@ export interface IExtensionEnablementService {
 	/**
 	 * Event to listen on for extension enablement changes
 	 */
-	onEnablementChanged: Event<IExtension[]>;
+	readonly onEnablementChanged: Event<readonly IExtension[]>;
 
 	/**
 	 * Returns the enablement state for the given extension

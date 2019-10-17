@@ -74,8 +74,8 @@ interface IPrivateReplService {
 	_serviceBrand: undefined;
 	acceptReplInput(): void;
 	getVisibleContent(): string;
-	selectSession(session?: IDebugSession): void;
-	clearRepl(): void;
+	selectSession(session?: IDebugSession): Promise<void>;
+	clearRepl(): Promise<void>;
 	focusRepl(): void;
 }
 
@@ -129,7 +129,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	private registerListeners(): void {
-		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
+		this._register(this.debugService.getViewModel().onDidFocusSession(async session => {
 			if (session) {
 				sessionsToIgnore.delete(session);
 				if (this.completionItemProvider) {
@@ -159,13 +159,13 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				}
 			}
 
-			this.selectSession();
+			await this.selectSession();
 		}));
-		this._register(this.debugService.onWillNewSession(newSession => {
+		this._register(this.debugService.onWillNewSession(async newSession => {
 			// Need to listen to output events for sessions which are not yet fully initialised
 			const input = this.tree.getInput();
 			if (!input || input.state === State.Inactive) {
-				this.selectSession(newSession);
+				await this.selectSession(newSession);
 			}
 			this.updateTitleArea();
 		}));
@@ -252,7 +252,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 	}
 
-	selectSession(session?: IDebugSession): void {
+	async selectSession(session?: IDebugSession): Promise<void> {
 		const treeInput = this.tree.getInput();
 		if (!session) {
 			const focusedSession = this.debugService.getViewModel().focusedSession;
@@ -272,7 +272,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			});
 
 			if (this.tree && treeInput !== session) {
-				this.tree.setInput(session).then(() => revealLastElement(this.tree)).then(undefined, errors.onUnexpectedError);
+				await this.tree.setInput(session);
+				revealLastElement(this.tree);
 			}
 		}
 
@@ -280,14 +281,14 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.updateInputDecoration();
 	}
 
-	clearRepl(): void {
+	async clearRepl(): Promise<void> {
 		const session = this.tree.getInput();
 		if (session) {
 			session.removeReplExpressions();
 			if (session.state === State.Inactive) {
 				// Ignore inactive sessions which got cleared - so they are not shown any more
 				sessionsToIgnore.add(session);
-				this.selectSession();
+				await this.selectSession();
 				this.updateTitleArea();
 			}
 		}
@@ -646,7 +647,7 @@ class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResul
 			linkDetector: this.linkDetector
 		});
 		if (expression.hasChildren) {
-			templateData.annotation.className = 'annotation octicon octicon-info';
+			templateData.annotation.className = 'annotation codicon codicon-info';
 			templateData.annotation.title = nls.localize('stateCapture', "Object state is captured from first evaluation");
 		}
 	}
@@ -781,7 +782,7 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, Fuzz
 
 		// annotation if any
 		if (element.annotation) {
-			templateData.annotation.className = 'annotation octicon octicon-info';
+			templateData.annotation.className = 'annotation codicon codicon-info';
 			templateData.annotation.title = element.annotation;
 		} else {
 			templateData.annotation.className = '';
@@ -919,7 +920,7 @@ class AcceptReplInputAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion();
+		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
 		accessor.get(IPrivateReplService).acceptReplInput();
 	}
 }
@@ -941,7 +942,7 @@ class FilterReplAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion();
+		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
 		accessor.get(IPrivateReplService).focusRepl();
 	}
 }
@@ -984,7 +985,7 @@ class SelectReplActionViewItem extends FocusSessionActionViewItem {
 class SelectReplAction extends Action {
 
 	static readonly ID = 'workbench.action.debug.selectRepl';
-	static LABEL = nls.localize('selectRepl', "Select Debug Console");
+	static readonly LABEL = nls.localize('selectRepl', "Select Debug Console");
 
 	constructor(id: string, label: string,
 		@IDebugService private readonly debugService: IDebugService,
@@ -993,12 +994,12 @@ class SelectReplAction extends Action {
 		super(id, label);
 	}
 
-	run(session: IDebugSession): Promise<any> {
+	async run(session: IDebugSession): Promise<any> {
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
-			this.debugService.focusStackFrame(undefined, undefined, session, true);
+			await this.debugService.focusStackFrame(undefined, undefined, session, true);
 		} else {
-			this.replService.selectSession(session);
+			await this.replService.selectSession(session);
 		}
 
 		return Promise.resolve(undefined);
@@ -1007,7 +1008,7 @@ class SelectReplAction extends Action {
 
 export class ClearReplAction extends Action {
 	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
-	static LABEL = nls.localize('clearRepl', "Clear Console");
+	static readonly LABEL = nls.localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
 		@IPanelService private readonly panelService: IPanelService
@@ -1015,11 +1016,9 @@ export class ClearReplAction extends Action {
 		super(id, label, 'debug-action codicon-clear-all');
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		const repl = <Repl>this.panelService.openPanel(REPL_ID);
-		repl.clearRepl();
+		await repl.clearRepl();
 		aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
-
-		return Promise.resolve(undefined);
 	}
 }

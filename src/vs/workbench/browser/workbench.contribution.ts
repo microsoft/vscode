@@ -233,11 +233,6 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 				'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
 				'default': true,
 				'tags': ['usesOnlineServices']
-			},
-			'workbench.octiconsUpdate.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'description': nls.localize('workbench.octiconsUpdate.enabled', "Controls the visibility of the new Octicons style in the workbench.")
 			}
 		}
 	});
@@ -369,6 +364,11 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 				'type': 'boolean',
 				'default': false,
 				'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
+			},
+			'zenMode.silentNotifications': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, all notifications are silent and they will only appear in the status bar.")
 			}
 		}
 	});

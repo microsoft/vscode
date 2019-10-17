@@ -25,9 +25,9 @@ const MAX_DECORATORS = 500;
 
 export class ColorDetector extends Disposable implements IEditorContribution {
 
-	private static readonly ID: string = 'editor.contrib.colorDetector';
+	public static readonly ID: string = 'editor.contrib.colorDetector';
 
-	static RECOMPUTE_TIME = 1000; // ms
+	static readonly RECOMPUTE_TIME = 1000; // ms
 
 	private readonly _localToDispose = this._register(new DisposableStore());
 	private _computePromise: CancelablePromise<IColorData[]> | null;
@@ -86,10 +86,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		}
 
 		return this._editor.getOption(EditorOption.colorDecorators);
-	}
-
-	getId(): string {
-		return ColorDetector.ID;
 	}
 
 	static get(editor: ICodeEditor): ColorDetector {
@@ -247,4 +243,4 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(ColorDetector);
+registerEditorContribution(ColorDetector.ID, ColorDetector);

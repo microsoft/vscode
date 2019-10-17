@@ -102,7 +102,7 @@ export class EditorGroup extends Disposable {
 	private focusRecentEditorAfterClose: boolean | undefined;
 
 	constructor(
-		labelOrSerializedGroup: ISerializedEditorGroup,
+		labelOrSerializedGroup: ISerializedEditorGroup | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {

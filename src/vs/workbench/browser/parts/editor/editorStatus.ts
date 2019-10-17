@@ -7,7 +7,7 @@ import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format } from 'vs/base/common/strings';
-import { extname, basename } from 'vs/base/common/resources';
+import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -39,7 +39,7 @@ import { ConfigurationChangedEvent, IEditorOptions, EditorOption } from 'vs/edit
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
-import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
@@ -49,12 +49,12 @@ import { INotificationHandle, INotificationService, Severity } from 'vs/platform
 import { Event } from 'vs/base/common/event';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		return this.master.getEncoding(); // always report from modified (right hand) side
 	}
 
@@ -278,7 +278,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly screenRedearModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly indentationElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly selectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly encodingElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly encodingElement = Object.keys(SUPPORTED_ENCODINGS).length > 1 ? this._register(new MutableDisposable<IStatusbarEntryAccessor>()) : undefined;
 	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly modeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -352,7 +352,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
-		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
+		const picks: QuickPickInput<IQuickPickItem & { run(): void; }>[] = [
 			activeTextEditorWidget.getAction(IndentUsingSpaces.ID),
 			activeTextEditorWidget.getAction(IndentUsingTabs.ID),
 			activeTextEditorWidget.getAction(DetectIndentation.ID),
@@ -363,7 +363,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return {
 				id: a.id,
 				label: a.label,
-				detail: Language.isDefaultVariant() ? undefined : a.alias,
+				detail: (Language.isDefaultVariant() || a.label === a.alias) ? undefined : a.alias,
 				run: () => {
 					activeTextEditorWidget.focus();
 					a.run();
@@ -412,7 +412,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('gotoLine', "Go to Line"),
 			command: 'workbench.action.gotoLine'
@@ -427,7 +427,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectIndentation', "Select Indentation"),
 			command: 'changeEditorIndentation'
@@ -437,12 +437,16 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private updateEncodingElement(text: string | undefined): void {
+		if (!this.encodingElement) {
+			return; // return early if encoding should not show (e.g. in Web we only support utf8)
+		}
+
 		if (!text) {
 			this.encodingElement.clear();
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectEncoding', "Select Encoding"),
 			command: 'workbench.action.editor.changeEncoding'
@@ -457,7 +461,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectEOL', "Select End of Line Sequence"),
 			command: 'workbench.action.editor.changeEOL'
@@ -472,7 +476,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('selectLanguageMode', "Select Language Mode"),
 			command: 'workbench.action.editor.changeLanguageMode'
@@ -487,7 +491,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const props = {
+		const props: IStatusbarEntry = {
 			text,
 			tooltip: nls.localize('fileInfo', "File Information")
 		};
@@ -570,7 +574,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.onSelectionChange(activeCodeEditor);
 		this.onModeChange(activeCodeEditor);
 		this.onEOLChange(activeCodeEditor);
-		this.onEncodingChange(activeControl);
+		this.onEncodingChange(activeControl, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
 		this.onMetadataChange(activeControl);
 
@@ -730,20 +734,24 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				info.selections.forEach(selection => {
-					info.charactersSelected! += textModel.getValueLengthInRange(selection);
+					if (typeof info.charactersSelected !== 'number') {
+						info.charactersSelected = 0;
+					}
+
+					info.charactersSelected += textModel.getValueLengthInRange(selection);
 				});
 			}
 
 			// Compute the visible column for one selection. This will properly handle tabs and their configured widths
 			if (info.selections.length === 1) {
-				const visibleColumn = editorWidget.getVisibleColumnFromPosition(editorWidget.getPosition()!);
+				const editorPosition = editorWidget.getPosition();
 
 				let selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
 				selectionClone = new Selection(
 					selectionClone.selectionStartLineNumber,
 					selectionClone.selectionStartColumn,
 					selectionClone.positionLineNumber,
-					visibleColumn
+					editorPosition ? editorWidget.getVisibleColumnFromPosition(editorPosition) : selectionClone.positionColumn
 				);
 
 				info.selections[0] = selectionClone;
@@ -766,19 +774,21 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(info);
 	}
 
-	private onEncodingChange(e?: IBaseEditor): void {
-		if (e && !this.isActiveEditor(e)) {
+	private onEncodingChange(editor: IBaseEditor | undefined, editorWidget: ICodeEditor | undefined): void {
+		if (editor && !this.isActiveEditor(editor)) {
 			return;
 		}
 
 		const info: StateDelta = { encoding: undefined };
 
-		// We only support text based editors
-		if (e && (isCodeEditor(e.getControl()) || isDiffEditor(e.getControl()))) {
-			const encodingSupport: IEncodingSupport | null = e.input ? toEditorWithEncodingSupport(e.input) : null;
+		// We only support text based editors that have a model associated
+		// This ensures we do not show the encoding picker while an editor
+		// is still loading.
+		if (editor && editorWidget && editorWidget.hasModel()) {
+			const encodingSupport: IEncodingSupport | null = editor.input ? toEditorWithEncodingSupport(editor.input) : null;
 			if (encodingSupport) {
 				const rawEncoding = encodingSupport.getEncoding();
-				const encodingInfo = SUPPORTED_ENCODINGS[rawEncoding];
+				const encodingInfo = typeof rawEncoding === 'string' ? SUPPORTED_ENCODINGS[rawEncoding] : undefined;
 				if (encodingInfo) {
 					info.encoding = encodingInfo.labelShort; // if we have a label, take it from there
 				} else {
@@ -794,8 +804,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		const activeControl = this.editorService.activeControl;
 		if (activeControl) {
 			const activeResource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
-			if (activeResource && activeResource.toString() === resource.toString()) {
-				return this.onEncodingChange(activeControl); // only update if the encoding changed for the active resource
+			if (activeResource && isEqual(activeResource, resource)) {
+				const activeCodeEditor = withNullAsUndefined(getCodeEditor(activeControl.getControl()));
+
+				return this.onEncodingChange(activeControl, activeCodeEditor); // only update if the encoding changed for the active resource
 			}
 		}
 	}
@@ -1125,14 +1137,19 @@ export class ChangeEncodingAction extends Action {
 			return this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
 
-		let saveWithEncodingPick: IQuickPickItem;
-		let reopenWithEncodingPick: IQuickPickItem;
-		if (Language.isDefaultVariant()) {
-			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
-			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
-		} else {
-			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding"), detail: 'Save with Encoding', };
-			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding"), detail: 'Reopen with Encoding' };
+		const saveWithEncodingPick: IQuickPickItem = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
+		const reopenWithEncodingPick: IQuickPickItem = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
+
+		if (!Language.isDefaultVariant()) {
+			const saveWithEncodingAlias = 'Save with Encoding';
+			if (saveWithEncodingAlias !== saveWithEncodingPick.label) {
+				saveWithEncodingPick.detail = saveWithEncodingAlias;
+			}
+
+			const reopenWithEncodingAlias = 'Reopen with Encoding';
+			if (reopenWithEncodingAlias !== reopenWithEncodingPick.label) {
+				reopenWithEncodingPick.detail = reopenWithEncodingAlias;
+			}
 		}
 
 		let action: IQuickPickItem;

@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
@@ -47,7 +46,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@ILogService private readonly logService: ILogService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
@@ -71,13 +70,16 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 
 	async sync(): Promise<boolean> {
 		if (!this.configurationService.getValue<boolean>('configurationSync.enableExtensions')) {
+			this.logService.trace('Extensions: Skipping synchronizing extensions as it is disabled.');
 			return false;
 		}
 
 		if (this.status !== SyncStatus.Idle) {
+			this.logService.trace('Extensions: Skipping synchronizing extensions as it is running already.');
 			return false;
 		}
 
+		this.logService.trace('Extensions: Started synchronizing extensions...');
 		this.setStatus(SyncStatus.Syncing);
 
 		try {
@@ -86,32 +88,30 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Rejected) {
 				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('Failed to Synchronise extensions as there is a new remote version available. Synchronising again...');
+				this.logService.info('Extensions: Failed to synchronise extensions as there is a new remote version available. Synchronizing again...');
 				return this.sync();
 			}
 			throw e;
 		}
 
+		this.logService.trace('Extensions: Finised synchronizing extensions.');
 		this.setStatus(SyncStatus.Idle);
 		return true;
 	}
 
 	stop(): void { }
 
-	async getRemoteExtensions(): Promise<ISyncExtension[]> {
-		const remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, null);
-		return remoteData.content ? JSON.parse(remoteData.content) : [];
-	}
-
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
 		return this.replaceQueue.queue(async () => {
 			const remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, null);
 			const remoteExtensions: ISyncExtension[] = remoteData.content ? JSON.parse(remoteData.content) : [];
-			const removedExtensions = remoteExtensions.filter(e => areSameExtensions(e.identifier, identifier));
+			const ignoredExtensions = this.configurationService.getValue<string[]>('configurationSync.extensionsToIgnore') || [];
+			const removedExtensions = remoteExtensions.filter(e => !ignoredExtensions.some(id => areSameExtensions({ id }, e.identifier)) && areSameExtensions(e.identifier, identifier));
 			if (removedExtensions.length) {
 				for (const removedExtension of removedExtensions) {
 					remoteExtensions.splice(remoteExtensions.indexOf(removedExtension), 1);
 				}
+				this.logService.info(`Extensions: Removing extension '${identifier.id}' from remote.`);
 				await this.writeToRemote(remoteExtensions, remoteData.ref);
 			}
 		});
@@ -125,18 +125,31 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		const remoteExtensions: ISyncExtension[] = remoteData.content ? JSON.parse(remoteData.content) : null;
 		const localExtensions = await this.getLocalExtensions();
 
+		this.logService.trace('Extensions: Merging remote extensions with local extensions...');
 		const { added, removed, updated, remote } = this.merge(localExtensions, remoteExtensions, lastSyncExtensions);
 
-		// update local
-		await this.updateLocalExtensions(added, removed, updated);
+		if (!added.length && !removed.length && !updated.length && !remote) {
+			this.logService.trace('Extensions: No changes found during synchronizing extensions.');
+		}
+
+		if (added.length || removed.length || updated.length) {
+			this.logService.info('Extensions: Updating local extensions...');
+			await this.updateLocalExtensions(added, removed, updated);
+		}
 
 		if (remote) {
 			// update remote
+			this.logService.info('Extensions: Updating remote extensions...');
 			remoteData = await this.writeToRemote(remote, remoteData.ref);
 		}
 
-		// update last sync
-		await this.updateLastSyncValue(remoteData);
+		if (remoteData.content
+			&& (!lastSyncData || lastSyncData.ref !== remoteData.ref)
+		) {
+			// update last sync
+			this.logService.info('Extensions: Updating last synchronised extensions...');
+			await this.updateLastSyncValue(remoteData);
+		}
 	}
 
 	/**
@@ -149,6 +162,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		const ignoredExtensions = this.configurationService.getValue<string[]>('configurationSync.extensionsToIgnore') || [];
 		// First time sync
 		if (!remoteExtensions) {
+			this.logService.info('Extensions: Remote extensions does not exist. Synchronizing extensions for the first time.');
 			return { added: [], removed: [], updated: [], remote: localExtensions.filter(({ identifier }) => ignoredExtensions.some(id => id.toLowerCase() === identifier.id.toLowerCase())) };
 		}
 
@@ -295,13 +309,17 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		if (removed.length) {
 			const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 			const extensionsToRemove = installedExtensions.filter(({ identifier }) => removed.some(r => areSameExtensions(identifier, r)));
-			await Promise.all(extensionsToRemove.map(e => this.extensionManagementService.uninstall(e)));
+			await Promise.all(extensionsToRemove.map(e => {
+				this.logService.info('Extensions: Removing local extension.', e.identifier.id);
+				return this.extensionManagementService.uninstall(e);
+			}));
 		}
 
 		if (added.length || updated.length) {
 			await Promise.all([...added, ...updated].map(async e => {
 				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier, e.version);
 				if (extension) {
+					this.logService.info('Extensions: Installing local extension.', e.identifier.id, extension.version);
 					await this.extensionManagementService.installFromGallery(extension);
 				}
 			}));

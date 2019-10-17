@@ -89,6 +89,7 @@ export interface IExtensionHostStarter {
 
 	start(): Promise<IMessagePassingProtocol> | null;
 	getInspectPort(): number | undefined;
+	enableInspectPort(): Promise<boolean>;
 	dispose(): void;
 }
 
@@ -212,7 +213,7 @@ export interface IExtensionService {
 	 * Return the inspect port or `0`, the latter means inspection
 	 * is not possible.
 	 */
-	getInspectPort(): number;
+	getInspectPort(tryEnableInspector: boolean): Promise<number>;
 
 	/**
 	 * Restarts the extension host.
@@ -270,7 +271,7 @@ export class NullExtensionService implements IExtensionService {
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
-	getInspectPort(): number { return 0; }
+	getInspectPort(_tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
 	restartExtensionHost(): void { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }

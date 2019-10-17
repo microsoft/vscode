@@ -5222,7 +5222,7 @@ declare module 'vscode' {
 		/**
 		 * The shell command line. Is `undefined` if created with a command and arguments.
 		 */
-		commandLine: string;
+		commandLine: string | undefined;
 
 		/**
 		 * The shell command. Is `undefined` if created with a full command line.
@@ -6333,7 +6333,7 @@ declare module 'vscode' {
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
 
 		/**
-		 * Retrieve the list of all available commands. Commands starting an underscore are
+		 * Retrieve the list of all available commands. Commands starting with an underscore are
 		 * treated as internal commands.
 		 *
 		 * @param filterInternal Set `true` to not see internal commands (starting with an underscore)
@@ -7016,6 +7016,7 @@ declare module 'vscode' {
 
 		/**
 		 * An optional human-readable message that will be rendered in the view.
+		 * Setting the message to null, undefined, or empty string will remove the message from the view.
 		 */
 		message?: string;
 
@@ -7297,7 +7298,7 @@ declare module 'vscode' {
 		 * A number can be used to provide an exit code for the terminal. Exit codes must be
 		 * positive and a non-zero exit codes signals failure which shows a notification for a
 		 * regular terminal and allows dependent tasks to proceed when used with the
-		 * `CustomExecution2` API.
+		 * `CustomExecution` API.
 		 *
 		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript
@@ -9307,10 +9308,10 @@ declare module 'vscode' {
 		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
 		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
 		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @param parent If specified the newly created debug session is registered as a "child" session of a "parent" debug session.
+		 * @param parentSessionOrOptions Debug sesison options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
 		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSession?: DebugSession): Thenable<boolean>;
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
 
 		/**
 		 * Add breakpoints.

@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isFunction } from 'vs/base/common/types';
+import { isFunction, assertIsDefined } from 'vs/base/common/types';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
@@ -24,7 +24,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -55,10 +55,10 @@ export class TextFileEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
-		@IWindowService windowService: IWindowService,
+		@IHostService hostService: IHostService,
 		@IExplorerService private readonly explorerService: IExplorerService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService);
 
 		this.updateRestoreViewStateConfiguration();
 
@@ -118,7 +118,8 @@ export class TextFileEditor extends BaseTextEditor {
 	setOptions(options: EditorOptions | undefined): void {
 		const textOptions = options as TextEditorOptions;
 		if (textOptions && isFunction(textOptions.apply)) {
-			textOptions.apply(this.getControl(), ScrollType.Smooth);
+			const textEditor = assertIsDefined(this.getControl());
+			textOptions.apply(textEditor, ScrollType.Smooth);
 		}
 	}
 
@@ -147,7 +148,7 @@ export class TextFileEditor extends BaseTextEditor {
 			const textFileModel = <ITextFileEditorModel>resolvedModel;
 
 			// Editor
-			const textEditor = this.getControl();
+			const textEditor = assertIsDefined(this.getControl());
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Always restore View State if any associated
@@ -259,7 +260,10 @@ export class TextFileEditor extends BaseTextEditor {
 		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Clear Model
-		this.getControl().setModel(null);
+		const textEditor = this.getControl();
+		if (textEditor) {
+			textEditor.setModel(null);
+		}
 
 		// Pass to super
 		super.clearInput();

@@ -12,6 +12,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { equals } from 'vs/base/common/arrays';
 
 class CursorState {
 	readonly selections: readonly Selection[];
@@ -21,23 +22,13 @@ class CursorState {
 	}
 
 	public equals(other: CursorState): boolean {
-		const thisLen = this.selections.length;
-		const otherLen = other.selections.length;
-		if (thisLen !== otherLen) {
-			return false;
-		}
-		for (let i = 0; i < thisLen; i++) {
-			if (!this.selections[i].equalsSelection(other.selections[i])) {
-				return false;
-			}
-		}
-		return true;
+		return equals(this.selections, other.selections, (a, b) => a.equalsSelection(b));
 	}
 }
 
 export class CursorUndoController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.cursorUndoController';
+	public static readonly ID = 'editor.contrib.cursorUndoController';
 
 	public static get(editor: ICodeEditor): CursorUndoController {
 		return editor.getContribution<CursorUndoController>(CursorUndoController.ID);
@@ -88,10 +79,6 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 		return new CursorState(this._editor.getSelections());
 	}
 
-	public getId(): string {
-		return CursorUndoController.ID;
-	}
-
 	public cursorUndo(): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -133,5 +120,5 @@ export class CursorUndo extends EditorAction {
 	}
 }
 
-registerEditorContribution(CursorUndoController);
+registerEditorContribution(CursorUndoController.ID, CursorUndoController);
 registerEditorAction(CursorUndo);

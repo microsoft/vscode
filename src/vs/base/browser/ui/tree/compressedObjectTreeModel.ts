@@ -27,7 +27,9 @@ function noCompress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompre
 
 	return {
 		element: { elements, incompressible },
-		children: Iterator.map(Iterator.from(element.children), noCompress)
+		children: Iterator.map(Iterator.from(element.children), noCompress),
+		collapsible: element.collapsible,
+		collapsed: element.collapsed
 	};
 }
 
@@ -58,7 +60,9 @@ export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<IC
 
 	return {
 		element: { elements, incompressible },
-		children: Iterator.map(Iterator.concat(Iterator.fromArray(children), childrenIterator), compress)
+		children: Iterator.map(Iterator.concat(Iterator.fromArray(children), childrenIterator), compress),
+		collapsible: element.collapsible,
+		collapsed: element.collapsed
 	};
 }
 
@@ -72,10 +76,21 @@ function _decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>, index = 0
 	}
 
 	if (index === 0 && element.element.incompressible) {
-		return { element: element.element.elements[index], children, incompressible: true };
+		return {
+			element: element.element.elements[index],
+			children,
+			incompressible: true,
+			collapsible: element.collapsible,
+			collapsed: element.collapsed
+		};
 	}
 
-	return { element: element.element.elements[index], children };
+	return {
+		element: element.element.elements[index],
+		children,
+		collapsible: element.collapsible,
+		collapsed: element.collapsed
+	};
 }
 
 // Exported only for test reasons, do not use directly

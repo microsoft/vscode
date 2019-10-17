@@ -20,7 +20,6 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		// @IWindowService windowService: IWindowService, // TODO@weinand TODO@isidorn cyclic dependency?
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		const connection = remoteAgentService.getConnection();

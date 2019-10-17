@@ -24,8 +24,8 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 
 	private readonly session: string = generateUuid();
 
-	private readonly _onDidChange = this._register(new Emitter<IFileChange[]>());
-	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
+	private readonly _onDidChange = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChange.event;
 
 	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidErrorOccur: Event<string> = this._onDidWatchErrorOccur.event;

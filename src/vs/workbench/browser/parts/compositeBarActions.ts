@@ -57,7 +57,7 @@ export class ActivityAction extends Action {
 	private readonly _onDidChangeBadge = new Emitter<this>();
 	readonly onDidChangeBadge: Event<this> = this._onDidChangeBadge.event;
 
-	private badge?: IBadge;
+	private badge: IBadge | undefined;
 	private clazz: string | undefined;
 
 	constructor(private _activity: IActivity) {
@@ -110,6 +110,8 @@ export class ActivityAction extends Action {
 export interface ICompositeBarColors {
 	activeBackgroundColor?: Color;
 	inactiveBackgroundColor?: Color;
+	activeBorderColor?: Color;
+	activeBackground?: Color;
 	activeBorderBottomColor?: Color;
 	activeForegroundColor?: Color;
 	inactiveForegroundColor?: Color;
@@ -156,12 +158,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			if (this.options.icon) {
 				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
-				this.label.style.backgroundColor = foreground ? foreground.toString() : null;
+				this.label.style.backgroundColor = foreground ? foreground.toString() : '';
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
 				this.label.style.color = foreground ? foreground.toString() : null;
-				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : null;
+				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
 			}
 		}
 
@@ -172,11 +174,11 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			const contrastBorderColor = theme.getColor(contrastBorder);
 
 			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : null;
-			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : null;
+			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : '';
 
-			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : null;
-			this.badgeContent.style.borderWidth = contrastBorderColor ? '1px' : null;
-			this.badgeContent.style.borderColor = contrastBorderColor ? contrastBorderColor.toString() : null;
+			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : '';
+			this.badgeContent.style.borderWidth = contrastBorderColor ? '1px' : '';
+			this.badgeContent.style.borderColor = contrastBorderColor ? contrastBorderColor.toString() : '';
 		}
 	}
 
@@ -205,11 +207,17 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		}));
 
 		// Label
-		this.label = dom.append(this.element!, dom.$('a'));
+		this.label = dom.append(container, dom.$('a'));
 
 		// Badge
-		this.badge = dom.append(this.element!, dom.$('.badge'));
+		this.badge = dom.append(container, dom.$('.badge'));
 		this.badgeContent = dom.append(this.badge, dom.$('.badge-content'));
+
+		// Activity bar active border + background
+		const isActivityBarItem = this.options.icon;
+		if (isActivityBarItem) {
+			dom.append(container, dom.$('.active-item-indicator'));
+		}
 
 		dom.hide(this.badge);
 
@@ -294,14 +302,17 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		} else {
 			title = this.activity.name;
 		}
+
 		this.updateTitle(title);
 	}
 
 	protected updateLabel(): void {
 		this.label.className = 'action-label';
+
 		if (this.activity.cssClass) {
 			dom.addClass(this.label, this.activity.cssClass);
 		}
+
 		if (!this.options.icon) {
 			this.label.textContent = this.getAction().label;
 		}
@@ -347,7 +358,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 }
 
 export class CompositeOverflowActivityActionViewItem extends ActivityActionViewItem {
-	private actions: Action[] | undefined;
+	private actions: Action[] = [];
 
 	constructor(
 		action: ActivityAction,
@@ -370,16 +381,17 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		this.actions = this.getActions();
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.element!,
-			getActions: () => this.actions!,
-			onHide: () => dispose(this.actions!)
+			getAnchor: () => this.container,
+			getActions: () => this.actions,
+			getCheckedActionsRepresentation: () => 'radio',
+			onHide: () => dispose(this.actions)
 		});
 	}
 
 	private getActions(): Action[] {
 		return this.getOverflowingComposites().map(composite => {
 			const action = this.getCompositeOpenAction(composite.id);
-			action.radio = this.getActiveCompositeId() === action.id;
+			action.checked = this.getActiveCompositeId() === action.id;
 
 			const badge = this.getBadge(composite.id);
 			let suffix: string | number | undefined;
@@ -439,7 +451,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	constructor(
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
-		private contextMenuActionsProvider: () => Action[],
+		private contextMenuActionsProvider: () => ReadonlyArray<Action>,
 		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
 		private compositeBar: ICompositeBar,
@@ -502,7 +514,9 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		// Allow to drag
 		this._register(dom.addDisposableListener(this.container, dom.EventType.DRAG_START, (e: DragEvent) => {
-			e.dataTransfer!.effectAllowed = 'move';
+			if (e.dataTransfer) {
+				e.dataTransfer.effectAllowed = 'move';
+			}
 
 			// Registe as dragged to local transfer
 			this.compositeTransfer.setData([new DraggedCompositeIdentifier(this.activity.id)], DraggedCompositeIdentifier.prototype);
@@ -515,8 +529,11 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		this._register(new DragAndDropObserver(this.container, {
 			onDragEnter: e => {
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) && this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype)![0].id !== this.activity.id) {
-					this.updateFromDragging(container, true);
+				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
+					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
+					if (Array.isArray(data) && data[0].id !== this.activity.id) {
+						this.updateFromDragging(container, true);
+					}
 				}
 			},
 
@@ -538,12 +555,15 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				dom.EventHelper.stop(e, true);
 
 				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-					const draggedCompositeId = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype)![0].id;
-					if (draggedCompositeId !== this.activity.id) {
-						this.updateFromDragging(container, false);
-						this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
+					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedCompositeId = data[0].id;
+						if (draggedCompositeId !== this.activity.id) {
+							this.updateFromDragging(container, false);
+							this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
 
-						this.compositeBar.move(draggedCompositeId, this.activity.id);
+							this.compositeBar.move(draggedCompositeId, this.activity.id);
+						}
 					}
 				}
 			}
@@ -563,7 +583,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		const theme = this.themeService.getTheme();
 		const dragBackground = this.options.colors(theme).dragAndDropBackground;
 
-		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : null;
+		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : '';
 	}
 
 	private showContextMenu(container: HTMLElement): void {
@@ -595,8 +615,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActionsContext: () => this.activity.id,
-			getActions: () => actions
+			getActions: () => actions,
+			getActionsContext: () => this.activity.id
 		});
 	}
 

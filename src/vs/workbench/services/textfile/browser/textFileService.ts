@@ -39,7 +39,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -74,14 +73,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IFileService protected readonly fileService: IFileService,
 		@IUntitledEditorService protected readonly untitledEditorService: IUntitledEditorService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@IHostService private readonly hostService: IHostService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -180,7 +178,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			case ShutdownReason.CLOSE:
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 					doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-				} else if (await this.hostService.windowCount > 1 || platform.isMacintosh) {
+				} else if (await this.getWindowCount() > 1 || platform.isMacintosh) {
 					doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
 				} else {
 					doBackup = true; // backup if last window is closed on win/linux where the application quits right after
@@ -212,6 +210,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		return true;
 	}
+
+	protected abstract getWindowCount(): Promise<number>;
 
 	private backupAll(dirtyToBackup: URI[]): Promise<void> {
 
@@ -660,7 +660,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return result;
 	}
 
-	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: readonly string[]): Promise<URI | undefined> {
 
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
@@ -668,7 +668,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileDialogService.pickFileToSave(this.getSaveDialogOptions(defaultUri, availableFileSystems));
 	}
 
-	private getSaveDialogOptions(defaultUri: URI, availableFileSystems?: string[]): ISaveDialogOptions {
+	private getSaveDialogOptions(defaultUri: URI, availableFileSystems?: readonly string[]): ISaveDialogOptions {
 		const options: ISaveDialogOptions = {
 			defaultUri,
 			title: nls.localize('saveAsTitle', "Save As"),

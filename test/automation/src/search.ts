@@ -84,11 +84,11 @@ export class Search extends Viewlet {
 	}
 
 	async expandReplace(): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.collapse`);
+		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.codicon-chevron-right`);
 	}
 
 	async collapseReplace(): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.expand`);
+		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.codicon-chevron-down`);
 	}
 
 	async setReplaceText(text: string): Promise<void> {
@@ -100,12 +100,12 @@ export class Search extends Viewlet {
 
 		await retry(
 			() => this.code.waitAndClick(fileMatch),
-			() => this.code.waitForElement(`${fileMatch} .action-label.codicon.action-replace-all`, el => !!el && el.top > 0 && el.left > 0, 10)
+			() => this.code.waitForElement(`${fileMatch} .action-label.codicon.codicon-replace-all`, el => !!el && el.top > 0 && el.left > 0, 10)
 		);
 
 		// ¯\_(ツ)_/¯
 		await new Promise(c => setTimeout(c, 500));
-		await this.code.waitAndClick(`${fileMatch} .action-label.codicon.action-replace-all`);
+		await this.code.waitAndClick(`${fileMatch} .action-label.codicon.codicon-replace-all`);
 	}
 
 	async waitForResultText(text: string): Promise<void> {

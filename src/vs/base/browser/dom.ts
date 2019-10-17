@@ -781,6 +781,12 @@ export function createStyleSheet(container: HTMLElement = document.getElementsBy
 	return style;
 }
 
+export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
+	let meta = document.createElement('meta');
+	container.appendChild(meta);
+	return meta;
+}
+
 let _sharedStyleSheet: HTMLStyleElement | null = null;
 function getSharedStyleSheet(): HTMLStyleElement {
 	if (!_sharedStyleSheet) {

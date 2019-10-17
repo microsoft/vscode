@@ -15,7 +15,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -91,7 +91,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 				menu: {
 					menuId: MenuId.CommandPalette
 				},
-				handler: (_accessor) => this.remoteAuthority && hostService.openEmptyWindow({ reuse: true })
+				handler: (_accessor) => this.remoteAuthority && hostService.openWindow({ forceReuseWindow: true })
 			});
 
 			// Pending entry until extensions are ready

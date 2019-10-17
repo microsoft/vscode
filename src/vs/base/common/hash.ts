@@ -36,7 +36,7 @@ function booleanHash(b: boolean, initialHashVal: number): number {
 	return numberHash(b ? 433 : 863, initialHashVal);
 }
 
-function stringHash(s: string, hashVal: number) {
+export function stringHash(s: string, hashVal: number) {
 	hashVal = numberHash(149417, hashVal);
 	for (let i = 0, length = s.length; i < length; i++) {
 		hashVal = numberHash(s.charCodeAt(i), hashVal);

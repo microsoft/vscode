@@ -256,8 +256,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
-	public getInspectPort(): number {
-		return 0;
+	public getInspectPort(_tryEnableInspector: boolean): Promise<number> {
+		return Promise.resolve(0);
 	}
 
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
@@ -459,9 +459,10 @@ class ProposedApiController {
 		// Make enabled proposed API be lowercase for case insensitive comparison
 		this.enableProposedApiFor = (environmentService.args['enable-proposed-api'] || []).map(id => id.toLowerCase());
 
-		this.enableProposedApiForAll = !environmentService.isBuilt ||
-			(!!environmentService.extensionDevelopmentLocationURI && productService.nameLong !== 'Visual Studio Code') ||
-			(this.enableProposedApiFor.length === 0 && 'enable-proposed-api' in environmentService.args);
+		this.enableProposedApiForAll =
+			!environmentService.isBuilt || // always allow proposed API when running out of sources
+			(!!environmentService.extensionDevelopmentLocationURI && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
+			(this.enableProposedApiFor.length === 0 && 'enable-proposed-api' in environmentService.args); // always allow proposed API if --enable-proposed-api is provided without extension ID
 
 		this.productAllowProposedApi = new Set<string>();
 		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {

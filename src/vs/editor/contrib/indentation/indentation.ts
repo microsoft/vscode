@@ -422,7 +422,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 }
 
 export class AutoIndentOnPaste implements IEditorContribution {
-	private static readonly ID = 'editor.contrib.autoIndentOnPaste';
+	public static readonly ID = 'editor.contrib.autoIndentOnPaste';
 
 	private readonly editor: ICodeEditor;
 	private readonly callOnDispose = new DisposableStore();
@@ -604,10 +604,6 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		return false;
 	}
 
-	public getId(): string {
-		return AutoIndentOnPaste.ID;
-	}
-
 	public dispose(): void {
 		this.callOnDispose.dispose();
 		this.callOnModel.dispose();
@@ -681,7 +677,7 @@ export class IndentationToTabsCommand implements ICommand {
 	}
 }
 
-registerEditorContribution(AutoIndentOnPaste);
+registerEditorContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 registerEditorAction(IndentationToSpacesAction);
 registerEditorAction(IndentationToTabsAction);
 registerEditorAction(IndentUsingTabs);

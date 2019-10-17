@@ -94,7 +94,7 @@ export interface ISaveDialogOptions {
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
 	 * the schema of the current window.
 	 */
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
 export interface IOpenDialogOptions {
@@ -138,7 +138,7 @@ export interface IOpenDialogOptions {
 	 * Specifies a list of schemas for the file systems the user can load from. If not specified, uses the schema of the defaultURI or, if also not available,
 	 * the schema of the current window.
 	 */
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
 

@@ -16,7 +16,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platfor
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData, ITextSearchComplete } from '../common/extHost.protocol';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqualOrParent } from 'vs/base/common/resources';

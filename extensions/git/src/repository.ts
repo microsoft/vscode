@@ -579,6 +579,27 @@ export class Repository implements Disposable {
 		return this._refs;
 	}
 
+	get headShortName(): string | undefined {
+		if (!this.HEAD) {
+			return;
+		}
+
+		const HEAD = this.HEAD;
+
+		if (HEAD.name) {
+			return HEAD.name;
+		}
+
+		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+		const tagName = tag && tag.name;
+
+		if (tagName) {
+			return tagName;
+		}
+
+		return (HEAD.commit || '').substr(0, 8);
+	}
+
 	private _remotes: Remote[] = [];
 	get remotes(): Remote[] {
 		return this._remotes;
@@ -729,8 +750,6 @@ export class Repository implements Disposable {
 		const onDidChangeCountBadge = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.countBadge', root));
 		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
 		this.setCountBadge();
-
-		this.updateCommitTemplate();
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
@@ -806,12 +825,14 @@ export class Repository implements Disposable {
 		return toGitUri(uri, '', { replaceFileExtension: true });
 	}
 
-	private async updateCommitTemplate(): Promise<void> {
-		try {
-			this._sourceControl.commitTemplate = await this.repository.getCommitTemplate();
-		} catch (e) {
-			// noop
+	async getInputTemplate(): Promise<string> {
+		const mergeMessage = await this.repository.getMergeMessage();
+
+		if (mergeMessage) {
+			return mergeMessage;
 		}
+
+		return await this.repository.getCommitTemplate();
 	}
 
 	getConfigs(): Promise<{ key: string; value: string; }[]> {
@@ -1033,8 +1054,8 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async fetchDefault(): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch());
+	async fetchDefault(options: { silent?: boolean } = {}): Promise<void> {
+		await this.run(Operation.Fetch, () => this.repository.fetch(options));
 	}
 
 	@throttle
@@ -1234,6 +1255,10 @@ export class Repository implements Disposable {
 
 	async getCommitTemplate(): Promise<string> {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+	}
+
+	async cleanUpCommitEditMessage(editMessage: string): Promise<string> {
+		return this.repository.cleanupCommitEditMessage(editMessage);
 	}
 
 	async ignore(files: Uri[]): Promise<void> {
@@ -1457,9 +1482,9 @@ export class Repository implements Disposable {
 		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
 
 		this._HEAD = HEAD;
-		this._refs = refs;
-		this._remotes = remotes;
-		this._submodules = submodules;
+		this._refs = refs!;
+		this._remotes = remotes!;
+		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
 
 		const index: Resource[] = [];
@@ -1507,6 +1532,8 @@ export class Repository implements Disposable {
 		this.setCountBadge();
 
 		this._onDidChangeStatus.fire();
+
+		this._sourceControl.commitTemplate = await this.getInputTemplate();
 	}
 
 	private setCountBadge(): void {
@@ -1643,15 +1670,11 @@ export class Repository implements Disposable {
 	}
 
 	private updateInputBoxPlaceholder(): void {
-		const HEAD = this.HEAD;
+		const branchName = this.headShortName;
 
-		if (HEAD) {
-			const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-			const tagName = tag && tag.name;
-			const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
-
+		if (branchName) {
 			// '{0}' will be replaced by the corresponding key-command later in the process, which is why it needs to stay.
-			this._sourceControl.inputBox.placeholder = localize('commitMessageWithHeadLabel', "Message ({0} to commit on '{1}')", "{0}", head);
+			this._sourceControl.inputBox.placeholder = localize('commitMessageWithHeadLabel', "Message ({0} to commit on '{1}')", "{0}", branchName);
 		} else {
 			this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message ({0} to commit)");
 		}

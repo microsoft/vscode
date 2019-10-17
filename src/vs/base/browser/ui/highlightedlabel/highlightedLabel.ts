@@ -15,15 +15,15 @@ export interface IHighlight {
 export class HighlightedLabel {
 
 	private domNode: HTMLElement;
-	private text: string;
-	private title: string;
-	private highlights: IHighlight[];
-	private didEverRender: boolean;
+	private text: string = '';
+	private title: string = '';
+	private highlights: IHighlight[] = [];
+	private didEverRender: boolean = false;
 
-	constructor(container: HTMLElement, private supportOcticons: boolean) {
+	constructor(container: HTMLElement, private supportCodicons: boolean) {
 		this.domNode = document.createElement('span');
 		this.domNode.className = 'monaco-highlighted-label';
-		this.didEverRender = false;
+
 		container.appendChild(this.domNode);
 	}
 
@@ -65,13 +65,13 @@ export class HighlightedLabel {
 			if (pos < highlight.start) {
 				htmlContent += '<span>';
 				const substring = this.text.substring(pos, highlight.start);
-				htmlContent += this.supportOcticons ? renderCodicons(substring) : escape(substring);
+				htmlContent += this.supportCodicons ? renderCodicons(substring) : escape(substring);
 				htmlContent += '</span>';
 				pos = highlight.end;
 			}
 			htmlContent += '<span class="highlight">';
 			const substring = this.text.substring(highlight.start, highlight.end);
-			htmlContent += this.supportOcticons ? renderCodicons(substring) : escape(substring);
+			htmlContent += this.supportCodicons ? renderCodicons(substring) : escape(substring);
 			htmlContent += '</span>';
 			pos = highlight.end;
 		}
@@ -79,7 +79,7 @@ export class HighlightedLabel {
 		if (pos < this.text.length) {
 			htmlContent += '<span>';
 			const substring = this.text.substring(pos);
-			htmlContent += this.supportOcticons ? renderCodicons(substring) : escape(substring);
+			htmlContent += this.supportCodicons ? renderCodicons(substring) : escape(substring);
 			htmlContent += '</span>';
 		}
 

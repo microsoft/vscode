@@ -22,7 +22,7 @@ export interface IMarkerService {
 
 	read(filter?: { owner?: string; resource?: URI; severities?: number, take?: number; }): IMarker[];
 
-	onMarkerChanged: Event<URI[]>;
+	readonly onMarkerChanged: Event<readonly URI[]>;
 }
 
 /**

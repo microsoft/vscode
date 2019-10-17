@@ -5,6 +5,7 @@
 
 import { OperatingSystem } from 'vs/base/common/platform';
 import { illegalArgument } from 'vs/base/common/errors';
+import { equals } from 'vs/base/common/arrays';
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -525,15 +526,7 @@ export class ChordKeybinding {
 		if (other === null) {
 			return false;
 		}
-		if (this.parts.length !== other.parts.length) {
-			return false;
-		}
-		for (let i = 0; i < this.parts.length; i++) {
-			if (!this.parts[i].equals(other.parts[i])) {
-				return false;
-			}
-		}
-		return true;
+		return equals(this.parts, other.parts, (a, b) => a.equals(b));
 	}
 }
 

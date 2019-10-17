@@ -454,7 +454,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 
 			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.hostService.openInWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
+				run: () => this.hostService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
 			}], { neverShowAgain });
 		}
 
@@ -467,7 +467,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
 						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
 							if (pick) {
-								this.hostService.openInWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
+								this.hostService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
 							}
 						});
 				}

@@ -196,7 +196,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
-	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions, private _maxResults: number, private _parent: FolderMatch, private rawMatch: IFileMatch,
+	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions | undefined, private _maxResults: number | undefined, private _parent: FolderMatch, private rawMatch: IFileMatch,
 		@IModelService private readonly modelService: IModelService, @IReplaceService private readonly replaceService: IReplaceService
 	) {
 		super();

@@ -7,9 +7,9 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -20,12 +20,12 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
-		Event.latch(windowService.onDidChangeFocus)
+		Event.latch(hostService.onDidChangeFocus)
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 	}
 
@@ -39,7 +39,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	}
 
 	$getWindowVisibility(): Promise<boolean> {
-		return this.windowService.isFocused();
+		return Promise.resolve(this.hostService.hasFocus);
 	}
 
 	async $openUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<boolean> {
@@ -47,7 +47,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		return this.openerService.open(uri, { openExternal: true, allowTunneling: options.allowTunneling });
 	}
 
-	async $resolveExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
+	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
 		const uri = URI.revive(uriComponents);
 		const result = await this.openerService.resolveExternalUri(uri, options);
 		return result.resolved;

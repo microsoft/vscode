@@ -37,6 +37,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
+import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -169,6 +170,8 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Register uri display for file uris
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
 
+// Workspace Watcher
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceWatcher, LifecyclePhase.Restored);
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -239,17 +242,20 @@ configurationRegistry.registerConfiguration({
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can also be configured per language."),
 			'scope': ConfigurationScope.RESOURCE,
-			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
+			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong),
+			'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'overridable': true,
 			'default': false,
 			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
-			'scope': ConfigurationScope.RESOURCE
+			'scope': ConfigurationScope.RESOURCE,
+			'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
 		},
 		'files.eol': {
 			'type': 'string',
+			'overridable': true,
 			'enum': [
 				'\n',
 				'\r\n',

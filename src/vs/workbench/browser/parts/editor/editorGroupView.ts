@@ -95,13 +95,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#endregion
 
 	private _group: EditorGroup;
-	private _disposed: boolean;
+	private _disposed = false;
 
-	private active: boolean;
-	private dimension: Dimension;
+	private active: boolean | undefined;
+	private dimension: Dimension | undefined;
 
 	private _whenRestored: Promise<void>;
-	private isRestored: boolean;
+	private isRestored = false;
 
 	private scopedInstantiationService: IInstantiationService;
 
@@ -119,7 +119,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	constructor(
 		private accessor: IEditorGroupsAccessor,
-		from: IEditorGroupView | ISerializedEditorGroup,
+		from: IEditorGroupView | ISerializedEditorGroup | null,
 		private _index: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -143,74 +143,73 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
 
-		this.create();
+		//#region create()
+		{
+			// Container
+			addClasses(this.element, 'editor-group-container');
+
+			// Container listeners
+			this.registerContainerListeners();
+
+			// Container toolbar
+			this.createContainerToolbar();
+
+			// Container context menu
+			this.createContainerContextMenu();
+
+			// Letterpress container
+			const letterpressContainer = document.createElement('div');
+			addClass(letterpressContainer, 'editor-group-letterpress');
+			this.element.appendChild(letterpressContainer);
+
+			// Progress bar
+			this.progressBar = this._register(new ProgressBar(this.element));
+			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar.hide();
+
+			// Scoped services
+			const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+				[IContextKeyService, scopedContextKeyService],
+				[IEditorProgressService, new EditorProgressService(this.progressBar)]
+			));
+
+			// Context keys
+			this.handleGroupContextKeys(scopedContextKeyService);
+
+			// Title container
+			this.titleContainer = document.createElement('div');
+			addClass(this.titleContainer, 'title');
+			this.element.appendChild(this.titleContainer);
+
+			// Title control
+			this.titleAreaControl = this.createTitleAreaControl();
+
+			// Editor container
+			this.editorContainer = document.createElement('div');
+			addClass(this.editorContainer, 'editor-container');
+			this.element.appendChild(this.editorContainer);
+
+			// Editor control
+			this.editorControl = this._register(this.scopedInstantiationService.createInstance(EditorControl, this.editorContainer, this));
+			this._onDidChange.input = this.editorControl.onDidSizeConstraintsChange;
+
+			// Track Focus
+			this.doTrackFocus();
+
+			// Update containers
+			this.updateTitleContainer();
+			this.updateContainer();
+
+			// Update styles
+			this.updateStyles();
+		}
+		//#endregion
 
 		this._whenRestored = this.restoreEditors(from);
 		this._whenRestored.then(() => this.isRestored = true);
 
 		this.registerListeners();
-	}
-
-	private create(): void {
-
-		// Container
-		addClasses(this.element, 'editor-group-container');
-
-		// Container listeners
-		this.registerContainerListeners();
-
-		// Container toolbar
-		this.createContainerToolbar();
-
-		// Container context menu
-		this.createContainerContextMenu();
-
-		// Letterpress container
-		const letterpressContainer = document.createElement('div');
-		addClass(letterpressContainer, 'editor-group-letterpress');
-		this.element.appendChild(letterpressContainer);
-
-		// Progress bar
-		this.progressBar = this._register(new ProgressBar(this.element));
-		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
-		this.progressBar.hide();
-
-		// Scoped services
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService],
-			[IEditorProgressService, new EditorProgressService(this.progressBar)]
-		));
-
-		// Context keys
-		this.handleGroupContextKeys(scopedContextKeyService);
-
-		// Title container
-		this.titleContainer = document.createElement('div');
-		addClass(this.titleContainer, 'title');
-		this.element.appendChild(this.titleContainer);
-
-		// Title control
-		this.createTitleAreaControl();
-
-		// Editor container
-		this.editorContainer = document.createElement('div');
-		addClass(this.editorContainer, 'editor-container');
-		this.element.appendChild(this.editorContainer);
-
-		// Editor control
-		this.editorControl = this._register(this.scopedInstantiationService.createInstance(EditorControl, this.editorContainer, this));
-		this._onDidChange.input = this.editorControl.onDidSizeConstraintsChange;
-
-		// Track Focus
-		this.doTrackFocus();
-
-		// Update containers
-		this.updateTitleContainer();
-		this.updateContainer();
-
-		// Update styles
-		this.updateStyles();
 	}
 
 	private handleGroupContextKeys(contextKeyService: IContextKeyService): void {
@@ -289,7 +288,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const removeGroupAction = this._register(new Action(
 			CLOSE_EDITOR_GROUP_COMMAND_ID,
 			localize('closeGroupAction', "Close"),
-			'close-editor-group',
+			'codicon-close',
 			true,
 			() => {
 				this.accessor.removeGroup(this);
@@ -404,7 +403,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		toggleClass(this.titleContainer, 'show-file-icons', this.accessor.partOptions.showIcons);
 	}
 
-	private createTitleAreaControl(): void {
+	private createTitleAreaControl(): TitleControl {
 
 		// Clear old if existing
 		if (this.titleAreaControl) {
@@ -418,9 +417,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		} else {
 			this.titleAreaControl = this.scopedInstantiationService.createInstance(NoTabsTitleControl, this.titleContainer, this.accessor, this);
 		}
+
+		return this.titleAreaControl;
 	}
 
-	private async restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): Promise<void> {
+	private async restoreEditors(from: IEditorGroupView | ISerializedEditorGroup | null): Promise<void> {
 		if (this._group.count === 0) {
 			return; // nothing to show
 		}
@@ -596,7 +597,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Recreate and layout control
 			this.createTitleAreaControl();
-			this.layoutTitleAreaControl();
+			if (this.dimension) {
+				this.layoutTitleAreaControl(this.dimension.width);
+			}
 
 			// Ensure to show active editor if any
 			if (this._group.activeEditor) {
@@ -1442,9 +1445,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Container
 		if (isEmpty) {
-			this.element.style.backgroundColor = this.getColor(EDITOR_GROUP_EMPTY_BACKGROUND);
+			this.element.style.backgroundColor = this.getColor(EDITOR_GROUP_EMPTY_BACKGROUND) || '';
 		} else {
-			this.element.style.backgroundColor = null;
+			this.element.style.backgroundColor = '';
 		}
 
 		// Title control
@@ -1459,10 +1462,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.titleContainer.style.removeProperty('--title-border-bottom-color');
 		}
 
-		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND);
+		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || '';
 
 		// Editor container
-		this.editorContainer.style.backgroundColor = this.getColor(editorBackground);
+		this.editorContainer.style.backgroundColor = this.getColor(editorBackground) || '';
 	}
 
 	//#endregion
@@ -1487,12 +1490,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.editorContainer.style.height = `calc(100% - ${this.titleAreaControl.getPreferredHeight()}px)`;
 
 		// Forward to controls
-		this.layoutTitleAreaControl();
+		this.layoutTitleAreaControl(width);
 		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - this.titleAreaControl.getPreferredHeight()));
 	}
 
-	private layoutTitleAreaControl(): void {
-		this.titleAreaControl.layout(new Dimension(this.dimension.width, this.titleAreaControl.getPreferredHeight()));
+	private layoutTitleAreaControl(width: number): void {
+		this.titleAreaControl.layout(new Dimension(width, this.titleAreaControl.getPreferredHeight()));
 	}
 
 	relayout(): void {
@@ -1520,7 +1523,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 }
 
 class EditorOpeningEvent implements IEditorOpeningEvent {
-	private override: () => Promise<IEditor | undefined>;
+	private override: (() => Promise<IEditor | undefined>) | undefined = undefined;
 
 	constructor(
 		private _group: GroupIdentifier,
@@ -1545,7 +1548,7 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 		this.override = callback;
 	}
 
-	isPrevented(): () => Promise<IEditor | undefined> {
+	isPrevented(): (() => Promise<IEditor | undefined>) | undefined {
 		return this.override;
 	}
 }

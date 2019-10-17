@@ -33,14 +33,14 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private dirty: boolean = false;
 	private versionId: number = 0;
 	private readonly contentChangeEventScheduler: RunOnceScheduler;
-	private configuredEncoding: string;
+	private configuredEncoding?: string;
 
 	constructor(
-		private readonly preferredMode: string,
+		private readonly preferredMode: string | undefined,
 		private readonly resource: URI,
 		private _hasAssociatedFilePath: boolean,
-		private readonly initialValue: string,
-		private preferredEncoding: string,
+		private readonly initialValue: string | undefined,
+		private preferredEncoding: string | undefined,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -87,7 +87,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.preferredMode;
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		return this.preferredEncoding || this.configuredEncoding;
 	}
 

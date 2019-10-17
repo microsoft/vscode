@@ -122,8 +122,8 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			}
 		}));
 		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
-			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
+			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
+			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
 		}));
 
 		this.updateOptions();

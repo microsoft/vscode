@@ -54,8 +54,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private hitCountInput = '';
 	private logMessageInput = '';
 	private breakpoint: IBreakpoint | undefined;
+	private context: Context;
 
-	constructor(editor: ICodeEditor, private lineNumber: number, private column: number | undefined, private context: Context,
+	constructor(editor: ICodeEditor, private lineNumber: number, private column: number | undefined, context: Context | undefined,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -74,7 +75,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			this.breakpoint = breakpoints.length ? breakpoints[0] : undefined;
 		}
 
-		if (this.context === undefined) {
+		if (context === undefined) {
 			if (this.breakpoint && !this.breakpoint.condition && !this.breakpoint.hitCondition && this.breakpoint.logMessage) {
 				this.context = Context.LOG_MESSAGE;
 			} else if (this.breakpoint && !this.breakpoint.condition && this.breakpoint.hitCondition) {
@@ -82,6 +83,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			} else {
 				this.context = Context.CONDITION;
 			}
+		} else {
+			this.context = context;
 		}
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {

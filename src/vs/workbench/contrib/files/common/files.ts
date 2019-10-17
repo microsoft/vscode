@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { IFilesConfiguration as PlatformIFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -102,7 +102,7 @@ export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
 
 
-export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEditorConfiguration {
+export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkbenchEditorConfiguration {
 	explorer: {
 		openEditors: {
 			visible: number;

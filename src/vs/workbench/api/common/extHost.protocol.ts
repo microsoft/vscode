@@ -32,7 +32,7 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
 import { RemoteAuthorityResolverErrorCode, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import * as statusbar from 'vs/platform/statusbar/common/statusbar';
+import * as statusbar from 'vs/workbench/services/statusbar/common/statusbar';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -505,7 +505,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: string | undefined, color: string | ThemeColor | undefined, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
 	$dispose(id: number): void;
 }
 
@@ -540,22 +540,28 @@ export interface WebviewPanelShowOptions {
 	readonly preserveFocus?: boolean;
 }
 
+export interface WebviewExtensionDescription {
+	readonly id: ExtensionIdentifier;
+	readonly location: UriComponents;
+}
+
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
+	$createWebviewPanel(extension: WebviewExtensionDescription, handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
-	$setState(handle: WebviewPanelHandle, state: modes.WebviewEditorState): void;
+	$setState(handle: WebviewPanelHandle, state: modes.WebviewContentState): void;
 	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void;
+
 	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
 
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 
-	$registerEditorProvider(viewType: string): void;
+	$registerEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
 }
 
@@ -573,7 +579,7 @@ export interface ExtHostWebviewsShape {
 	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
-	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$save(handle: WebviewPanelHandle): Promise<boolean>;
 }
 
@@ -744,7 +750,7 @@ export interface IOpenUriOptions {
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): Promise<boolean>;
 	$openUri(uri: UriComponents, options: IOpenUriOptions): Promise<boolean>;
-	$resolveExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
+	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
 }
 
 // -- extension host
@@ -937,21 +943,38 @@ export class IdObject {
 	}
 }
 
+export const enum ISuggestDataDtoField {
+	label = 'a',
+	kind = 'b',
+	detail = 'c',
+	documentation = 'd',
+	sortText = 'e',
+	filterText = 'f',
+	preselect = 'g',
+	insertText = 'h',
+	insertTextRules = 'i',
+	range = 'j',
+	commitCharacters = 'k',
+	additionalTextEdits = 'l',
+	command = 'm',
+	kindModifier = 'n',
+}
+
 export interface ISuggestDataDto {
-	a/* label */: string;
-	b/* kind */: modes.CompletionItemKind;
-	c/* detail */?: string;
-	d/* documentation */?: string | IMarkdownString;
-	e/* sortText */?: string;
-	f/* filterText */?: string;
-	g/* preselect */?: boolean;
-	h/* insertText */?: string;
-	i/* insertTextRules */?: modes.CompletionItemInsertTextRule;
-	j/* range */?: IRange;
-	k/* commitCharacters */?: string[];
-	l/* additionalTextEdits */?: ISingleEditOperation[];
-	m/* command */?: modes.Command;
-	n/* kindModifier */?: modes.CompletionItemTag[];
+	[ISuggestDataDtoField.label]: string;
+	[ISuggestDataDtoField.kind]: modes.CompletionItemKind;
+	[ISuggestDataDtoField.detail]?: string;
+	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
+	[ISuggestDataDtoField.sortText]?: string;
+	[ISuggestDataDtoField.filterText]?: string;
+	[ISuggestDataDtoField.preselect]?: boolean;
+	[ISuggestDataDtoField.insertText]?: string;
+	[ISuggestDataDtoField.insertTextRules]?: modes.CompletionItemInsertTextRule;
+	[ISuggestDataDtoField.range]?: IRange;
+	[ISuggestDataDtoField.commitCharacters]?: string[];
+	[ISuggestDataDtoField.additionalTextEdits]?: ISingleEditOperation[];
+	[ISuggestDataDtoField.command]?: modes.Command;
+	[ISuggestDataDtoField.kindModifier]?: modes.CompletionItemTag[];
 	// not-standard
 	x?: ChainedCacheId;
 }

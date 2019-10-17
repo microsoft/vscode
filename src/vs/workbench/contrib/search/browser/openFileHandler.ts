@@ -50,7 +50,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private resource: URI,
 		private name: string,
 		private description: string,
-		private icon: string,
+		private icon: string | undefined,
 		@IEditorService editorService: IEditorService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
@@ -78,7 +78,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return this.description;
 	}
 
-	getIcon(): string {
+	getIcon(): string | undefined {
 		return this.icon;
 	}
 

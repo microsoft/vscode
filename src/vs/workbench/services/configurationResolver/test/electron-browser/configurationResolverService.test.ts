@@ -494,7 +494,7 @@ suite('Configuration Resolver Service', () => {
 			'name': '${' + variable + '}',
 		};
 		configurationResolverService!.contributeVariable(variable, async () => { return buildTask; });
-		return configurationResolverService!.resolveAny(workspace, configuration).then(result => {
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration).then(result => {
 			assert.deepEqual(result, {
 				'name': `${buildTask}`
 			});
@@ -645,6 +645,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 class MockWorkbenchEnvironmentService extends WorkbenchEnvironmentService {
 
 	constructor(env: platform.IProcessEnvironment) {
-		super({ userEnv: env } as IWindowConfiguration, process.execPath);
+		super({ userEnv: env } as IWindowConfiguration, process.execPath, 0);
 	}
 }

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IRecentFile, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowService, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -28,8 +28,7 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IRecentFile } from 'vs/platform/history/common/history';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -161,7 +160,7 @@ export class ResourcesDropHandler {
 	constructor(
 		private options: IResourcesDropHandlerOptions,
 		@IFileService private readonly fileService: IFileService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
@@ -189,9 +188,9 @@ export class ResourcesDropHandler {
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
-		const recents: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
-		if (recents.length) {
-			this.windowService.addRecentlyOpened(recents);
+		const recentFiles: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
+		if (recentFiles.length) {
+			this.workspacesService.addRecentlyOpened(recentFiles);
 		}
 
 		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
@@ -244,11 +243,13 @@ export class ResourcesDropHandler {
 		}
 
 		// Resolve the contents of the dropped dirty resource from source
-		try {
-			const content = await this.backupFileService.resolveBackupContent((droppedDirtyEditor.backupResource!));
-			await this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
-		} catch (e) {
-			// Ignore error
+		if (droppedDirtyEditor.backupResource) {
+			try {
+				const content = await this.backupFileService.resolveBackupContent((droppedDirtyEditor.backupResource));
+				await this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
+			} catch (e) {
+				// Ignore error
+			}
 		}
 
 		return false;
@@ -298,7 +299,7 @@ export class ResourcesDropHandler {
 
 		// Open in separate windows if we drop workspaces or just one folder
 		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {
-			await this.hostService.openInWindow(toOpen, { forceReuseWindow: true });
+			await this.hostService.openWindow(toOpen, { forceReuseWindow: true });
 		}
 
 		// folders.length > 1: Multiple folders: Create new workspace with folders and open

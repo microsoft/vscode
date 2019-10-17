@@ -24,7 +24,7 @@ export function tokenizeToString(text: string, tokenizationSupport: IReducedToke
 	return _tokenizeToString(text, tokenizationSupport || fallback);
 }
 
-export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number): string {
+export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number, useNbsp: boolean): string {
 	let result = `<div>`;
 	let charIndex = startOffset;
 	let tabsCharDelta = 0;
@@ -46,7 +46,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					while (insertSpacesCount > 0) {
-						partContent += '&nbsp;';
+						partContent += useNbsp ? '&nbsp;' : ' ';
 						insertSpacesCount--;
 					}
 					break;
@@ -78,7 +78,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					break;
 
 				case CharCode.Space:
-					partContent += '&nbsp;';
+					partContent += useNbsp ? '&nbsp;' : ' ';
 					break;
 
 				default:

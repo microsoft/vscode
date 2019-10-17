@@ -14,13 +14,16 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
  */
 export class TextDiffEditorModel extends DiffEditorModel {
 
-	protected readonly _originalModel!: BaseTextEditorModel | null;
-	protected readonly _modifiedModel!: BaseTextEditorModel | null;
+	protected readonly _originalModel: BaseTextEditorModel | null;
+	protected readonly _modifiedModel: BaseTextEditorModel | null;
 
 	private _textDiffEditorModel: IDiffEditorModel | null = null;
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);
+
+		this._originalModel = originalModel;
+		this._modifiedModel = modifiedModel;
 
 		this.updateTextDiffEditorModel();
 	}

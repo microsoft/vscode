@@ -47,10 +47,10 @@
 		"c": "#",
 		"t": "source.objcpp meta.preprocessor.include.objcpp keyword.control.directive.import.objcpp punctuation.definition.directive.objcpp",
 		"r": {
-			"dark_plus": "keyword.control.directive: #569CD6",
-			"light_plus": "keyword.control.directive: #0000FF",
-			"dark_vs": "keyword.control.directive: #569CD6",
-			"light_vs": "keyword.control.directive: #0000FF",
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
 		}
 	},
@@ -58,10 +58,10 @@
 		"c": "import",
 		"t": "source.objcpp meta.preprocessor.include.objcpp keyword.control.directive.import.objcpp",
 		"r": {
-			"dark_plus": "keyword.control.directive: #569CD6",
-			"light_plus": "keyword.control.directive: #0000FF",
-			"dark_vs": "keyword.control.directive: #569CD6",
-			"light_vs": "keyword.control.directive: #0000FF",
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
 		}
 	},
@@ -113,10 +113,10 @@
 		"c": "#",
 		"t": "source.objcpp meta.preprocessor.include.objcpp keyword.control.directive.import.objcpp punctuation.definition.directive.objcpp",
 		"r": {
-			"dark_plus": "keyword.control.directive: #569CD6",
-			"light_plus": "keyword.control.directive: #0000FF",
-			"dark_vs": "keyword.control.directive: #569CD6",
-			"light_vs": "keyword.control.directive: #0000FF",
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
 		}
 	},
@@ -124,10 +124,10 @@
 		"c": "import",
 		"t": "source.objcpp meta.preprocessor.include.objcpp keyword.control.directive.import.objcpp",
 		"r": {
-			"dark_plus": "keyword.control.directive: #569CD6",
-			"light_plus": "keyword.control.directive: #0000FF",
-			"dark_vs": "keyword.control.directive: #569CD6",
-			"light_vs": "keyword.control.directive: #0000FF",
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
 		}
 	},

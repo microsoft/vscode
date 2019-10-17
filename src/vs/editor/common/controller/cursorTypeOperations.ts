@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
@@ -81,20 +81,17 @@ export class TypeOperations {
 			const selection = selections[i];
 			let position = selection.getPosition();
 
+			if (pasteOnNewLine && !selection.isEmpty()) {
+				pasteOnNewLine = false;
+			}
 			if (pasteOnNewLine && text.indexOf('\n') !== text.length - 1) {
-				pasteOnNewLine = false;
-			}
-			if (pasteOnNewLine && selection.startLineNumber !== selection.endLineNumber) {
-				pasteOnNewLine = false;
-			}
-			if (pasteOnNewLine && selection.startColumn === model.getLineMinColumn(selection.startLineNumber) && selection.endColumn === model.getLineMaxColumn(selection.startLineNumber)) {
 				pasteOnNewLine = false;
 			}
 
 			if (pasteOnNewLine) {
 				// Paste entire line at the beginning of line
 				let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
-				commands[i] = new ReplaceCommand(typeSelection, text);
+				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection);
 			} else {
 				commands[i] = new ReplaceCommand(selection, text);
 			}
@@ -459,6 +456,12 @@ export class TypeOperations {
 			const afterCharacter = lineText.charAt(position.column - 1);
 
 			if (afterCharacter !== ch) {
+				return false;
+			}
+
+			// Do not over-type after a backslash
+			const beforeCharacter = position.column > 2 ? lineText.charCodeAt(position.column - 2) : CharCode.Null;
+			if (beforeCharacter === CharCode.Backslash) {
 				return false;
 			}
 

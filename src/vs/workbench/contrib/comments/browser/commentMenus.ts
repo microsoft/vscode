@@ -7,22 +7,15 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
-import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Comment, CommentThread } from 'vs/editor/common/modes';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class CommentMenus implements IDisposable {
 	constructor(
-		controller: MainThreadCommentController,
-		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
-	) {
-		const commentControllerKey = this.contextKeyService.createKey<string | undefined>('commentController', undefined);
-
-		commentControllerKey.set(controller.contextValue);
-	}
+	) { }
 
 	getCommentThreadTitleActions(commentThread: CommentThread, contextKeyService: IContextKeyService): IMenu {
 		return this.getMenu(MenuId.CommentThreadTitle, contextKeyService);

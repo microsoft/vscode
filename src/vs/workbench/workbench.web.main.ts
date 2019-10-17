@@ -40,44 +40,45 @@ import 'vs/workbench/services/credentials/browser/credentialsService';
 import 'vs/workbench/services/url/browser/urlService';
 import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/contrib/stats/browser/workspaceStatsService';
-import 'vs/workbench/services/workspace/browser/workspacesService';
+import 'vs/workbench/services/workspaces/browser/workspacesService';
+import 'vs/workbench/services/workspaces/browser/workspaceEditingService';
 import 'vs/workbench/services/dialogs/browser/dialogService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/request/browser/requestService';
-import 'vs/workbench/browser/web.simpleservices';
+import 'vs/workbench/services/lifecycle/browser/lifecycleService';
+import 'vs/workbench/services/clipboard/browser/clipboardService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { BrowserLifecycleService } from 'vs/platform/lifecycle/browser/lifecycleService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';
-import { IUserDataSyncStoreService, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { ILoggerService } from 'vs/platform/log/common/log';
+import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
+import { IAuthTokenService } from 'vs/platform/auth/common/auth';
+import { AuthTokenService } from 'vs/platform/auth/common/authTokenService';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { WorkspaceEditingService } from 'vs/workbench/services/workspace/browser/workspaceEditingService';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
-registerSingleton(IClipboardService, BrowserClipboardService, true);
 registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
-registerSingleton(ILifecycleService, BrowserLifecycleService);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ITunnelService, NoOpTunnelService, true);
+registerSingleton(ILoggerService, FileLoggerService);
+registerSingleton(IAuthTokenService, AuthTokenService);
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
-registerSingleton(IWorkspaceEditingService, WorkspaceEditingService, true);
 
 //#endregion
 
@@ -95,7 +96,7 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webviewService';
-import 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminalNativeService';
@@ -103,5 +104,8 @@ import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Tasks
 import 'vs/workbench/contrib/tasks/browser/taskService';
+
+// Telemetry Opt Out
+import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.contribution';
 
 //#endregion

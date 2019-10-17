@@ -70,7 +70,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Returns the parts HTML element, if there is one.
 	 */
-	getContainer(part: Parts): HTMLElement;
+	getContainer(part: Parts): HTMLElement | undefined;
 
 	/**
 	 * Returns if the part is visible.
@@ -80,7 +80,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Returns if the part is visible.
 	 */
-	getDimension(part: Parts): Dimension;
+	getDimension(part: Parts): Dimension | undefined;
 
 	/**
 	 * Set activity bar hidden or not

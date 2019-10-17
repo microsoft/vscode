@@ -46,7 +46,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 class TestEnvironmentService extends WorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath);
+		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
@@ -185,7 +185,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, notify: null!, error: null!, info: null!, warn: null!, status: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
 		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
 				(error: ConfigurationEditingError) => {

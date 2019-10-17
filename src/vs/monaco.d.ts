@@ -44,7 +44,7 @@ declare namespace monaco {
 		constructor(parent?: CancellationToken);
 		readonly token: CancellationToken;
 		cancel(): void;
-		dispose(): void;
+		dispose(cancel?: boolean): void;
 	}
 
 	export interface CancellationToken {
@@ -379,8 +379,8 @@ declare namespace monaco {
 	}
 
 	export interface IMarkdownString {
-		value: string;
-		isTrusted?: boolean;
+		readonly value: string;
+		readonly isTrusted?: boolean;
 		uris?: {
 			[href: string]: UriComponents;
 		};
@@ -813,7 +813,7 @@ declare namespace monaco.editor {
 	 * `domElement` should be empty (not contain other dom nodes).
 	 * The editor will read the size of `domElement`.
 	 */
-	export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
+	export function create(domElement: HTMLElement, options?: IStandaloneEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
 
 	/**
 	 * Emitted when an editor is created.
@@ -1051,7 +1051,7 @@ declare namespace monaco.editor {
 	/**
 	 * The options to create an editor.
 	 */
-	export interface IEditorConstructionOptions extends IEditorOptions {
+	export interface IStandaloneEditorConstructionOptions extends IEditorConstructionOptions {
 		/**
 		 * The initial model associated with this code editor.
 		 */
@@ -2061,6 +2061,8 @@ declare namespace monaco.editor {
 		/**
 		 * Instructs the editor to remeasure its container. This method should
 		 * be called when the container of the editor gets resized.
+		 *
+		 * If a dimension is passed in, the passed in value will be used.
 		 */
 		layout(dimension?: IDimension): void;
 		/**
@@ -2207,10 +2209,6 @@ declare namespace monaco.editor {
 	 * An editor contribution that gets created every time a new editor gets created and gets disposed when the editor gets disposed.
 	 */
 	export interface IEditorContribution {
-		/**
-		 * Get a unique identifier for this contribution.
-		 */
-		getId(): string;
 		/**
 		 * Dispose this contribution.
 		 */
@@ -2579,7 +2577,7 @@ declare namespace monaco.editor {
 		 * Enable font ligatures.
 		 * Defaults to false.
 		 */
-		fontLigatures?: boolean;
+		fontLigatures?: boolean | string;
 		/**
 		 * Disable the use of `will-change` for the editor margin and lines layers.
 		 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
@@ -2918,6 +2916,13 @@ declare namespace monaco.editor {
 		showUnused?: boolean;
 	}
 
+	export interface IEditorConstructionOptions extends IEditorOptions {
+		/**
+		 * The initial editor dimension (to avoid measuring the container).
+		 */
+		dimension?: IDimension;
+	}
+
 	/**
 	 * Configuration options for the diff editor.
 	 */
@@ -2932,6 +2937,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		renderSideBySide?: boolean;
+		/**
+		 * Timeout in milliseconds after which diff computation is cancelled.
+		 * Defaults to 5000.
+		 */
+		maxComputationTime?: number;
 		/**
 		 * Compute the diff by ignoring leading/trailing whitespace
 		 * Defaults to true.
@@ -3091,10 +3101,8 @@ declare namespace monaco.editor {
 
 	export enum RenderMinimap {
 		None = 0,
-		Small = 1,
-		Large = 2,
-		SmallBlocks = 3,
-		LargeBlocks = 4
+		Text = 1,
+		Blocks = 2
 	}
 
 	/**
@@ -3229,6 +3237,10 @@ declare namespace monaco.editor {
 		 * Defaults to 120.
 		 */
 		maxColumn?: number;
+		/**
+		 * Relative size of the font in the minimap. Defaults to 1.
+		 */
+		scale?: number;
 	}
 
 	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
@@ -3356,6 +3368,10 @@ declare namespace monaco.editor {
 	 * Configuration options for editor suggest widget
 	 */
 	export interface ISuggestOptions {
+		/**
+		 * Overwrite word ends on accept. Default to false.
+		 */
+		overwriteOnAccept?: boolean;
 		/**
 		 * Enable graceful matching. Defaults to true.
 		 */
@@ -4115,6 +4131,7 @@ declare namespace monaco.editor {
 		readonly fontFamily: string;
 		readonly fontWeight: string;
 		readonly fontSize: number;
+		readonly fontFeatureSettings: string;
 		readonly lineHeight: number;
 		readonly letterSpacing: number;
 	}
@@ -5127,7 +5144,7 @@ declare namespace monaco.languages {
 
 	/**
 	 * The document symbol provider interface defines the contract between extensions and
-	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
+	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
 	 */
 	export interface DocumentSymbolProvider {
 		displayName?: string;

@@ -7,7 +7,7 @@ import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
@@ -21,11 +21,12 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class OpenFileAction extends Action {
 
 	static readonly ID = 'workbench.action.files.openFile';
-	static LABEL = nls.localize('openFile', "Open File...");
+	static readonly LABEL = nls.localize('openFile', "Open File...");
 
 	constructor(
 		id: string,
@@ -43,7 +44,7 @@ export class OpenFileAction extends Action {
 export class OpenFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.files.openFolder';
-	static LABEL = nls.localize('openFolder', "Open Folder...");
+	static readonly LABEL = nls.localize('openFolder', "Open Folder...");
 
 	constructor(
 		id: string,
@@ -61,7 +62,7 @@ export class OpenFolderAction extends Action {
 export class OpenFileFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.files.openFileFolder';
-	static LABEL = nls.localize('openFileFolder', "Open...");
+	static readonly LABEL = nls.localize('openFileFolder', "Open...");
 
 	constructor(
 		id: string,
@@ -79,7 +80,7 @@ export class OpenFileFolderAction extends Action {
 export class OpenWorkspaceAction extends Action {
 
 	static readonly ID = 'workbench.action.openWorkspace';
-	static LABEL = nls.localize('openWorkspaceAction', "Open Workspace...");
+	static readonly LABEL = nls.localize('openWorkspaceAction', "Open Workspace...");
 
 	constructor(
 		id: string,
@@ -97,14 +98,15 @@ export class OpenWorkspaceAction extends Action {
 export class CloseWorkspaceAction extends Action {
 
 	static readonly ID = 'workbench.action.closeFolder';
-	static LABEL = nls.localize('closeWorkspace', "Close Workspace");
+	static readonly LABEL = nls.localize('closeWorkspace', "Close Workspace");
 
 	constructor(
 		id: string,
 		label: string,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super(id, label);
 	}
@@ -116,7 +118,7 @@ export class CloseWorkspaceAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
-		return this.hostService.closeWorkspace();
+		return this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: this.environmentService.configuration.remoteAuthority });
 	}
 }
 
@@ -148,7 +150,7 @@ export class OpenWorkspaceConfigFileAction extends Action {
 export class AddRootFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.addRootFolder';
-	static LABEL = ADD_ROOT_FOLDER_LABEL;
+	static readonly LABEL = ADD_ROOT_FOLDER_LABEL;
 
 	constructor(
 		id: string,
@@ -166,7 +168,7 @@ export class AddRootFolderAction extends Action {
 export class GlobalRemoveRootFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.removeRootFolder';
-	static LABEL = nls.localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace...");
+	static readonly LABEL = nls.localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace...");
 
 	constructor(
 		id: string,
@@ -200,7 +202,7 @@ const workspacesCategory = nls.localize('workspaces', "Workspaces");
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory, SupportsWorkspacesContext);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalRemoveRootFolderAction, GlobalRemoveRootFolderAction.ID, GlobalRemoveRootFolderAction.LABEL), 'Workspaces: Remove Folder from Workspace...', workspacesCategory, SupportsWorkspacesContext);
-registry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', workspacesCategory, SupportsWorkspacesContext);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'Workspaces: Close Workspace', workspacesCategory, SupportsWorkspacesContext);
 
 // --- Menu Registration
 
