@@ -18,7 +18,7 @@ import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
-import { LRUCache } from 'vs/base/common/map';
+import { LRUCache, Touch } from 'vs/base/common/map';
 
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -631,7 +631,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private setRecentlyUsedTask(key: string): void {
-		this.getRecentlyUsedTasks().set(key, key);
+		this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
 		this.saveRecentlyUsedTasks();
 	}
 
