@@ -8,7 +8,6 @@ import './accessibility/accessibility';
 import './diffEditorHelper';
 import './inspectKeybindings';
 import './largeFileOptimizations';
-import './selectionClipboard';
 import './inspectTMScopes/inspectTMScopes';
 import './toggleMinimap';
 import './toggleMultiCursorModifier';

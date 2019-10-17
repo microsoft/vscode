@@ -4,3 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './sleepResumeRepaintMinimap';
+import './selectionClipboard';

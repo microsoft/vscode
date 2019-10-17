@@ -9,8 +9,9 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
 export function getSimpleEditorOptions(): IEditorOptions {
 	return {
@@ -40,13 +41,13 @@ export function getSimpleEditorOptions(): IEditorOptions {
 export function getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
 		isSimpleWidget: true,
-		contributions: [
-			{ id: MenuPreventer.ID, ctor: MenuPreventer },
-			{ id: SelectionClipboard.ID, ctor: SelectionClipboard },
-			{ id: ContextMenuController.ID, ctor: ContextMenuController },
-			{ id: SuggestController.ID, ctor: SuggestController },
-			{ id: SnippetController2.ID, ctor: SnippetController2 },
-			{ id: TabCompletionController.ID, ctor: TabCompletionController },
-		]
+		contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+			MenuPreventer.ID,
+			SelectionClipboardContributionID,
+			ContextMenuController.ID,
+			SuggestController.ID,
+			SnippetController2.ID,
+			TabCompletionController.ID,
+		])
 	};
 }

@@ -31,7 +31,8 @@ import { IStyleOverrides, IThemable, attachStyler } from 'vs/platform/theme/comm
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
 interface SuggestResultsProvider {
 	/**
@@ -130,13 +131,13 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
 			{
-				contributions: [
-					{ id: SuggestController.ID, ctor: SuggestController },
-					{ id: SnippetController2.ID, ctor: SnippetController2 },
-					{ id: ContextMenuController.ID, ctor: ContextMenuController },
-					{ id: MenuPreventer.ID, ctor: MenuPreventer },
-					{ id: SelectionClipboard.ID, ctor: SelectionClipboard }
-				],
+				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+					SuggestController.ID,
+					SnippetController2.ID,
+					ContextMenuController.ID,
+					MenuPreventer.ID,
+					SelectionClipboardContributionID,
+				]),
 				isSimpleWidget: true,
 			});
 		this._register(this.inputWidget);
