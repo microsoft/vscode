@@ -232,10 +232,6 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._send('message', data);
 	}
 
-	layout(): void {
-		// noop
-	}
-
 	focus(): void {
 		if (this.element) {
 			this.element.focus();

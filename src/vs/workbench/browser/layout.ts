@@ -21,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -48,7 +48,6 @@ enum Settings {
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
-
 }
 
 enum Storage {
@@ -105,7 +104,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	//#endregion
 
-	private _dimension: IDimension;
+	private _dimension!: IDimension;
 	get dimension(): IDimension { return this._dimension; }
 
 	private _container: HTMLElement = document.createElement('div');
@@ -113,30 +112,30 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private parts: Map<string, Part> = new Map<string, Part>();
 
-	private workbenchGrid: SerializableGrid<ISerializableView>;
+	private workbenchGrid!: SerializableGrid<ISerializableView>;
 
-	private disposed: boolean;
+	private disposed: boolean | undefined;
 
-	private titleBarPartView: ISerializableView;
-	private activityBarPartView: ISerializableView;
-	private sideBarPartView: ISerializableView;
-	private panelPartView: ISerializableView;
-	private editorPartView: ISerializableView;
-	private statusBarPartView: ISerializableView;
+	private titleBarPartView!: ISerializableView;
+	private activityBarPartView!: ISerializableView;
+	private sideBarPartView!: ISerializableView;
+	private panelPartView!: ISerializableView;
+	private editorPartView!: ISerializableView;
+	private statusBarPartView!: ISerializableView;
 
-	private environmentService: IWorkbenchEnvironmentService;
-	private configurationService: IConfigurationService;
-	private lifecycleService: ILifecycleService;
-	private storageService: IStorageService;
-	private hostService: IHostService;
-	private editorService: IEditorService;
-	private editorGroupService: IEditorGroupsService;
-	private panelService: IPanelService;
-	private titleService: ITitleService;
-	private viewletService: IViewletService;
-	private contextService: IWorkspaceContextService;
-	private backupFileService: IBackupFileService;
-	private notificationService: INotificationService;
+	private environmentService!: IWorkbenchEnvironmentService;
+	private configurationService!: IConfigurationService;
+	private lifecycleService!: ILifecycleService;
+	private storageService!: IStorageService;
+	private hostService!: IHostService;
+	private editorService!: IEditorService;
+	private editorGroupService!: IEditorGroupsService;
+	private panelService!: IPanelService;
+	private titleService!: ITitleService;
+	private viewletService!: IViewletService;
+	private contextService!: IWorkspaceContextService;
+	private backupFileService!: IBackupFileService;
+	private notificationService!: INotificationService;
 
 	protected readonly state = {
 		fullscreen: false,
@@ -763,7 +762,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.statusBarPartView, !hidden);
 	}
 
-	protected createWorkbenchLayout(instantiationService: IInstantiationService): void {
+	protected createWorkbenchLayout(): void {
 		const titleBar = this.getPart(Parts.TITLEBAR_PART);
 		const editorPart = this.getPart(Parts.EDITOR_PART);
 		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);

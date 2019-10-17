@@ -220,7 +220,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 				brackets.push(currentBracket);
 			} else {
 				const lastBracket = brackets[brackets.length - 1];
-				if (lastBracket.open === currentBracket.open && lastBracket.isOpen && !currentBracket.isOpen) {
+				if (lastBracket.open[0] === currentBracket.open[0] && lastBracket.isOpen && !currentBracket.isOpen) {
 					brackets.pop();
 				} else {
 					brackets.push(currentBracket);

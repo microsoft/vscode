@@ -211,7 +211,7 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 
 		this.getHTMLElement().classList.add(treeClass);
 
-		this.disposables.push(attachStyler(themeService, {
+		this.disposables.add(attachStyler(themeService, {
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
 			listFocusAndSelectionBackground: editorBackground,

@@ -2942,6 +2942,11 @@ declare namespace monaco.editor {
 		 */
 		renderSideBySide?: boolean;
 		/**
+		 * Timeout in milliseconds after which diff computation is cancelled.
+		 * Defaults to 5000.
+		 */
+		maxComputationTime?: number;
+		/**
 		 * Compute the diff by ignoring leading/trailing whitespace
 		 * Defaults to true.
 		 */
@@ -3100,10 +3105,8 @@ declare namespace monaco.editor {
 
 	export enum RenderMinimap {
 		None = 0,
-		Small = 1,
-		Large = 2,
-		SmallBlocks = 3,
-		LargeBlocks = 4
+		Text = 1,
+		Blocks = 2
 	}
 
 	/**
@@ -3238,6 +3241,10 @@ declare namespace monaco.editor {
 		 * Defaults to 120.
 		 */
 		maxColumn?: number;
+		/**
+		 * Relative size of the font in the minimap. Defaults to 1.
+		 */
+		scale?: number;
 	}
 
 	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;

@@ -107,7 +107,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { yarn gulp "electron-$(VSCODE_ARCH)" }
+    exec { yarn electron $(VSCODE_ARCH) }
     exec { .\scripts\test.bat --build --tfs "Unit Tests" }
   displayName: Run unit tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))

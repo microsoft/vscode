@@ -38,6 +38,7 @@ import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -447,6 +448,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const Terminal = await this._getXtermConstructor();
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
+		const fastScrollSensitivity = this._configurationService.getValue<IEditorOptions>('editor.fastScrollSensitivity').fastScrollSensitivity;
 		const xterm = new Terminal({
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
@@ -461,6 +463,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
+			fastScrollModifier: 'alt',
+			fastScrollSensitivity,
 			// TODO: Guess whether to use canvas or dom better
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
 		});
@@ -564,6 +568,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._wrapperElement.appendChild(this._xtermElement);
 			this._container.appendChild(this._wrapperElement);
 			xterm.open(this._xtermElement);
+
+			if (!xterm.element || !xterm.textarea) {
+				throw new Error('xterm elements not set after open');
+			}
 
 			xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 			xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
@@ -1106,7 +1114,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _attachPressAnyKeyToCloseListener(xterm: XTermTerminal) {
-		if (!this._pressAnyKeyToCloseListener) {
+		if (xterm.textarea && !this._pressAnyKeyToCloseListener) {
 			this._pressAnyKeyToCloseListener = dom.addDisposableListener(xterm.textarea, 'keypress', (event: KeyboardEvent) => {
 				if (this._pressAnyKeyToCloseListener) {
 					this._pressAnyKeyToCloseListener.dispose();
@@ -1237,6 +1245,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
+		this._safeSetOption('fastScrollSensitivity', this._configurationService.getValue<IEditorOptions>('editor.fastScrollSensitivity').fastScrollSensitivity);
 	}
 
 	public updateAccessibilitySupport(): void {
@@ -1309,7 +1318,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		if (this._xterm) {
+		if (this._xterm && this._xterm.element) {
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
 

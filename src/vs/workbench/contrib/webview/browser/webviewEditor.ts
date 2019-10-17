@@ -93,7 +93,6 @@ export class WebviewEditor extends BaseEditor {
 		this._dimension = dimension;
 		if (this.input && this.input instanceof WebviewInput) {
 			this.synchronizeWebviewContainerDimensions(this.input.webview, dimension);
-			this.input.webview.layout();
 		}
 	}
 
@@ -133,6 +132,7 @@ export class WebviewEditor extends BaseEditor {
 	public clearInput() {
 		if (this.input && this.input instanceof WebviewInput) {
 			this.input.webview.release(this);
+			this._webviewFocusTrackerDisposables.clear();
 		}
 
 		super.clearInput();

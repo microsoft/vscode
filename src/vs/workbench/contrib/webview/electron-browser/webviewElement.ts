@@ -7,7 +7,7 @@ import { FindInPageOptions, OnBeforeRequestDetails, OnHeadersReceivedDetails, Re
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
@@ -17,14 +17,13 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Webview, WebviewContentOptions, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
-import { areWebviewInputOptionsEqual } from '../browser/webviewWorkbenchService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
+import { areWebviewInputOptionsEqual } from '../browser/webviewWorkbenchService';
 
 interface IKeydownEvent {
 	key: string;
@@ -54,6 +53,9 @@ class WebviewTagHandle extends Disposable {
 			const contents = this.webContents;
 			if (contents) {
 				this._onFirstLoad.fire(contents);
+				this._register(toDisposable(() => {
+					contents.removeAllListeners();
+				}));
 			}
 		})));
 	}
@@ -71,7 +73,6 @@ class WebviewTagHandle extends Disposable {
 		this._webContents = this.webview.getWebContents();
 		return this._webContents;
 	}
-
 }
 
 type OnBeforeRequestDelegate = (details: OnBeforeRequestDetails) => Promise<Response | undefined>;
@@ -144,8 +145,6 @@ class WebviewProtocolProvider extends Disposable {
 
 class WebviewPortMappingProvider extends Disposable {
 
-	private readonly _manager: WebviewPortMappingManager;
-
 	constructor(
 		session: WebviewSession,
 		getExtensionLocation: () => URI | undefined,
@@ -153,10 +152,10 @@ class WebviewPortMappingProvider extends Disposable {
 		tunnelService: ITunnelService,
 	) {
 		super();
-		this._manager = this._register(new WebviewPortMappingManager(getExtensionLocation, mappings, tunnelService));
+		const manager = this._register(new WebviewPortMappingManager(getExtensionLocation, mappings, tunnelService));
 
 		session.onBeforeRequest(async details => {
-			const redirect = await this._manager.getRedirect(details.url);
+			const redirect = await manager.getRedirect(details.url);
 			return redirect ? { redirectURL: redirect } : undefined;
 		});
 	}
@@ -254,7 +253,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 		contentOptions: WebviewContentOptions,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
 		@ITunnelService tunnelService: ITunnelService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -292,8 +290,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			}));
 		});
 
-		const webviewAndContents = new WebviewTagHandle(this._webview);
-
+		const webviewAndContents = this._register(new WebviewTagHandle(this._webview));
 		const session = this._register(new WebviewSession(webviewAndContents));
 
 		this._register(new WebviewProtocolProvider(
@@ -315,8 +312,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			console.log(`[Embedded Page] ${e.message}`);
 		}));
 		this._register(addDisposableListener(this._webview, 'dom-ready', () => {
-			this.layout();
-
 			// Workaround for https://github.com/electron/electron/issues/14474
 			if (this._webview && (this._focused || document.activeElement === this._webview)) {
 				this._webview.blur();
@@ -364,7 +359,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 					this._webview.style.flex = '';
 					this._webview.style.width = '100%';
 					this._webview.style.height = '100%';
-					this.layout();
 					return;
 
 				case 'did-scroll':
@@ -426,9 +420,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 
 	dispose(): void {
 		if (this._webview) {
-			if (this._webview.parentElement) {
-				this._webview.parentElement.removeChild(this._webview);
-			}
+			this._webview.remove();
 			this._webview = undefined;
 		}
 
@@ -561,11 +553,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 		if (this._webviewFindWidget) {
 			this._webviewFindWidget.updateTheme(this.webviewThemeDataProvider.getTheme());
 		}
-	}
-
-	public layout(): void {
-		// noop
-
 	}
 
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());

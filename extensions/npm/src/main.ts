@@ -6,10 +6,10 @@
 import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
+import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
 import { invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
-import { runSelectedScript } from './commands';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
 
@@ -45,6 +45,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	if (await hasPackageJson()) {
 		vscode.commands.executeCommand('setContext', 'npm:showScriptExplorer', true);
 	}
+
+	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromFolder', selectAndRunScriptFromFolder));
 }
 
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {

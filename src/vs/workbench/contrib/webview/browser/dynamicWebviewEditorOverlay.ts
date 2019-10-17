@@ -9,9 +9,8 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { Dimension } from 'vs/base/browser/dom';
-import { assertIsDefined } from 'vs/base/common/types';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
@@ -47,8 +46,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		container.id = `webview-${this.id}`;
 		container.style.visibility = 'hidden';
 
-		const editorPart = assertIsDefined(this._layoutService.getContainer(Parts.EDITOR_PART));
-		editorPart.appendChild(container);
+		// Webviews cannot be reparented in the dom as it will destory their contents.
+		// Mount them to a high level node to avoid this.
+		this._layoutService.getWorkbenchElement().appendChild(container);
 
 		return container;
 	}
@@ -94,22 +94,23 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
 			this._webview.value.mountTo(this.container);
+
+			// Forward events from inner webview to outer listeners
 			this._webviewEvents.clear();
+			this._webviewEvents.add(webview.onDidFocus(() => { this._onDidFocus.fire(); }));
+			this._webviewEvents.add(webview.onDidClickLink(x => { this._onDidClickLink.fire(x); }));
+			this._webviewEvents.add(webview.onMessage(x => { this._onMessage.fire(x); }));
+			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
 
-			webview.onDidFocus(() => { this._onDidFocus.fire(); }, undefined, this._webviewEvents);
-			webview.onDidClickLink(x => { this._onDidClickLink.fire(x); }, undefined, this._webviewEvents);
-			webview.onMessage(x => { this._onMessage.fire(x); }, undefined, this._webviewEvents);
-			webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }, undefined, this._webviewEvents);
-
-			webview.onDidScroll(x => {
+			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
 				this._onDidScroll.fire(x);
-			}, undefined, this._webviewEvents);
+			}));
 
-			webview.onDidUpdateState(state => {
+			this._webviewEvents.add(webview.onDidUpdateState(state => {
 				this._state = state;
 				this._onDidUpdateState.fire(state);
-			}, undefined, this._webviewEvents);
+			}));
 
 			this._pendingMessages.forEach(msg => webview.sendMessage(msg));
 			this._pendingMessages.clear();
@@ -173,7 +174,6 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		}
 	}
 
-	layout(): void { this.withWebview(webview => webview.layout()); }
 	focus(): void { this.withWebview(webview => webview.focus()); }
 	reload(): void { this.withWebview(webview => webview.reload()); }
 	showFind(): void { this.withWebview(webview => webview.showFind()); }
