@@ -403,6 +403,8 @@ export const overviewRulerFindMatchForeground = registerColor('editorOverviewRul
 
 export const overviewRulerSelectionHighlightForeground = registerColor('editorOverviewRuler.selectionHighlightForeground', { dark: '#A0A0A0CC', light: '#A0A0A0CC', hc: '#A0A0A0CC' }, nls.localize('overviewRulerSelectionHighlightForeground', 'Overview ruler marker color for selection highlights. The color must not be opaque so as not to hide underlying decorations.'), true);
 
+export const overviewRulerBreakpointForeground = registerColor('editorOverviewRuler.breakpointForeground', { dark: '#7C2831', light: '#7C2831', hc: '#7C2831' }, nls.localize('overviewRulerBreakpointForeground', 'Overview ruler marker color for breakpoints.'));
+
 export const minimapFindMatch = registerColor('minimap.findMatchHighlight', { light: '#d18616', dark: '#d18616', hc: '#AB5A00' }, nls.localize('minimapFindMatchHighlight', 'Minimap marker color for find matches.'), true);
 export const minimapSelection = registerColor('minimap.selectionHighlight', { light: '#ADD6FF', dark: '#264F78', hc: '#ffffff' }, nls.localize('minimapSelectionHighlight', 'Minimap marker color for the editor selection.'), true);
 

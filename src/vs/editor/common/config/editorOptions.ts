@@ -515,6 +515,11 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+	/**
+	 * Controls whether breakpoints are shown in the overview ruler.
+	 * Defaults to false.
+	 */
+	showBreakpointsInOverviewRuler?: boolean;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -2771,6 +2776,7 @@ export const enum EditorOption {
 	selectionClipboard,
 	selectionHighlight,
 	selectOnLineNumbers,
+	showBreakpointsInOverviewRuler,
 	showFoldingControls,
 	showUnused,
 	snippetSuggestions,
@@ -3168,6 +3174,10 @@ export const EditorOptions = {
 	)),
 	selectOnLineNumbers: register(new EditorBooleanOption(
 		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,
+	)),
+	showBreakpointsInOverviewRuler: register(new EditorBooleanOption(
+		EditorOption.showBreakpointsInOverviewRuler, 'showBreakpointsInOverviewRuler', false,
+		{ description: nls.localize('showBreakpointsInOverviewRuler', "Controls whether breakpoints should be shown in the overview ruler.") }
 	)),
 	showFoldingControls: register(new EditorStringEnumOption(
 		EditorOption.showFoldingControls, 'showFoldingControls',

@@ -12,7 +12,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, ITextModel, OverviewRulerLane, IModelDecorationOverviewRulerOptions } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -30,7 +30,9 @@ import { memoize } from 'vs/base/common/decorators';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { overviewRulerBreakpointForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 
@@ -46,7 +48,7 @@ const breakpointHelperDecoration: IModelDecorationOptions = {
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
-function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, debugService: IDebugService): { range: Range; options: IModelDecorationOptions; }[] {
+function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, debugService: IDebugService, editorOptions: IComputedEditorOptions): { range: Range; options: IModelDecorationOptions; }[] {
 	const result: { range: Range; options: IModelDecorationOptions; }[] = [];
 	breakpoints.forEach((breakpoint) => {
 		if (breakpoint.lineNumber <= model.getLineCount()) {
@@ -56,8 +58,9 @@ function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArr
 					: new Range(breakpoint.lineNumber, column, breakpoint.lineNumber, column + 1) // Decoration has to have a width #20688
 			);
 
+			const showInOverviewRuler: boolean = editorOptions.get(EditorOption.showBreakpointsInOverviewRuler);
 			result.push({
-				options: getBreakpointDecorationOptions(model, breakpoint, debugService),
+				options: getBreakpointDecorationOptions(model, breakpoint, debugService, showInOverviewRuler),
 				range
 			});
 		}
@@ -66,7 +69,7 @@ function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArr
 	return result;
 }
 
-function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, debugService: IDebugService): IModelDecorationOptions {
+function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, debugService: IDebugService, showInOverviewRuler: boolean): IModelDecorationOptions {
 	const { className, message } = getBreakpointMessageAndClassName(debugService, breakpoint);
 	let glyphMarginHoverMessage: MarkdownString | undefined;
 
@@ -79,11 +82,22 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 		}
 	}
 
+	let overviewRulerDecoration: IModelDecorationOverviewRulerOptions | null;
+	if (showInOverviewRuler) {
+		overviewRulerDecoration = {
+			color: themeColorFromId(overviewRulerBreakpointForeground),
+			position: OverviewRulerLane.Center
+		};
+	} else {
+		overviewRulerDecoration = null;
+	}
+
 	return {
 		glyphMarginClassName: className,
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		beforeContentClassName: breakpoint.column ? `debug-breakpoint-placeholder` : undefined
+		beforeContentClassName: breakpoint.column ? `debug-breakpoint-placeholder` : undefined,
+		overviewRuler: overviewRulerDecoration
 	};
 }
 
@@ -358,7 +372,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		const activeCodeEditor = this.editor;
 		const model = activeCodeEditor.getModel();
 		const breakpoints = this.debugService.getModel().getBreakpoints({ uri: model.uri });
-		const desiredBreakpointDecorations = createBreakpointDecorations(model, breakpoints, this.debugService);
+		const desiredBreakpointDecorations = createBreakpointDecorations(model, breakpoints, this.debugService, this.editor.getOptions());
 
 		try {
 			this.ignoreDecorationsChangedEvent = true;
