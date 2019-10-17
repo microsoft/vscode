@@ -132,6 +132,20 @@ class HEADItem implements QuickPickItem {
 	get alwaysShow(): boolean { return true; }
 }
 
+class AddRemoteItem implements QuickPickItem {
+
+	constructor(private cc: CommandCenter) { }
+
+	get label(): string { return localize('add remote', '$(plus) Add a new remote...'); }
+	get description(): string { return ''; }
+
+	get alwaysShow(): boolean { return true; }
+
+	async run(repository: Repository): Promise<void> {
+		await this.cc.addRemote(repository);
+	}
+}
+
 interface CommandOptions {
 	repository?: boolean;
 	diff?: boolean;
@@ -1883,7 +1897,7 @@ export class CommandCenter {
 	}
 
 	@command('git.addRemote', { repository: true })
-	async addRemote(repository: Repository): Promise<void> {
+	async addRemote(repository: Repository): Promise<string | undefined> {
 		const remotes = repository.remotes;
 
 		const sanitize = (name: string) => {
@@ -1925,6 +1939,8 @@ export class CommandCenter {
 		}
 
 		await repository.addRemote(name, url);
+
+		return name;
 	}
 
 	@command('git.removeRemote', { repository: true })
@@ -2040,19 +2056,31 @@ export class CommandCenter {
 			return;
 		}
 
+		const addRemote = new AddRemoteItem(this);
+
 		const branchName = repository.HEAD && repository.HEAD.name || '';
-		const selectRemote = async () => {
-			const picks = repository.remotes.map(r => r.name);
-			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-			return await window.showQuickPick(picks, { placeHolder });
-		};
-		const choice = remotes.length === 1 ? remotes[0].name : await selectRemote();
+
+		const picks = [...repository.remotes.map(r => ({ label: r.name, description: '' })), addRemote];
+		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
+		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
 			return;
 		}
 
-		await repository.pushTo(choice, branchName, true);
+		let remote = choice.label;
+
+		if (choice === addRemote) {
+			const newRemote = await this.addRemote(repository);
+
+			if (newRemote) {
+				remote = newRemote;
+			} else {
+				return;
+			}
+		}
+
+		await repository.pushTo(remote, branchName, true);
 	}
 
 	@command('git.ignore')
