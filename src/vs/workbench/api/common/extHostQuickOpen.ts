@@ -234,16 +234,16 @@ class ExtHostQuickInput implements QuickInput {
 	private static _nextId = 1;
 	_id = ExtHostQuickPick._nextId++;
 
-	private _title: string;
-	private _steps: number;
-	private _totalSteps: number;
+	private _title: string | undefined;
+	private _steps: number | undefined;
+	private _totalSteps: number | undefined;
 	private _visible = false;
 	private _expectingHide = false;
 	private _enabled = true;
 	private _busy = false;
 	private _ignoreFocusOut = true;
 	private _value = '';
-	private _placeholder: string;
+	private _placeholder: string | undefined;
 	private _buttons: QuickInputButton[] = [];
 	private _handlesToButtons = new Map<number, QuickInputButton>();
 	private readonly _onDidAcceptEmitter = new Emitter<void>();
@@ -268,7 +268,7 @@ class ExtHostQuickInput implements QuickInput {
 		return this._title;
 	}
 
-	set title(title: string) {
+	set title(title: string | undefined) {
 		this._title = title;
 		this.update({ title });
 	}
@@ -277,7 +277,7 @@ class ExtHostQuickInput implements QuickInput {
 		return this._steps;
 	}
 
-	set step(step: number) {
+	set step(step: number | undefined) {
 		this._steps = step;
 		this.update({ step });
 	}
@@ -286,7 +286,7 @@ class ExtHostQuickInput implements QuickInput {
 		return this._totalSteps;
 	}
 
-	set totalSteps(totalSteps: number) {
+	set totalSteps(totalSteps: number | undefined) {
 		this._totalSteps = totalSteps;
 		this.update({ totalSteps });
 	}
@@ -331,7 +331,7 @@ class ExtHostQuickInput implements QuickInput {
 		return this._placeholder;
 	}
 
-	set placeholder(placeholder: string) {
+	set placeholder(placeholder: string | undefined) {
 		this._placeholder = placeholder;
 		this.update({ placeholder });
 	}
@@ -398,7 +398,7 @@ class ExtHostQuickInput implements QuickInput {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this._disposed) {
 			return;
 		}
@@ -587,9 +587,9 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 
 class ExtHostInputBox extends ExtHostQuickInput implements InputBox {
 
-	private _password: boolean;
-	private _prompt: string;
-	private _validationMessage: string;
+	private _password = false;
+	private _prompt: string | undefined;
+	private _validationMessage: string | undefined;
 
 	constructor(proxy: MainThreadQuickOpenShape, extensionId: ExtensionIdentifier, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);
@@ -609,7 +609,7 @@ class ExtHostInputBox extends ExtHostQuickInput implements InputBox {
 		return this._prompt;
 	}
 
-	set prompt(prompt: string) {
+	set prompt(prompt: string | undefined) {
 		this._prompt = prompt;
 		this.update({ prompt });
 	}
@@ -618,7 +618,7 @@ class ExtHostInputBox extends ExtHostQuickInput implements InputBox {
 		return this._validationMessage;
 	}
 
-	set validationMessage(validationMessage: string) {
+	set validationMessage(validationMessage: string | undefined) {
 		this._validationMessage = validationMessage;
 		this.update({ validationMessage });
 	}
