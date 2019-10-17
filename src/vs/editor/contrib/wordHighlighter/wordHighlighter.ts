@@ -458,7 +458,7 @@ class WordHighlighter {
 
 class WordHighlighterContribution extends Disposable implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.wordHighlighter';
+	public static readonly ID = 'editor.contrib.wordHighlighter';
 
 	public static get(editor: ICodeEditor): WordHighlighterContribution {
 		return editor.getContribution<WordHighlighterContribution>(WordHighlighterContribution.ID);
@@ -482,10 +482,6 @@ class WordHighlighterContribution extends Disposable implements editorCommon.IEd
 			createWordHighlighterIfPossible();
 		}));
 		createWordHighlighterIfPossible();
-	}
-
-	public getId(): string {
-		return WordHighlighterContribution.ID;
 	}
 
 	public saveViewState(): boolean {
@@ -603,7 +599,7 @@ class TriggerWordHighlightAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(WordHighlighterContribution);
+registerEditorContribution(WordHighlighterContribution.ID, WordHighlighterContribution);
 registerEditorAction(NextWordHighlightAction);
 registerEditorAction(PrevWordHighlightAction);
 registerEditorAction(TriggerWordHighlightAction);

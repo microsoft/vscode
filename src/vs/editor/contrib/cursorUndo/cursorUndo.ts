@@ -28,7 +28,7 @@ class CursorState {
 
 export class CursorUndoController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.cursorUndoController';
+	public static readonly ID = 'editor.contrib.cursorUndoController';
 
 	public static get(editor: ICodeEditor): CursorUndoController {
 		return editor.getContribution<CursorUndoController>(CursorUndoController.ID);
@@ -79,10 +79,6 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 		return new CursorState(this._editor.getSelections());
 	}
 
-	public getId(): string {
-		return CursorUndoController.ID;
-	}
-
 	public cursorUndo(): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -124,5 +120,5 @@ export class CursorUndo extends EditorAction {
 	}
 }
 
-registerEditorContribution(CursorUndoController);
+registerEditorContribution(CursorUndoController.ID, CursorUndoController);
 registerEditorAction(CursorUndo);

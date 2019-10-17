@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
@@ -91,7 +91,7 @@ export class TypeOperations {
 			if (pasteOnNewLine) {
 				// Paste entire line at the beginning of line
 				let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
-				commands[i] = new ReplaceCommand(typeSelection, text);
+				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection);
 			} else {
 				commands[i] = new ReplaceCommand(selection, text);
 			}

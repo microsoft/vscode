@@ -141,10 +141,6 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
-	getId(): string {
-		return EDITOR_CONTRIBUTION_ID;
-	}
-
 	async showHover(range: Range, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
@@ -545,4 +541,4 @@ class DebugEditorContribution implements IDebugEditorContribution {
 	}
 }
 
-registerEditorContribution(DebugEditorContribution);
+registerEditorContribution(EDITOR_CONTRIBUTION_ID, DebugEditorContribution);

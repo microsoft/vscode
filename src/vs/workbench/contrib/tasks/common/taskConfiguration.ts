@@ -1226,9 +1226,12 @@ namespace GroupKind {
 namespace TaskDependency {
 	export function from(this: void, external: string | TaskIdentifier, context: ParseContext): Tasks.TaskDependency | undefined {
 		if (Types.isString(external)) {
-			return { workspaceFolder: context.workspaceFolder, task: external };
+			return { uri: context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri, task: external };
 		} else if (TaskIdentifier.is(external)) {
-			return { workspaceFolder: context.workspaceFolder, task: Tasks.TaskDefinition.createTaskIdentifier(external as Tasks.TaskIdentifier, context.problemReporter) };
+			return {
+				uri: context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri,
+				task: Tasks.TaskDefinition.createTaskIdentifier(external as Tasks.TaskIdentifier, context.problemReporter)
+			};
 		} else {
 			return undefined;
 		}

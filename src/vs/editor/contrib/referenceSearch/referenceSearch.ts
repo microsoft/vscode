@@ -37,7 +37,7 @@ export const defaultReferenceSearchOptions: RequestOptions = {
 
 export class ReferenceController implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.referenceController';
+	public static readonly ID = 'editor.contrib.referenceController';
 
 	constructor(
 		editor: ICodeEditor,
@@ -49,10 +49,6 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-	}
-
-	public getId(): string {
-		return ReferenceController.ID;
 	}
 }
 
@@ -93,7 +89,7 @@ export class ReferenceAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ReferenceController);
+registerEditorContribution(ReferenceController.ID, ReferenceController);
 
 registerEditorAction(ReferenceAction);
 

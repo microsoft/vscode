@@ -53,7 +53,7 @@
 	"command.removeRemote": "Remove Remote",
 	"command.sync": "Sync",
 	"command.syncRebase": "Sync (Rebase)",
-	"command.publish": "Publish Branch",
+	"command.publish": "Publish Branch...",
 	"command.showOutput": "Show Git Output",
 	"command.ignore": "Add to .gitignore",
 	"command.revealInExplorer": "Reveal in Explorer",

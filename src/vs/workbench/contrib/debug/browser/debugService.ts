@@ -30,7 +30,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { parse, getFirstFrame } from 'vs/base/common/console';
 import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -750,7 +750,7 @@ export class DebugService implements IDebugService {
 		}
 	}
 
-	private async runTask(root: IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<ITaskSummary | null> {
+	private async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<ITaskSummary | null> {
 		if (!taskId) {
 			return Promise.resolve(null);
 		}

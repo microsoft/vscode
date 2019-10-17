@@ -77,7 +77,7 @@ export abstract class MenubarControl extends Disposable {
 		'Help': nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
 	};
 
-	protected recentlyOpened: IRecentlyOpened;
+	protected recentlyOpened: IRecentlyOpened = { files: [], workspaces: [] };
 
 	protected menuUpdater: RunOnceScheduler;
 
@@ -259,10 +259,10 @@ export abstract class MenubarControl extends Disposable {
 }
 
 export class CustomMenubarControl extends MenubarControl {
-	private menubar: MenuBar;
-	private container: HTMLElement;
-	private alwaysOnMnemonics: boolean;
-	private focusInsideMenubar: boolean;
+	private menubar: MenuBar | undefined;
+	private container: HTMLElement | undefined;
+	private alwaysOnMnemonics: boolean = false;
+	private focusInsideMenubar: boolean = false;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
@@ -518,6 +518,11 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private setupCustomMenubar(firstTime: boolean): void {
+		// If there is no container, we cannot setup the menubar
+		if (!this.container) {
+			return;
+		}
+
 		if (firstTime) {
 			this.menubar = this._register(new MenuBar(
 				this.container, {
@@ -526,12 +531,13 @@ export class CustomMenubarControl extends MenubarControl {
 				visibility: this.currentMenubarVisibility,
 				getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 				compactMode: this.currentCompactMenuMode
-			}
-			));
+			}));
 
 			this.accessibilityService.alwaysUnderlineAccessKeys().then(val => {
 				this.alwaysOnMnemonics = val;
-				this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, disableAltFocus: this.currentDisableMenuBarAltFocus, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics, compactMode: this.currentCompactMenuMode });
+				if (this.menubar) {
+					this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, disableAltFocus: this.currentDisableMenuBarAltFocus, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics, compactMode: this.currentCompactMenuMode });
+				}
 			});
 
 			this._register(this.menubar.onFocusStateChange(focused => {
@@ -557,7 +563,9 @@ export class CustomMenubarControl extends MenubarControl {
 
 			this._register(attachMenuStyler(this.menubar, this.themeService));
 		} else {
-			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, disableAltFocus: this.currentDisableMenuBarAltFocus, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics, compactMode: this.currentCompactMenuMode });
+			if (this.menubar) {
+				this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, disableAltFocus: this.currentDisableMenuBarAltFocus, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics, compactMode: this.currentCompactMenuMode });
+			}
 		}
 
 		// Update the menu actions
@@ -577,7 +585,9 @@ export class CustomMenubarControl extends MenubarControl {
 								if (!this.focusInsideMenubar) {
 									const actions: IAction[] = [];
 									updateActions(menu, actions, topLevelTitle);
-									this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[topLevelTitle]) });
+									if (this.menubar) {
+										this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[topLevelTitle]) });
+									}
 								}
 							}, this));
 						}
@@ -604,7 +614,9 @@ export class CustomMenubarControl extends MenubarControl {
 					if (!this.focusInsideMenubar) {
 						const actions: IAction[] = [];
 						updateActions(menu, actions, title);
-						this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+						if (this.menubar) {
+							this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+						}
 					}
 				}));
 			}
@@ -614,10 +626,12 @@ export class CustomMenubarControl extends MenubarControl {
 				updateActions(menu, actions, title);
 			}
 
-			if (!firstTime) {
-				this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
-			} else {
-				this.menubar.push({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+			if (this.menubar) {
+				if (!firstTime) {
+					this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+				} else {
+					this.menubar.push({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+				}
 			}
 		}
 	}
@@ -628,7 +642,9 @@ export class CustomMenubarControl extends MenubarControl {
 				DOM.removeClass(this.container, 'inactive');
 			} else {
 				DOM.addClass(this.container, 'inactive');
-				this.menubar.blur();
+				if (this.menubar) {
+					this.menubar.blur();
+				}
 			}
 		}
 	}
@@ -648,7 +664,9 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		this._register(DOM.addDisposableListener(window, DOM.EventType.RESIZE, () => {
-			this.menubar.blur();
+			if (this.menubar) {
+				this.menubar.blur();
+			}
 		}));
 
 		// Mnemonics require fullscreen in web

@@ -148,7 +148,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 					if (value === null) {
 						command += `set "${key}=" && `;
 					} else {
-						value = value.replace(/[\^\&]/g, s => `^${s}`);
+						value = value.replace(/[\^\&\|\<\>]/g, s => `^${s}`);
 						command += `set "${key}=${value}" && `;
 					}
 				}
