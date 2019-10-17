@@ -5,6 +5,7 @@
 
 import { addClass } from 'vs/base/browser/dom';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -24,7 +25,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private _element: T | undefined;
 	protected get element(): T | undefined { return this._element; }
 
-	protected readonly _ready: Promise<void>;
+	private readonly _ready: Promise<void>;
 
 	constructor(options: WebviewOptions) {
 		super();
@@ -45,6 +46,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected abstract createElement(options: WebviewOptions): T;
 
 	protected abstract on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T) => void): IDisposable;
+	protected abstract postMessage(channel: string, data?: any): void;
 
 	dispose(): void {
 		if (this.element) {
@@ -53,5 +55,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 		this._element = undefined;
 		super.dispose();
+	}
+
+	protected _send(channel: string, data?: any): void {
+		this._ready
+			.then(() => this.postMessage(channel, data))
+			.catch(err => console.error(err));
 	}
 }

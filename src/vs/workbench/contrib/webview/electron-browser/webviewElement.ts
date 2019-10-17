@@ -414,14 +414,10 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp = this._onMissingCsp.event;
 
-	private _send(channel: string, data?: any): void {
-		this._ready
-			.then(() => {
-				if (this.element) {
-					this.element.send(channel, data);
-				}
-			})
-			.catch(err => console.error(err));
+	protected postMessage(channel: string, data?: any): void {
+		if (this.element) {
+			this.element.send(channel, data);
+		}
 	}
 
 	public set initialScrollProgress(value: number) {

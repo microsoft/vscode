@@ -119,7 +119,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private get externalEndpoint(): string {
-		return 'http://127.0.0.1:8080';
 		const endpoint = this.environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
@@ -236,20 +235,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		};
 	}
 
-	private _send(channel: string, data: any): void {
-		this._ready
-			.then(() => {
-				if (!this.element) {
-					return;
-				}
-				this.element.contentWindow!.postMessage({
-					channel: channel,
-					args: data
-				}, '*');
-			})
-			.catch(err => console.error(err));
-	}
-
 	private style(): void {
 		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
 		this._send('styles', { styles, activeTheme });
@@ -284,6 +269,12 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			origin,
 			location: redirect
 		});
+	}
+
+	protected postMessage(channel: string, data?: any): void {
+		if (this.element) {
+			this.element.contentWindow!.postMessage({ channel, args: data }, '*');
+		}
 	}
 
 	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T) => void): IDisposable {
