@@ -822,7 +822,7 @@ export interface IListOptions<T> extends IListStyles {
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
-	readonly ariaRole?: ListAriaRootRole;
+	readonly ariaRole?: ListAriaRootRole | string;
 	readonly ariaLabel?: string;
 	readonly keyboardSupport?: boolean;
 	readonly multipleSelectionSupport?: boolean;
@@ -1198,11 +1198,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
 
-		if (typeof _options.ariaRole !== 'string') {
-			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
-		} else {
-			this.view.domNode.setAttribute('role', _options.ariaRole);
-		}
+		this.updateAriaRole();
 
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
@@ -1612,8 +1608,17 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.view.domNode.removeAttribute('aria-activedescendant');
 		}
 
-		this.view.domNode.setAttribute('role', 'tree');
+		this.updateAriaRole();
+
 		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
+	}
+
+	private updateAriaRole(): void {
+		if (typeof this.options.ariaRole !== 'string') {
+			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
+		} else {
+			this.view.domNode.setAttribute('role', this.options.ariaRole);
+		}
 	}
 
 	private _onSelectionChange(): void {
