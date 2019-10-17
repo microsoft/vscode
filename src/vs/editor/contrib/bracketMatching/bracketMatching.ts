@@ -319,6 +319,9 @@ export class BracketMatchingController extends Disposable implements editorCommo
 				newData[newDataLen++] = previousData[previousIndex];
 			} else {
 				let brackets = model.matchBracket(position);
+				if (!brackets) {
+					brackets = model.findEnclosingBrackets(position);
+				}
 				newData[newDataLen++] = new BracketsData(position, brackets);
 			}
 		}
