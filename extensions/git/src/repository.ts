@@ -1054,8 +1054,8 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async fetchDefault(): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch());
+	async fetchDefault(options: { silent?: boolean } = {}): Promise<void> {
+		await this.run(Operation.Fetch, () => this.repository.fetch(options));
 	}
 
 	@throttle

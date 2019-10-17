@@ -2591,7 +2591,37 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(5, 1));
+			assertCursor(cursor, new Position(4, 1));
+		});
+
+		model.dispose();
+	});
+
+	test('issue #40695: maintain cursor position when copying lines using ctrl+c, ctrl+v', () => {
+		let model = createTextModel(
+			[
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        // Another line',
+				'        return 3;',
+				'    }',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			editor.setSelections([new Selection(4, 10, 4, 10)]);
+			cursorCommand(cursor, H.Paste, { text: '        // I\'m gonna copy this line\n', pasteOnNewLine: true });
+
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        // Another line',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(5, 10));
 		});
 
 		model.dispose();

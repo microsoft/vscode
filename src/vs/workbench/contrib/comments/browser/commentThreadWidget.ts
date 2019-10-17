@@ -45,6 +45,7 @@ import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/comment
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action';
@@ -82,6 +83,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _commentThreadContextValue: IContextKey<string>;
 	private _commentEditorIsEmpty!: IContextKey<boolean>;
 	private _commentFormActions!: CommentFormActions;
+	private _scopedInstatiationService: IInstantiationService;
 
 	public get owner(): string {
 		return this._owner;
@@ -101,7 +103,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		private _owner: string,
 		private _commentThread: modes.CommentThread,
 		private _pendingComment: string | null,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IThemeService private themeService: IThemeService,
@@ -114,6 +116,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	) {
 		super(editor, { keepEditorSelection: true });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
+
+		this._scopedInstatiationService = instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, this._contextKeyService]
+		));
+
 		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
 		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
 		this._commentThreadContextValue = this._contextKeyService.createKey('commentThread', _commentThread.contextValue);
@@ -407,7 +414,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
 		this._commentForm = dom.append(this._bodyElement, dom.$('.comment-form'));
-		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions(), this._parentEditor, this);
+		this._commentEditor = this._scopedInstatiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions(), this._parentEditor, this);
 		this._commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this._commentEditorIsEmpty.set(!this._pendingComment);
 
@@ -596,7 +603,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private createNewCommentNode(comment: modes.Comment): CommentNode {
-		let newCommentNode = this.instantiationService.createInstance(CommentNode,
+		let newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
 			this._commentThread,
 			comment,
 			this.owner,

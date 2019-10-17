@@ -41,7 +41,7 @@
             name: '*out-of-scope',
             allowTriggerByBot: true,
             action: 'close',
-            comment: "This issue is being closed to keep the number of issues in our inbox on a manageable level, we are closing issues that are not going to be addressed in the foreseeable future: We look at the number of votes the issue has received and the number of duplicate issues filed. More details [here](https://aka.ms/vscode-out-of-scope). If you disagree and feel that this issue is crucial: We are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nThanks for your understanding and happy coding!"
+            comment: "We closed this issue because we don't plan to address it in the foreseeable future. You can find more detailed information about our decision-making process [here](https://aka.ms/vscode-out-of-scope). If you disagree and feel that this issue is crucial: We are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nThanks for your understanding and happy coding!"
         },
         {
             type: 'comment',

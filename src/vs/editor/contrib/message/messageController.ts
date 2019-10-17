@@ -21,19 +21,15 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 
 export class MessageController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static readonly _id = 'editor.contrib.messageController';
+	public static readonly ID = 'editor.contrib.messageController';
 
 	static readonly MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false);
 
 	static get(editor: ICodeEditor): MessageController {
-		return editor.getContribution<MessageController>(MessageController._id);
+		return editor.getContribution<MessageController>(MessageController.ID);
 	}
 
 	private readonly closeTimeout = 3000; // close after 3s
-
-	getId(): string {
-		return MessageController._id;
-	}
 
 	private readonly _editor: ICodeEditor;
 	private readonly _visible: IContextKey<boolean>;
@@ -184,7 +180,7 @@ class MessageWidget implements IContentWidget {
 	}
 }
 
-registerEditorContribution(MessageController);
+registerEditorContribution(MessageController.ID, MessageController);
 
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(inputValidationInfoBorder);

@@ -17,6 +17,7 @@ export class RichEditBracket {
 	_richEditBracketBrand: void;
 
 	readonly languageIdentifier: LanguageIdentifier;
+	readonly index: number;
 	readonly open: string[];
 	readonly close: string[];
 	readonly forwardRegex: RegExp;
@@ -24,8 +25,9 @@ export class RichEditBracket {
 	private readonly _openSet: Set<string>;
 	private readonly _closeSet: Set<string>;
 
-	constructor(languageIdentifier: LanguageIdentifier, open: string[], close: string[], forwardRegex: RegExp, reversedRegex: RegExp) {
+	constructor(languageIdentifier: LanguageIdentifier, index: number, open: string[], close: string[], forwardRegex: RegExp, reversedRegex: RegExp) {
 		this.languageIdentifier = languageIdentifier;
+		this.index = index;
 		this.open = open;
 		this.close = close;
 		this.forwardRegex = forwardRegex;
@@ -125,6 +127,7 @@ export class RichEditBrackets {
 		this.brackets = brackets.map((b, index) => {
 			return new RichEditBracket(
 				languageIdentifier,
+				index,
 				b.open,
 				b.close,
 				getRegexForBracketPair(b.open, b.close, brackets, index),

@@ -128,6 +128,10 @@ interface TaskCustomizationTelemetryEvent {
 	properties: string[];
 }
 
+function isWorkspaceFolder(folder: IWorkspace | IWorkspaceFolder): folder is IWorkspaceFolder {
+	return 'uri' in folder;
+}
+
 class TaskMap {
 	private _store: Map<string, Task[]> = new Map();
 
@@ -135,20 +139,33 @@ class TaskMap {
 		this._store.forEach(callback);
 	}
 
-	public get(workspaceFolder: IWorkspaceFolder | string): Task[] {
-		let result: Task[] | undefined = Types.isString(workspaceFolder) ? this._store.get(workspaceFolder) : this._store.get(workspaceFolder.uri.toString());
+	private getKey(workspaceFolder: IWorkspace | IWorkspaceFolder | string): string {
+		let key: string | undefined;
+		if (Types.isString(workspaceFolder)) {
+			key = workspaceFolder;
+		} else {
+			const uri: URI | null | undefined = isWorkspaceFolder(workspaceFolder) ? workspaceFolder.uri : workspaceFolder.configuration;
+			key = uri ? uri.toString() : '';
+		}
+		return key;
+	}
+
+	public get(workspaceFolder: IWorkspace | IWorkspaceFolder | string): Task[] {
+		const key = this.getKey(workspaceFolder);
+		let result: Task[] | undefined = this._store.get(key);
 		if (!result) {
 			result = [];
-			Types.isString(workspaceFolder) ? this._store.set(workspaceFolder, result) : this._store.set(workspaceFolder.uri.toString(), result);
+			this._store.set(key, result);
 		}
 		return result;
 	}
 
-	public add(workspaceFolder: IWorkspaceFolder | string, ...task: Task[]): void {
-		let values = Types.isString(workspaceFolder) ? this._store.get(workspaceFolder) : this._store.get(workspaceFolder.uri.toString());
+	public add(workspaceFolder: IWorkspace | IWorkspaceFolder | string, ...task: Task[]): void {
+		const key = this.getKey(workspaceFolder);
+		let values = this._store.get(key);
 		if (!values) {
 			values = [];
-			Types.isString(workspaceFolder) ? this._store.set(workspaceFolder, values) : this._store.set(workspaceFolder.uri.toString(), values);
+			this._store.set(key, values);
 		}
 		values.push(...task);
 	}
@@ -500,8 +517,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._taskSystem.customExecutionComplete(task, result);
 	}
 
-	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
-		const name = Types.isString(folder) ? folder : folder.name;
+	public getTask(folder: IWorkspace | IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
+		const name = Types.isString(folder) ? folder : isWorkspaceFolder(folder) ? folder.name : folder.configuration ? resources.basename(folder.configuration) : undefined;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return Promise.reject(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
 		}
@@ -1054,8 +1071,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 		let resolver: ITaskResolver = {
-			resolve: (workspaceFolder: IWorkspaceFolder, alias: string) => {
-				let data = resolverData.get(workspaceFolder.uri.toString());
+			resolve: (uri: URI, alias: string) => {
+				let data = resolverData.get(uri.toString());
 				if (!data) {
 					return undefined;
 				}
@@ -1086,7 +1103,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				{ reevaluateOnRerun: true },
 				{
 					identifier: id,
-					dependsOn: extensionTasks.map((extensionTask) => { return { workspaceFolder: extensionTask.getWorkspaceFolder()!, task: extensionTask._id }; }),
+					dependsOn: extensionTasks.map((extensionTask) => { return { uri: extensionTask.getWorkspaceFolder()!.uri, task: extensionTask._id }; }),
 					name: id,
 				}
 			);
@@ -1119,9 +1136,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 		});
+
 		return {
-			resolve: (workspaceFolder: IWorkspaceFolder, identifier: string | TaskIdentifier | undefined) => {
-				let data = resolverData.get(workspaceFolder.uri.toString());
+			resolve: (uri: URI, identifier: string | TaskIdentifier | undefined) => {
+				let data = uri ? resolverData.get(uri.toString()) : undefined;
 				if (!data || !identifier) {
 					return undefined;
 				}
@@ -1949,7 +1967,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				let resolver = this.createResolver(grouped);
 				let folders = this.contextService.getWorkspace().folders;
 				for (let folder of folders) {
-					let task = resolver.resolve(folder, identifier);
+					let task = resolver.resolve(folder.uri, identifier);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
