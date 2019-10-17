@@ -2317,6 +2317,118 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return null;
 	}
 
+	public findEnclosingBrackets(_position: IPosition): [Range, Range] | null {
+		const position = this.validatePosition(_position);
+		const lineCount = this.getLineCount();
+
+		let counts: number[] = [];
+		const resetCounts = (modeBrackets: RichEditBrackets | null) => {
+			counts = [];
+			for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
+				counts[i] = 0;
+			}
+		};
+		const searchInRange = (modeBrackets: RichEditBrackets, lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): [Range, Range] | null => {
+			while (true) {
+				const r = BracketsUtils.findNextBracketInRange(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				if (!r) {
+					break;
+				}
+
+				const hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
+				const bracket = modeBrackets.textIsBracket[hitText];
+				if (bracket) {
+					if (bracket.isOpen(hitText)) {
+						counts[bracket.index]++;
+					} else if (bracket.isClose(hitText)) {
+						counts[bracket.index]--;
+					}
+
+					if (counts[bracket.index] === -1) {
+						return this._matchFoundBracket(r, bracket, false);
+					}
+				}
+
+				searchStartOffset = r.endColumn - 1;
+			}
+			return null;
+		};
+
+		let languageId: LanguageId = -1;
+		let modeBrackets: RichEditBrackets | null = null;
+		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
+			const lineTokens = this._getLineTokens(lineNumber);
+			const tokenCount = lineTokens.getCount();
+			const lineText = this._buffer.getLineContent(lineNumber);
+
+			let tokenIndex = 0;
+			let searchStartOffset = 0;
+			let searchEndOffset = 0;
+			if (lineNumber === position.lineNumber) {
+				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
+				searchStartOffset = position.column - 1;
+				searchEndOffset = position.column - 1;
+				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
+				if (languageId !== tokenLanguageId) {
+					languageId = tokenLanguageId;
+					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					resetCounts(modeBrackets);
+				}
+			}
+
+			let prevSearchInToken = true;
+			for (; tokenIndex < tokenCount; tokenIndex++) {
+				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
+
+				if (languageId !== tokenLanguageId) {
+					// language id change!
+					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+						const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
+						if (r) {
+							return r;
+						}
+						prevSearchInToken = false;
+					}
+					languageId = tokenLanguageId;
+					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					resetCounts(modeBrackets);
+				}
+
+				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
+				if (searchInToken) {
+					// this token should be searched
+					if (prevSearchInToken) {
+						// the previous token should be searched, simply extend searchEndOffset
+						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+					} else {
+						// the previous token should not be searched
+						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
+						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+					}
+				} else {
+					// this token should not be searched
+					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+						const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
+						if (r) {
+							return r;
+						}
+					}
+				}
+
+				prevSearchInToken = searchInToken;
+			}
+
+			if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
+				const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				if (r) {
+					return r;
+				}
+			}
+		}
+
+		return null;
+	}
+
 	private _toFoundBracket(modeBrackets: RichEditBrackets, r: Range): model.IFoundBracket | null {
 		if (!r) {
 			return null;
