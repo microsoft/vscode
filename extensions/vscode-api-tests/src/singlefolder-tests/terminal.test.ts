@@ -176,10 +176,30 @@ suite('window namespace tests', () => {
 				const reg2 = window.onDidWriteTerminalData(e => dataEvents.push({ name: e.terminal.name, data: e.data }));
 				const reg3 = window.onDidCloseTerminal(e => {
 					closeEvents.push(e.name);
+
+					if (closeEvents.length === 1) {
+						const term2Write = new EventEmitter<string>();
+						const term2Close = new EventEmitter<void>();
+						window.createTerminal({
+							name: 'test2', pty: {
+								onDidWrite: term2Write.event,
+								onDidClose: term2Close.event,
+								open: () => {
+									term2Write.fire('write2');
+									// Need to wait to ensure the data will be fired, because it will be buffered for 5ms (currently)
+									setTimeout(() => term2Close.fire(), 100);
+								},
+								close: () => { }
+							}
+						});
+						return;
+					}
+
 					if (closeEvents.length === 2) {
-						deepEqual(openEvents, [ 'test1', 'test2' ]);
-						deepEqual(dataEvents, [ { name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' } ]);
-						deepEqual(closeEvents, [ 'test1', 'test2' ]);
+						deepEqual(openEvents, ['test1', 'test2']);
+						deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
+						deepEqual(closeEvents, ['test1', 'test2']);
+
 						reg1.dispose();
 						reg2.dispose();
 						reg3.dispose();
@@ -189,26 +209,18 @@ suite('window namespace tests', () => {
 
 				const term1Write = new EventEmitter<string>();
 				const term1Close = new EventEmitter<void>();
-				window.createTerminal({ name: 'test1', pty: {
-					onDidWrite: term1Write.event,
-					onDidClose: term1Close.event,
-					open: () => {
-						term1Write.fire('write1');
-						term1Close.fire();
-						const term2Write = new EventEmitter<string>();
-						const term2Close = new EventEmitter<void>();
-						window.createTerminal({ name: 'test2', pty: {
-							onDidWrite: term2Write.event,
-							onDidClose: term2Close.event,
-							open: () => {
-								term2Write.fire('write2');
-								term2Close.fire();
-							},
-							close: () => {}
-						}});
-					},
-					close: () => {}
-				}});
+				window.createTerminal({
+					name: 'test1', pty: {
+						onDidWrite: term1Write.event,
+						onDidClose: term1Close.event,
+						open: () => {
+							term1Write.fire('write1');
+							// Need to wait to ensure the data will be fired, because it will be buffered for 5ms (currently)
+							setTimeout(() => term1Close.fire(), 100);
+						},
+						close: () => { }
+					}
+				});
 			});
 		});
 
@@ -225,8 +237,8 @@ suite('window namespace tests', () => {
 				});
 				const pty: Pseudoterminal = {
 					onDidWrite: new EventEmitter<string>().event,
-					open: () => {},
-					close: () => {}
+					open: () => { },
+					close: () => { }
 				};
 				window.createTerminal({ name: 'c', pty });
 			});
@@ -303,7 +315,7 @@ suite('window namespace tests', () => {
 					open: () => {
 						overrideDimensionsEmitter.fire({ columns: 10, rows: 5 });
 					},
-					close: () => {}
+					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
