@@ -81,7 +81,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			installLabel = installCount.toLocaleString(platform.locale);
 		}
 
-		append(this.container, $('span.octicon.octicon-cloud-download'));
+		append(this.container, $('span.codicon.codicon-cloud-download'));
 		const count = append(this.container, $('span.count'));
 		count.textContent = installLabel;
 	}
@@ -224,7 +224,7 @@ export class RecommendationWidget extends ExtensionWidget {
 		if (extRecommendations[this.extension.identifier.id.toLowerCase()]) {
 			this.element = append(this.parent, $('div.bookmark'));
 			const recommendation = append(this.element, $('.recommendation'));
-			append(recommendation, $('span.octicon.octicon-star'));
+			append(recommendation, $('span.codicon.codicon-star'));
 			const applyBookmarkStyle = (theme: ITheme) => {
 				const bgColor = theme.getColor(extensionButtonProminentBackground);
 				const fgColor = theme.getColor(extensionButtonProminentForeground);
@@ -290,7 +290,7 @@ class RemoteBadge extends Disposable {
 	}
 
 	private render(): void {
-		append(this.element, $('span.octicon.octicon-remote'));
+		append(this.element, $('span.codicon.codicon-remote'));
 
 		const applyBadgeStyle = () => {
 			if (!this.element) {

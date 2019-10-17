@@ -96,25 +96,13 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "vscode-octicons-font",
-					"repositoryUrl": "https://github.com/Microsoft/vscode-octicons-font",
-					"commitHash": "4cbf2bd35cf0084eabd47d322cc58339fd7743cf"
+					"name": "vscode-codicons",
+					"repositoryUrl": "https://github.com/microsoft/vscode-codicons",
+					"commitHash": "7f14c092f65f658cd520df3f13765efe828d0ba4"
 				}
 			},
-			"license": "MIT",
-			"version": "1.3.2"
-		},
-		{
-			"component": {
-				"type": "git",
-				"git": {
-					"name": "octicons",
-					"repositoryUrl": "https://github.com/primer/octicons",
-					"commitHash": "d120bf97bc9a12fb415f69fedaf31fe58427ca56"
-				}
-			},
-			"license": "MIT",
-			"version": "8.3.0"
+			"license": "MIT and Creative Commons Attribution 4.0",
+			"version": "0.0.1"
 		},
 		{
 			"component": {

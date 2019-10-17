@@ -38,7 +38,7 @@ import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
@@ -364,31 +364,31 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				if (this._extensionHostProfileService.getUnresponsiveProfile(element.description.identifier)) {
 					const el = $('span');
-					el.innerHTML = renderOcticons(` $(alert) Unresponsive`);
+					el.innerHTML = renderCodicons(` $(alert) Unresponsive`);
 					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
 					data.msgContainer.appendChild(el);
 				}
 
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
 					const el = $('span');
-					el.innerHTML = renderOcticons(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`);
+					el.innerHTML = renderCodicons(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`);
 					data.msgContainer.appendChild(el);
 				}
 
 				if (element.status.messages && element.status.messages.length > 0) {
 					const el = $('span');
-					el.innerHTML = renderOcticons(`$(alert) ${element.status.messages[0].message}`);
+					el.innerHTML = renderCodicons(`$(alert) ${element.status.messages[0].message}`);
 					data.msgContainer.appendChild(el);
 				}
 
 				if (element.description.extensionLocation.scheme !== 'file') {
 					const el = $('span');
-					el.innerHTML = renderOcticons(`$(remote) ${element.description.extensionLocation.authority}`);
+					el.innerHTML = renderCodicons(`$(remote) ${element.description.extensionLocation.authority}`);
 					data.msgContainer.appendChild(el);
 
 					const hostLabel = this._labelService.getHostLabel(REMOTE_HOST_SCHEME, this._environmentService.configuration.remoteAuthority);
 					if (hostLabel) {
-						el.innerHTML = renderOcticons(`$(remote) ${hostLabel}`);
+						el.innerHTML = renderCodicons(`$(remote) ${hostLabel}`);
 					}
 				}
 
