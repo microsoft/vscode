@@ -184,8 +184,6 @@ export class Menu extends ActionBar {
 
 		this.mnemonics = new Map<string, Array<BaseMenuActionViewItem>>();
 
-		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
-
 		// Scroll Logic
 		this.scrollableElement = this._register(new DomScrollableElement(menuElement, {
 			alwaysConsumeMouseWheel: true,
@@ -199,14 +197,16 @@ export class Menu extends ActionBar {
 		const scrollElement = this.scrollableElement.getDomNode();
 		scrollElement.style.position = '';
 
-		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item: BaseMenuActionViewItem, index: number, array: any[]) => {
-			item.updatePositionInSet(index + 1, array.length);
-		});
+		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
 
 		this.push(actions, { icon: true, label: true, isMenu: true });
 
 		container.appendChild(this.scrollableElement.getDomNode());
 		this.scrollableElement.scanDomNode();
+
+		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item: BaseMenuActionViewItem, index: number, array: any[]) => {
+			item.updatePositionInSet(index + 1, array.length);
+		});
 	}
 
 	style(style: IMenuStyles): void {
@@ -699,7 +699,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}));
 
 		this._register(this.parentData.parent.onScroll(() => {
-			this.cleanupExistingSubmenu(true);
+			this.parentData.parent.focus(false);
+			this.cleanupExistingSubmenu(false);
 		}));
 	}
 
@@ -772,7 +773,13 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 					this.parentData.parent.focus();
 
-					this.cleanupExistingSubmenu(true);
+					if (this.parentData.submenu) {
+						this.parentData.submenu.dispose();
+						this.parentData.submenu = undefined;
+					}
+
+					this.submenuDisposables.clear();
+					this.submenuContainer = undefined;
 				}
 			}));
 
@@ -787,7 +794,13 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuDisposables.add(this.parentData.submenu.onDidCancel(() => {
 				this.parentData.parent.focus();
 
-				this.cleanupExistingSubmenu(true);
+				if (this.parentData.submenu) {
+					this.parentData.submenu.dispose();
+					this.parentData.submenu = undefined;
+				}
+
+				this.submenuDisposables.clear();
+				this.submenuContainer = undefined;
 			}));
 
 			this.parentData.submenu.focus(selectFirstItem);
