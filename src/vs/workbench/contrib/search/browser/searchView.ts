@@ -1486,8 +1486,10 @@ export class SearchView extends ViewletPanel {
 		this.messageDisposables.push(dom.addDisposableListener(openFolderLink, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, false);
 
-			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
-			const action = this.instantiationService.createInstance(actionClass, actionClass.ID, actionClass.LABEL);
+			const action = env.isMacintosh ?
+				this.instantiationService.createInstance(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL) :
+				this.instantiationService.createInstance(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL);
+
 			this.actionRunner!.run(action).then(() => {
 				action.dispose();
 			}, err => {
