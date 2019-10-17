@@ -1483,6 +1483,15 @@ export class CommandCenter {
 
 		const commit = await repository.getCommit('HEAD');
 
+		if (commit.parents.length > 1) {
+			const yes = localize('undo commit', "Undo merge commit");
+			const result = await window.showWarningMessage(localize('merge commit', "The last commit was a merge commit. Are you sure you want to undo it?"), yes);
+
+			if (result !== yes) {
+				return;
+			}
+		}
+
 		if (commit.parents.length > 0) {
 			await repository.reset('HEAD~');
 		} else {
