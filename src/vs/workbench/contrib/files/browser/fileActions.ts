@@ -769,7 +769,8 @@ export function validateFileName(item: ExplorerItem, name: string): string | nul
 	}
 
 	// Invalid File name
-	if (names.some((folderName) => !extpath.isValidBasename(folderName))) {
+	const windowsBasenameValidity = item.resource.scheme === Schemas.file && isWindows;
+	if (names.some((folderName) => !extpath.isValidBasename(folderName, windowsBasenameValidity))) {
 		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
 	}
 

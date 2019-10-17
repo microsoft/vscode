@@ -146,7 +146,7 @@ class CommentingRangeDecorator {
 	}
 }
 
-export class ReviewController implements IEditorContribution {
+export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
 	private editor!: ICodeEditor;
@@ -243,8 +243,8 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	public static get(editor: ICodeEditor): ReviewController {
-		return editor.getContribution<ReviewController>(ID);
+	public static get(editor: ICodeEditor): CommentController {
+		return editor.getContribution<CommentController>(ID);
 	}
 
 	public revealCommentThread(threadId: string, commentUniqueId: number, fetchOnceIfNotExist: boolean): void {
@@ -686,7 +686,7 @@ export class NextCommentThreadAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = ReviewController.get(editor);
+		let controller = CommentController.get(editor);
 		if (controller) {
 			controller.nextCommentThread();
 		}
@@ -694,7 +694,7 @@ export class NextCommentThreadAction extends EditorAction {
 }
 
 
-registerEditorContribution(ReviewController);
+registerEditorContribution(CommentController);
 registerEditorAction(NextCommentThreadAction);
 
 CommandsRegistry.registerCommand({
@@ -705,7 +705,7 @@ CommandsRegistry.registerCommand({
 			return Promise.resolve();
 		}
 
-		const controller = ReviewController.get(activeEditor);
+		const controller = CommentController.get(activeEditor);
 		if (!controller) {
 			return Promise.resolve();
 		}

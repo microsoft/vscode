@@ -56,7 +56,7 @@ export class MenuBar extends Disposable {
 		actions?: ReadonlyArray<IAction>;
 	}[];
 
-	private overflowMenu: {
+	private overflowMenu!: {
 		buttonElement: HTMLElement;
 		titleElement: HTMLElement;
 		label: string;
@@ -73,22 +73,22 @@ export class MenuBar extends Disposable {
 	private menuUpdater: RunOnceScheduler;
 
 	// Input-related
-	private _mnemonicsInUse: boolean;
-	private openedViaKeyboard: boolean;
-	private awaitingAltRelease: boolean;
-	private ignoreNextMouseUp: boolean;
+	private _mnemonicsInUse: boolean = false;
+	private openedViaKeyboard: boolean = false;
+	private awaitingAltRelease: boolean = false;
+	private ignoreNextMouseUp: boolean = false;
 	private mnemonics: Map<string, number>;
 
-	private updatePending: boolean;
+	private updatePending: boolean = false;
 	private _focusState: MenubarState;
 	private actionRunner: IActionRunner;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
 
-	private numMenusShown: number;
-	private menuStyle: IMenuStyles;
-	private overflowLayoutScheduled: IDisposable | null;
+	private numMenusShown: number = 0;
+	private menuStyle: IMenuStyles | undefined;
+	private overflowLayoutScheduled: IDisposable | null = null;
 
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
@@ -930,7 +930,9 @@ export class MenuBar extends Disposable {
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
-		menuWidget.style(this.menuStyle);
+		if (this.menuStyle) {
+			menuWidget.style(this.menuStyle);
+		}
 
 		this._register(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;

@@ -126,10 +126,10 @@ export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptio
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
-	protected container: HTMLElement;
-	protected label: HTMLElement;
-	protected badge: HTMLElement;
-	protected options: IActivityActionViewItemOptions;
+	protected container!: HTMLElement;
+	protected label!: HTMLElement;
+	protected badge!: HTMLElement;
+	protected options!: IActivityActionViewItemOptions;
 
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -219,7 +219,6 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			dom.append(container, dom.$('.active-item-indicator'));
 		}
 
-
 		dom.hide(this.badge);
 
 		this.updateActivity();
@@ -303,14 +302,17 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		} else {
 			title = this.activity.name;
 		}
+
 		this.updateTitle(title);
 	}
 
 	protected updateLabel(): void {
 		this.label.className = 'action-label';
+
 		if (this.activity.cssClass) {
 			dom.addClass(this.label, this.activity.cssClass);
 		}
+
 		if (!this.options.icon) {
 			this.label.textContent = this.getAction().label;
 		}
@@ -381,6 +383,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => this.actions,
+			getCheckedActionsRepresentation: () => 'radio',
 			onHide: () => dispose(this.actions)
 		});
 	}
@@ -388,7 +391,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 	private getActions(): Action[] {
 		return this.getOverflowingComposites().map(composite => {
 			const action = this.getCompositeOpenAction(composite.id);
-			action.radio = this.getActiveCompositeId() === action.id;
+			action.checked = this.getActiveCompositeId() === action.id;
 
 			const badge = this.getBadge(composite.id);
 			let suffix: string | number | undefined;
@@ -612,8 +615,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActionsContext: () => this.activity.id,
-			getActions: () => actions
+			getActions: () => actions,
+			getActionsContext: () => this.activity.id
 		});
 	}
 

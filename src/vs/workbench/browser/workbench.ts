@@ -157,7 +157,7 @@ export class Workbench extends Layout {
 				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
 
 				// Workbench Layout
-				this.createWorkbenchLayout(instantiationService);
+				this.createWorkbenchLayout();
 
 				// Layout
 				this.layout();

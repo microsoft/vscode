@@ -7,7 +7,7 @@ import { FindInPageOptions, OnBeforeRequestDetails, OnHeadersReceivedDetails, Re
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
@@ -53,6 +53,9 @@ class WebviewTagHandle extends Disposable {
 			const contents = this.webContents;
 			if (contents) {
 				this._onFirstLoad.fire(contents);
+				this._register(toDisposable(() => {
+					contents.removeAllListeners();
+				}));
 			}
 		})));
 	}
@@ -70,7 +73,6 @@ class WebviewTagHandle extends Disposable {
 		this._webContents = this.webview.getWebContents();
 		return this._webContents;
 	}
-
 }
 
 type OnBeforeRequestDelegate = (details: OnBeforeRequestDetails) => Promise<Response | undefined>;
@@ -143,8 +145,6 @@ class WebviewProtocolProvider extends Disposable {
 
 class WebviewPortMappingProvider extends Disposable {
 
-	private readonly _manager: WebviewPortMappingManager;
-
 	constructor(
 		session: WebviewSession,
 		getExtensionLocation: () => URI | undefined,
@@ -152,10 +152,10 @@ class WebviewPortMappingProvider extends Disposable {
 		tunnelService: ITunnelService,
 	) {
 		super();
-		this._manager = this._register(new WebviewPortMappingManager(getExtensionLocation, mappings, tunnelService));
+		const manager = this._register(new WebviewPortMappingManager(getExtensionLocation, mappings, tunnelService));
 
 		session.onBeforeRequest(async details => {
-			const redirect = await this._manager.getRedirect(details.url);
+			const redirect = await manager.getRedirect(details.url);
 			return redirect ? { redirectURL: redirect } : undefined;
 		});
 	}
@@ -290,8 +290,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			}));
 		});
 
-		const webviewAndContents = new WebviewTagHandle(this._webview);
-
+		const webviewAndContents = this._register(new WebviewTagHandle(this._webview));
 		const session = this._register(new WebviewSession(webviewAndContents));
 
 		this._register(new WebviewProtocolProvider(
@@ -421,9 +420,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 
 	dispose(): void {
 		if (this._webview) {
-			if (this._webview.parentElement) {
-				this._webview.parentElement.removeChild(this._webview);
-			}
+			this._webview.remove();
 			this._webview = undefined;
 		}
 

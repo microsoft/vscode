@@ -316,18 +316,17 @@ export class StackFrame implements IStackFrame {
 		return (from > 0 ? '...' : '') + this.source.uri.path.substr(from);
 	}
 
-	getMostSpecificScopes(range: IRange): Promise<IScope[]> {
-		return this.getScopes().then(scopes => {
-			scopes = scopes.filter(s => !s.expensive);
-			const haveRangeInfo = scopes.some(s => !!s.range);
-			if (!haveRangeInfo) {
-				return scopes;
-			}
+	async getMostSpecificScopes(range: IRange): Promise<IScope[]> {
+		const scopes = await this.getScopes();
+		const nonExpensiveScopes = scopes.filter(s => !s.expensive);
+		const haveRangeInfo = nonExpensiveScopes.some(s => !!s.range);
+		if (!haveRangeInfo) {
+			return nonExpensiveScopes;
+		}
 
-			const scopesContainingRange = scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
-				.sort((first, second) => (first.range!.endLineNumber - first.range!.startLineNumber) - (second.range!.endLineNumber - second.range!.startLineNumber));
-			return scopesContainingRange.length ? scopesContainingRange : scopes;
-		});
+		const scopesContainingRange = nonExpensiveScopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
+			.sort((first, second) => (first.range!.endLineNumber - first.range!.startLineNumber) - (second.range!.endLineNumber - second.range!.startLineNumber));
+		return scopesContainingRange.length ? scopesContainingRange : nonExpensiveScopes;
 	}
 
 	restart(): Promise<void> {
@@ -404,23 +403,21 @@ export class Thread implements IThread {
 	 * Only fetches the first stack frame for performance reasons. Calling this method consecutive times
 	 * gets the remainder of the call stack.
 	 */
-	fetchCallStack(levels = 20): Promise<void> {
-		if (!this.stopped) {
-			return Promise.resolve(undefined);
-		}
-
-		const start = this.callStack.length;
-		return this.getCallStackImpl(start, levels).then(callStack => {
+	async fetchCallStack(levels = 20): Promise<void> {
+		if (this.stopped) {
+			const start = this.callStack.length;
+			const callStack = await this.getCallStackImpl(start, levels);
 			if (start < this.callStack.length) {
 				// Set the stack frames for exact position we requested. To make sure no concurrent requests create duplicate stack frames #30660
 				this.callStack.splice(start, this.callStack.length - start);
 			}
 			this.callStack = this.callStack.concat(callStack || []);
-		});
+		}
 	}
 
-	private getCallStackImpl(startFrame: number, levels: number): Promise<IStackFrame[]> {
-		return this.session.stackTrace(this.threadId, startFrame, levels).then(response => {
+	private async getCallStackImpl(startFrame: number, levels: number): Promise<IStackFrame[]> {
+		try {
+			const response = await this.session.stackTrace(this.threadId, startFrame, levels);
 			if (!response || !response.body) {
 				return [];
 			}
@@ -439,13 +436,13 @@ export class Thread implements IThread {
 					rsf.endColumn || rsf.column
 				), startFrame + index);
 			});
-		}, (err: Error) => {
+		} catch (err) {
 			if (this.stoppedDetails) {
 				this.stoppedDetails.framesErrorMessage = err.message;
 			}
 
 			return [];
-		});
+		}
 	}
 
 	/**

@@ -61,6 +61,15 @@ LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_IDENTIFIER, {
 		['[', ']'],
 		['{', '}'],
 	],
+	surroundingPairs: [
+		{ open: '{', close: '}' },
+		{ open: '[', close: ']' },
+		{ open: '(', close: ')' },
+		{ open: '<', close: '>' },
+		{ open: '\"', close: '\"' },
+		{ open: '\'', close: '\'' },
+		{ open: '`', close: '`' },
+	],
 	folding: {
 		offSide: true
 	}

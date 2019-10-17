@@ -68,19 +68,19 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	_serviceBrand: undefined;
 
-	private title: HTMLElement;
-	private dragRegion: HTMLElement;
-	private windowControls: HTMLElement;
-	private maxRestoreControl: HTMLElement;
-	private appIcon: HTMLElement;
+	private title!: HTMLElement;
+	private dragRegion: HTMLElement | undefined;
+	private windowControls: HTMLElement | undefined;
+	private maxRestoreControl: HTMLElement | undefined;
+	private appIcon: HTMLElement | undefined;
 	private customMenubar: CustomMenubarControl | undefined;
 	private menubar?: HTMLElement;
-	private resizer: HTMLElement;
-	private lastLayoutDimensions: Dimension;
+	private resizer: HTMLElement | undefined;
+	private lastLayoutDimensions: Dimension | undefined;
 
-	private pendingTitle: string;
+	private pendingTitle: string | undefined;
 
-	private isInactive: boolean;
+	private isInactive: boolean = false;
 
 	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false };
 	private readonly activeEditorListeners = this._register(new DisposableStore());
@@ -158,8 +158,10 @@ export class TitlebarPart extends Part implements ITitleService {
 			// Hide title when toggling menu bar
 			if (!isWeb && this.currentMenubarVisibility === 'toggle' && visible) {
 				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
-				hide(this.dragRegion);
-				setTimeout(() => show(this.dragRegion), 50);
+				if (this.dragRegion) {
+					hide(this.dragRegion);
+					setTimeout(() => show(this.dragRegion!), 50);
+				}
 			}
 
 			this.adjustTitleMarginToCenter();
@@ -169,7 +171,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onMenubarFocusChanged(focused: boolean) {
-		if (!isWeb && (isWindows || isLinux) && this.currentMenubarVisibility === 'compact') {
+		if (!isWeb && (isWindows || isLinux) && this.currentMenubarVisibility === 'compact' && this.dragRegion) {
 			if (focused) {
 				hide(this.dragRegion);
 			} else {
@@ -518,9 +520,9 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private onUpdateAppIconDragBehavior() {
 		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
-		if (setting) {
+		if (setting && this.appIcon) {
 			(this.appIcon.style as any)['-webkit-app-region'] = 'no-drag';
-		} else {
+		} else if (this.appIcon) {
 			(this.appIcon.style as any)['-webkit-app-region'] = 'drag';
 		}
 	}
@@ -576,14 +578,24 @@ export class TitlebarPart extends Part implements ITitleService {
 			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
 				this.title.style.zoom = `${1 / getZoomFactor()}`;
 				if (!isWeb && (isWindows || isLinux)) {
-					this.appIcon.style.zoom = `${1 / getZoomFactor()}`;
-					this.windowControls.style.zoom = `${1 / getZoomFactor()}`;
+					if (this.appIcon) {
+						this.appIcon.style.zoom = `${1 / getZoomFactor()}`;
+					}
+
+					if (this.windowControls) {
+						this.windowControls.style.zoom = `${1 / getZoomFactor()}`;
+					}
 				}
 			} else {
 				this.title.style.zoom = null;
 				if (!isWeb && (isWindows || isLinux)) {
-					this.appIcon.style.zoom = null;
-					this.windowControls.style.zoom = null;
+					if (this.appIcon) {
+						this.appIcon.style.zoom = null;
+					}
+
+					if (this.windowControls) {
+						this.windowControls.style.zoom = null;
+					}
 				}
 			}
 
