@@ -145,10 +145,6 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
 	}
 
-	getId(): string {
-		return BREAKPOINT_EDITOR_CONTRIBUTION_ID;
-	}
-
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			const data = e.target.detail as IMarginData;
@@ -587,4 +583,4 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 	}
 }
 
-registerEditorContribution(BreakpointEditorContribution);
+registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointEditorContribution);

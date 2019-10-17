@@ -423,7 +423,7 @@ export class MultiCursorSession {
 
 export class MultiCursorSelectionController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.multiCursorController';
+	public static readonly ID = 'editor.contrib.multiCursorController';
 
 	private readonly _editor: ICodeEditor;
 	private _ignoreSelectionChange: boolean;
@@ -444,10 +444,6 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	public dispose(): void {
 		this._endSession();
 		super.dispose();
-	}
-
-	public getId(): string {
-		return MultiCursorSelectionController.ID;
 	}
 
 	private _beginSessionIfNeeded(findController: CommonFindController): void {
@@ -798,7 +794,7 @@ class SelectionHighlighterState {
 }
 
 export class SelectionHighlighter extends Disposable implements IEditorContribution {
-	private static readonly ID = 'editor.contrib.selectionHighlighter';
+	public static readonly ID = 'editor.contrib.selectionHighlighter';
 
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
@@ -846,10 +842,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this._register(CommonFindController.get(editor).getState().onFindReplaceStateChange((e) => {
 			this._update();
 		}));
-	}
-
-	public getId(): string {
-		return SelectionHighlighter.ID;
 	}
 
 	private _update(): void {
@@ -1041,8 +1033,8 @@ function getValueInRange(model: ITextModel, range: Range, toLowerCase: boolean):
 	return (toLowerCase ? text.toLowerCase() : text);
 }
 
-registerEditorContribution(MultiCursorSelectionController);
-registerEditorContribution(SelectionHighlighter);
+registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter);
 
 registerEditorAction(InsertCursorAbove);
 registerEditorAction(InsertCursorBelow);

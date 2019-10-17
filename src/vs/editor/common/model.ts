@@ -882,6 +882,13 @@ export interface ITextModel {
 	findNextBracket(position: IPosition): IFoundBracket | null;
 
 	/**
+	 * Find the enclosing brackets that contain `position`.
+	 * @param position The position at which to start the search.
+	 * @internal
+	 */
+	findEnclosingBrackets(position: IPosition): [Range, Range] | null;
+
+	/**
 	 * Given a `position`, if the position is on top or near a bracket,
 	 * find the matching bracket of that bracket and return the ranges of both brackets.
 	 * @param position The position at which to look for a bracket.

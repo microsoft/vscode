@@ -38,7 +38,7 @@ const INTERESTING_FILE = /keybindings\.json$/;
 
 export class DefineKeybindingController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.defineKeybinding';
+	public static readonly ID = 'editor.contrib.defineKeybinding';
 
 	static get(editor: ICodeEditor): DefineKeybindingController {
 		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
@@ -55,10 +55,6 @@ export class DefineKeybindingController extends Disposable implements editorComm
 
 		this._register(this._editor.onDidChangeModel(e => this._update()));
 		this._update();
-	}
-
-	getId(): string {
-		return DefineKeybindingController.ID;
 	}
 
 	get keybindingWidgetRenderer(): KeybindingWidgetRenderer | undefined {
@@ -385,5 +381,5 @@ function isInterestingEditorModel(editor: ICodeEditor): boolean {
 	return INTERESTING_FILE.test(url);
 }
 
-registerEditorContribution(DefineKeybindingController);
+registerEditorContribution(DefineKeybindingController.ID, DefineKeybindingController);
 registerEditorCommand(new DefineKeybindingCommand());

@@ -18,6 +18,7 @@ import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditor
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { isWeb } from 'vs/base/common/platform';
 
 export class WebviewEditor extends BaseEditor {
 
@@ -98,7 +99,7 @@ export class WebviewEditor extends BaseEditor {
 
 	public focus(): void {
 		super.focus();
-		if (!this._onFocusWindowHandler.value) {
+		if (!this._onFocusWindowHandler.value && !isWeb) {
 			// Make sure we restore focus when switching back to a VS Code window
 			this._onFocusWindowHandler.value = this._hostService.onDidChangeFocus(focused => {
 				if (focused && this._editorService.activeControl === this) {

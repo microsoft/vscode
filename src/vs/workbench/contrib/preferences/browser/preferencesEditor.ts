@@ -17,7 +17,7 @@ import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorExtensionsRegistry, IEditorContributionCtor, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorExtensionsRegistry, registerEditorContribution, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -986,10 +986,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService);
 	}
 
-	private static _getContributions(): IEditorContributionCtor[] {
-		const skipContributions = [FoldingController.prototype, SelectionHighlighter.prototype, FindController.prototype];
-		const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.prototype) === -1);
-		contributions.push(DefaultSettingsEditorContribution);
+	private static _getContributions(): IEditorContributionDescription[] {
+		const skipContributions = [FoldingController.ID, SelectionHighlighter.ID, FindController.ID];
+		const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
+		contributions.push({ id: DefaultSettingsEditorContribution.ID, ctor: DefaultSettingsEditorContribution });
 		return contributions;
 	}
 
@@ -1158,16 +1158,11 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 	}
 
 	protected abstract _createPreferencesRenderer(): Promise<IPreferencesRenderer<ISetting> | null> | null;
-	abstract getId(): string;
 }
 
 export class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.defaultsettings';
-
-	getId(): string {
-		return DefaultSettingsEditorContribution.ID;
-	}
 
 	protected _createPreferencesRenderer(): Promise<IPreferencesRenderer<ISetting> | null> | null {
 		return this.preferencesService.createPreferencesEditorModel(this.editor.getModel()!.uri)
@@ -1193,10 +1188,6 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 	) {
 		super(editor, instantiationService, preferencesService, workspaceContextService);
 		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this._onModelChanged()));
-	}
-
-	getId(): string {
-		return SettingsEditorContribution.ID;
 	}
 
 	protected _createPreferencesRenderer(): Promise<IPreferencesRenderer<ISetting> | null> | null {
@@ -1228,4 +1219,4 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 	}
 }
 
-registerEditorContribution(SettingsEditorContribution);
+registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution);

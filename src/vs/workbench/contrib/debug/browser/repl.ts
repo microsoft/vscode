@@ -647,7 +647,7 @@ class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResul
 			linkDetector: this.linkDetector
 		});
 		if (expression.hasChildren) {
-			templateData.annotation.className = 'annotation octicon octicon-info';
+			templateData.annotation.className = 'annotation codicon codicon-info';
 			templateData.annotation.title = nls.localize('stateCapture', "Object state is captured from first evaluation");
 		}
 	}
@@ -782,7 +782,7 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, Fuzz
 
 		// annotation if any
 		if (element.annotation) {
-			templateData.annotation.className = 'annotation octicon octicon-info';
+			templateData.annotation.className = 'annotation codicon codicon-info';
 			templateData.annotation.title = element.annotation;
 		} else {
 			templateData.annotation.className = '';

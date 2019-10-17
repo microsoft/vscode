@@ -288,7 +288,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		};
 
 		const handle = ExtHostWebviews.newHandle();
-		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, convertWebviewOptions(extension, this.workspace, options), extension.identifier, extension.extensionLocation);
+		this._proxy.$createWebviewPanel({ id: extension.identifier, location: extension.extensionLocation }, handle, viewType, title, webviewShowOptions, convertWebviewOptions(extension, this.workspace, options));
 
 		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension);
 		const panel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, viewColumn, options, webview);
@@ -318,13 +318,14 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.WebviewEditorProvider,
+		options?: vscode.WebviewPanelOptions,
 	): vscode.Disposable {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Editor provider for '${viewType}' already registered`);
 		}
 
 		this._editorProviders.set(viewType, { extension, provider, });
-		this._proxy.$registerEditorProvider(viewType, extension.identifier, extension.extensionLocation);
+		this._proxy.$registerEditorProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, options || {});
 
 		return new Disposable(() => {
 			this._editorProviders.delete(viewType);

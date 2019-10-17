@@ -32,6 +32,7 @@ export class MinimapCharRendererFactory {
 			MinimapCharRendererFactory.createSampleData(fontFamily).data,
 			scale
 		);
+		this.lastFontFamily = fontFamily;
 		this.lastCreated = factory;
 		return factory;
 	}
