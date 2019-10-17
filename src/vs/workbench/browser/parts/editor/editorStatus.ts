@@ -30,7 +30,7 @@ import { IModeService, ILanguageSelection } from 'vs/editor/common/services/mode
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TabFocus , ReadOnly} from 'vs/editor/common/config/commonEditorConfig';
+import { TabFocus, ReadOnly } from 'vs/editor/common/config/commonEditorConfig';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
@@ -202,7 +202,7 @@ class State {
 	get tabFocusMode(): boolean | undefined { return this._tabFocusMode; }
 
 	private _readOnlyMode: boolean | undefined;
-	get readOnlyMode(): boolean | undefined { return this._readOnlyMode;}
+	get readOnlyMode(): boolean | undefined { return this._readOnlyMode; }
 
 	private _screenReaderMode: boolean | undefined;
 	get screenReaderMode(): boolean | undefined { return this._screenReaderMode; }
@@ -255,7 +255,7 @@ class State {
 			}
 		}
 
-		if ('readOnlyMode' in update){
+		if ('readOnlyMode' in update) {
 			if (this._readOnlyMode !== update.readOnlyMode) {
 				this._readOnlyMode = update.readOnlyMode;
 				change.readOnlyMode = true;
