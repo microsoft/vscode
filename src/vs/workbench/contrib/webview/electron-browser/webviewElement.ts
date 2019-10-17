@@ -25,16 +25,6 @@ import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWi
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-interface IKeydownEvent {
-	key: string;
-	keyCode: number;
-	code: string;
-	shiftKey: boolean;
-	altKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
-	repeat: boolean;
-}
 
 class WebviewTagHandle extends Disposable {
 
@@ -183,13 +173,6 @@ class WebviewKeyboardHandler extends Disposable {
 
 		this._register(addDisposableListener(this._webviewHandle.webview, 'ipc-message', (event) => {
 			switch (event.channel) {
-				case 'did-keydown':
-					// Electron: workaround for https://github.com/electron/electron/issues/14258
-					// We have to detect keyboard events in the <webview> and dispatch them to our
-					// keybinding service because these events do not bubble to the parent window anymore.
-					this.handleKeydown(event.args[0]);
-					return;
-
 				case 'did-focus':
 					this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
 					break;
@@ -213,17 +196,6 @@ class WebviewKeyboardHandler extends Disposable {
 		if (contents) {
 			contents.setIgnoreMenuShortcuts(value);
 		}
-	}
-
-	private handleKeydown(event: IKeydownEvent): void {
-		// Create a fake KeyboardEvent from the data provided
-		const emulatedKeyboardEvent = new KeyboardEvent('keydown', event);
-		// Force override the target
-		Object.defineProperty(emulatedKeyboardEvent, 'target', {
-			get: () => this._webviewHandle.webview
-		});
-		// And re-dispatch
-		window.dispatchEvent(emulatedKeyboardEvent);
 	}
 }
 

@@ -28,6 +28,17 @@ export const enum WebviewMessageChannels {
 	webviewReady = 'webview-ready',
 }
 
+interface IKeydownEvent {
+	key: string;
+	keyCode: number;
+	code: string;
+	shiftKey: boolean;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	repeat: boolean;
+}
+
 interface WebviewContent {
 	readonly html: string;
 	readonly options: WebviewContentOptions;
@@ -109,6 +120,13 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 		this._register(this.on(WebviewMessageChannels.didBlur, () => {
 			this.handleFocusChange(false);
+		}));
+
+		this._register(this.on('did-keydown', (data: KeyboardEvent) => {
+			// Electron: workaround for https://github.com/electron/electron/issues/14258
+			// We have to detect keyboard events in the <webview> and dispatch them to our
+			// keybinding service because these events do not bubble to the parent window anymore.
+			this.handleKeyDown(data);
 		}));
 
 		this.style();
@@ -242,5 +260,16 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		if (isFocused) {
 			this._onDidFocus.fire();
 		}
+	}
+
+	private handleKeyDown(event: IKeydownEvent) {
+		// Create a fake KeyboardEvent from the data provided
+		const emulatedKeyboardEvent = new KeyboardEvent('keydown', event);
+		// Force override the target
+		Object.defineProperty(emulatedKeyboardEvent, 'target', {
+			get: () => this.element,
+		});
+		// And re-dispatch
+		window.dispatchEvent(emulatedKeyboardEvent);
 	}
 }

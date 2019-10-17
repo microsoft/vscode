@@ -104,8 +104,9 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	focus(): void {
+		console.log('focus');
 		if (this.element) {
-			this.element.focus();
+			this._send('focus');
 		}
 	}
 
