@@ -51,6 +51,17 @@ body.web {
 	position: relative;
 	z-index: 1;
 	overflow: hidden;
+	height: 100vh;
+	width: 100vw;
+}
+
+.monaco-workbench.border {
+	position: relative;
+	top: 1px;
+	left: 1px;
+	height: calc(100vh - 2px);
+	width: calc(100vw - 2px);
+	outline: 1px solid var(--window-border-color);
 }
 
 .monaco-workbench img {

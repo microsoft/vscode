@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, position, size, Dimension } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -122,7 +122,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private editorPartView!: ISerializableView;
 	private statusBarPartView!: ISerializableView;
 
-	private environmentService!: IWorkbenchEnvironmentService;
+	protected environmentService!: IWorkbenchEnvironmentService;
 	private configurationService!: IConfigurationService;
 	private lifecycleService!: ILifecycleService;
 	private storageService!: IStorageService;
@@ -826,12 +826,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}));
 	}
 
+	getClientArea(): Dimension {
+		return getClientArea(this.parent);
+	}
+
 	layout(): void {
 		if (!this.disposed) {
-			this._dimension = getClientArea(this.parent);
+			this._dimension = this.getClientArea();
 
-			position(this.container, 0, 0, 0, 0, 'relative');
-			size(this.container, this._dimension.width, this._dimension.height);
+			// position(this.container, 0, 0, 0, 0, 'relative');
+			// size(this.container, this._dimension.width, this._dimension.height);
 
 			// Layout the grid widget
 			this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
@@ -1169,7 +1173,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private createGridDescriptor(): ISerializedGrid {
-		const workbenchDimensions = getClientArea(this.parent);
+		const workbenchDimensions = this.getClientArea();
 		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, workbenchDimensions.width);
 		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, workbenchDimensions.height);
 		// At some point, we will not fall back to old keys from legacy layout, but for now, let's migrate the keys
