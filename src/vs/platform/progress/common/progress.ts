@@ -60,6 +60,7 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 }
 
 export interface IProgressStatusBarOptions extends IProgressOptions {
+	readonly location: ProgressLocation.Window;
 	command?: string;
 }
 
