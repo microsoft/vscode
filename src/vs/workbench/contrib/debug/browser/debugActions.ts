@@ -365,7 +365,7 @@ export class CopyValueAction extends Action {
 	static readonly LABEL = nls.localize('copyValue', "Copy Value");
 
 	constructor(
-		id: string, label: string, private value: any, private context: string,
+		id: string, label: string, private value: Variable | string, private context: string,
 		@IDebugService private readonly debugService: IDebugService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
@@ -377,15 +377,19 @@ export class CopyValueAction extends Action {
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const session = this.debugService.getViewModel().focusedSession;
 
-		if (this.value instanceof Variable && stackFrame && session && this.value.evaluateName) {
+		if (typeof this.value === 'string') {
+			return this.clipboardService.writeText(this.value);
+		}
+
+		if (stackFrame && session && this.value.evaluateName) {
 			try {
 				const evaluation = await session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context);
 				this.clipboardService.writeText(evaluation.body.result);
 			} catch (e) {
 				this.clipboardService.writeText(this.value.value);
 			}
+		} else {
+			this.clipboardService.writeText(this.value.value);
 		}
-
-		return this.clipboardService.writeText(this.value);
 	}
 }
