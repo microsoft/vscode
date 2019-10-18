@@ -93,7 +93,7 @@ export abstract class AbstractFileDialogService {
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
 				return this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
 			} else {
-				return this.openerService.open(uri);
+				return this.openerService.open(uri, { fromUserGesture: true });
 			}
 		}
 	}
@@ -107,7 +107,7 @@ export abstract class AbstractFileDialogService {
 			if (options.forceNewWindow || preferNewWindow) {
 				return this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
 			} else {
-				return this.openerService.open(uri);
+				return this.openerService.open(uri, { fromUserGesture: true });
 			}
 		}
 	}
