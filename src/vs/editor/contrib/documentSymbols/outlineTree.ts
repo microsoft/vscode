@@ -439,7 +439,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineArraySymbolColor = theme.getColor(OUTLINE_ARRAY_SYMBOL_FOREGROUND);
 	if (outlineArraySymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-array:before {
+			.monaco-workbench .codicon-symbol-array {
 				color: ${outlineArraySymbolColor};
 			}
 		`);
@@ -448,7 +448,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineBooleanSymbolColor = theme.getColor(OUTLINE_BOOLEAN_SYMBOL_FOREGROUND);
 	if (outlineBooleanSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-boolean:before {
+			.monaco-workbench .codicon-symbol-boolean {
 				color: ${outlineBooleanSymbolColor};
 			}
 		`);
@@ -457,7 +457,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineClassSymbolColor = theme.getColor(OUTLINE_CLASS_SYMBOL_FOREGROUND);
 	if (outlineClassSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-class:before {
+			.monaco-workbench .codicon-symbol-class {
 				color: ${outlineClassSymbolColor};
 			}
 		`);
@@ -466,7 +466,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineMethodSymbolColor = theme.getColor(OUTLINE_METHOD_SYMBOL_FOREGROUND);
 	if (outlineMethodSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-method:before {
+			.monaco-workbench .codicon-symbol-method {
 				color: ${outlineMethodSymbolColor};
 			}
 		`);
@@ -475,7 +475,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineConstantSymbolColor = theme.getColor(OUTLINE_CONSTANT_SYMBOL_FOREGROUND);
 	if (outlineConstantSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-constant:before {
+			.monaco-workbench .codicon-symbol-constant {
 				color: ${outlineConstantSymbolColor};
 			}
 		`);
@@ -484,7 +484,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineConstructorSymbolColor = theme.getColor(OUTLINE_CONSTRUCTOR_SYMBOL_FOREGROUND);
 	if (outlineConstructorSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-constructor:before {
+			.monaco-workbench .codicon-symbol-constructor {
 				color: ${outlineConstructorSymbolColor};
 			}
 		`);
@@ -493,8 +493,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineEnumeratorSymbolColor = theme.getColor(OUTLINE_ENUMERATOR_SYMBOL_FOREGROUND);
 	if (outlineEnumeratorSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-value:before,
-			.monaco-workbench .codicon-symbol-enum:before {
+			.monaco-workbench .codicon-symbol-value,
+			.monaco-workbench .codicon-symbol-enum {
 				color: ${outlineEnumeratorSymbolColor};
 			}
 		`);
@@ -503,7 +503,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineEnumeratorMemberSymbolColor = theme.getColor(OUTLINE_ENUMERATOR_MEMBER_SYMBOL_FOREGROUND);
 	if (outlineEnumeratorMemberSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-enum-member:before {
+			.monaco-workbench .codicon-symbol-enum-member {
 				color: ${outlineEnumeratorMemberSymbolColor};
 			}
 		`);
@@ -512,7 +512,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineEventSymbolColor = theme.getColor(OUTLINE_EVENT_SYMBOL_FOREGROUND);
 	if (outlineEventSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-event:before {
+			.monaco-workbench .codicon-symbol-event {
 				color: ${outlineEventSymbolColor};
 			}
 		`);
@@ -521,7 +521,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineFieldSymbolColor = theme.getColor(OUTLINE_FIELD_SYMBOL_FOREGROUND);
 	if (outlineFieldSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-field:before {
+			.monaco-workbench .codicon-symbol-field {
 				color: ${outlineFieldSymbolColor};
 			}
 		`);
@@ -530,7 +530,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineFileSymbolColor = theme.getColor(OUTLINE_FILE_SYMBOL_FOREGROUND);
 	if (outlineFileSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-file:before {
+			.monaco-workbench .codicon-symbol-file {
 				color: ${outlineFileSymbolColor};
 			}
 		`);
@@ -539,7 +539,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineFunctionSymbolColor = theme.getColor(OUTLINE_FUNCTION_SYMBOL_FOREGROUND);
 	if (outlineFunctionSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-function:before {
+			.monaco-workbench .codicon-symbol-function {
 				color: ${outlineFunctionSymbolColor};
 			}
 		`);
@@ -548,7 +548,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineInterfaceSymbolColor = theme.getColor(OUTLINE_INTERFACE_SYMBOL_FOREGROUND);
 	if (outlineInterfaceSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-interface:before {
+			.monaco-workbench .codicon-symbol-interface {
 				color: ${outlineInterfaceSymbolColor};
 			}
 		`);
@@ -557,7 +557,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineKeySymbolColor = theme.getColor(OUTLINE_KEY_SYMBOL_FOREGROUND);
 	if (outlineKeySymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-key:before {
+			.monaco-workbench .codicon-symbol-key {
 				color: ${outlineKeySymbolColor};
 			}
 		`);
@@ -566,7 +566,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineModuleSymbolColor = theme.getColor(OUTLINE_MODULE_SYMBOL_FOREGROUND);
 	if (outlineModuleSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-module:before {
+			.monaco-workbench .codicon-symbol-module {
 				color: ${outlineModuleSymbolColor};
 			}
 		`);
@@ -575,7 +575,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineNamespaceColor = theme.getColor(OUTLINE_NAMESPACE_SYMBOL_FOREGROUND);
 	if (outlineNamespaceColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-namespace:before {
+			.monaco-workbench .codicon-symbol-namespace {
 				color: ${outlineNamespaceColor};
 			}
 		`);
@@ -584,7 +584,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineNullSymbolColor = theme.getColor(OUTLINE_NULL_SYMBOL_FOREGROUND);
 	if (outlineNullSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-null:before {
+			.monaco-workbench .codicon-symbol-null {
 				color: ${outlineNullSymbolColor};
 			}
 		`);
@@ -593,7 +593,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineNumberSymbolColor = theme.getColor(OUTLINE_NUMBER_SYMBOL_FOREGROUND);
 	if (outlineNumberSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-number:before {
+			.monaco-workbench .codicon-symbol-number {
 				color: ${outlineNumberSymbolColor};
 			}
 		`);
@@ -602,7 +602,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineObjectSymbolColor = theme.getColor(OUTLINE_OBJECT_SYMBOL_FOREGROUND);
 	if (outlineObjectSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-object:before {
+			.monaco-workbench .codicon-symbol-object {
 				color: ${outlineObjectSymbolColor};
 			}
 		`);
@@ -611,7 +611,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineOperatorSymbolColor = theme.getColor(OUTLINE_OPERATOR_SYMBOL_FOREGROUND);
 	if (outlineOperatorSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-operator:before {
+			.monaco-workbench .codicon-symbol-operator {
 				color: ${outlineOperatorSymbolColor};
 			}
 		`);
@@ -620,7 +620,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlinePackageSymbolColor = theme.getColor(OUTLINE_PACKAGE_SYMBOL_FOREGROUND);
 	if (outlinePackageSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-package:before {
+			.monaco-workbench .codicon-symbol-package {
 				color: ${outlinePackageSymbolColor};
 			}
 		`);
@@ -629,7 +629,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlinePropertySymbolColor = theme.getColor(OUTLINE_PROPERTY_SYMBOL_FOREGROUND);
 	if (outlinePropertySymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-property:before {
+			.monaco-workbench .codicon-symbol-property {
 				color: ${outlinePropertySymbolColor};
 			}
 		`);
@@ -638,7 +638,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineStringSymbolColor = theme.getColor(OUTLINE_STRING_SYMBOL_FOREGROUND);
 	if (outlineStringSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-string:before {
+			.monaco-workbench .codicon-symbol-string {
 				color: ${outlineStringSymbolColor};
 			}
 		`);
@@ -647,7 +647,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineStructSymbolColor = theme.getColor(OUTLINE_STRUCT_SYMBOL_FOREGROUND);
 	if (outlineStructSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-struct:before {
+			.monaco-workbench .codicon-symbol-struct {
 				color: ${outlineStructSymbolColor};
 			}
 		`);
@@ -656,7 +656,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineTypeParameterSymbolColor = theme.getColor(OUTLINE_TYPEPARAMETER_SYMBOL_FOREGROUND);
 	if (outlineTypeParameterSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-type-parameter:before {
+			.monaco-workbench .codicon-symbol-type-parameter {
 				color: ${outlineTypeParameterSymbolColor};
 			}
 		`);
@@ -665,7 +665,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineVariableSymbolColor = theme.getColor(OUTLINE_VARIABLE_SYMBOL_FOREGROUND);
 	if (outlineVariableSymbolColor) {
 		collector.addRule(`
-			.monaco-workbench .codicon-symbol-variable:before {
+			.monaco-workbench .codicon-symbol-variable {
 				color: ${outlineVariableSymbolColor};
 			}
 		`);
