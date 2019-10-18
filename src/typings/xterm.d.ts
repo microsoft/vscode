@@ -184,6 +184,11 @@ declare module 'xterm' {
 		scrollback?: number;
 
 		/**
+		 * The scrolling speed multiplier used for adjusting normal scrolling speed.
+		 */
+		scrollSensitivity?: number;
+
+		/**
 		 * The size of tab stops in the terminal.
 		 */
 		tabStopWidth?: number;
