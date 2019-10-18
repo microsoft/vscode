@@ -332,7 +332,7 @@ class TerminalDataEventTracker extends Disposable {
 
 	constructor(
 		private readonly _callback: (id: number, data: string) => void,
-		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
 
