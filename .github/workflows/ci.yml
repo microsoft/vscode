@@ -67,3 +67,29 @@ jobs:
       name: Run Unit Tests
     - run: .\scripts\test-integration.bat --tfs "Integration Tests"
       name: Run Integration Tests
+
+  darwin:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions/setup-node@v1
+      with:
+        node-version: 10
+    - run: yarn --frozen-lockfile
+      name: Install Dependencies
+    - run: yarn electron x64
+      name: Download Electron
+    - run: yarn gulp hygiene --skip-tslint
+      name: Run Hygiene Checks
+    - run: yarn gulp tslint
+      name: Run TSLint Checks
+    - run: yarn monaco-compile-check
+      name: Run Monaco Editor Checks
+    - run: yarn compile
+      name: Compile Sources
+    - run: yarn download-builtin-extensions
+      name: Download Built-in Extensions
+    - run: ./scripts/test.sh --tfs "Unit Tests"
+      name: Run Unit Tests
+    - run: ./scripts/test-integration.sh --tfs "Integration Tests"
+      name: Run Integration Tests
