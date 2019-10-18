@@ -390,6 +390,10 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			}
 
 			this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
+				if (e.defaultPrevented) {
+					return;
+				}
+
 				EventHelper.stop(e, true);
 				this.onClick(e);
 			}));
