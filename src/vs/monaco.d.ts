@@ -42,7 +42,7 @@ declare namespace monaco {
 
 	export class CancellationTokenSource {
 		constructor(parent?: CancellationToken);
-		readonly token: CancellationToken;
+		get token(): CancellationToken;
 		cancel(): void;
 		dispose(cancel?: boolean): void;
 	}
@@ -117,7 +117,7 @@ declare namespace monaco {
 		 * namely the server name, would be missing. Therefore `Uri#fsPath` exists - it's sugar to ease working
 		 * with URIs that represent files on disk (`file` scheme).
 		 */
-		readonly fsPath: string;
+		get fsPath(): string;
 		with(change: {
 			scheme?: string;
 			authority?: string | null;
