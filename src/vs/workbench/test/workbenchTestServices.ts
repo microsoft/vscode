@@ -462,6 +462,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onCenteredLayoutChange: Event<boolean> = Event.None;
 	onFullscreenChange: Event<boolean> = Event.None;
 	onPanelPositionChange: Event<string> = Event.None;
+	onPartVisibilityChange: Event<void> = Event.None;
 	onLayout = Event.None;
 
 	private readonly _onTitleBarVisibilityChange = new Emitter<void>();

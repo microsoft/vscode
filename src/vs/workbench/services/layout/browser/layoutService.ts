@@ -57,6 +57,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onPanelPositionChange: Event<string>;
 
 	/**
+	 * Emit when part visibility changes
+	 */
+	readonly onPartVisibilityChange: Event<void>;
+
+	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
 	 * this means that the contents of editors have loaded.
 	 */

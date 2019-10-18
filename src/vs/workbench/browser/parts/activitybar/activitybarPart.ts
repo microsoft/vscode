@@ -437,12 +437,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			.map(v => v.id);
 	}
 
-	setVisible(visible: boolean): void {
-		if (this.element) {
-			this.element.style.display = visible ? '' : 'none';
-		}
-	}
-
 	layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 			return;

@@ -114,9 +114,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
 	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return Event.any(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event); }
 
-	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
-
 	//#endregion
 
 	private readonly workspaceMemento: MementoObject;
@@ -1036,10 +1033,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	//#endregion
-
-	setVisible(visible: boolean): void {
-		this._onDidVisibilityChange.fire(visible);
-	}
 
 	toJSON(): object {
 		return {
