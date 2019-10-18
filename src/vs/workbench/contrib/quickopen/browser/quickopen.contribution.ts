@@ -18,10 +18,6 @@ import { VIEW_PICKER_PREFIX, OpenViewPickerAction, QuickOpenViewPickerAction, Vi
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerQuickOpenConfiguration } from 'vs/workbench/contrib/quickopen/common/quickOpenConfig';
-
-// register quick open settings
-registerQuickOpenConfiguration();
 
 // Register Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

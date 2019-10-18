@@ -156,9 +156,9 @@ export const tocData: ITOCEntry = {
 					settings: ['terminal.*']
 				},
 				{
-					id: 'features/quickopen',
-					label: localize('quickopen', "Quick Open"),
-					settings: ['quickOpen.*']
+					id: 'features/task',
+					label: localize('task', "Task"),
+					settings: ['task.*']
 				},
 				{
 					id: 'features/problems',

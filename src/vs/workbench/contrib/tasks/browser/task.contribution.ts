@@ -352,6 +352,11 @@ configurationRegistry.registerConfiguration({
 				}
 			],
 			default: true
-		}
+		},
+		'task.quickOpen.history': {
+			markdownDescription: nls.localize('task.quickOpen.history', "Controls the number of recent items tracked in task quick open dialog."),
+			type: 'number',
+			default: 30, minimum: 0, maximum: 30
+		},
 	}
 });

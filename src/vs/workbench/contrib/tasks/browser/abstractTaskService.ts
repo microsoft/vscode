@@ -18,7 +18,7 @@ import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
-import { LRUCache, Touch } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -80,7 +80,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
-const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'quickOpen.history';
+const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -631,7 +631,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private setRecentlyUsedTask(key: string): void {
-		this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
+		this.getRecentlyUsedTasks().set(key, key);
 		this.saveRecentlyUsedTasks();
 	}
 
@@ -1925,7 +1925,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						taskMap[key] = task;
 					}
 				});
-				recentlyUsedTasks.keys().forEach(key => {
+				recentlyUsedTasks.keys().reverse().forEach(key => {
 					let task = taskMap[key];
 					if (task) {
 						recent.push(task);
