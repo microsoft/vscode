@@ -688,7 +688,7 @@
         },
         "typescript.tsserver.maxTsServerMemory": {
           "type": "number",
-          "default": 0,
+          "default": 3072,
           "description": "%configuration.tsserver.maxTsServerMemory%",
           "scope": "window"
         }
