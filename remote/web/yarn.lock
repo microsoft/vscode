@@ -36,10 +36,10 @@ xterm-addon-search@0.3.0-beta5:
   resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.3.0-beta5.tgz#fd53d33a77a0235018479c712be8c12f7c0d083a"
   integrity sha512-3GkGc4hST35/4hzgnQPLLvQ29WH7MkZ0mUrBE/Vm1IQum7TnMvWPTkGemwM+wAl4tdBmynNccHJlFeQzaQtVUg==
 
-xterm-addon-web-links@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.0.tgz#b408a0be46211d8d4a0bb5e701d8f3c2bd07d473"
-  integrity sha512-dq81c4Pzli2PgKVBgY2REte9sCVibR3df8AP3SEvCTM9uYFnUFxtxzMTplPnc7+rXabVhFdbU6x+rstIk8HNQg==
+xterm-addon-web-links@0.2.1:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.1.tgz#6d1f2ce613e09870badf17615e7a1170a31542b2"
+  integrity sha512-2KnHtiq0IG7hfwv3jw2/jQeH1RBk2d5CH4zvgwQe00rLofSJqSfgnJ7gwowxxpGHrpbPr6Lv4AmH/joaNw2+HQ==
 
 xterm@4.2.0-beta18:
   version "4.2.0-beta18"

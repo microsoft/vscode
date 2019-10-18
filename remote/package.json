@@ -22,7 +22,7 @@
     "vscode-textmate": "^4.2.2",
     "xterm": "4.2.0-beta18",
     "xterm-addon-search": "0.3.0-beta5",
-    "xterm-addon-web-links": "0.2.0",
+    "xterm-addon-web-links": "0.2.1",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
