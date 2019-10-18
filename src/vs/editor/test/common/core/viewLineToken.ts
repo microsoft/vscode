@@ -5,7 +5,6 @@
 
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { ColorId, TokenMetadata } from 'vs/editor/common/modes';
-import { equals } from 'vs/base/common/arrays';
 
 /**
  * A token on a line.
@@ -43,8 +42,18 @@ export class ViewLineToken {
 		);
 	}
 
-	public static equalsArr(a: readonly ViewLineToken[], b: readonly ViewLineToken[]): boolean {
-		return equals(a, b, this._equals);
+	public static equalsArr(a: ViewLineToken[], b: ViewLineToken[]): boolean {
+		const aLen = a.length;
+		const bLen = b.length;
+		if (aLen !== bLen) {
+			return false;
+		}
+		for (let i = 0; i < aLen; i++) {
+			if (!this._equals(a[i], b[i])) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
