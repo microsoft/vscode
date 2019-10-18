@@ -176,7 +176,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			});
 		}));
 
-		this._register(this.layoutService.onTitleBarVisibilityChange(() => this.setYCoordinate()));
+		this._register(this.layoutService.onPartVisibilityChange(() => this.setYCoordinate()));
 		this._register(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
 	}
 

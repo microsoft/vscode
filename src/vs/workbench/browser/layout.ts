@@ -84,9 +84,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	//#region Events
 
-	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onTitleBarVisibilityChange: Event<void> = this._onTitleBarVisibilityChange.event;
-
 	private readonly _onZenModeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onZenModeChange: Event<boolean> = this._onZenModeChange.event;
 
@@ -268,8 +265,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.menuBar.toggled = visible;
 
 			if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default')) {
-				this._onTitleBarVisibilityChange.fire();
-
 				// Propagate to grid
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
@@ -294,8 +289,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
-			this._onTitleBarVisibilityChange.fire();
-
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 

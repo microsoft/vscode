@@ -32,11 +32,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	_serviceBrand: undefined;
 
 	/**
-	 * Emits when the visibility of the title bar changes.
-	 */
-	readonly onTitleBarVisibilityChange: Event<void>;
-
-	/**
 	 * Emits when the zen mode is enabled or disabled.
 	 */
 	readonly onZenModeChange: Event<boolean>;

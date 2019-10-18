@@ -465,12 +465,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onPartVisibilityChange: Event<void> = Event.None;
 	onLayout = Event.None;
 
-	private readonly _onTitleBarVisibilityChange = new Emitter<void>();
 	private readonly _onMenubarVisibilityChange = new Emitter<Dimension>();
-
-	public get onTitleBarVisibilityChange(): Event<void> {
-		return this._onTitleBarVisibilityChange.event;
-	}
 
 	public get onMenubarVisibilityChange(): Event<Dimension> {
 		return this._onMenubarVisibilityChange.event;
