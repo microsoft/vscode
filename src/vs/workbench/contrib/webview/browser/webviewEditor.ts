@@ -9,12 +9,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
@@ -47,7 +45,6 @@ export class WebviewEditor extends BaseEditor {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IHostService private readonly _hostService: IHostService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 
@@ -185,7 +182,7 @@ export class WebviewEditor extends BaseEditor {
 		this._webviewVisibleDisposables.clear();
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
-		this._webviewVisibleDisposables.add(this.instantiationService.createInstance(EditorDropTarget, this._editorGroupsService as EditorPart, input.webview.container, {
+		this._webviewVisibleDisposables.add((this._editorGroupsService as EditorPart).createDropTargets(input.webview.container, {
 			groupContainsPredicate: (group) => this.group?.id === group.group.id
 		}));
 
