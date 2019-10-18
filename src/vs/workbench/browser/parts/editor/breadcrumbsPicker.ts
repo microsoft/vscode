@@ -473,6 +473,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		} else {
 			focusElement = element;
 		}
+		tree.collapseAll();
 		tree.reveal(focusElement, 0.5);
 		tree.setFocus([focusElement], this._fakeEvent);
 		tree.domFocus();
