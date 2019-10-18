@@ -17,7 +17,7 @@ export interface IProgressService {
 
 	_serviceBrand: undefined;
 
-	withProgress<R = any>(options: IProgressOptions | IProgressNotificationOptions | IProgressCompositeOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
+	withProgress<R = any>(options: IProgressOptions | IProgressNotificationOptions | IProgressStatusBarOptions | IProgressCompositeOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
 }
 
 export interface IProgressIndicator {
@@ -51,13 +51,16 @@ export interface IProgressOptions {
 	total?: number;
 	cancellable?: boolean;
 	buttons?: string[];
-	command?: string;
 }
 
 export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Notification;
 	readonly primaryActions?: ReadonlyArray<IAction>;
 	readonly secondaryActions?: ReadonlyArray<IAction>;
+}
+
+export interface IProgressStatusBarOptions extends IProgressOptions {
+	command?: string;
 }
 
 export interface IProgressCompositeOptions extends IProgressOptions {
