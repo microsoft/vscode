@@ -425,6 +425,43 @@ suite('ParameterHintsModel', () => {
 		assert.strictEqual(secondHint.activeSignature, 1);
 		assert.strictEqual(secondHint.signatures[0].parameters[0].label, paramterLabel);
 	});
+
+	test('Quick typing should use the first trigger character', async () => {
+		const editor = createMockEditor('');
+		const model = new ParameterHintsModel(editor, 50);
+		disposables.add(model);
+
+		const triggerCharacter = 'a';
+
+		let invokeCount = 0;
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+			signatureHelpTriggerCharacters = [triggerCharacter];
+			signatureHelpRetriggerCharacters = [];
+
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
+				try {
+					++invokeCount;
+
+					if (invokeCount === 1) {
+						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
+						assert.strictEqual(context.triggerCharacter, triggerCharacter);
+					} else {
+						assert.fail('Unexpected invoke');
+					}
+
+					return emptySigHelpResult;
+				} catch (err) {
+					console.error(err);
+					throw err;
+				}
+			}
+		}));
+
+		editor.trigger('keyboard', Handler.Type, { text: triggerCharacter });
+		editor.trigger('keyboard', Handler.Type, { text: 'x' });
+
+		await getNextHint(model);
+	});
 });
 
 function getNextHint(model: ParameterHintsModel) {
