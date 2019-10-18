@@ -5,7 +5,7 @@
 		"onigasm-umd": "^2.2.2",
 		"semver-umd": "^5.5.3",
 		"vscode-textmate": "^4.2.2",
-		"xterm": "4.2.0-beta10",
+		"xterm": "4.2.0-beta18",
 		"xterm-addon-search": "0.3.0-beta5",
 		"xterm-addon-web-links": "0.2.0"
 	}
