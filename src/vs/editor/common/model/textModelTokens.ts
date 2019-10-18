@@ -198,13 +198,14 @@ export class TextModelTokenization extends Disposable {
 	private readonly _textModel: TextModel;
 	private readonly _tokenizationStateStore: TokenizationStateStore;
 	private _isDisposed: boolean;
-	private _tokenizationSupport: ITokenizationSupport | undefined;
+	private _tokenizationSupport: ITokenizationSupport | null;
 
 	constructor(textModel: TextModel) {
 		super();
 		this._isDisposed = false;
 		this._textModel = textModel;
 		this._tokenizationStateStore = new TokenizationStateStore();
+		this._tokenizationSupport = null;
 
 		this._register(TokenizationRegistry.onDidChange((e) => {
 			const languageIdentifier = this._textModel.getLanguageIdentifier();
@@ -423,11 +424,11 @@ export class TextModelTokenization extends Disposable {
 	}
 }
 
-function initializeTokenization(textModel: TextModel): [ITokenizationSupport | undefined, IState | null] {
+function initializeTokenization(textModel: TextModel): [ITokenizationSupport | null, IState | null] {
 	const languageIdentifier = textModel.getLanguageIdentifier();
 	let tokenizationSupport = (
 		textModel.isTooLargeForTokenization()
-			? undefined
+			? null
 			: TokenizationRegistry.get(languageIdentifier.language)
 	);
 	let initialState: IState | null = null;
@@ -436,7 +437,7 @@ function initializeTokenization(textModel: TextModel): [ITokenizationSupport | u
 			initialState = tokenizationSupport.getInitialState();
 		} catch (e) {
 			onUnexpectedError(e);
-			tokenizationSupport = undefined;
+			tokenizationSupport = null;
 		}
 	}
 	return [tokenizationSupport, initialState];
