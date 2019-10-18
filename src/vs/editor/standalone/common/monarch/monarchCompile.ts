@@ -21,7 +21,18 @@ import { IMonarchLanguage, IMonarchLanguageBracket } from 'vs/editor/standalone/
  */
 
 function isArrayOf(elemType: (x: any) => boolean, obj: any): boolean {
-	return Array.isArray(obj) && obj.every(elemType);
+	if (!obj) {
+		return false;
+	}
+	if (!(Array.isArray(obj))) {
+		return false;
+	}
+	for (const el of obj) {
+		if (!(elemType(el))) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function bool(prop: any, defValue: boolean): boolean {
