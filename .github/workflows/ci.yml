@@ -5,7 +5,6 @@ on: [push, pull_request]
 jobs:
   linux:
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v1
     # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
@@ -38,4 +37,33 @@ jobs:
     - run: DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
       name: Run Unit Tests
     - run: DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
+      name: Run Integration Tests
+
+  windows:
+    runs-on: windows-2016
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions/setup-node@v1
+      with:
+        node-version: 10
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '2.x'
+    - run: yarn --frozen-lockfile
+      name: Install Dependencies
+    - run: yarn electron
+      name: Download Electron
+    - run: yarn gulp hygiene --skip-tslint
+      name: Run Hygiene Checks
+    - run: yarn gulp tslint
+      name: Run TSLint Checks
+    - run: yarn monaco-compile-check
+      name: Run Monaco Editor Checks
+    - run: yarn compile
+      name: Compile Sources
+    - run: yarn download-builtin-extensions
+      name: Download Built-in Extensions
+    - run: .\scripts\test.bat --tfs "Unit Tests"
+      name: Run Unit Tests
+    - run: .\scripts\test-integration.bat --tfs "Integration Tests"
       name: Run Integration Tests
