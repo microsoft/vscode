@@ -928,8 +928,8 @@ export class SettingsEditor2 extends BaseEditor {
 				return await this.onSearchInputChanged();
 			}
 
-			this.renderTree(undefined, forceRefresh);
 			this.refreshTOCTree();
+			this.renderTree(undefined, forceRefresh);
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
 			this.settingsTreeModel.update(resolvedSettingsRoot);
@@ -1101,16 +1101,16 @@ export class SettingsEditor2 extends BaseEditor {
 				// Added a filter model
 				this.tocTree.setSelection([]);
 				this.tocTree.expandAll();
+				this.refreshTOCTree();
 				this.renderResultCountMessages();
 				this.refreshTree();
 			} else {
 				// Leaving search mode
 				this.tocTree.collapseAll();
+				this.refreshTOCTree();
 				this.renderResultCountMessages();
 				this.refreshTree();
 			}
-
-			this.refreshTOCTree();
 		}
 
 		return Promise.resolve();
@@ -1239,8 +1239,8 @@ export class SettingsEditor2 extends BaseEditor {
 			this.viewState.filterToCategory = undefined;
 			this.tocTree.expandAll();
 
-			this.renderTree(undefined, true);
 			this.refreshTOCTree();
+			this.renderTree(undefined, true);
 			return result;
 		});
 	}
