@@ -84,7 +84,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 	if (debugSettings.showBreakpointsInOverviewRuler) {
 		overviewRulerDecoration = {
 			color: 'rgb(124, 40, 49)',
-			position: OverviewRulerLane.Center
+			position: OverviewRulerLane.Left
 		};
 	} else {
 		overviewRulerDecoration = null;
