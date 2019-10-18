@@ -12,7 +12,7 @@ import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Iterator } from 'vs/base/common/iterator';
 import * as strings from 'vs/base/common/strings';
-import { isArray, withNullAsUndefined } from 'vs/base/common/types';
+import { isArray, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -213,31 +213,29 @@ export class SettingsEditor2 extends BaseEditor {
 		return super.setInput(input, options, token)
 			.then(() => timeout(0)) // Force setInput to be async
 			.then(() => {
-				return this.render(token);
-			})
-			.then(() => {
-				options = options || SettingsEditorOptions.create({});
+				// Don't block setInput on render (which can trigger an async search)
+				this.render(token).then(() => {
+					options = options || SettingsEditorOptions.create({});
 
-				if (!this.viewState.settingsTarget) {
-					if (!options.target) {
-						options.target = ConfigurationTarget.USER_LOCAL;
+					if (!this.viewState.settingsTarget) {
+						if (!options.target) {
+							options.target = ConfigurationTarget.USER_LOCAL;
+						}
 					}
-				}
 
-				this._setOptions(options);
+					this._setOptions(options);
 
-				this._register(input.onDispose(() => {
-					this.searchWidget.setValue('');
-				}));
+					this._register(input.onDispose(() => {
+						this.searchWidget.setValue('');
+					}));
 
-				// Init TOC selection
-				this.updateTreeScrollSync();
-
-				this.restoreCachedState();
+					// Init TOC selection
+					this.updateTreeScrollSync();
+				});
 			});
 	}
 
-	private restoreCachedState(): void {
+	private restoreCachedState(): ISettingsEditor2State | null {
 		const cachedState = this.group && this.input && this.editorMemento.loadEditorState(this.group, this.input);
 		if (cachedState && typeof cachedState.target === 'object') {
 			cachedState.target = URI.revive(cachedState.target);
@@ -246,9 +244,15 @@ export class SettingsEditor2 extends BaseEditor {
 		if (cachedState) {
 			const settingsTarget = cachedState.target;
 			this.settingsTargetsWidget.settingsTarget = settingsTarget;
-			this.onDidSettingsTargetChange(settingsTarget);
+			this.viewState.settingsTarget = settingsTarget;
 			this.searchWidget.setValue(cachedState.searchQuery);
 		}
+
+		if (this.input) {
+			this.editorMemento.clearEditorState(this.input, this.group);
+		}
+
+		return withUndefinedAsNull(cachedState);
 	}
 
 	setOptions(options: SettingsEditorOptions | undefined): void {
@@ -273,10 +277,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 	clearInput(): void {
 		this.inSettingsEditorContextKey.set(false);
-		if (this.input) {
-			this.editorMemento.clearEditorState(this.input, this.group);
-		}
-
 		super.clearInput();
 	}
 
@@ -847,7 +847,9 @@ export class SettingsEditor2 extends BaseEditor {
 						return undefined;
 					}
 
-					this._register(model.onDidChangeGroups(() => this.onConfigUpdate()));
+					this._register(model.onDidChangeGroups(() => {
+						this.onConfigUpdate(undefined, undefined, true);
+					}));
 					this.defaultSettingsEditorModel = model;
 					return this.onConfigUpdate(undefined, true);
 				});
@@ -881,7 +883,7 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
-	private onConfigUpdate(keys?: string[], forceRefresh = false): void {
+	private async onConfigUpdate(keys?: string[], forceRefresh = false, schemaChange = false): Promise<void> {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
@@ -914,23 +916,26 @@ export class SettingsEditor2 extends BaseEditor {
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 
-			// Make sure that all extensions' settings are included in search results
-			const cachedState = this.group && this.input && this.editorMemento.loadEditorState(this.group, this.input);
-			if (cachedState && cachedState.searchQuery) {
-				this.triggerSearch(cachedState.searchQuery);
-			} else {
-				this.renderTree(undefined, forceRefresh);
-				this.refreshTOCTree();
+			if (schemaChange && !!this.searchResultModel) {
+				// If an extension's settings were just loaded and a search is active, retrigger the search so it shows up
+				return await this.onSearchInputChanged();
 			}
+
+			this.renderTree(undefined, forceRefresh);
+			this.refreshTOCTree();
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
 
-			this.refreshTOCTree();
-			this.refreshTree();
-
-			this.tocTree.collapseAll();
+			const cachedState = this.restoreCachedState();
+			if (cachedState && cachedState.searchQuery) {
+				await this.onSearchInputChanged();
+			} else {
+				this.refreshTOCTree();
+				this.refreshTree();
+				this.tocTree.collapseAll();
+			}
 		}
 	}
 
@@ -1037,14 +1042,14 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private onSearchInputChanged(): void {
+	private async onSearchInputChanged(): Promise<void> {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
-		this.triggerSearch(query.replace(/›/g, ' ')).then(() => {
-			if (query && this.searchResultModel) {
-				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel!.getUniqueResults()));
-			}
-		});
+		await this.triggerSearch(query.replace(/›/g, ' '));
+
+		if (query && this.searchResultModel) {
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel!.getUniqueResults()));
+		}
 	}
 
 	private parseSettingFromJSON(query: string): string | null {
