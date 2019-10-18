@@ -727,10 +727,6 @@ declare namespace monaco {
 		readonly positionColumn: number;
 		constructor(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number);
 		/**
-		 * Clone this selection.
-		 */
-		clone(): Selection;
-		/**
 		 * Transform to a human-readable representation.
 		 */
 		toString(): string;
@@ -1555,6 +1551,11 @@ declare namespace monaco.editor {
 		 * @return The text length.
 		 */
 		getValueLengthInRange(range: IRange): number;
+		/**
+		 * Get the character count of text in a certain range.
+		 * @param range The range describing what text length to get.
+		 */
+		getCharacterCountInRange(range: IRange): number;
 		/**
 		 * Get the number of lines in the model.
 		 */
