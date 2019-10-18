@@ -771,6 +771,12 @@ export class DebugSession implements IDebugSession {
 				}
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(this.getId(), true, event.body.threadId);
+				const viewModel = this.debugService.getViewModel();
+				const focusedThread = viewModel.focusedThread;
+				if (focusedThread && event.body.threadId === focusedThread.threadId) {
+					// De-focus the thread in case it was focused
+					this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, false);
+				}
 			}
 		}));
 
