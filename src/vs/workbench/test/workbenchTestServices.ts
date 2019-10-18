@@ -1373,7 +1373,7 @@ export class TestElectronService implements IElectronService {
 	async toggleDevTools(): Promise<void> { }
 	async startCrashReporter(options: Electron.CrashReporterStartOptions): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
-	async openExtensionDevelopmentHostWindow(args: minimist.ParsedArgs, env: IProcessEnvironment): Promise<void> { }
+	async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> { }
 }
 
 export class TestBackupMainService implements IBackupMainService {
