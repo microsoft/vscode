@@ -368,7 +368,7 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 			'zenMode.silentNotifications': {
 				'type': 'boolean',
 				'default': true,
-				'description': nls.localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, all notifications are silent and they will only appear in the status bar.")
+				'description': nls.localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, only error notifications will pop out.")
 			}
 		}
 	});
