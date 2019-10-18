@@ -7,7 +7,7 @@ import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { timeout } from 'vs/base/common/async';
@@ -63,7 +63,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			case ProgressLocation.Notification:
 				return this.withNotificationProgress({ ...options, location }, task, onDidCancel);
 			case ProgressLocation.Window:
-				return this.withWindowProgress(options, task);
+				return this.withWindowProgress({ ...options, location }, task);
 			case ProgressLocation.Explorer:
 				return this.withViewletProgress('workbench.view.explorer', task, { ...options, location });
 			case ProgressLocation.Scm:
@@ -77,8 +77,8 @@ export class ProgressService extends Disposable implements IProgressService {
 		}
 	}
 
-	private withWindowProgress<R = unknown>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
-		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this.updateWindowProgress())];
+	private withWindowProgress<R = unknown>(options: IProgressWindowOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
+		const task: [IProgressWindowOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this.updateWindowProgress())];
 
 		const promise = callback(task[1]);
 
@@ -110,6 +110,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			let progressTitle = options.title;
 			let progressMessage = progress.value && progress.value.message;
+			let progressCommand = (<IProgressWindowOptions>options).command;
 			let text: string;
 			let title: string;
 
@@ -136,7 +137,8 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			this.globalStatusEntry.value = this.statusbarService.addEntry({
 				text: `$(sync~spin) ${text}`,
-				tooltip: title
+				tooltip: title,
+				command: progressCommand
 			}, 'status.progress', localize('status.progress', "Progress Message"), StatusbarAlignment.LEFT);
 		}
 	}
