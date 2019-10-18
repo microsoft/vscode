@@ -31,8 +31,6 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { overviewRulerBreakpointForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
@@ -85,7 +83,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 	let overviewRulerDecoration: IModelDecorationOverviewRulerOptions | null;
 	if (debugSettings.showBreakpointsInOverviewRuler) {
 		overviewRulerDecoration = {
-			color: themeColorFromId(overviewRulerBreakpointForeground),
+			color: 'rgb(124, 40, 49)',
 			position: OverviewRulerLane.Center
 		};
 	} else {
@@ -259,6 +257,11 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			}
 		}));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.onModelDecorationsChanged()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(async (e) => {
+			if (e.affectsConfiguration('debug.showBreakpointsInOverviewRuler')) {
+				await this.setDecorations();
+			}
+		}));
 	}
 
 	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: URI, lineNumber: number, column?: number): Array<IAction | ContextSubMenu> {
