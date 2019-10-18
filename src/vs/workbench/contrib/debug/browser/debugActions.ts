@@ -12,9 +12,7 @@ import { Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/d
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { startDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -91,11 +89,9 @@ export class ConfigureAction extends AbstractDebugAction {
 
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		const configurationManager = this.debugService.getConfigurationManager();
-		if (!configurationManager.selectedConfiguration.launch) {
-			configurationManager.selectConfiguration(configurationManager.getLaunches()[0]);
+		if (configurationManager.selectedConfiguration.launch) {
+			return configurationManager.selectedConfiguration.launch.openConfigFile(sideBySide, false);
 		}
-
-		return configurationManager.selectedConfiguration.launch!.openConfigFile(sideBySide, false);
 	}
 }
 
@@ -107,7 +103,6 @@ export class StartAction extends AbstractDebugAction {
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IHistoryService private readonly historyService: IHistoryService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 
@@ -118,7 +113,8 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	run(): Promise<boolean> {
-		return startDebugging(this.debugService, this.historyService, this.isNoDebug());
+		const { launch, name } = this.debugService.getConfigurationManager().selectedConfiguration;
+		return this.debugService.startDebugging(launch, name, { noDebug: this.isNoDebug() });
 	}
 
 	protected isNoDebug(): boolean {

@@ -35,6 +35,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { sequence } from 'vs/base/common/async';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { first } from 'vs/base/common/arrays';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -65,7 +67,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		@ICommandService private readonly commandService: ICommandService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHistoryService historyService: IHistoryService
 	) {
 		this.configProviders = [];
 		this.adapterDescriptorFactories = [];
@@ -78,6 +81,14 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
 		if (previousSelectedLaunch) {
 			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+		} else if (this.launches.length > 0) {
+			const rootUri = historyService.getLastActiveWorkspaceRoot();
+			let launch = this.getLaunch(rootUri);
+			if (!launch || launch.getConfigurationNames().length === 0) {
+				launch = first(this.launches, l => !!(l && l.getConfigurationNames().length), launch) || this.launches[0];
+			}
+
+			this.selectConfiguration(launch);
 		}
 	}
 
