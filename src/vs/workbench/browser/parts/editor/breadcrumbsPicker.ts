@@ -240,7 +240,7 @@ class FileRenderer implements ITreeRenderer<IFileStat | IWorkspaceFolder, FuzzyS
 	}
 
 	renderElement(node: ITreeNode<IWorkspaceFolder | IFileStat, [number, number, number]>, index: number, templateData: IResourceLabel): void {
-		const fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
+		const fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean; }>('explorer.decorations');
 		const { element } = node;
 		let resource: URI;
 		let fileKind: FileKind;
@@ -446,6 +446,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 			[new OutlineGroupRenderer(), this._instantiationService.createInstance(OutlineElementRenderer)],
 			new OutlineDataSource(),
 			{
+				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
 				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
@@ -473,7 +474,6 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		} else {
 			focusElement = element;
 		}
-		tree.collapseAll();
 		tree.reveal(focusElement, 0.5);
 		tree.setFocus([focusElement], this._fakeEvent);
 		tree.domFocus();
