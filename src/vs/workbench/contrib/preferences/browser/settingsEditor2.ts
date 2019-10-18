@@ -68,6 +68,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private static NUM_INSTANCES: number = 0;
 	private static SETTING_UPDATE_FAST_DEBOUNCE: number = 200;
 	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 1000;
+	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
 
 	private static readonly SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', `@${EXTENSION_SETTING_TAG}`
@@ -111,6 +112,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
 	private searchInProgress: CancellationTokenSource | null = null;
+
+	private updatedConfigSchemaDelayer: Delayer<void>;
 
 	private settingFastUpdateDelayer: Delayer<void>;
 	private settingSlowUpdateDelayer: Delayer<void>;
@@ -157,6 +160,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
 		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
+
+		this.updatedConfigSchemaDelayer = new Delayer<void>(SettingsEditor2.CONFIG_SCHEMA_UPDATE_DELAYER);
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
@@ -848,7 +853,9 @@ export class SettingsEditor2 extends BaseEditor {
 					}
 
 					this._register(model.onDidChangeGroups(() => {
-						this.onConfigUpdate(undefined, undefined, true);
+						this.updatedConfigSchemaDelayer.trigger(() => {
+							this.onConfigUpdate(undefined, undefined, true);
+						});
 					}));
 					this.defaultSettingsEditorModel = model;
 					return this.onConfigUpdate(undefined, true);
