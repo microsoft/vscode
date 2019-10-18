@@ -56,6 +56,7 @@ export class OutlineElementTemplate {
 	constructor(
 		readonly container: HTMLElement,
 		readonly iconLabel: IconLabel,
+		readonly iconClass: HTMLElement,
 		readonly decoration: HTMLElement,
 	) { }
 }
@@ -110,9 +111,11 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 	renderTemplate(container: HTMLElement): OutlineElementTemplate {
 		dom.addClass(container, 'outline-element');
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
+		const iconClass = dom.$('.outline-element-icon');
 		const decoration = dom.$('.outline-element-decoration');
+		container.prepend(iconClass);
 		container.appendChild(decoration);
-		return new OutlineElementTemplate(container, iconLabel, decoration);
+		return new OutlineElementTemplate(container, iconLabel, iconClass, decoration);
 	}
 
 	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, index: number, template: OutlineElementTemplate): void {
@@ -125,7 +128,8 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
-			options.extraClasses.push(`outline-element-icon ${SymbolKinds.toCssClassName(element.symbol.kind, true)}`);
+			template.iconClass.className = '';
+			dom.addClasses(template.iconClass, `outline-element-icon ${SymbolKinds.toCssClassName(element.symbol.kind, true)}`);
 		}
 		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
 			options.extraClasses.push(`deprecated`);
