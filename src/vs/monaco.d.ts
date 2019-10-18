@@ -2918,11 +2918,6 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
-		/**
-		 * Controls whether breakpoints are shown in the overview ruler.
-		 * Defaults to false.
-		 */
-		showBreakpointsInOverviewRuler?: boolean;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {

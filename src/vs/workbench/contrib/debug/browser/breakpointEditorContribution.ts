@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { RemoveBreakpointAction } from 'vs/workbench/contrib/debug/browser/debugActions';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -30,9 +30,10 @@ import { memoize } from 'vs/base/common/decorators';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerBreakpointForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -48,7 +49,7 @@ const breakpointHelperDecoration: IModelDecorationOptions = {
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
-function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, debugService: IDebugService, editorOptions: IComputedEditorOptions): { range: Range; options: IModelDecorationOptions; }[] {
+function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, debugService: IDebugService, debugSettings: IDebugConfiguration): { range: Range; options: IModelDecorationOptions; }[] {
 	const result: { range: Range; options: IModelDecorationOptions; }[] = [];
 	breakpoints.forEach((breakpoint) => {
 		if (breakpoint.lineNumber <= model.getLineCount()) {
@@ -58,9 +59,8 @@ function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArr
 					: new Range(breakpoint.lineNumber, column, breakpoint.lineNumber, column + 1) // Decoration has to have a width #20688
 			);
 
-			const showInOverviewRuler: boolean = editorOptions.get(EditorOption.showBreakpointsInOverviewRuler);
 			result.push({
-				options: getBreakpointDecorationOptions(model, breakpoint, debugService, showInOverviewRuler),
+				options: getBreakpointDecorationOptions(model, breakpoint, debugService, debugSettings),
 				range
 			});
 		}
@@ -69,7 +69,7 @@ function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArr
 	return result;
 }
 
-function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, debugService: IDebugService, showInOverviewRuler: boolean): IModelDecorationOptions {
+function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, debugService: IDebugService, debugSettings: IDebugConfiguration): IModelDecorationOptions {
 	const { className, message } = getBreakpointMessageAndClassName(debugService, breakpoint);
 	let glyphMarginHoverMessage: MarkdownString | undefined;
 
@@ -83,7 +83,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 	}
 
 	let overviewRulerDecoration: IModelDecorationOverviewRulerOptions | null;
-	if (showInOverviewRuler) {
+	if (debugSettings.showBreakpointsInOverviewRuler) {
 		overviewRulerDecoration = {
 			color: themeColorFromId(overviewRulerBreakpointForeground),
 			position: OverviewRulerLane.Center
@@ -153,6 +153,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.registerListeners();
@@ -372,7 +373,8 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		const activeCodeEditor = this.editor;
 		const model = activeCodeEditor.getModel();
 		const breakpoints = this.debugService.getModel().getBreakpoints({ uri: model.uri });
-		const desiredBreakpointDecorations = createBreakpointDecorations(model, breakpoints, this.debugService, this.editor.getOptions());
+		const debugSettings = this.configurationService.getValue<IDebugConfiguration>('debug');
+		const desiredBreakpointDecorations = createBreakpointDecorations(model, breakpoints, this.debugService, debugSettings);
 
 		try {
 			this.ignoreDecorationsChangedEvent = true;
