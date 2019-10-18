@@ -279,10 +279,10 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		if (!occurrence) {
 			return;
 		}
-		this.openLinkOccurrence(occurrence, mouseEvent.hasSideBySideModifier);
+		this.openLinkOccurrence(occurrence, mouseEvent.hasSideBySideModifier, true /* from user gesture */);
 	}
 
-	public openLinkOccurrence(occurrence: LinkOccurrence, openToSide: boolean): void {
+	public openLinkOccurrence(occurrence: LinkOccurrence, openToSide: boolean, fromUserGesture = false): void {
 
 		if (!this.openerService) {
 			return;
@@ -292,7 +292,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		link.resolve(CancellationToken.None).then(uri => {
 			// open the uri
-			return this.openerService.open(uri, { openToSide });
+			return this.openerService.open(uri, { openToSide, fromUserGesture });
 
 		}, err => {
 			const messageOrError =

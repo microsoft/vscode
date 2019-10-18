@@ -49,7 +49,8 @@ import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -125,6 +126,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -916,23 +918,67 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return openEditorPromise;
 	}
 
-	private doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): void {
+	private async doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): Promise<void> {
 
 		// Report error only if this was not us restoring previous error state or
 		// we are told to ignore errors that occur from opening an editor
 		if (this.isRestored && !isPromiseCanceledError(error) && (!options || !options.ignoreError)) {
-			const actions: INotificationActions = { primary: [] };
+
+			// Extract possible error actions from the error
+			let errorActions: ReadonlyArray<IAction> | undefined = undefined;
 			if (isErrorWithActions(error)) {
-				actions.primary = (error as IErrorWithActions).actions;
+				errorActions = (error as IErrorWithActions).actions;
 			}
 
-			const handle = this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
-				actions
-			});
+			// If the context is USER, we try to show a modal dialog instead of a background notification
+			if (options && options.context === EditorOpenContext.USER) {
+				const buttons: string[] = [];
+				if (Array.isArray(errorActions) && errorActions.length > 0) {
+					errorActions.forEach(action => buttons.push(action.label));
+				} else {
+					buttons.push(localize('ok', 'OK'));
+				}
 
-			Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
+				let cancelId: number | undefined = undefined;
+				if (buttons.length === 1) {
+					buttons.push(localize('cancel', "Cancel"));
+					cancelId = 1;
+				}
+
+				const result = await this.dialogService.show(
+					Severity.Error,
+					localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
+					buttons,
+					{
+						detail: toErrorMessage(error),
+						cancelId
+					}
+				);
+
+				// Make sure to run any error action if present
+				if (result.choice !== cancelId && Array.isArray(errorActions)) {
+					const errorAction = errorActions[result.choice];
+					if (errorAction) {
+						errorAction.run();
+					}
+				}
+			}
+
+			// Otherwise, show a background notification.
+			else {
+				const actions: INotificationActions = { primary: [] };
+				if (Array.isArray(errorActions)) {
+					actions.primary = errorActions;
+				}
+
+				const handle = this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
+					actions
+				});
+
+				Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
+			}
 		}
 
 		// Event
