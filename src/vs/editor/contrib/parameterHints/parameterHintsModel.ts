@@ -165,14 +165,14 @@ export class ParameterHintsModel extends Disposable {
 		this._onChangedHints.fire(this.state.hints);
 	}
 
-	private doTrigger(triggerId: number): Promise<boolean> {
+	private async doTrigger(triggerId: number): Promise<boolean> {
 		const isRetrigger = this.state.type === ParameterHintState.Type.Active || this.state.type === ParameterHintState.Type.Pending;
 		const activeSignatureHelp = this.state.type === ParameterHintState.Type.Active ? this.state.hints : undefined;
 
 		this.cancel(true);
 
 		if (this._pendingTriggers.length === 0) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		const context: TriggerContext = this._pendingTriggers.reduce(mergeTriggerContexts);
@@ -186,7 +186,7 @@ export class ParameterHintsModel extends Disposable {
 		};
 
 		if (!this.editor.hasModel()) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		const model = this.editor.getModel();
@@ -195,19 +195,18 @@ export class ParameterHintsModel extends Disposable {
 		this.state = new ParameterHintState.Pending(createCancelablePromise(token =>
 			provideSignatureHelp(model, position, triggerContext, token)));
 
-		return this.state.request.then(result => {
+		try {
+			const result = await this.state.request;
+
 			// Check that we are still resolving the correct signature help
 			if (triggerId !== this.triggerId) {
-				if (result) {
-					result.dispose();
-				}
+				result?.dispose();
+
 				return false;
 			}
 
 			if (!result || !result.value.signatures || result.value.signatures.length === 0) {
-				if (result) {
-					result.dispose();
-				}
+				result?.dispose();
 				this._lastSignatureHelpResult.clear();
 				this.cancel();
 				return false;
@@ -217,13 +216,13 @@ export class ParameterHintsModel extends Disposable {
 				this._onChangedHints.fire(this.state.hints);
 				return true;
 			}
-		}).catch(error => {
+		} catch (error) {
 			if (triggerId === this.triggerId) {
 				this.state = ParameterHintState.Default;
 			}
 			onUnexpectedError(error);
 			return false;
-		});
+		}
 	}
 
 	private get isTriggered(): boolean {
