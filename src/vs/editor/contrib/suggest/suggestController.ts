@@ -19,7 +19,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -550,6 +550,9 @@ KeybindingsRegistry.registerKeybindingRule({
 	args: { alternative: true },
 	weight
 });
+
+// continue to support the old command
+CommandsRegistry.registerCommandAlias('acceptSelectedSuggestionOnEnter', 'acceptSelectedSuggestion');
 
 registerEditorCommand(new SuggestCommand({
 	id: 'hideSuggestWidget',
