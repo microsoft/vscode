@@ -871,7 +871,7 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 	}
 
 	set(key: K, value: V): void {
-		super.set(key, value);
+		super.set(key, value, Touch.AsNew);
 		this.checkTrim();
 	}
 
