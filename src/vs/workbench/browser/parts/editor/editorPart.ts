@@ -23,7 +23,7 @@ import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/com
 import { assign } from 'vs/base/common/objects';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
+import { EditorDropTarget, EditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -780,6 +780,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return groupView;
 	}
 
+	createEditorDropTarget(container: HTMLElement, delegate: EditorDropTargetDelegate): IDisposable {
+		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
+	}
+
 	//#endregion
 
 	//#region Part
@@ -822,7 +826,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
 
 		// Drop support
-		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.container));
+		this._register(this.createEditorDropTarget(this.container, {}));
 
 		return this.container;
 	}
