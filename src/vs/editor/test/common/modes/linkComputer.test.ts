@@ -185,7 +185,7 @@ suite('Editor Modes - Link Computer', () => {
 		);
 		assertLink(
 			'let url = `http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items`;',
-			'           http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items  '
+			'           http://*                                                                '
 		);
 	});
 
