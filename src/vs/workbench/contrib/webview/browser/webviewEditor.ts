@@ -6,19 +6,20 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isWeb } from 'vs/base/common/platform';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class WebviewEditor extends BaseEditor {
 
@@ -30,7 +31,7 @@ export class WebviewEditor extends BaseEditor {
 	private _content?: HTMLElement;
 	private _dimension?: DOM.Dimension;
 
-	private readonly _webviewFocusTrackerDisposables = this._register(new DisposableStore());
+	private readonly _webviewVisibleDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
@@ -39,10 +40,11 @@ export class WebviewEditor extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IHostService private readonly _hostService: IHostService,
-		@IStorageService storageService: IStorageService
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 
@@ -117,23 +119,22 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		const webview = this.input && (this.input as WebviewInput).webview;
-		if (webview) {
+		if (this.input instanceof WebviewInput) {
+			const webview = this.input.webview;
 			if (visible) {
 				webview.claim(this);
 			} else {
 				webview.release(this);
 			}
-			this.claimWebview(this.input as WebviewInput);
+			this.claimWebview(this.input);
 		}
-
 		super.setEditorVisible(visible, group);
 	}
 
 	public clearInput() {
 		if (this.input && this.input instanceof WebviewInput) {
 			this.input.webview.release(this);
-			this._webviewFocusTrackerDisposables.clear();
+			this._webviewVisibleDisposables.clear();
 		}
 
 		super.clearInput();
@@ -178,8 +179,35 @@ export class WebviewEditor extends BaseEditor {
 			this._content.setAttribute('aria-flowto', input.webview.container.id);
 		}
 
+		this._webviewVisibleDisposables.clear();
+
+		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
+		if (this._editorGroupsService instanceof EditorPart) {
+			this._webviewVisibleDisposables.add(this._editorGroupsService.createEditorDropTarget(input.webview.container, {
+				groupContainsPredicate: (group) => this.group?.id === group.group.id
+			}));
+		}
+
+		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.DRAG_START, () => {
+			if (this.input instanceof WebviewInput) {
+				this.input.webview.windowDidDragStart();
+			}
+		}));
+
+		const onDragEnd = () => {
+			if (this.input instanceof WebviewInput) {
+				this.input.webview.windowDidDragEnd();
+			}
+		};
+		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.DRAG_END, onDragEnd));
+		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.MOUSE_MOVE, currentEvent => {
+			if (currentEvent.buttons === 0) {
+				onDragEnd();
+			}
+		}));
+
 		this.synchronizeWebviewContainerDimensions(input.webview);
-		this.trackFocus(input.webview);
+		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
 	}
 
 	private synchronizeWebviewContainerDimensions(webview: WebviewEditorOverlay, dimension?: DOM.Dimension) {
@@ -188,15 +216,17 @@ export class WebviewEditor extends BaseEditor {
 		}
 	}
 
-	private trackFocus(webview: WebviewEditorOverlay): void {
-		this._webviewFocusTrackerDisposables.clear();
+	private trackFocus(webview: WebviewEditorOverlay): IDisposable {
+		const store = new DisposableStore();
 
 		// Track focus in webview content
 		const webviewContentFocusTracker = DOM.trackFocus(webview.container);
-		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker);
-		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
+		store.add(webviewContentFocusTracker);
+		store.add(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
 
 		// Track focus in webview element
-		this._webviewFocusTrackerDisposables.add(webview.onDidFocus(() => this._onDidFocusWebview.fire()));
+		store.add(webview.onDidFocus(() => this._onDidFocusWebview.fire()));
+
+		return store;
 	}
 }
