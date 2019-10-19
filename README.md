@@ -51,6 +51,7 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 * Follow [@code](https://twitter.com/code) and let us know what you think!
 
 ## Related Projects
+
 Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) have their own repositories. For a complete list, please visit the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
 
 ## Bundled Extensions
