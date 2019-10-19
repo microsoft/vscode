@@ -182,7 +182,7 @@ export class WebviewEditor extends BaseEditor {
 		this._webviewVisibleDisposables.clear();
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
-		this._webviewVisibleDisposables.add((this._editorGroupsService as EditorPart).createDropTargets(input.webview.container, {
+		this._webviewVisibleDisposables.add((this._editorGroupsService as EditorPart).createEditorDropTarget(input.webview.container, {
 			groupContainsPredicate: (group) => this.group?.id === group.group.id
 		}));
 

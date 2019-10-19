@@ -780,6 +780,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return groupView;
 	}
 
+	createEditorDropTarget(container: HTMLElement, delegate: EditorDropTargetDelegate): IDisposable {
+		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
+	}
+
 	//#endregion
 
 	//#region Part
@@ -822,7 +826,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
 
 		// Drop support
-		this._register(this.createDropTargets(this.container, {}));
+		this._register(this.createEditorDropTarget(this.container, {}));
 
 		return this.container;
 	}
@@ -1038,10 +1042,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return {
 			type: Parts.EDITOR_PART
 		};
-	}
-
-	createDropTargets(container: HTMLElement, delegate: EditorDropTargetDelegate): IDisposable {
-		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
 	}
 }
 
