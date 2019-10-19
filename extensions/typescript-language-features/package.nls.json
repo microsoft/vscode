@@ -45,7 +45,7 @@
 	"javascript.implicitProjectConfig.checkJs": "Enable/disable semantic checking of JavaScript files. Existing jsconfig.json or tsconfig.json files override this setting. Requires using TypeScript 2.3.1 or newer in the workspace.",
 	"typescript.npm": "Specifies the path to the NPM executable used for Automatic Type Acquisition. Requires using TypeScript 2.3.4 or newer in the workspace.",
 	"typescript.check.npmIsInstalled": "Check if NPM is installed for Automatic Type Acquisition.",
-	"configuration.suggest.names": "Enable/disable including unique names from the file in JavaScript suggestions.",
+	"configuration.suggest.names": "Enable/disable including unique names from the file in JavaScript suggestions. Note that name suggestions are always disabled in JavaScript code that is semantically checked using `@ts-check` or `checkJs`.",
 	"typescript.tsc.autoDetect": "Controls auto detection of tsc tasks.",
 	"typescript.tsc.autoDetect.off": "Disable this feature.",
 	"typescript.tsc.autoDetect.on": "Create both build and watch tasks.",

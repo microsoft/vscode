@@ -475,7 +475,7 @@
         "javascript.suggest.names": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.suggest.names%",
+          "markdownDescription": "%configuration.suggest.names%",
           "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
