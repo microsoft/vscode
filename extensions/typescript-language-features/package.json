@@ -212,6 +212,18 @@
           "description": "%configuration.suggest.completeFunctionCalls%",
           "scope": "resource"
         },
+        "javascript.suggest.includeAutomaticOptionalChainCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+          "scope": "resource"
+        },
+        "typescript.suggest.includeAutomaticOptionalChainCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+          "scope": "resource"
+        },
         "typescript.reportStyleChecksAsWarnings": {
           "type": "boolean",
           "default": true,
