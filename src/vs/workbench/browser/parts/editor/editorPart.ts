@@ -30,6 +30,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { MementoObject } from 'vs/workbench/common/memento';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -497,13 +498,18 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return group;
 	}
 
+	private _getSizingStyle(): Sizing {
+		const splitSyle = this.configurationService.getValue<IEditorOptions>('editor').splitViewSizingOptions!;
+		return Sizing[splitSyle];
+	}
+
 	private doAddGroup(locationView: IEditorGroupView, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
 		const newGroupView = this.doCreateGroupView(groupToCopy);
 
 		// Add to grid widget
 		this.gridWidget.addView(
 			newGroupView,
-			Sizing.Distribute,
+			this._getSizingStyle(),
 			locationView,
 			this.toGridViewDirection(direction),
 		);
@@ -670,7 +676,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		}
 
 		// Remove from grid widget & dispose
-		this.gridWidget.removeView(groupView, Sizing.Distribute);
+		this.gridWidget.removeView(groupView, this._getSizingStyle());
 		groupView.dispose();
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
@@ -700,7 +706,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const restoreFocus = this.shouldRestoreFocus(sourceView.element);
 
 		// Move through grid widget API
-		this.gridWidget.moveView(sourceView, Sizing.Distribute, targetView, this.toGridViewDirection(direction));
+		this.gridWidget.moveView(sourceView, this._getSizingStyle(), targetView, this.toGridViewDirection(direction));
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
