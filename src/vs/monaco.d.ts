@@ -2918,10 +2918,6 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
-		/**
-		 * Controls size of splitting pane
-		 */
-		splitViewSizingOptions?: 'Split' | 'Distribute';
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3026,11 +3022,6 @@ declare namespace monaco.editor {
 		 * As a thin horizontal line (sitting under a character).
 		 */
 		UnderlineThin = 6
-	}
-
-	export enum TextEditorSplitStyle {
-		Distribute = 1,
-		Split = 2
 	}
 
 	/**

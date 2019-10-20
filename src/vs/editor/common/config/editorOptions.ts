@@ -515,10 +515,6 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
-	/**
-	 * Controls size of splitting pane
-	 */
-	splitViewSizingOptions?: 'Split' | 'Distribute';
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -1041,28 +1037,6 @@ function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'l
 		case 'line-thin': return TextEditorCursorStyle.LineThin;
 		case 'block-outline': return TextEditorCursorStyle.BlockOutline;
 		case 'underline-thin': return TextEditorCursorStyle.UnderlineThin;
-	}
-}
-
-export enum TextEditorSplitStyle {
-	Distribute = 1,
-	Split = 2,
-}
-
-/**
- * @internal
- */
-export function splitStyleToString(splitStyle: TextEditorSplitStyle): 'Distribute' | 'Split' {
-	switch (splitStyle) {
-		case TextEditorSplitStyle.Distribute: return 'Distribute';
-		case TextEditorSplitStyle.Split: return 'Split';
-	}
-}
-
-function _splitStyleFromString(splitStyle: 'Distribute' | 'Split'): TextEditorSplitStyle {
-	switch (splitStyle) {
-		case 'Distribute': return TextEditorSplitStyle.Distribute;
-		case 'Split': return TextEditorSplitStyle.Split;
 	}
 }
 
@@ -2785,7 +2759,6 @@ export const enum EditorOption {
 	selectOnLineNumbers,
 	showFoldingControls,
 	showUnused,
-	splitViewSizingOptions,
 	snippetSuggestions,
 	smoothScrolling,
 	stopRenderingLineAfter,
@@ -3191,13 +3164,6 @@ export const EditorOptions = {
 	showUnused: register(new EditorBooleanOption(
 		EditorOption.showUnused, 'showUnused', true,
 		{ description: nls.localize('showUnused', "Controls fading out of unused code.") }
-	)),
-	splitViewSizingOptions: register(new EditorEnumOption(
-		EditorOption.splitViewSizingOptions, 'splitViewSizingOptions',
-		TextEditorSplitStyle.Distribute, 'Distribute',
-		['Split', 'Distribute'],
-		_splitStyleFromString,
-		{ description: nls.localize('splitViewSizingOptions', 'Editor pane splitting options') }
 	)),
 	snippetSuggestions: register(new EditorStringEnumOption(
 		EditorOption.snippetSuggestions, 'snippetSuggestions',

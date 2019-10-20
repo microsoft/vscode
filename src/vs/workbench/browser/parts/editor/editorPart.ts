@@ -30,7 +30,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { MementoObject } from 'vs/workbench/common/memento';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -499,8 +498,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private _getSizingStyle(): Sizing {
-		const splitSyle = this.configurationService.getValue<IEditorOptions>('editor').splitViewSizingOptions!;
-		return Sizing[splitSyle];
+		const splitStyle = this._partOptions.splitSizing!;
+		return Sizing[splitStyle];
 	}
 
 	private doAddGroup(locationView: IEditorGroupView, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {

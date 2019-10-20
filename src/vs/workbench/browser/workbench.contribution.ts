@@ -60,6 +60,16 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 				],
 				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs.")
 			},
+			'workbench.editor.splitSizing': {
+				'type': 'string',
+				'enum': ['Distribute', 'Split'],
+				'default': 'Distribute',
+				'enumDescriptions': [
+					nls.localize('workbench.editor.splitSizing.Distribute', "Always keep tabs large enough to show the full editor label."),
+					nls.localize('workbench.editor.splitSizing.Split', "Allow tabs to get smaller when the available space is not enough to show all tabs at once.")
+				],
+				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "Controls the sizing of editor tabs.")
+			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',
 				'description': nls.localize('focusRecentEditorAfterClose', "Controls whether tabs are closed in most recently used order or from left to right."),

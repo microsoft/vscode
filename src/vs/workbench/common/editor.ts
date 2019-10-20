@@ -1025,6 +1025,7 @@ interface IEditorPartConfiguration {
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
+	splitSizing?: 'Split' | 'Distribute';
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {

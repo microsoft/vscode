@@ -401,11 +401,6 @@ export enum TextEditorCursorStyle {
 	UnderlineThin = 6
 }
 
-export enum TextEditorSplitStyle {
-	Distribute = 1,
-	Split = 2
-}
-
 export enum RenderMinimap {
 	None = 0,
 	Small = 1,
