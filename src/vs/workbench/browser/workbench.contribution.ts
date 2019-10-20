@@ -65,8 +65,8 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 				'enum': ['Distribute', 'Split'],
 				'default': 'Distribute',
 				'enumDescriptions': [
-					nls.localize('workbench.editor.splitSizing.Distribute', "Always keep tabs large enough to show the full editor label."),
-					nls.localize('workbench.editor.splitSizing.Split', "Allow tabs to get smaller when the available space is not enough to show all tabs at once.")
+					nls.localize('workbench.editor.splitSizing.Distribute', "Splits all the editors to equal parts."),
+					nls.localize('workbench.editor.splitSizing.Split', "Splits the active editor to equal parts.")
 				],
 				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "Controls the sizing of editor tabs.")
 			},
