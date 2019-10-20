@@ -141,7 +141,12 @@ export class CursorRedo extends EditorAction {
 			id: 'cursorRedo',
 			label: nls.localize('cursor.redo', "Soft Redo"),
 			alias: 'Soft Redo',
-			precondition: undefined
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 
