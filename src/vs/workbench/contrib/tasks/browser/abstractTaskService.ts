@@ -18,7 +18,7 @@ import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
-import { LinkedMap, Touch } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -79,6 +79,8 @@ import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+
+const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -209,7 +211,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _taskSystem?: ITaskSystem;
 	protected _taskSystemListener?: IDisposable;
-	private _recentlyUsedTasks: LinkedMap<string, string> | undefined;
+	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
 
 	protected _taskRunningState: IContextKey<boolean>;
 
@@ -292,6 +294,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
 				this._outputChannel.clear();
 			}
+
+			this.setTaskLRUCacheLimit();
 			this.updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
@@ -596,11 +600,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return Promise.resolve(this._taskSystem.getBusyTasks());
 	}
 
-	public getRecentlyUsedTasks(): LinkedMap<string, string> {
+	public getRecentlyUsedTasks(): LRUCache<string, string> {
 		if (this._recentlyUsedTasks) {
 			return this._recentlyUsedTasks;
 		}
-		this._recentlyUsedTasks = new LinkedMap<string, string>();
+		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
+		this._recentlyUsedTasks = new LRUCache<string, string>(quickOpenHistoryLimit);
+
 		let storageValue = this.storageService.get(AbstractTaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
@@ -617,8 +623,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._recentlyUsedTasks;
 	}
 
+	private setTaskLRUCacheLimit() {
+		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
+		if (this._recentlyUsedTasks) {
+			this._recentlyUsedTasks.limit = quickOpenHistoryLimit;
+		}
+	}
+
 	private setRecentlyUsedTask(key: string): void {
-		this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
+		this.getRecentlyUsedTasks().set(key, key);
 		this.saveRecentlyUsedTasks();
 	}
 
@@ -626,9 +639,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._taskSystem || !this._recentlyUsedTasks) {
 			return;
 		}
+		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
+		// setting history limit to 0 means no LRU sorting
+		if (quickOpenHistoryLimit === 0) {
+			return;
+		}
 		let values = this._recentlyUsedTasks.values();
-		if (values.length > 30) {
-			values = values.slice(0, 30);
+		if (values.length > quickOpenHistoryLimit) {
+			values = values.slice(0, quickOpenHistoryLimit);
 		}
 		this.storageService.store(AbstractTaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
 	}
@@ -1907,7 +1925,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						taskMap[key] = task;
 					}
 				});
-				recentlyUsedTasks.keys().forEach(key => {
+				recentlyUsedTasks.keys().reverse().forEach(key => {
 					let task = taskMap[key];
 					if (task) {
 						recent.push(task);
