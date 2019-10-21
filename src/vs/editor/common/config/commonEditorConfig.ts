@@ -304,6 +304,18 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return EditorConfiguration2.computeOptions(this._validatedOptions, env);
 	}
 
+	private static _primitiveArrayEquals(a: any[], b: any[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < a.length; i++) {
+			if (a[i] !== b[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	private static _subsetEquals(base: { [key: string]: any }, subset: { [key: string]: any }): boolean {
 		for (const key in subset) {
 			if (hasOwnProperty.call(subset, key)) {
@@ -314,7 +326,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 					continue;
 				}
 				if (Array.isArray(baseValue) && Array.isArray(subsetValue)) {
-					if (!arrays.equals(baseValue, subsetValue)) {
+					if (!this._primitiveArrayEquals(baseValue, subsetValue)) {
 						return false;
 					}
 					continue;
@@ -461,6 +473,11 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 750,
 			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled.")
+		},
+		'diffEditor.maxComputationTime': {
+			type: 'number',
+			default: 5000,
+			description: nls.localize('maxComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
 		},
 		'diffEditor.renderSideBySide': {
 			type: 'boolean',

@@ -13,6 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
+import { Constants } from 'vs/base/common/uint';
 
 export interface IInsertionPoint {
 	ignore: boolean;
@@ -392,7 +393,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Adjust insertion points to have them vertically aligned in the add line comment case
 	 */
 	public static _normalizeInsertionPoint(model: ISimpleModel, lines: IInsertionPoint[], startLineNumber: number, tabSize: number): void {
-		let minVisibleColumn = Number.MAX_VALUE;
+		let minVisibleColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 		let j: number;
 		let lenJ: number;
 

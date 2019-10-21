@@ -305,8 +305,8 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.ui.inputBox.showDecoration(severity);
 		if (severity === Severity.Error) {
 			const styles = this.ui.inputBox.stylesForType(severity);
-			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : null;
-			this.ui.message.style.border = styles.border ? `1px solid ${styles.border}` : null;
+			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : '';
+			this.ui.message.style.border = styles.border ? `1px solid ${styles.border}` : '';
 			this.ui.message.style.paddingBottom = '4px';
 		} else {
 			this.ui.message.style.backgroundColor = '';
@@ -1511,16 +1511,16 @@ export class QuickInputService extends Component implements IQuickInputService {
 		if (this.ui) {
 			// TODO
 			const titleColor = { dark: 'rgba(255, 255, 255, 0.105)', light: 'rgba(0,0,0,.06)', hc: 'black' }[theme.type];
-			this.titleBar.style.backgroundColor = titleColor ? titleColor.toString() : null;
+			this.titleBar.style.backgroundColor = titleColor ? titleColor.toString() : '';
 			this.ui.inputBox.style(theme);
 			const quickInputBackground = theme.getColor(QUICK_INPUT_BACKGROUND);
-			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : null;
+			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
 			const quickInputForeground = theme.getColor(QUICK_INPUT_FOREGROUND);
 			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : null;
 			const contrastBorderColor = theme.getColor(contrastBorder);
-			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : null;
+			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : '';
 			const widgetShadowColor = theme.getColor(widgetShadow);
-			this.ui.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
+			this.ui.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : '';
 		}
 	}
 

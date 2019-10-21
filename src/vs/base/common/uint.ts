@@ -3,32 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export class Uint8Matrix {
-
-	private readonly _data: Uint8Array;
-	public readonly rows: number;
-	public readonly cols: number;
-
-	constructor(rows: number, cols: number, defaultValue: number) {
-		const data = new Uint8Array(rows * cols);
-		for (let i = 0, len = rows * cols; i < len; i++) {
-			data[i] = defaultValue;
-		}
-
-		this._data = data;
-		this.rows = rows;
-		this.cols = cols;
-	}
-
-	public get(row: number, col: number): number {
-		return this._data[row * this.cols + col];
-	}
-
-	public set(row: number, col: number, value: number): void {
-		this._data[row * this.cols + col] = value;
-	}
-}
-
 export const enum Constants {
 	/**
 	 * MAX SMI (SMall Integer) as defined in v8.

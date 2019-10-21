@@ -20,7 +20,7 @@ import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
+import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 
@@ -232,6 +232,16 @@ export class ToggleEditorVisibilityAction extends Action {
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory);
 
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '2_workbench_layout',
+	command: {
+		id: ToggleEditorVisibilityAction.ID,
+		title: nls.localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
+		toggled: EditorAreaVisibleContext
+	},
+	order: 5
+});
+
 export class ToggleSidebarVisibilityAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleSidebarVisibility';
@@ -417,8 +427,10 @@ export class ToggleMenuBarAction extends Action {
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
 			newVisibilityValue = 'toggle';
+		} else if (currentVisibilityValue === 'compact') {
+			newVisibilityValue = 'hidden';
 		} else {
-			newVisibilityValue = 'default';
+			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'default';
 		}
 
 		this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);

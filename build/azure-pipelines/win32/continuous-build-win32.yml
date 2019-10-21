@@ -25,7 +25,7 @@ steps:
     vstsFeed: '$(ArtifactFeed)'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - powershell: |
-    yarn gulp electron
+    yarn electron
 - script: |
     yarn gulp hygiene --skip-tslint
   displayName: Run Hygiene Checks

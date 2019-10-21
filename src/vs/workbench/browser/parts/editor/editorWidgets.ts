@@ -75,9 +75,9 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 				this._domNode.style.color = foregroundColor.toString();
 			}
 
-			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : null;
-			this._domNode.style.borderWidth = borderColor ? '1px' : null;
-			this._domNode.style.borderStyle = borderColor ? 'solid' : null;
+			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+			this._domNode.style.borderWidth = borderColor ? '1px' : '';
+			this._domNode.style.borderStyle = borderColor ? 'solid' : '';
 			this._domNode.style.borderColor = borderColor;
 		}));
 
@@ -101,7 +101,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 		return editor.getContribution<OpenWorkspaceButtonContribution>(OpenWorkspaceButtonContribution.ID);
 	}
 
-	private static readonly ID = 'editor.contrib.openWorkspaceButton';
+	public static readonly ID = 'editor.contrib.openWorkspaceButton';
 
 	private openWorkspaceButton: FloatingClickWidget | undefined;
 
@@ -120,10 +120,6 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 
 	private registerListeners(): void {
 		this._register(this.editor.onDidChangeModel(e => this.update()));
-	}
-
-	getId(): string {
-		return OpenWorkspaceButtonContribution.ID;
 	}
 
 	private update(): void {

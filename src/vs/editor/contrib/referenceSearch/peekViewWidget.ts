@@ -57,8 +57,8 @@ export namespace PeekContext {
 	export const notInPeekEditor: ContextKeyExpr = inPeekEditor.toNegated();
 }
 
-export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | undefined {
-	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
+	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor instanceof EmbeddedCodeEditorWidget) {
 		return editor.getParentEditor();
 	}

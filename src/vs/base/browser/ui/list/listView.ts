@@ -14,8 +14,6 @@ import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions } from 'vs/base/
 import { RangeMap, shift } from './rangeMap';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListDragEvent, IListDragAndDrop, ListDragOverEffect } from './list';
 import { RowCache, IRow } from './rowCache';
-import { isWindows } from 'vs/base/common/platform';
-import * as browser from 'vs/base/browser/browser';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { memoize } from 'vs/base/common/decorators';
 import { Range, IRange } from 'vs/base/common/range';
@@ -179,7 +177,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private additionalScrollHeight: number;
 	private ariaProvider: IAriaProvider<T>;
 	private scrollWidth: number | undefined;
-	private canUseTranslate3d: boolean | undefined = undefined;
 
 	private dnd: IListViewDragAndDrop<T>;
 	private canDrop: boolean = false;
@@ -236,6 +233,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
+		this.rowsContainer.style.willChange = 'transform';
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
 		this.scrollableElement = this.disposables.add(new ScrollableElement(this.rowsContainer, {
@@ -531,32 +529,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		const canUseTranslate3d = !isWindows && !browser.isFirefox && browser.getZoomLevel() === 0;
-
-		if (canUseTranslate3d) {
-			const transform = `translate3d(-${renderLeft}px, -${renderTop}px, 0px)`;
-			this.rowsContainer.style.transform = transform;
-			this.rowsContainer.style.webkitTransform = transform;
-
-			if (canUseTranslate3d !== this.canUseTranslate3d) {
-				this.rowsContainer.style.left = '0';
-				this.rowsContainer.style.top = '0';
-			}
-		} else {
-			this.rowsContainer.style.left = `-${renderLeft}px`;
-			this.rowsContainer.style.top = `-${renderTop}px`;
-
-			if (canUseTranslate3d !== this.canUseTranslate3d) {
-				this.rowsContainer.style.transform = '';
-				this.rowsContainer.style.webkitTransform = '';
-			}
-		}
+		this.rowsContainer.style.left = `-${renderLeft}px`;
+		this.rowsContainer.style.top = `-${renderTop}px`;
 
 		if (this.horizontalScrolling) {
 			this.rowsContainer.style.width = `${Math.max(scrollWidth, this.renderWidth)}px`;
 		}
-
-		this.canUseTranslate3d = canUseTranslate3d;
 
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderHeight;

@@ -65,7 +65,7 @@ export class ConfigureLocaleAction extends Action {
 			}
 
 			if (selectedLanguage) {
-				await this.jsonEditingService.write(this.environmentService.localeResource, [{ key: 'locale', value: selectedLanguage.label }], true);
+				await this.jsonEditingService.write(this.environmentService.argvResource, [{ key: 'locale', value: selectedLanguage.label }], true);
 				const restart = await this.dialogService.confirm({
 					type: 'info',
 					message: localize('relaunchDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),

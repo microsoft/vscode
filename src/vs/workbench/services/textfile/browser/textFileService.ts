@@ -93,7 +93,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this.autoSaveContext = AutoSaveContext.bindTo(contextKeyService);
 
 		const configuration = configurationService.getValue<IFilesConfiguration>();
-		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
+		this.currentFilesAssociationConfig = configuration?.files?.associations;
 
 		this.onFilesConfigurationChange(configuration);
 
@@ -298,11 +298,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
 		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
-		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
+		const autoSaveMode = configuration?.files?.autoSave || AutoSaveConfiguration.OFF;
 		this.autoSaveContext.set(autoSaveMode);
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
-				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
+				this.configuredAutoSaveDelay = configuration?.files?.autoSaveDelay;
 				this.configuredAutoSaveOnFocusChange = false;
 				this.configuredAutoSaveOnWindowChange = false;
 				break;
@@ -335,14 +335,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Check for change in files associations
-		const filesAssociation = configuration && configuration.files && configuration.files.associations;
+		const filesAssociation = configuration?.files?.associations;
 		if (!objects.equals(this.currentFilesAssociationConfig, filesAssociation)) {
 			this.currentFilesAssociationConfig = filesAssociation;
 			this._onFilesAssociationChange.fire();
 		}
 
 		// Hot exit
-		const hotExitMode = configuration && configuration.files && configuration.files.hotExit;
+		const hotExitMode = configuration?.files?.hotExit;
 		if (hotExitMode === HotExitConfiguration.OFF || hotExitMode === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 			this.configuredHotExit = hotExitMode;
 		} else {
@@ -389,7 +389,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return {
 			...stream,
 			encoding: 'utf8',
-			value: await createTextBufferFactoryFromStream(stream.value, undefined, options && options.acceptTextOnly ? throwOnBinary : undefined)
+			value: await createTextBufferFactoryFromStream(stream.value, undefined, options?.acceptTextOnly ? throwOnBinary : undefined)
 		};
 	}
 
@@ -549,7 +549,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async save(resource: URI, options?: ISaveOptions): Promise<boolean> {
 
 		// Run a forced save if we detect the file is not dirty so that save participants can still run
-		if (options && options.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
+		if (options?.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
 			const model = this._models.get(resource);
 			if (model) {
 				options.reason = SaveReason.EXPLICIT;
@@ -835,7 +835,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Prefer an existing model if it is already loaded for the given target resource
 		let targetExists: boolean = false;
 		let targetModel = this.models.get(target);
-		if (targetModel && targetModel.isResolved()) {
+		if (targetModel?.isResolved()) {
 			targetExists = true;
 		}
 
@@ -938,7 +938,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private async doRevertAllFiles(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
-		const fileModels = options && options.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
+		const fileModels = options?.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();
 		fileModels.forEach(m => {
@@ -949,7 +949,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		await Promise.all(fileModels.map(async model => {
 			try {
-				await model.revert(options && options.soft);
+				await model.revert(options?.soft);
 
 				if (!model.isDirty()) {
 					const result = mapResourceToResult.get(model.getResource());

@@ -18,7 +18,7 @@ import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
-import { LinkedMap, Touch } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -33,7 +33,7 @@ import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platfor
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -78,6 +78,9 @@ import { ITextEditor } from 'vs/workbench/common/editor';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+
+const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -127,6 +130,10 @@ interface TaskCustomizationTelemetryEvent {
 	properties: string[];
 }
 
+function isWorkspaceFolder(folder: IWorkspace | IWorkspaceFolder): folder is IWorkspaceFolder {
+	return 'uri' in folder;
+}
+
 class TaskMap {
 	private _store: Map<string, Task[]> = new Map();
 
@@ -134,20 +141,33 @@ class TaskMap {
 		this._store.forEach(callback);
 	}
 
-	public get(workspaceFolder: IWorkspaceFolder | string): Task[] {
-		let result: Task[] | undefined = Types.isString(workspaceFolder) ? this._store.get(workspaceFolder) : this._store.get(workspaceFolder.uri.toString());
+	private getKey(workspaceFolder: IWorkspace | IWorkspaceFolder | string): string {
+		let key: string | undefined;
+		if (Types.isString(workspaceFolder)) {
+			key = workspaceFolder;
+		} else {
+			const uri: URI | null | undefined = isWorkspaceFolder(workspaceFolder) ? workspaceFolder.uri : workspaceFolder.configuration;
+			key = uri ? uri.toString() : '';
+		}
+		return key;
+	}
+
+	public get(workspaceFolder: IWorkspace | IWorkspaceFolder | string): Task[] {
+		const key = this.getKey(workspaceFolder);
+		let result: Task[] | undefined = this._store.get(key);
 		if (!result) {
 			result = [];
-			Types.isString(workspaceFolder) ? this._store.set(workspaceFolder, result) : this._store.set(workspaceFolder.uri.toString(), result);
+			this._store.set(key, result);
 		}
 		return result;
 	}
 
-	public add(workspaceFolder: IWorkspaceFolder | string, ...task: Task[]): void {
-		let values = Types.isString(workspaceFolder) ? this._store.get(workspaceFolder) : this._store.get(workspaceFolder.uri.toString());
+	public add(workspaceFolder: IWorkspace | IWorkspaceFolder | string, ...task: Task[]): void {
+		const key = this.getKey(workspaceFolder);
+		let values = this._store.get(key);
 		if (!values) {
 			values = [];
-			Types.isString(workspaceFolder) ? this._store.set(workspaceFolder, values) : this._store.set(workspaceFolder.uri.toString(), values);
+			this._store.set(key, values);
 		}
 		values.push(...task);
 	}
@@ -191,7 +211,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _taskSystem?: ITaskSystem;
 	protected _taskSystemListener?: IDisposable;
-	private _recentlyUsedTasks: LinkedMap<string, string> | undefined;
+	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
 
 	protected _taskRunningState: IContextKey<boolean>;
 
@@ -265,13 +285,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();
 		}));
-		this._register(this.configurationService.onDidChangeConfiguration(() => {
+		this._register(Event.debounce(this.configurationService.onDidChangeConfiguration, () => {
+			return;
+		}, 1000)(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
 			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
 				this._outputChannel.clear();
 			}
+
+			this.setTaskLRUCacheLimit();
 			this.updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
@@ -372,8 +396,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.runConfigureDefaultTestTask();
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', () => {
-			this.runShowTasks();
+		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', async () => {
+			return this.runShowTasks();
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => {
@@ -499,8 +523,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._taskSystem.customExecutionComplete(task, result);
 	}
 
-	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
-		const name = Types.isString(folder) ? folder : folder.name;
+	public getTask(folder: IWorkspace | IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
+		const name = Types.isString(folder) ? folder : isWorkspaceFolder(folder) ? folder.name : folder.configuration ? resources.basename(folder.configuration) : undefined;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return Promise.reject(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
 		}
@@ -569,11 +593,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return Promise.resolve(this._taskSystem.getActiveTasks());
 	}
 
-	public getRecentlyUsedTasks(): LinkedMap<string, string> {
+	public getBusyTasks(): Promise<Task[]> {
+		if (!this._taskSystem) {
+			return Promise.resolve([]);
+		}
+		return Promise.resolve(this._taskSystem.getBusyTasks());
+	}
+
+	public getRecentlyUsedTasks(): LRUCache<string, string> {
 		if (this._recentlyUsedTasks) {
 			return this._recentlyUsedTasks;
 		}
-		this._recentlyUsedTasks = new LinkedMap<string, string>();
+		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
+		this._recentlyUsedTasks = new LRUCache<string, string>(quickOpenHistoryLimit);
+
 		let storageValue = this.storageService.get(AbstractTaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
@@ -590,8 +623,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._recentlyUsedTasks;
 	}
 
+	private setTaskLRUCacheLimit() {
+		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
+		if (this._recentlyUsedTasks) {
+			this._recentlyUsedTasks.limit = quickOpenHistoryLimit;
+		}
+	}
+
 	private setRecentlyUsedTask(key: string): void {
-		this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
+		this.getRecentlyUsedTasks().set(key, key);
 		this.saveRecentlyUsedTasks();
 	}
 
@@ -599,9 +639,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._taskSystem || !this._recentlyUsedTasks) {
 			return;
 		}
+		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
+		// setting history limit to 0 means no LRU sorting
+		if (quickOpenHistoryLimit === 0) {
+			return;
+		}
 		let values = this._recentlyUsedTasks.values();
-		if (values.length > 30) {
-			values = values.slice(0, 30);
+		if (values.length > quickOpenHistoryLimit) {
+			values = values.slice(0, quickOpenHistoryLimit);
 		}
 		this.storageService.store(AbstractTaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
 	}
@@ -673,7 +718,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
+	private isProvideTasksEnabled(): boolean {
+		const settingValue = this.configurationService.getValue('task.autoDetect');
+		return settingValue === true;
+	}
+
 	private shouldAttachProblemMatcher(task: Task): boolean {
+		const settingValue = this.configurationService.getValue('task.problemMatchers.neverPrompt');
+		if (settingValue === true) {
+			return false;
+		} else if (task.type && Types.isStringArray(settingValue) && (settingValue.indexOf(task.type) >= 0)) {
+			return false;
+		}
 		if (!this.canCustomize(task)) {
 			return false;
 		}
@@ -1035,8 +1091,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 		let resolver: ITaskResolver = {
-			resolve: (workspaceFolder: IWorkspaceFolder, alias: string) => {
-				let data = resolverData.get(workspaceFolder.uri.toString());
+			resolve: (uri: URI, alias: string) => {
+				let data = resolverData.get(uri.toString());
 				if (!data) {
 					return undefined;
 				}
@@ -1067,7 +1123,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				{ reevaluateOnRerun: true },
 				{
 					identifier: id,
-					dependsOn: extensionTasks.map((extensionTask) => { return { workspaceFolder: extensionTask.getWorkspaceFolder()!, task: extensionTask._id }; }),
+					dependsOn: extensionTasks.map((extensionTask) => { return { uri: extensionTask.getWorkspaceFolder()!.uri, task: extensionTask._id }; }),
 					name: id,
 				}
 			);
@@ -1100,9 +1156,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 		});
+
 		return {
-			resolve: (workspaceFolder: IWorkspaceFolder, identifier: string | TaskIdentifier | undefined) => {
-				let data = resolverData.get(workspaceFolder.uri.toString());
+			resolve: (uri: URI, identifier: string | TaskIdentifier | undefined) => {
+				let data = uri ? resolverData.get(uri.toString()) : undefined;
 				if (!data || !identifier) {
 					return undefined;
 				}
@@ -1212,6 +1269,39 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract getTaskSystem(): ITaskSystem;
 
+	private async provideTasksWithWarning(provider: ITaskProvider, type: string, validTypes: IStringDictionary<boolean>): Promise<TaskSet> {
+		return new Promise<TaskSet>(async (resolve, reject) => {
+			let isDone = false;
+			provider.provideTasks(validTypes).then((value) => {
+				isDone = true;
+				resolve(value);
+			}, (e) => {
+				isDone = true;
+				reject(e);
+			});
+			let settingValue: boolean | string[] = this.configurationService.getValue('task.slowProviderWarning');
+			if ((settingValue === true) || (Types.isStringArray(settingValue) && (settingValue.indexOf(type) < 0))) {
+				setTimeout(() => {
+					if (!isDone) {
+						const settings: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.settings', "Settings"), run: () => this.preferencesService.openSettings(false, undefined) };
+						const disableAll: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.disableAll', "Disable All"), run: () => this.configurationService.updateValue('task.autoDetect', false) };
+						const dontShow: IPromptChoice = {
+							label: nls.localize('TaskSystem.slowProvider.dontShow', "Don't warn again for {0} tasks", type), run: () => {
+								if (!Types.isStringArray(settingValue)) {
+									settingValue = [];
+								}
+								settingValue.push(type);
+								return this.configurationService.updateValue('task.slowProviderWarning', settingValue);
+							}
+						};
+						this.notificationService.prompt(Severity.Warning, nls.localize('TaskSystem.slowProvider', "The {0} task provider is slow. The extension that provides {0} tasks may provide a setting to disable it, or you can disable all tasks providers", type),
+							[settings, disableAll, dontShow]);
+					}
+				}, 1000);
+			}
+		});
+	}
+
 	private getGroupedTasks(type?: string): Promise<TaskMap> {
 		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
 			let validTypes: IStringDictionary<boolean> = Object.create(null);
@@ -1246,11 +1336,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 					}
 				};
-				if (this.schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
+				if (this.isProvideTasksEnabled() && (this.schemaVersion === JsonSchemaVersion.V2_0_0) && (this._providers.size > 0)) {
 					for (const [handle, provider] of this._providers) {
 						if ((type === undefined) || (type === this._providerTypes.get(handle))) {
 							counter++;
-							provider.provideTasks(validTypes).then(done, error);
+							this.provideTasksWithWarning(provider, this._providerTypes.get(handle)!, validTypes).then(done, error);
 						}
 					}
 				} else {
@@ -1465,7 +1555,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				return ProblemMatcherRegistry.onReady().then(async (): Promise<WorkspaceFolderTaskResult> => {
 					let taskSystemInfo: TaskSystemInfo | undefined = this._taskSystemInfos.get(workspaceFolder.uri.scheme);
 					let problemReporter = new ProblemReporter(this._outputChannel);
-					let parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson);
+					let parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson);
 					let hasErrors = false;
 					if (!parseResult.validationStatus.isOK()) {
 						hasErrors = true;
@@ -1835,7 +1925,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						taskMap[key] = task;
 					}
 				});
-				recentlyUsedTasks.keys().forEach(key => {
+				recentlyUsedTasks.keys().reverse().forEach(key => {
 					let task = taskMap[key];
 					if (task) {
 						recent.push(task);
@@ -1930,7 +2020,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				let resolver = this.createResolver(grouped);
 				let folders = this.contextService.getWorkspace().folders;
 				for (let folder of folders) {
-					let task = resolver.resolve(folder, identifier);
+					let task = resolver.resolve(folder.uri, identifier);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
@@ -2310,9 +2400,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');
 		let openLabel = nls.localize('TaskService.openJsonFile', 'Open tasks.json file');
+		const tokenSource = new CancellationTokenSource();
+		const cancellationToken: CancellationToken = tokenSource.token;
+		type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
 		let entries = Promise.all(stats).then((stats) => {
 			return taskPromise.then((taskMap) => {
-				type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
 				let entries: QuickPickInput<EntryType>[] = [];
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 					let tasks = taskMap.all();
@@ -2356,13 +2448,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						index++;
 					}
 				}
+				if (entries.length === 1) {
+					tokenSource.cancel();
+				}
 				return entries;
 			});
 		});
 
 		this.quickInputService.pick(entries,
-			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }).
-			then((selection) => {
+			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }, cancellationToken).
+			then(async (selection) => {
+				if (cancellationToken.isCancellationRequested) {
+					// canceled when there's only one task
+					const task = (await entries)[0];
+					if ((<any>task).task) {
+						selection = <EntryType>task;
+					}
+				}
 				if (!selection) {
 					return;
 				}
@@ -2475,23 +2577,28 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public runShowTasks(): void {
+	public async runShowTasks(): Promise<void> {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		this.showQuickPick(this.getActiveTasks(),
-			nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
-			{
-				label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
-				task: null
-			},
-			false, true
-		).then((entry) => {
-			let task: Task | undefined | null = entry ? entry.task : undefined;
-			if (task === undefined || task === null) {
-				return;
-			}
-			this._taskSystem!.revealTask(task);
-		});
+		const activeTasks: Task[] = await this.getActiveTasks();
+		if (activeTasks.length === 1) {
+			this._taskSystem!.revealTask(activeTasks[0]);
+		} else {
+			this.showQuickPick(this.getActiveTasks(),
+				nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
+				{
+					label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
+					task: null
+				},
+				false, true
+			).then((entry) => {
+				let task: Task | undefined | null = entry ? entry.task : undefined;
+				if (task === undefined || task === null) {
+					return;
+				}
+				this._taskSystem!.revealTask(task);
+			});
+		}
 	}
 }

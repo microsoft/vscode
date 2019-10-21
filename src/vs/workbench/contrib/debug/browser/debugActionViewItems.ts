@@ -36,7 +36,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	private selected = 0;
 
 	constructor(
-		private context: any,
+		private context: unknown,
 		private action: IAction,
 		@IDebugService private readonly debugService: IDebugService,
 		@IThemeService private readonly themeService: IThemeService,

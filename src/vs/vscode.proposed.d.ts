@@ -651,21 +651,6 @@ declare module 'vscode' {
 		consoleMode?: DebugConsoleMode;
 	}
 
-	export namespace debug {
-		/**
-		 * Start debugging by using either a named launch or named compound configuration,
-		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
-		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
-		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
-		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
-		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
-		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @param parentSessionOrOptions Debug sesison options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
-		 * @return A thenable that resolves when debugging could be successfully started.
-		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
-	}
-
 	//#endregion
 
 	//#region Rob, Matt: logging
@@ -913,7 +898,7 @@ declare module 'vscode' {
 	/**
 	 * Class used to execute an extension callback as a task.
 	 */
-	export class CustomExecution2 {
+	export class CustomExecution {
 		/**
 		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
 		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
@@ -942,12 +927,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's execution engine
 		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution2;
+		execution2?: ProcessExecution | ShellExecution | CustomExecution;
 	}
 	//#endregion
 
@@ -1054,36 +1039,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// #region Ben - UIKind
-
-	/**
-	 * Possible kinds of UI that can use extensions.
-	 */
-	export enum UIKind {
-
-		/**
-		 * Extensions are accessed from a desktop application.
-		 */
-		Desktop = 1,
-
-		/**
-		 * Extensions are accessed from a web browser.
-		 */
-		Web = 2
-	}
-
-	export namespace env {
-
-		/**
-		 * The UI kind property indicates from which UI extensions
-		 * are accessed from. For example, extensions could be accessed
-		 * from a desktop application or a web browser.
-		 */
-		export const uiKind: UIKind;
-	}
-
-	//#endregion
-
 	//#region Custom editors, mjbvz
 
 	export interface WebviewEditor extends WebviewPanel {
@@ -1105,35 +1060,8 @@ declare module 'vscode' {
 		export function registerWebviewEditorProvider(
 			viewType: string,
 			provider: WebviewEditorProvider,
+			options?: WebviewPanelOptions
 		): Disposable;
-	}
-
-	//#endregion
-
-	// #region asExternalUri — mjbvz
-
-	namespace env {
-		/**
-		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
-		 * uri to the same resource on the client machine.
-		 *
-		 * This is a no-op if the extension is running on the client machine. Currently only supports
-		 * `https:` and `http:` uris.
-		 *
-		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
-		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
-		 * the port fowarding tunnel is managed by VS Code and the tunnel can be closed by the user.
-		 *
-		 * Extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
-		 * a system or user action — for example, in remote cases, a user may close a port forwardng tunnel
-		 * that was opened by `asExternalUri`.
-		 *
-		 * Note: uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri`
-		 * on them.
-		 *
-		 * @return A uri that can be used on the client machine.
-		 */
-		export function asExternalUri(target: Uri): Thenable<Uri>;
 	}
 
 	//#endregion

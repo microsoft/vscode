@@ -68,7 +68,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private onFilesChanged(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
-		if (deleted && deleted.length) {
+		if (deleted?.length) {
 			this.clearTextEditorViewState(deleted.map(d => d.resource));
 		}
 	}
@@ -242,7 +242,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 	protected getAriaLabel(): string {
 		const input = this.input;
-		const inputName = input && input.getName();
+		const inputName = input?.getName();
 
 		let ariaLabel: string;
 		if (inputName) {

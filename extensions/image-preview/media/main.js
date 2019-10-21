@@ -70,6 +70,7 @@
 	let ctrlPressed = false;
 	let altPressed = false;
 	let hasLoadedImage = false;
+	let consumeClick = false;
 
 	// Elements
 	const container = document.body;
@@ -116,6 +117,18 @@
 		});
 	}
 
+	function changeActive(value) {
+		if (value) {
+			container.classList.add('zoom-in');
+			consumeClick = true;
+		} else {
+			ctrlPressed = false;
+			altPressed = false;
+			container.classList.remove('zoom-out');
+			container.classList.remove('zoom-in');
+		}
+	}
+
 	function firstZoom() {
 		if (!image || !hasLoadedImage) {
 			return;
@@ -152,6 +165,18 @@
 		}
 	});
 
+	container.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
+		if (!image || !hasLoadedImage) {
+			return;
+		}
+
+		if (e.button !== 0) {
+			return;
+		}
+
+		consumeClick = false;
+	});
+
 	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
 		if (!image || !hasLoadedImage) {
 			return;
@@ -161,6 +186,18 @@
 			return;
 		}
 
+		ctrlPressed = e.ctrlKey;
+		altPressed = e.altKey;
+
+		if (isMac ? altPressed : ctrlPressed) {
+			container.classList.remove('zoom-in');
+			container.classList.add('zoom-out');
+		}
+
+		if (consumeClick) {
+			consumeClick = false;
+			return;
+		}
 		// left click
 		if (scale === 'fit') {
 			firstZoom();
@@ -218,7 +255,6 @@
 	});
 
 	container.classList.add('image');
-	container.classList.add('zoom-in');
 
 	image.classList.add('scale-to-fit');
 
@@ -253,6 +289,9 @@
 		switch (e.data.type) {
 			case 'setScale':
 				updateScale(e.data.scale);
+				break;
+			case 'setActive':
+				changeActive(e.data.value);
 				break;
 		}
 	});

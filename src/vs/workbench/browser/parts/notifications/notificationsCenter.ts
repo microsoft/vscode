@@ -38,6 +38,7 @@ export class NotificationsCenter extends Themable {
 	private _isVisible: boolean | undefined;
 	private workbenchDimensions: Dimension | undefined;
 	private notificationsCenterVisibleContextKey: IContextKey<boolean>;
+	private clearAllAction: ClearAllNotificationsAction | undefined;
 
 	constructor(
 		private container: HTMLElement,
@@ -107,12 +108,14 @@ export class NotificationsCenter extends Themable {
 	}
 
 	private updateTitle(): void {
-		const notificationsCenterTitle = assertIsDefined(this.notificationsCenterTitle);
+		const [notificationsCenterTitle, clearAllAction] = assertAllDefined(this.notificationsCenterTitle, this.clearAllAction);
 
 		if (this.model.notifications.length === 0) {
 			notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
+			clearAllAction.enabled = false;
 		} else {
 			notificationsCenterTitle.textContent = localize('notifications', "Notifications");
+			clearAllAction.enabled = true;
 		}
 	}
 
@@ -144,11 +147,11 @@ export class NotificationsCenter extends Themable {
 			actionRunner
 		}));
 
+		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
+		notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
+
 		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
-
-		const clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
-		notificationsToolBar.push(clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(clearAllAction) });
 
 		// Notifications List
 		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {

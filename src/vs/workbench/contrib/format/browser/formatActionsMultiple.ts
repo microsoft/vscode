@@ -126,10 +126,10 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async _pickAndPersistDefaultFormatter<T extends FormattingEditProvider>(formatter: T[], document: ITextModel): Promise<T | undefined> {
-		const picks = formatter.map((formatter, index) => {
-			return <IIndexedPick>{
+		const picks = formatter.map((formatter, index): IIndexedPick => {
+			return {
 				index,
-				label: formatter.displayName || formatter.extensionId || '?',
+				label: formatter.displayName || (formatter.extensionId ? formatter.extensionId.value : '?'),
 				description: formatter.extensionId && formatter.extensionId.value
 			};
 		});
@@ -203,7 +203,7 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 
 	const picks = formatters.map((provider, index) => {
 		const isDefault = ExtensionIdentifier.equals(provider.extensionId, defaultFormatter);
-		const pick = <IIndexedPick>{
+		const pick: IIndexedPick = {
 			index,
 			label: provider.displayName || '',
 			description: isDefault ? nls.localize('def', "(default)") : undefined,

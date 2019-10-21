@@ -23,7 +23,7 @@ function getFileEventsExcludes(configurationService: IConfigurationService, root
 	const scope = root ? { resource: root } : undefined;
 	const configuration = scope ? configurationService.getValue<IFilesConfiguration>(scope) : configurationService.getValue<IFilesConfiguration>();
 
-	return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+	return configuration?.files?.exclude || Object.create(null);
 }
 
 export class ExplorerService implements IExplorerService {
@@ -377,7 +377,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+		const configSortOrder = configuration?.explorer?.sortOrder || 'default';
 		if (this._sortOrder !== configSortOrder) {
 			const shouldRefresh = this._sortOrder !== undefined;
 			this._sortOrder = configSortOrder;

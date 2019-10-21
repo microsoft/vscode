@@ -96,7 +96,7 @@ class DesktopMain extends Disposable {
 		}
 
 		const filesToWait = this.environmentService.configuration.filesToWait;
-		const filesToWaitPaths = filesToWait && filesToWait.paths;
+		const filesToWaitPaths = filesToWait?.paths;
 		[filesToWaitPaths, this.environmentService.configuration.filesToOpenOrCreate, this.environmentService.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {

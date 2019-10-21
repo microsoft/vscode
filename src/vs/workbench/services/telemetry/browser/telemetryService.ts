@@ -19,20 +19,20 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 
 export class WebTelemetryAppender implements ITelemetryAppender {
 
-	constructor(private _logService: ILogService, private _appender: ITelemetryAppender) { }
+	constructor(private _logService: ILogService, private _appender: IRemoteAgentService) { }
 
 	log(eventName: string, data: any): void {
 		data = validateTelemetryData(data);
 		this._logService.trace(`telemetry/${eventName}`, data);
 
-		this._appender.log('/monacoworkbench/' + eventName, {
+		this._appender.logTelemetry('/monacoworkbench/' + eventName, {
 			properties: data.properties,
 			measurements: data.measurements
 		});
 	}
 
 	flush(): Promise<void> {
-		return this._appender.flush();
+		return this._appender.flushTelemetry();
 	}
 }
 
@@ -53,9 +53,8 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		super();
 
 		if (!environmentService.args['disable-telemetry'] && !!productService.enableTelemetry) {
-			const telemetryProvider = environmentService.options && environmentService.options.telemetryAppender || { log: remoteAgentService.logTelemetry, flush: remoteAgentService.flushTelemetry };
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(new WebTelemetryAppender(logService, telemetryProvider), new LogAppender(logService)),
+				appender: combinedAppender(new WebTelemetryAppender(logService, remoteAgentService), new LogAppender(logService)),
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.configuration.remoteAuthority),
 				piiPaths: [environmentService.appRoot]
 			};

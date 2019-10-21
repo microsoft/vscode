@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.40.0",
-  "distro": "9627858bf882fef220a55f51257dca1491763dc1",
+  "distro": "c46805b884619dd41f9aac4aa6ba413e4bc227a7",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -18,6 +18,7 @@
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
     "gulp": "gulp --max_old_space_size=8192",
+    "electron": "node build/lib/electron",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
@@ -25,12 +26,13 @@
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
-    "update-distro": "node build/npm/update-distro.js"
+    "update-distro": "node build/npm/update-distro.js",
+    "web": "node scripts/code-web.js"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "chokidar": "3.1.0",
-    "graceful-fs": "4.2.2",
+    "chokidar": "3.2.2",
+    "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.1",
     "iconv-lite": "0.5.0",
@@ -51,9 +53,9 @@
     "vscode-ripgrep": "^1.5.7",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
-    "xterm": "4.2.0-beta4",
+    "xterm": "^4.2.0-beta20",
     "xterm-addon-search": "0.3.0-beta5",
-    "xterm-addon-web-links": "0.2.0",
+    "xterm-addon-web-links": "0.2.1",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -127,7 +129,7 @@
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
     "tslint": "^5.16.0",
-    "typescript": "3.6",
+    "typescript": "3.7.0-dev.20191017",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",

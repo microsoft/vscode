@@ -276,7 +276,11 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						return match;
 
 					default:
-						return this.resolveFromMap(match, variable, commandValueMapping, undefined);
+						try {
+							return this.resolveFromMap(match, variable, commandValueMapping, undefined);
+						} catch (error) {
+							return match;
+						}
 				}
 			}
 		}

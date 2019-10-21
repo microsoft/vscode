@@ -21,6 +21,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
 // Actions
 (function registerActions(): void {
@@ -307,7 +308,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
-				'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
+				'included': isMacintosh && parseFloat(os.release()) >= 17 // Minimum: macOS Sierra (10.13.x = darwin 17.x)
 			},
 			'window.nativeFullScreen': {
 				'type': 'boolean',
@@ -338,6 +339,35 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 				'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to a Microsoft online service. \nThis option requires restart to take effect."),
 				'default': true,
 				'tags': ['usesOnlineServices']
+			}
+		}
+	});
+})();
+
+// JSON Schemas
+(function registerJSONSchemas(): void {
+	const argvDefinitionFileSchemaId = 'vscode://schemas/argv';
+	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+
+	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, {
+		id: argvDefinitionFileSchemaId,
+		allowComments: true,
+		allowTrailingCommas: true,
+		description: 'VSCode static command line definition file',
+		type: 'object',
+		additionalProperties: false,
+		properties: {
+			locale: {
+				type: 'string',
+				description: nls.localize('argv.locale', 'The display Language to use. Picking a different language requires the associated language pack to be installed.')
+			},
+			'disable-hardware-acceleration': {
+				type: 'boolean',
+				description: nls.localize('argv.disableHardwareAcceleration', 'Disables hardware acceleration. ONLY change this option if you encounter graphic issues.')
+			},
+			'disable-color-correct-rendering': {
+				type: 'boolean',
+				description: nls.localize('argv.disableColorCorrectRendering', 'Resolves issues around color profile selection. ONLY change this option if you encounter graphic issues.')
 			}
 		}
 	});

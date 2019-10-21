@@ -60,7 +60,7 @@ export async function loadLocalResource(
 				authority: extensionLocation.authority,
 				path: '/vscode-resource',
 				query: JSON.stringify({
-					requestResourcePath: requestUri.path
+					requestResourcePath: normalizedPath.path
 				})
 			});
 			return resolveContent(fileService, redirectedUri, getWebviewContentMimeType(requestUri));

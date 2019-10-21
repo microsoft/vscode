@@ -238,7 +238,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		// Look up default language from settings if any
 		if (!mode && !hasAssociatedFilePath) {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>();
-			if (configuration.files && configuration.files.defaultLanguage) {
+			if (configuration.files?.defaultLanguage) {
 				mode = configuration.files.defaultLanguage;
 			}
 		}

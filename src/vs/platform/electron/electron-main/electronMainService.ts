@@ -5,19 +5,20 @@
 
 import { Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, shell, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app } from 'electron';
 import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { INativeOpenDialogOptions, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue } from 'vs/platform/dialogs/node/dialogs';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { dirExists } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -333,7 +334,7 @@ export class ElectronMainService implements IElectronMainService {
 	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			return this.lifecycleMainService.reload(window, options && options.disableExtensions ? { _: [], 'disable-extensions': true } : undefined);
+			return this.lifecycleMainService.reload(window, options?.disableExtensions ? { _: [], 'disable-extensions': true } : undefined);
 		}
 	}
 
@@ -349,7 +350,7 @@ export class ElectronMainService implements IElectronMainService {
 		// If the user selected to exit from an extension development host window, do not quit, but just
 		// close the window unless this is the last window that is opened.
 		const window = this.windowsMainService.getLastActiveWindow();
-		if (window && window.isExtensionDevelopmentHost && this.windowsMainService.getWindowCount() > 1) {
+		if (window?.isExtensionDevelopmentHost && this.windowsMainService.getWindowCount() > 1) {
 			window.win.close();
 		}
 
@@ -368,8 +369,9 @@ export class ElectronMainService implements IElectronMainService {
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
 		return new Promise(resolve => {
 			const window = this.windowById(windowId);
-			if (window && window.win && window.win.webContents && window.win.webContents.session) {
-				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
+			const session = window?.win?.webContents?.session;
+			if (session) {
+				session.resolveProxy(url, proxy => resolve(proxy));
 			} else {
 				resolve();
 			}
@@ -409,12 +411,13 @@ export class ElectronMainService implements IElectronMainService {
 
 	// TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
 
-	async openExtensionDevelopmentHostWindow(windowId: number | undefined, args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
-		const extDevPaths = args.extensionDevelopmentPath;
+	async openExtensionDevelopmentHostWindow(windowId: number, args: string[], env: IProcessEnvironment): Promise<void> {
+		const pargs = parseArgs(args, OPTIONS);
+		const extDevPaths = pargs.extensionDevelopmentPath;
 		if (extDevPaths) {
 			this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 				context: OpenContext.API,
-				cli: args,
+				cli: pargs,
 				userEnv: Object.keys(env).length > 0 ? env : undefined
 			});
 		}

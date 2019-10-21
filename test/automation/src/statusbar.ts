@@ -44,11 +44,11 @@ export class StatusBar {
 	private getSelector(element: StatusBarElement): string {
 		switch (element) {
 			case StatusBarElement.BRANCH_STATUS:
-				return `${this.mainSelector} ${this.leftSelector} .octicon.octicon-git-branch`;
+				return `${this.mainSelector} ${this.leftSelector} .codicon.codicon-git-branch`;
 			case StatusBarElement.SYNC_STATUS:
-				return `${this.mainSelector} ${this.leftSelector} .octicon.octicon-sync`;
+				return `${this.mainSelector} ${this.leftSelector} .codicon.codicon-sync`;
 			case StatusBarElement.PROBLEMS_STATUS:
-				return `${this.mainSelector} ${this.leftSelector} .octicon.octicon-error`;
+				return `${this.mainSelector} ${this.leftSelector} .codicon.codicon-error`;
 			case StatusBarElement.SELECTION_STATUS:
 				return `${this.mainSelector} ${this.rightSelector}[title="Go to Line"]`;
 			case StatusBarElement.INDENTATION_STATUS:
