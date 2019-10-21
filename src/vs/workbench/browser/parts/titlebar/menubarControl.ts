@@ -444,9 +444,9 @@ export class CustomMenubarControl extends MenubarControl {
 				return null;
 
 			case StateType.Idle:
-				const windowId = this.electronEnvironmentService.windowId;
+				const context = `window:${this.electronEnvironmentService ? this.electronEnvironmentService.windowId : 'any'}`;
 				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
-					this.updateService.checkForUpdates({ windowId }));
+					this.updateService.checkForUpdates(context));
 
 			case StateType.CheckingForUpdates:
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking for Updates..."), undefined, false);
