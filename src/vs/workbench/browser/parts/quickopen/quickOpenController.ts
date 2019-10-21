@@ -107,7 +107,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
-		this._register(this.layoutService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
+		this._register(this.layoutService.onPartVisibilityChange(() => this.positionQuickOpenWidget()));
 		this._register(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
 		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
 	}

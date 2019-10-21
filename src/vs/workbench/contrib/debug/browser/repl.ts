@@ -797,36 +797,32 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, Fuzz
 
 class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 
+	private heightCache = new WeakMap<IReplElement, number>();
+
 	constructor(private configurationService: IConfigurationService) { }
 
 	getHeight(element: IReplElement): number {
 		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
+		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
 
 		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const fontSize = config.console.fontSize;
+		const { fontSize, wordWrap } = config.console;
 		const rowHeight = Math.ceil(1.4 * fontSize);
-		const wordWrap = config.console.wordWrap;
 		if (!wordWrap) {
 			return rowHeight;
 		}
 
-		// In order to keep scroll position we need to give a good approximation to the tree
-		// For every 150 characters increase the number of lines needed
-		if (element instanceof ReplEvaluationResult) {
-			let value = element.value;
-
-			if (element.hasChildren) {
-				return rowHeight;
-			}
-
-			let valueRows = value ? (countNumberOfLines(value) + Math.floor(value.length / 150)) : 0;
-			return rowHeight * valueRows;
+		const cachedHeight = this.heightCache.get(element);
+		if (typeof cachedHeight === 'number') {
+			return cachedHeight;
 		}
 
-		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput) {
+		// Calculate a rough overestimation for the height
+		// For every 30 characters increase the number of lines needed
+		if (hasValue(element)) {
 			let value = element.value;
-			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 30);
 
 			return valueRows * rowHeight;
 		}
@@ -852,9 +848,13 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 		return ReplRawObjectsRenderer.ID;
 	}
 
-	hasDynamicHeight?(element: IReplElement): boolean {
+	hasDynamicHeight(element: IReplElement): boolean {
 		// Empty elements should not have dynamic height since they will be invisible
 		return element.toString().length > 0;
+	}
+
+	setDynamicHeight(element: IReplElement, height: number): void {
+		this.heightCache.set(element, height);
 	}
 }
 

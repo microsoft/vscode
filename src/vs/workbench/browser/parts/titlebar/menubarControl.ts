@@ -120,6 +120,9 @@ export abstract class MenubarControl extends Disposable {
 	protected abstract doUpdateMenubar(firstTime: boolean): void;
 
 	protected registerListeners(): void {
+		// Listen for window focus changes
+		this._register(this.hostService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
+
 		// Update when config changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
@@ -176,6 +179,13 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		return result;
+	}
+
+	protected onDidChangeWindowFocus(hasFocus: boolean): void {
+		// When we regain focus, update the recent menu items
+		if (hasFocus) {
+			this.onRecentlyOpenedChange();
+		}
 	}
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
@@ -636,7 +646,9 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 	}
 
-	private onDidChangeWindowFocus(hasFocus: boolean): void {
+	protected onDidChangeWindowFocus(hasFocus: boolean): void {
+		super.onDidChangeWindowFocus(hasFocus);
+
 		if (this.container) {
 			if (hasFocus) {
 				DOM.removeClass(this.container, 'inactive');
@@ -651,9 +663,6 @@ export class CustomMenubarControl extends MenubarControl {
 
 	protected registerListeners(): void {
 		super.registerListeners();
-
-		// Listen for window focus changes
-		this._register(this.hostService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
 
 		// Listen for maximize/unmaximize
 		if (!isWeb) {

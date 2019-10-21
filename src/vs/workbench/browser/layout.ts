@@ -84,9 +84,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	//#region Events
 
-	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onTitleBarVisibilityChange: Event<void> = this._onTitleBarVisibilityChange.event;
-
 	private readonly _onZenModeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onZenModeChange: Event<boolean> = this._onZenModeChange.event;
 
@@ -98,6 +95,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
 	readonly onPanelPositionChange: Event<string> = this._onPanelPositionChange.event;
+
+	private readonly _onPartVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onPartVisibilityChange: Event<void> = this._onPartVisibilityChange.event;
 
 	private readonly _onLayout = this._register(new Emitter<IDimension>());
 	readonly onLayout: Event<IDimension> = this._onLayout.event;
@@ -265,8 +265,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.menuBar.toggled = visible;
 
 			if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default')) {
-				this._onTitleBarVisibilityChange.fire();
-
 				// Propagate to grid
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
@@ -291,8 +289,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
-			this._onTitleBarVisibilityChange.fire();
-
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
@@ -797,17 +793,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.container.prepend(workbenchGrid.element);
 		this.workbenchGrid = workbenchGrid;
 
-		this._register((this.sideBarPartView as SidebarPart).onDidVisibilityChange((visible) => {
-			this.setSideBarHidden(!visible, true);
-		}));
-
-		this._register((this.panelPartView as PanelPart).onDidVisibilityChange((visible) => {
-			this.setPanelHidden(!visible, true);
-		}));
-
-		this._register((this.editorPartView as PanelPart).onDidVisibilityChange((visible) => {
-			this.setEditorHidden(!visible, true);
-		}));
+		[titleBar, editorPart, activityBar, panelPart, sideBar, statusBar].forEach((part: Part) => {
+			this._register(part.onDidVisibilityChange((visible) => {
+				this._onPartVisibilityChange.fire();
+				if (part === sideBar) {
+					this.setSideBarHidden(!visible, true);
+				} else if (part === panelPart) {
+					this.setPanelHidden(!visible, true);
+				} else if (part === editorPart) {
+					this.setEditorHidden(!visible, true);
+				}
+			}));
+		});
 
 		this._register(this.storageService.onWillSaveState(() => {
 			const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;

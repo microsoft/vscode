@@ -9,7 +9,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWindowOpenable, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { ParsedArgs } from 'vscode-minimist';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 
@@ -88,5 +87,5 @@ export interface IElectronService {
 	resolveProxy(url: string): Promise<string | undefined>;
 
 	// Debug (TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
-	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void>;
+	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void>;
 }

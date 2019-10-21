@@ -38,6 +38,7 @@ export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated()
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false);
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
+export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true);
 
 /**
  * Text diff editor id.

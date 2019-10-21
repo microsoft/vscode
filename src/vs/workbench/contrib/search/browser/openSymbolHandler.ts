@@ -104,7 +104,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			const scheme = this.bearing.location.uri ? this.bearing.location.uri.scheme : undefined;
 			if (scheme === Schemas.http || scheme === Schemas.https) {
 				if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
-					this.openerService.open(this.bearing.location.uri); // support http/https resources (https://github.com/Microsoft/vscode/issues/58924))
+					this.openerService.open(this.bearing.location.uri, { fromUserGesture: true }); // support http/https resources (https://github.com/Microsoft/vscode/issues/58924))
 				}
 			} else {
 				super.run(mode, context);

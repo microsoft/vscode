@@ -609,6 +609,12 @@ export interface ITextModel {
 	getValueLengthInRange(range: IRange): number;
 
 	/**
+	 * Get the character count of text in a certain range.
+	 * @param range The range describing what text length to get.
+	 */
+	getCharacterCountInRange(range: IRange): number;
+
+	/**
 	 * Splits characters in two buckets. First bucket (A) is of characters that
 	 * sit in lines with length < `LONG_LINE_BOUNDARY`. Second bucket (B) is of
 	 * characters that sit in lines with length >= `LONG_LINE_BOUNDARY`.
@@ -1203,6 +1209,7 @@ export interface ITextBuffer {
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	createSnapshot(preserveBOM: boolean): ITextSnapshot;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getCharacterCountInRange(range: Range, eol: EndOfLinePreference): number;
 	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];

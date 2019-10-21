@@ -116,7 +116,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				const actions = [];
 
 				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
-					actions.push(this.instantiationService.createInstance(ToggleMenuBarAction, ToggleMenuBarAction.ID, menuBarVisibility === 'compact' ? nls.localize('hideMenuBtn', "Hide Menu Button") : nls.localize('showMenuBtn', "Show Menu Button")));
+					actions.push(this.instantiationService.createInstance(ToggleMenuBarAction, ToggleMenuBarAction.ID, menuBarVisibility === 'compact' ? nls.localize('hideMenu', "Hide Menu") : nls.localize('showMenu', "Show Menu")));
 				}
 
 				actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
@@ -435,12 +435,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			.filter(v => this.compositeBar.isPinned(v.id))
 			.sort((v1, v2) => pinnedCompositeIds.indexOf(v1.id) - pinnedCompositeIds.indexOf(v2.id))
 			.map(v => v.id);
-	}
-
-	setVisible(visible: boolean): void {
-		if (this.element) {
-			this.element.style.display = visible ? '' : 'none';
-		}
 	}
 
 	layout(width: number, height: number): void {

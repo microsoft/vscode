@@ -100,32 +100,53 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
 
-		if (document && document.location && document.location.search) {
-			const map = new Map<string, string>();
-			const query = document.location.search.substring(1);
-			const vars = query.split('&');
-			for (let p of vars) {
-				const pair = p.split('=');
-				if (pair.length >= 2) {
-					map.set(pair[0], decodeURIComponent(pair[1]));
+		// Fill in selected extra environmental properties
+		if (options.workspaceProvider && options.workspaceProvider.environment) {
+			const environment = options.workspaceProvider.environment;
+			for (const [key, value] of environment) {
+				switch (key) {
+					case 'extensionDevelopmentPath':
+						this.extensionDevelopmentLocationURI = [URI.parse(value)];
+						this.isExtensionDevelopment = true;
+						break;
+					case 'debugId':
+						this.debugExtensionHost.debugId = value;
+						break;
+					case 'inspect-brk-extensions':
+						this.debugExtensionHost.port = parseInt(value);
+						this.debugExtensionHost.break = false;
+						break;
 				}
 			}
+		} else {
+			// TODO@Ben remove me once environment is adopted
+			if (document && document.location && document.location.search) {
+				const map = new Map<string, string>();
+				const query = document.location.search.substring(1);
+				const vars = query.split('&');
+				for (let p of vars) {
+					const pair = p.split('=');
+					if (pair.length >= 2) {
+						map.set(pair[0], decodeURIComponent(pair[1]));
+					}
+				}
 
-			const edp = map.get('edp');
-			if (edp) {
-				this.extensionDevelopmentLocationURI = [URI.parse(edp)];
-				this.isExtensionDevelopment = true;
-			}
+				const edp = map.get('extensionDevelopmentPath');
+				if (edp) {
+					this.extensionDevelopmentLocationURI = [URI.parse(edp)];
+					this.isExtensionDevelopment = true;
+				}
 
-			const di = map.get('di');
-			if (di) {
-				this.debugExtensionHost.debugId = di;
-			}
+				const di = map.get('debugId');
+				if (di) {
+					this.debugExtensionHost.debugId = di;
+				}
 
-			const ibe = map.get('ibe');
-			if (ibe) {
-				this.debugExtensionHost.port = parseInt(ibe);
-				this.debugExtensionHost.break = false;
+				const ibe = map.get('inspect-brk-extensions');
+				if (ibe) {
+					this.debugExtensionHost.port = parseInt(ibe);
+					this.debugExtensionHost.break = false;
+				}
 			}
 		}
 	}
