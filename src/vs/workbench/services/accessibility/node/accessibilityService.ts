@@ -56,7 +56,7 @@ export class AccessibilityService extends AbstractAccessibilityService implement
 	getAccessibilitySupport(): AccessibilitySupport {
 		if (this._accessibilitySupport === AccessibilitySupport.Unknown) {
 			const config = this.environmentService.configuration;
-			this._accessibilitySupport = (config && config.accessibilitySupport) ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled;
+			this._accessibilitySupport = config?.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled;
 		}
 
 		return this._accessibilitySupport;

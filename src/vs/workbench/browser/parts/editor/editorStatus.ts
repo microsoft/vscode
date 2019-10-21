@@ -375,7 +375,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		picks.unshift({ type: 'separator', label: nls.localize('indentView', "change view") });
 
 		const action = await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
-		return action && action.run();
+		return action?.run();
 	}
 
 	private updateTabFocusModeElement(visible: boolean): void {
@@ -783,7 +783,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		// We only support text based editors that have a model associated
 		// This ensures we do not show the encoding picker while an editor
 		// is still loading.
-		if (editor && editorWidget && editorWidget.hasModel()) {
+		if (editor && editorWidget?.hasModel()) {
 			const encodingSupport: IEncodingSupport | null = editor.input ? toEditorWithEncodingSupport(editor.input) : null;
 			if (encodingSupport) {
 				const rawEncoding = encodingSupport.getEncoding();
@@ -884,7 +884,7 @@ export class ChangeModeAction extends Action {
 		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 
 		let hasLanguageSupport = !!resource;
-		if (resource && resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource)) {
+		if (resource?.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource)) {
 			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
 		}
 
@@ -1043,11 +1043,11 @@ export class ChangeModeAction extends Action {
 		let fakeResource: URI | undefined;
 
 		const extensions = this.modeService.getExtensions(lang);
-		if (extensions && extensions.length) {
+		if (extensions?.length) {
 			fakeResource = URI.file(extensions[0]);
 		} else {
 			const filenames = this.modeService.getFilenames(lang);
-			if (filenames && filenames.length) {
+			if (filenames?.length) {
 				fakeResource = URI.file(filenames[0]);
 			}
 		}
@@ -1091,12 +1091,12 @@ export class ChangeEOLAction extends Action {
 			{ label: nlsEOLCRLF, eol: EndOfLineSequence.CRLF },
 		];
 
-		const selectedIndex = (textModel && textModel.getEOL() === '\n') ? 0 : 1;
+		const selectedIndex = (textModel?.getEOL() === '\n') ? 0 : 1;
 
 		const eol = await this.quickInputService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] });
 		if (eol) {
 			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
-			if (activeCodeEditor && activeCodeEditor.hasModel() && isWritableCodeEditor(activeCodeEditor)) {
+			if (activeCodeEditor?.hasModel() && isWritableCodeEditor(activeCodeEditor)) {
 				textModel = activeCodeEditor.getModel();
 				textModel.pushEOL(eol.eol);
 			}

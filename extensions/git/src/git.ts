@@ -401,7 +401,8 @@ export class Git {
 
 	async getRepositoryRoot(repositoryPath: string): Promise<string> {
 		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
-		return path.normalize(result.stdout.trim());
+		// Keep trailing spaces which are part of the directory name
+		return path.normalize(result.stdout.trimLeft().replace(/(\r\n|\r|\n)+$/, ''));
 	}
 
 	async getRepositoryDotGit(repositoryPath: string): Promise<string> {

@@ -34,10 +34,9 @@ export interface IWorkspaceProvider {
 	readonly workspace: IWorkspace;
 
 	/**
-	 * Optionally a set of environmental properties to be used
-	 * as environment for the workspace to open.
+	 * Arbitrary payload from the `IWorkspaceProvider.open` call.
 	 */
-	readonly environment?: ReadonlyMap<string, string>;
+	readonly payload?: object;
 
 	/**
 	 * Asks to open a workspace in the current or a new window.
@@ -45,10 +44,10 @@ export interface IWorkspaceProvider {
 	 * @param workspace the workspace to open.
 	 * @param options optional options for the workspace to open.
 	 * - `reuse`: wether to open inside the current window or a new window
-	 * - `environment`: a map of environmental properties that should be
-	 * filled into the environment of the workspace to open.
+	 * - `payload`: arbitrary payload that should be made available
+	 * to the opening window via the `IWorkspaceProvider.payload` property.
 	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean, environment?: Map<string, string> }): Promise<void>;
+	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void>;
 }
 
 export class BrowserHostService extends Disposable implements IHostService {
@@ -145,7 +144,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	private shouldReuse(options: IOpenWindowOptions = {}): boolean {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
+		const openFolderInNewWindowConfig = windowConfig?.openFoldersInNewWindow || 'default' /* default */;
 
 		let openFolderInNewWindow = !!options.forceNewWindow && !options.forceReuseWindow;
 		if (!options.forceNewWindow && !options.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
@@ -156,7 +155,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.workspaceProvider.open(undefined, { reuse: options && options.forceReuseWindow });
+		this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
 	}
 
 	async toggleFullScreen(): Promise<void> {

@@ -192,7 +192,7 @@ export class ElectronWindow extends Disposable {
 		// High Contrast Events
 		ipc.on('vscode:enterHighContrast', async () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			if (windowConfig && windowConfig.autoDetectHighContrast) {
+			if (windowConfig?.autoDetectHighContrast) {
 				await this.lifecycleService.when(LifecyclePhase.Ready);
 				this.themeService.setColorTheme(VS_HC_THEME, undefined);
 			}
@@ -200,7 +200,7 @@ export class ElectronWindow extends Disposable {
 
 		ipc.on('vscode:leaveHighContrast', async () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			if (windowConfig && windowConfig.autoDetectHighContrast) {
+			if (windowConfig?.autoDetectHighContrast) {
 				await this.lifecycleService.when(LifecyclePhase.Ready);
 				this.themeService.restoreColorTheme();
 			}
@@ -423,7 +423,7 @@ export class ElectronWindow extends Disposable {
 
 		this.openerService.registerExternalUriResolver({
 			resolveExternalUri: async (uri: URI, options?: OpenOptions) => {
-				if (options && options.allowTunneling) {
+				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
 						const tunnel = await this.tunnelService.openTunnel(portMappingRequest.port);
@@ -443,7 +443,7 @@ export class ElectronWindow extends Disposable {
 	private shouldOpenExternal(resource: URI, options?: OpenOptions) {
 		const scheme = resource.scheme.toLowerCase();
 		const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
-		return (options && options.openExternal) || preferOpenExternal;
+		return options?.openExternal || preferOpenExternal;
 	}
 
 	private updateTouchbarMenu(): void {

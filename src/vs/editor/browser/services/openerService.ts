@@ -89,7 +89,7 @@ export class OpenerService extends Disposable implements IOpenerService {
 	private async _doOpen(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
 		const { scheme, path, query, fragment } = resource;
 
-		if (equalsIgnoreCase(scheme, Schemas.mailto) || (options && options.openExternal)) {
+		if (equalsIgnoreCase(scheme, Schemas.mailto) || options?.openExternal) {
 			// open default mail application
 			return this._doOpenExternal(resource, options);
 		}
@@ -139,9 +139,9 @@ export class OpenerService extends Disposable implements IOpenerService {
 		}
 
 		await this._editorService.openCodeEditor(
-			{ resource, options: { selection, context: options && options.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API } },
+			{ resource, options: { selection, context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API } },
 			this._editorService.getFocusedCodeEditor(),
-			options && options.openToSide
+			options?.openToSide
 		);
 
 		return true;

@@ -34,7 +34,7 @@ import { IdleValue } from 'vs/base/common/async';
 import { isObject } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
 import { IPosition } from 'vs/editor/common/core/position';
-import { TrackedRangeStickiness, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
 
@@ -265,18 +265,22 @@ export class SuggestController implements IEditorContribution {
 		let overwriteBefore = position.column - suggestion.range.startColumn;
 		let overwriteAfter = suggestion.range.endColumn - position.column;
 		let suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(this._editor.getPosition()) : 0;
-		let word: IWordAtPosition | null;
+		let word = model.getWordAtPosition(this._editor.getPosition());
 
 		const overwriteConfig = flags & InsertFlags.AlternativeOverwriteConfig
 			? !this._editor.getOption(EditorOption.suggest).overwriteOnAccept
 			: this._editor.getOption(EditorOption.suggest).overwriteOnAccept;
 		if (!overwriteConfig) {
-			// don't overwrite anything right of the cursor
-			overwriteAfter = 0;
-
-		} else if (overwriteAfter === 0 && (word = model.getWordAtPosition(position))) {
-			// compute fallback overwrite length
-			overwriteAfter = word.endColumn - this._editor.getPosition().column;
+			if (overwriteAfter > 0 && word && suggestion.range.endColumn === word.endColumn) {
+				// don't overwrite anything right of the cursor, overrule extension even when the
+				// completion only replaces a word...
+				overwriteAfter = 0;
+			}
+		} else {
+			if (overwriteAfter === 0 && word) {
+				// compute fallback overwrite length
+				overwriteAfter = word.endColumn - this._editor.getPosition().column;
+			}
 		}
 
 		SnippetController2.get(this._editor).insert(insertText, {

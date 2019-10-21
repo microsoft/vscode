@@ -208,11 +208,11 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 	constructor(
 		public readonly workspace: IWorkspace,
-		public readonly environment: ReadonlyMap<string, string>
+		public readonly payload: object
 	) { }
 
-	async open(workspace: IWorkspace, options?: { reuse?: boolean, environment?: Map<string, string> }): Promise<void> {
-		if (options && options.reuse && !options.environment && this.isSame(this.workspace, workspace)) {
+	async open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+		if (options?.reuse && !options.payload && this.isSame(this.workspace, workspace)) {
 			return; // return early if workspace and environment is not changing and we are reusing window
 		}
 
@@ -233,14 +233,12 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		}
 
 		// Environment
-		if (options && options.environment) {
-			for (const [key, value] of options.environment) {
-				targetHref += `&${key}=${encodeURIComponent(value)}`;
-			}
+		if (options?.payload) {
+			targetHref += `&payload=${encodeURIComponent(JSON.stringify(options.payload))}`;
 		}
 
 		if (targetHref) {
-			if (options && options.reuse) {
+			if (options?.reuse) {
 				window.location.href = targetHref;
 			} else {
 				if (isStandalone) {
@@ -290,23 +288,24 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		workspace = undefined;
 	}
 
-	// Find environmental properties
-	const environment = new Map<string, string>();
-	if (document && document.location && document.location.search) {
+	// Find payload
+	let payload = Object.create(null);
+	if (document.location.search) {
 		const query = document.location.search.substring(1);
 		const vars = query.split('&');
 		for (let p of vars) {
 			const pair = p.split('=');
 			if (pair.length === 2) {
 				const [key, value] = pair;
-				if (key !== WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW && key !== WorkspaceProvider.QUERY_PARAM_FOLDER && key !== WorkspaceProvider.QUERY_PARAM_WORKSPACE) {
-					environment.set(key, decodeURIComponent(value));
+				if (key === 'payload') {
+					payload = JSON.parse(decodeURIComponent(value));
+					break;
 				}
 			}
 		}
 	}
 
-	options.workspaceProvider = new WorkspaceProvider(workspace, environment);
+	options.workspaceProvider = new WorkspaceProvider(workspace, payload);
 	options.urlCallbackProvider = new PollingURLCallbackProvider();
 	options.credentialsProvider = new LocalStorageCredentialsProvider();
 

@@ -303,7 +303,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
-			const excludesConfig: glob.IExpression = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
 
 			if (!needsRefresh) {
 				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());

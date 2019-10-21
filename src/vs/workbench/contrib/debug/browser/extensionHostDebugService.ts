@@ -13,6 +13,7 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
+import { mapToSerializable } from 'vs/base/common/map';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 
@@ -64,7 +65,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 	}
 
 	async openExtensionDevelopmentHostWindow(args: string[]): Promise<void> {
-		if (!this.workspaceProvider.environment) {
+		if (!this.workspaceProvider.payload) {
 			// TODO@Ben remove me once environment is adopted
 			return this.openExtensionDevelopmentHostWindowLegacy(args);
 		}
@@ -96,8 +97,8 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 
 		// Open debug window as new window. Pass ParsedArgs over.
 		this.workspaceProvider.open(debugWorkspace, {
-			reuse: false, 	// debugging always requires a new window
-			environment		// mandatory properties to enable debugging
+			reuse: false, 							// debugging always requires a new window
+			payload: mapToSerializable(environment)	// mandatory properties to enable debugging
 		});
 	}
 

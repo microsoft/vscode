@@ -334,7 +334,7 @@ export class ElectronMainService implements IElectronMainService {
 	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			return this.lifecycleMainService.reload(window, options && options.disableExtensions ? { _: [], 'disable-extensions': true } : undefined);
+			return this.lifecycleMainService.reload(window, options?.disableExtensions ? { _: [], 'disable-extensions': true } : undefined);
 		}
 	}
 
@@ -350,7 +350,7 @@ export class ElectronMainService implements IElectronMainService {
 		// If the user selected to exit from an extension development host window, do not quit, but just
 		// close the window unless this is the last window that is opened.
 		const window = this.windowsMainService.getLastActiveWindow();
-		if (window && window.isExtensionDevelopmentHost && this.windowsMainService.getWindowCount() > 1) {
+		if (window?.isExtensionDevelopmentHost && this.windowsMainService.getWindowCount() > 1) {
 			window.win.close();
 		}
 
@@ -369,8 +369,9 @@ export class ElectronMainService implements IElectronMainService {
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
 		return new Promise(resolve => {
 			const window = this.windowById(windowId);
-			if (window && window.win && window.win.webContents && window.win.webContents.session) {
-				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
+			const session = window?.win?.webContents?.session;
+			if (session) {
+				session.resolveProxy(url, proxy => resolve(proxy));
 			} else {
 				resolve();
 			}

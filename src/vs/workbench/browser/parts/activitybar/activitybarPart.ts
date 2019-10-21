@@ -185,9 +185,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const viewletDescriptor = this.viewletService.getViewlet(viewlet.getId());
 		if (viewletDescriptor) {
 			const viewContainer = this.getViewContainer(viewletDescriptor.id);
-			if (viewContainer && viewContainer.hideIfEmpty) {
+			if (viewContainer?.hideIfEmpty) {
 				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-				if (viewDescriptors && viewDescriptors.activeViewDescriptors.length === 0) {
+				if (viewDescriptors?.activeViewDescriptors.length === 0) {
 					this.hideComposite(viewletDescriptor.id); // Update the composite bar by hiding
 				}
 			}
@@ -324,7 +324,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			} else {
 				const cachedComposite = this.cachedViewlets.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite && cachedComposite.name ? cachedComposite.name : compositeId, cachedComposite && cachedComposite.iconUrl ? URI.revive(cachedComposite.iconUrl) : undefined),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite?.name || compositeId, cachedComposite?.iconUrl ? URI.revive(cachedComposite.iconUrl) : undefined),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -339,7 +339,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		for (const viewlet of viewlets) {
 			const cachedViewlet = this.cachedViewlets.filter(({ id }) => id === viewlet.id)[0];
 			const activeViewlet = this.viewletService.getActiveViewlet();
-			const isActive = activeViewlet && activeViewlet.getId() === viewlet.id;
+			const isActive = activeViewlet?.getId() === viewlet.id;
 
 			if (isActive || !this.shouldBeHidden(viewlet.id, cachedViewlet)) {
 				this.compositeBar.addComposite(viewlet);
@@ -358,7 +358,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		for (const viewlet of viewlets) {
 			this.enableCompositeActions(viewlet);
 			const viewContainer = this.getViewContainer(viewlet.id);
-			if (viewContainer && viewContainer.hideIfEmpty) {
+			if (viewContainer?.hideIfEmpty) {
 				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
 				if (viewDescriptors) {
 					this.onDidChangeActiveViews(viewlet, viewDescriptors);
@@ -392,7 +392,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			return false;
 		}
 
-		return cachedViewlet && cachedViewlet.views && cachedViewlet.views.length
+		return cachedViewlet?.views && cachedViewlet.views.length
 			? cachedViewlet.views.every(({ when }) => !!when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))
 			: viewletId === TEST_VIEW_CONTAINER_ID /* Hide Test viewlet for the first time or it had no views registered before */;
 	}

@@ -283,7 +283,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Compute active editor folder
 		const editorResource = editor ? toResource(editor) : undefined;
 		let editorFolderResource = editorResource ? resources.dirname(editorResource) : undefined;
-		if (editorFolderResource && editorFolderResource.path === '.') {
+		if (editorFolderResource?.path === '.') {
 			editorFolderResource = undefined;
 		}
 
@@ -311,7 +311,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
-		const dirty = editor && editor.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
+		const dirty = editor?.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
 		const remoteName = this.environmentService.configuration.remoteAuthority;
 		const separator = TitlebarPart.TITLE_SEPARATOR;

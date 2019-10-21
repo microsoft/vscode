@@ -43,7 +43,7 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 			}
 
 			if (hasMultipleRoots) {
-				const rootName = (baseResource && baseResource.name) ? baseResource.name : basename(baseResource.uri);
+				const rootName = baseResource.name ? baseResource.name : basename(baseResource.uri);
 				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
 			}
 

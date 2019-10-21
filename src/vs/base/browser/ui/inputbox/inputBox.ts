@@ -189,7 +189,7 @@ export class InputBox extends Widget {
 
 			const onSelectionChange = Event.filter(domEvent(document, 'selectionchange'), () => {
 				const selection = document.getSelection();
-				return !!selection && selection.anchorNode === wrapper;
+				return selection?.anchorNode === wrapper;
 			});
 
 			// from DOM to ScrollableElement

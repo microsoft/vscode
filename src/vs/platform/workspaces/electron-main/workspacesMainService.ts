@@ -247,7 +247,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 				}
 			}
 		} catch (error) {
-			if (error && error.code !== 'ENOENT') {
+			if (error.code !== 'ENOENT') {
 				this.logService.warn(`Unable to read folders in ${this.untitledWorkspacesHome} (${error}).`);
 			}
 		}

@@ -102,7 +102,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// macOS Native Tabs
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
-		HasMacNativeTabsContext.bindTo(this.contextKeyService).set(windowConfig && windowConfig.window && windowConfig.window.nativeTabs);
+		HasMacNativeTabsContext.bindTo(this.contextKeyService).set(windowConfig?.window?.nativeTabs);
 
 		// Development
 		IsDevelopmentContext.bindTo(this.contextKeyService).set(!this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment);
@@ -197,7 +197,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		const activeControl = this.editorService.activeControl;
 		const visibleEditors = this.editorService.visibleControls;
 
-		this.textCompareEditorActiveContext.set(!!activeControl && activeControl.getId() === TEXT_DIFF_EDITOR_ID);
+		this.textCompareEditorActiveContext.set(activeControl?.getId() === TEXT_DIFF_EDITOR_ID);
 		this.textCompareEditorVisibleContext.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));
 
 		if (visibleEditors.length > 0) {

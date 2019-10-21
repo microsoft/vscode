@@ -306,7 +306,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			}
 		}
 
-		if (key && key.get()) {
+		if (key?.get()) {
 			return; // already active context
 		}
 
@@ -350,7 +350,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
 		const handlerDescriptor = registry.getQuickOpenHandler(value);
 		const defaultHandlerDescriptor = registry.getDefaultQuickOpenHandler();
-		const instantProgress = handlerDescriptor && handlerDescriptor.instantProgress;
+		const instantProgress = handlerDescriptor?.instantProgress;
 		const contextKey = handlerDescriptor ? handlerDescriptor.contextKey : defaultHandlerDescriptor.contextKey;
 
 		// Reset Progress
@@ -451,7 +451,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// If we have matching entries from history we want to show them directly and not wait for the other results to come in
 		// This also applies when we used to have entries from a previous run and now there are no more history results matching
 		const previousInput = quickOpenWidget.getInput();
-		const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
+		const wasShowingHistory = previousInput?.entries?.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
 		if (wasShowingHistory || matchingHistoryEntries.length > 0) {
 			(async () => {
 				if (resolvedHandler.hasShortResponseTime()) {
@@ -476,7 +476,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			}
 
 			// merge history and default handler results
-			const handlerResults = (result && result.entries) || [];
+			const handlerResults = result?.entries || [];
 			this.mergeResults(quickOpenWidget, quickOpenModel, handlerResults, types.withNullAsUndefined(resolvedHandler.getGroupLabel()));
 		}
 	}
