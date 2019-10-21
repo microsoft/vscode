@@ -1519,13 +1519,14 @@ export class SearchView extends ViewletPanel {
 		const selection = this.getSelectionFrom(element);
 		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
 
-		pinned = pinned || !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromSearch;
+		const enablePreview = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromSearch;
 
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
 				preserveFocus,
 				pinned,
+				enablePreview,
 				selection,
 				revealIfVisible: true
 			}

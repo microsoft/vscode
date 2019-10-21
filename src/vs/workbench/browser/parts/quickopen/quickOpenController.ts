@@ -793,12 +793,13 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			const sideBySide = !context.quickNavigateConfiguration && (context.keymods.alt || context.keymods.ctrlCmd);
-			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen || context.keymods.alt;
+			const enablePreview = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
+			const pinned = !enablePreview || context.keymods.alt;
 
 			if (this.input instanceof EditorInput) {
-				this.editorService.openEditor(this.input, { pinned }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				this.editorService.openEditor(this.input, { pinned, enablePreview }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			} else {
-				this.editorService.openEditor({ resource: (this.input as IResourceInput).resource, options: { pinned } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				this.editorService.openEditor({ resource: (this.input as IResourceInput).resource, options: { pinned, enablePreview } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			}
 
 			return true;
