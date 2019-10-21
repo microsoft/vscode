@@ -41,7 +41,7 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { IEditor } from 'vs/workbench/common/editor';
+import { IEditor, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
@@ -1518,6 +1518,9 @@ export class SearchView extends ViewletPanel {
 	open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<void> {
 		const selection = this.getSelectionFrom(element);
 		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
+
+		pinned = pinned || !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromSearch;
+
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
