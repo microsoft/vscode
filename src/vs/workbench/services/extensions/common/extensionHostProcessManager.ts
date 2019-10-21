@@ -57,7 +57,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	constructor(
 		public readonly isLocal: boolean,
 		extensionHostProcessWorker: IExtensionHostStarter,
-		private readonly _remoteAuthority: string,
+		private readonly _remoteAuthority: string | null,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
@@ -360,7 +360,7 @@ class RPCLogger implements IRPCProtocolLogger {
 }
 
 interface ExtHostLatencyResult {
-	remoteAuthority: string;
+	remoteAuthority: string | null;
 	up: number;
 	down: number;
 	latency: number;

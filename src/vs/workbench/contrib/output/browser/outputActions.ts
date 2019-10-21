@@ -21,6 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -262,7 +263,8 @@ export class OpenOutputLogFileAction extends Action {
 		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") })
 			.then(entry => {
 				if (entry) {
-					return this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, entry.channel)).then(() => undefined);
+					assertIsDefined(entry.channel.file);
+					return this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, entry.channel as IFileOutputChannelDescriptor)).then(() => undefined);
 				}
 				return undefined;
 			});
