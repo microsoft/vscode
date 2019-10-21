@@ -462,14 +462,10 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onCenteredLayoutChange: Event<boolean> = Event.None;
 	onFullscreenChange: Event<boolean> = Event.None;
 	onPanelPositionChange: Event<string> = Event.None;
+	onPartVisibilityChange: Event<void> = Event.None;
 	onLayout = Event.None;
 
-	private readonly _onTitleBarVisibilityChange = new Emitter<void>();
 	private readonly _onMenubarVisibilityChange = new Emitter<Dimension>();
-
-	public get onTitleBarVisibilityChange(): Event<void> {
-		return this._onTitleBarVisibilityChange.event;
-	}
 
 	public get onMenubarVisibilityChange(): Event<Dimension> {
 		return this._onMenubarVisibilityChange.event;
@@ -1373,7 +1369,7 @@ export class TestElectronService implements IElectronService {
 	async toggleDevTools(): Promise<void> { }
 	async startCrashReporter(options: Electron.CrashReporterStartOptions): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
-	async openExtensionDevelopmentHostWindow(args: minimist.ParsedArgs, env: IProcessEnvironment): Promise<void> { }
+	async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> { }
 }
 
 export class TestBackupMainService implements IBackupMainService {

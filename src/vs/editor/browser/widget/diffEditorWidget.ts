@@ -738,6 +738,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this.modifiedEditor.getVisibleColumnFromPosition(position);
 	}
 
+	public getStatusbarColumn(position: IPosition): number {
+		return this.modifiedEditor.getStatusbarColumn(position);
+	}
+
 	public getPosition(): Position | null {
 		return this.modifiedEditor.getPosition();
 	}

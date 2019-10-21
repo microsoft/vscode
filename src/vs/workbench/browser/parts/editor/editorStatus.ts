@@ -738,7 +738,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 						info.charactersSelected = 0;
 					}
 
-					info.charactersSelected += textModel.getValueLengthInRange(selection);
+					info.charactersSelected += textModel.getCharacterCountInRange(selection);
 				});
 			}
 
@@ -746,12 +746,11 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			if (info.selections.length === 1) {
 				const editorPosition = editorWidget.getPosition();
 
-				let selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
-				selectionClone = new Selection(
-					selectionClone.selectionStartLineNumber,
-					selectionClone.selectionStartColumn,
-					selectionClone.positionLineNumber,
-					editorPosition ? editorWidget.getVisibleColumnFromPosition(editorPosition) : selectionClone.positionColumn
+				let selectionClone = new Selection(
+					info.selections[0].selectionStartLineNumber,
+					info.selections[0].selectionStartColumn,
+					info.selections[0].positionLineNumber,
+					editorPosition ? editorWidget.getStatusbarColumn(editorPosition) : info.selections[0].positionColumn
 				);
 
 				info.selections[0] = selectionClone;

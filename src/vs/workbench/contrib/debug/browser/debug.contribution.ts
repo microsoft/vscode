@@ -264,6 +264,11 @@ configurationRegistry.registerConfiguration({
 			enumDescriptions: [nls.localize('debugAnyway', "Ignore task errors and start debugging."), nls.localize('showErrors', "Show the Problems view and do not start debugging."), nls.localize('prompt', "Prompt user.")],
 			description: nls.localize('debug.onTaskErrors', "Controls what to do when errors are encountered after running a preLaunchTask."),
 			default: 'prompt'
+		},
+		'debug.showBreakpointsInOverviewRuler': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showBreakpointsInOverviewRuler' }, "Controls whether breakpoints should be shown in the overview ruler."),
+			default: false
 		}
 	}
 });

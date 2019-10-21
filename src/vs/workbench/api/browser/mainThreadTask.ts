@@ -311,7 +311,7 @@ namespace TaskDTO {
 		const result: TaskDTO = {
 			_id: task._id,
 			name: task.configurationProperties.name,
-			definition: TaskDefinitionDTO.from(task.getDefinition()),
+			definition: TaskDefinitionDTO.from(task.getDefinition(true)),
 			source: TaskSourceDTO.from(task._source),
 			execution: undefined,
 			presentationOptions: !ConfiguringTask.is(task) && task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
