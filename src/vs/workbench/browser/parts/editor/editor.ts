@@ -38,7 +38,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	closeEmptyGroups: true,
 	labelFormat: 'default',
 	iconTheme: 'vs-seti',
-	splitSizing: 'Distribute'
+	splitSizing: 'distribute'
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {

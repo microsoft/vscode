@@ -62,13 +62,13 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 			},
 			'workbench.editor.splitSizing': {
 				'type': 'string',
-				'enum': ['Distribute', 'Split'],
-				'default': 'Distribute',
+				'enum': ['distribute', 'split'],
+				'default': 'distribute',
 				'enumDescriptions': [
-					nls.localize('workbench.editor.splitSizing.Distribute', "Splits all the editors to equal parts."),
-					nls.localize('workbench.editor.splitSizing.Split', "Splits the active editor to equal parts.")
+					nls.localize('workbench.editor.splitSizingDistribute', "Splits all the editors to equal parts."),
+					nls.localize('workbench.editor.splitSizingSplit', "Splits the active editor to equal parts.")
 				],
-				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "Controls the sizing of editor tabs.")
+				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "ontrols the sizing of editors when splitting them.")
 			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',
