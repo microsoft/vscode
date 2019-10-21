@@ -3,14 +3,12 @@
 	"tokenColors": [
 		{
 			"settings": {
-				"background": "#FDF6E3",
 				"foreground": "#657B83"
 			}
 		},
 		{
 			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
-				"background": "#FDF6E3",
 				"foreground": "#657B83"
 			}
 		},
