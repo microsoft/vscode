@@ -1555,7 +1555,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				return ProblemMatcherRegistry.onReady().then(async (): Promise<WorkspaceFolderTaskResult> => {
 					let taskSystemInfo: TaskSystemInfo | undefined = this._taskSystemInfos.get(workspaceFolder.uri.scheme);
 					let problemReporter = new ProblemReporter(this._outputChannel);
-					let parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson);
+					let parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson);
 					let hasErrors = false;
 					if (!parseResult.validationStatus.isOK()) {
 						hasErrors = true;
