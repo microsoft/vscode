@@ -63,6 +63,8 @@ export interface IExtension {
 	hasReadme(): boolean;
 	getChangelog(token: CancellationToken): Promise<string>;
 	hasChangelog(): boolean;
+	getLocalLicense(token: CancellationToken): Promise<string>;
+	hasLocalLicense(): boolean;
 	readonly server?: IExtensionManagementServer;
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;

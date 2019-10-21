@@ -94,6 +94,7 @@ export interface ILocalExtension extends IExtension {
 	metadata: IGalleryMetadata;
 	readmeUrl: URI | null;
 	changelogUrl: URI | null;
+	licenseUrl: URI | null;
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');

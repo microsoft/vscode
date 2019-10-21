@@ -790,8 +790,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)) : null;
 					const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : null;
+					const license = children.filter(child => /^license(\.txt|\.md|)$/i.test(child))[0];
+					const licenseUrl = license ? URI.file(path.join(extensionPath, license)) : null;
 					const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-					const local = <ILocalExtension>{ type, identifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl };
+					const local = <ILocalExtension>{ type, identifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl, licenseUrl };
 					if (metadata) {
 						this.setMetadata(local, metadata);
 					}

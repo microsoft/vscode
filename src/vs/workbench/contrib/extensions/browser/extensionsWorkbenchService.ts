@@ -283,6 +283,20 @@ ${this.description}
 		return this.fileService.readFile(changelogUrl).then(content => content.value.toString());
 	}
 
+	hasLocalLicense(): boolean {
+		return !!(this.local && this.local.licenseUrl);
+	}
+
+	getLocalLicense(token: CancellationToken): Promise<string> {
+		const licenseUrl = this.local && this.local.licenseUrl;
+
+		if (!licenseUrl) {
+			return Promise.reject(new Error('not available'));
+		}
+
+		return this.fileService.readFile(licenseUrl).then(content => content.value.toString());
+	}
+
 	get dependencies(): string[] {
 		const { local, gallery } = this;
 		if (gallery && !this.isGalleryOutdated()) {

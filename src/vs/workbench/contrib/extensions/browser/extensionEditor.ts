@@ -127,6 +127,7 @@ const NavbarSection = {
 	Readme: 'readme',
 	Contributions: 'contributions',
 	Changelog: 'changelog',
+	License: 'license',
 	Dependencies: 'dependencies',
 	ExtensionPack: 'extensionPack'
 };
@@ -169,6 +170,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	private extensionReadme: Cache<string> | null;
 	private extensionChangelog: Cache<string> | null;
+	private extensionLicense: Cache<string> | null;
 	private extensionManifest: Cache<IExtensionManifest | null> | null;
 
 	private layoutParticipants: ILayoutParticipant[] = [];
@@ -196,6 +198,7 @@ export class ExtensionEditor extends BaseEditor {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
+		this.extensionLicense = null;
 		this.extensionManifest = null;
 	}
 
@@ -232,7 +235,7 @@ export class ExtensionEditor extends BaseEditor {
 		repository.tabIndex = 0;
 
 		const license = append(subtitle, $('span.license.clickable'));
-		license.textContent = localize('license', 'License');
+		license.textContent = localize('license', "License");
 		license.style.display = 'none';
 		license.tabIndex = 0;
 
@@ -325,6 +328,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
 		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
+		this.extensionLicense = new Cache(() => createCancelablePromise(token => extension.getLocalLicense(token)));
 		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
 
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, template.iconContainer, true);
@@ -441,6 +445,9 @@ export class ExtensionEditor extends BaseEditor {
 				}
 				if (extension.hasChangelog()) {
 					template.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
+				}
+				if (!extension.url && extension.hasLocalLicense()) {
+					template.navbar.push(NavbarSection.License, localize('license', "License"), localize('licensetooltip', "Extension license, rendered from the extension's 'LICENSE.md' file"));
 				}
 				if (extension.dependencies.length) {
 					template.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
@@ -568,6 +575,7 @@ export class ExtensionEditor extends BaseEditor {
 			case NavbarSection.Readme: return this.openReadme(template);
 			case NavbarSection.Contributions: return this.openContributions(template);
 			case NavbarSection.Changelog: return this.openChangelog(template);
+			case NavbarSection.License: return this.openLicense(template);
 			case NavbarSection.Dependencies: return this.openDependencies(extension, template);
 			case NavbarSection.ExtensionPack: return this.openExtensionPack(extension, template);
 		}
@@ -827,6 +835,10 @@ export class ExtensionEditor extends BaseEditor {
 
 	private openChangelog(template: IExtensionEditorTemplate): Promise<IActiveElement> {
 		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template);
+	}
+
+	private openLicense(template: IExtensionEditorTemplate): Promise<IActiveElement> {
+		return this.openMarkdown(this.extensionLicense!.get(), localize('noLicense', "No License available."), template);
 	}
 
 	private openContributions(template: IExtensionEditorTemplate): Promise<IActiveElement> {
