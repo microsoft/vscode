@@ -82,7 +82,6 @@ interface IWorkbenchConstructionOptions {
 	 */
 	logLevel?: LogLevel;
 
-
 	/**
 	 * Experimental: Support for update reporting.
 	 */

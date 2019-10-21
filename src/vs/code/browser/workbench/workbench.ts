@@ -202,27 +202,41 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 
 class WorkspaceProvider implements IWorkspaceProvider {
 
-	constructor(public readonly workspace: IWorkspace) { }
+	static QUERY_PARAM_EMPTY_WINDOW = 'ew';
+	static QUERY_PARAM_FOLDER = 'folder';
+	static QUERY_PARAM_WORKSPACE = 'workspace';
 
-	async open(workspace: IWorkspace, options?: { reuse?: boolean }): Promise<void> {
-		if (options && options.reuse && this.isSame(this.workspace, workspace)) {
-			return; // return early if workspace is not changing and we are reusing window
+	constructor(
+		public readonly workspace: IWorkspace,
+		public readonly environment: ReadonlyMap<string, string>
+	) { }
+
+	async open(workspace: IWorkspace, options?: { reuse?: boolean, environment?: Map<string, string> }): Promise<void> {
+		if (options && options.reuse && !options.environment && this.isSame(this.workspace, workspace)) {
+			return; // return early if workspace and environment is not changing and we are reusing window
 		}
 
 		// Empty
 		let targetHref: string | undefined = undefined;
 		if (!workspace) {
-			targetHref = `${document.location.origin}${document.location.pathname}?ew=true`;
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW}=true`;
 		}
 
 		// Folder
 		else if (isFolderToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?folder=${workspace.folderUri.path}`;
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${workspace.folderUri.path}`;
 		}
 
 		// Workspace
 		else if (isWorkspaceToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?workspace=${workspace.workspaceUri.path}`;
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${workspace.workspaceUri.path}`;
+		}
+
+		// Environment
+		if (options && options.environment) {
+			for (const [key, value] of options.environment) {
+				targetHref += `&${key}=${encodeURIComponent(value)}`;
+			}
 		}
 
 		if (targetHref) {
@@ -255,21 +269,53 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 }
 
-const configElement = document.getElementById('vscode-workbench-web-configuration');
-const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
-if (!configElement || !configElementAttribute) {
-	throw new Error('Missing web configuration element');
-}
+(function () {
 
-const options: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
-options.workspaceProvider = new WorkspaceProvider(options.folderUri ? { folderUri: URI.revive(options.folderUri) } : options.workspaceUri ? { workspaceUri: URI.revive(options.workspaceUri) } : undefined);
-options.urlCallbackProvider = new PollingURLCallbackProvider();
-options.credentialsProvider = new LocalStorageCredentialsProvider();
+	// Find config element in DOM
+	const configElement = document.getElementById('vscode-workbench-web-configuration');
+	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
+	if (!configElement || !configElementAttribute) {
+		throw new Error('Missing web configuration element');
+	}
 
-if (Array.isArray(options.staticExtensions)) {
-	options.staticExtensions.forEach(extension => {
-		extension.extensionLocation = URI.revive(extension.extensionLocation);
-	});
-}
+	const options: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
 
-create(document.body, options);
+	// Determine workspace to open
+	let workspace: IWorkspace;
+	if (options.folderUri) {
+		workspace = { folderUri: URI.revive(options.folderUri) };
+	} else if (options.workspaceUri) {
+		workspace = { workspaceUri: URI.revive(options.workspaceUri) };
+	} else {
+		workspace = undefined;
+	}
+
+	// Find environmental properties
+	const environment = new Map<string, string>();
+	if (document && document.location && document.location.search) {
+		const query = document.location.search.substring(1);
+		const vars = query.split('&');
+		for (let p of vars) {
+			const pair = p.split('=');
+			if (pair.length === 2) {
+				const [key, value] = pair;
+				if (key !== WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW && key !== WorkspaceProvider.QUERY_PARAM_FOLDER && key !== WorkspaceProvider.QUERY_PARAM_WORKSPACE) {
+					environment.set(key, decodeURIComponent(value));
+				}
+			}
+		}
+	}
+
+	options.workspaceProvider = new WorkspaceProvider(workspace, environment);
+	options.urlCallbackProvider = new PollingURLCallbackProvider();
+	options.credentialsProvider = new LocalStorageCredentialsProvider();
+
+	if (Array.isArray(options.staticExtensions)) {
+		options.staticExtensions.forEach(extension => {
+			extension.extensionLocation = URI.revive(extension.extensionLocation);
+		});
+	}
+
+	// Finally create workbench
+	create(document.body, options);
+})();
