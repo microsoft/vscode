@@ -780,10 +780,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return groupView;
 	}
 
-	createEditorDropTarget(container: HTMLElement, delegate: EditorDropTargetDelegate): IDisposable {
-		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
-	}
-
 	//#endregion
 
 	//#region Part
@@ -1043,6 +1039,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			type: Parts.EDITOR_PART
 		};
 	}
+
+	//#region TODO@matt this should move into some kind of service
+
+	createEditorDropTarget(container: HTMLElement, delegate: EditorDropTargetDelegate): IDisposable {
+		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
+	}
+
+	//#endregion
 }
 
 registerSingleton(IEditorGroupsService, EditorPart);
