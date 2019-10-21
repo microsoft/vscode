@@ -156,6 +156,11 @@ export interface IEditorOptions {
 	readonly pinned?: boolean;
 
 	/**
+	 * Will cause the editor to open as a preview editor.
+	 */
+	readonly enablePreview?: boolean;
+
+	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	readonly index?: number;

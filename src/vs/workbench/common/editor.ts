@@ -751,6 +751,11 @@ export class EditorOptions implements IEditorOptions {
 	pinned: boolean | undefined;
 
 	/**
+	 * Will cause the editor to open as a preview editor.
+	 */
+	enablePreview: boolean | undefined;
+
+	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	index: number | undefined;
@@ -801,6 +806,10 @@ export class EditorOptions implements IEditorOptions {
 
 		if (typeof options.pinned === 'boolean') {
 			this.pinned = options.pinned;
+		}
+
+		if (typeof options.enablePreview === 'boolean') {
+			this.enablePreview = options.enablePreview;
 		}
 
 		if (typeof options.inactive === 'boolean') {

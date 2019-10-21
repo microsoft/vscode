@@ -822,9 +822,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | undefined> {
 
 		// Determine options
+
+		// Check if enablePreview is set in EditorOptions to override setting
+		let enablePreview: boolean | undefined;
+		if (options && (options.enablePreview !== undefined)) {
+			enablePreview = options.enablePreview;
+		} else {
+			enablePreview = this.accessor.partOptions.enablePreview;
+		}
+
 		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : undefined,
-			pinned: !this.accessor.partOptions.enablePreview || editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
+			pinned: !enablePreview || editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
 			active: this._group.count === 0 || !options || !options.inactive
 		};
 
