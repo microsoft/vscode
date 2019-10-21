@@ -13,11 +13,12 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { dirExists } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -409,12 +410,13 @@ export class ElectronMainService implements IElectronMainService {
 
 	// TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
 
-	async openExtensionDevelopmentHostWindow(windowId: number | undefined, args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
-		const extDevPaths = args.extensionDevelopmentPath;
+	async openExtensionDevelopmentHostWindow(windowId: number, args: string[], env: IProcessEnvironment): Promise<void> {
+		const pargs = parseArgs(args, OPTIONS);
+		const extDevPaths = pargs.extensionDevelopmentPath;
 		if (extDevPaths) {
 			this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 				context: OpenContext.API,
-				cli: args,
+				cli: pargs,
 				userEnv: Object.keys(env).length > 0 ? env : undefined
 			});
 		}

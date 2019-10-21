@@ -30,11 +30,12 @@ export interface ICompositeBarItem {
 }
 
 export interface ICompositeBarOptions {
-	icon: boolean;
-	orientation: ActionsOrientation;
-	colors: (theme: ITheme) => ICompositeBarColors;
-	compositeSize: number;
-	overflowActionSize: number;
+	readonly icon: boolean;
+	readonly orientation: ActionsOrientation;
+	readonly colors: (theme: ITheme) => ICompositeBarColors;
+	readonly compositeSize: number;
+	readonly overflowActionSize: number;
+
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => Action;
 	getOnCompositeClickAction: (compositeId: string) => Action;
@@ -99,7 +100,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					return this.compositeOverflowActionViewItem;
 				}
 				const item = this.model.findItem(action.id);
-				return item && this.instantiationService.createInstance(CompositeActionViewItem, action, item.pinnedAction, () => this.getContextMenuActions(), this.options.colors, this.options.icon, this);
+				return item && this.instantiationService.createInstance(CompositeActionViewItem, action as ActivityAction, item.pinnedAction, () => this.getContextMenuActions() as Action[], this.options.colors, this.options.icon, this);
 			},
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),

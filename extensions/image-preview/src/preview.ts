@@ -120,6 +120,7 @@ export class Preview extends Disposable {
 			}
 			this._previewState = PreviewState.Visible;
 		}
+		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
 	private getWebiewContents(): string {

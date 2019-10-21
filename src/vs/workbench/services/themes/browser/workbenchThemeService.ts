@@ -73,15 +73,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private container: HTMLElement;
 	private readonly onColorThemeChange: Emitter<IColorTheme>;
 	private watchedColorThemeLocation: URI | undefined;
-	private watchedColorThemeDisposable: IDisposable;
+	private watchedColorThemeDisposable: IDisposable | undefined;
 
 	private iconThemeStore: FileIconThemeStore;
 	private currentIconTheme: FileIconThemeData;
 	private readonly onFileIconThemeChange: Emitter<IFileIconTheme>;
 	private watchedIconThemeLocation: URI | undefined;
-	private watchedIconThemeDisposable: IDisposable;
+	private watchedIconThemeDisposable: IDisposable | undefined;
 
-	private themingParticipantChangeListener: IDisposable;
+	private themingParticipantChangeListener: IDisposable | undefined;
 
 	private get colorCustomizations(): IColorCustomizations {
 		return this.configurationService.getValue<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING) || {};
@@ -107,6 +107,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
 		this.onColorThemeChange = new Emitter<IColorTheme>({ leakWarningThreshold: 400 });
 
+		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
 		this.currentIconTheme = FileIconThemeData.createUnloadedTheme('');
 
 		// In order to avoid paint flashing for tokens, because
@@ -391,7 +392,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget | undefined | 'auto', silent = false): Promise<IColorTheme | null> {
-		if (this.currentColorTheme) {
+		if (this.currentColorTheme.id) {
 			removeClasses(this.container, this.currentColorTheme.id);
 		} else {
 			removeClasses(this.container, VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);

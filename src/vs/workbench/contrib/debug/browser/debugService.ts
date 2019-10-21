@@ -30,7 +30,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { parse, getFirstFrame } from 'vs/base/common/console';
 import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -120,7 +120,7 @@ export class DebugService implements IDebugService {
 		this._onWillNewSession = new Emitter<IDebugSession>();
 		this._onDidEndSession = new Emitter<IDebugSession>();
 
-		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this);
+		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.toDispose.push(this.configurationManager);
 
 		this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
@@ -707,7 +707,7 @@ export class DebugService implements IDebugService {
 
 			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
-			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+			const failureExitCode = taskSummary && taskSummary.exitCode !== 0;
 			const onTaskErrors = this.configurationService.getValue<IDebugConfiguration>('debug').onTaskErrors;
 			if (successExitCode || onTaskErrors === 'debugAnyway' || (errorCount === 0 && !failureExitCode)) {
 				return TaskRunResult.Success;
@@ -750,7 +750,7 @@ export class DebugService implements IDebugService {
 		}
 	}
 
-	private async runTask(root: IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<ITaskSummary | null> {
+	private async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<ITaskSummary | null> {
 		if (!taskId) {
 			return Promise.resolve(null);
 		}

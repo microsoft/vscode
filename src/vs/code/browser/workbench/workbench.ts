@@ -11,6 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { request } from 'vs/base/parts/request/browser/request';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { isEqual } from 'vs/base/common/resources';
+import { isStandalone } from 'vs/base/browser/browser';
 
 interface ICredential {
 	service: string;
@@ -228,7 +229,11 @@ class WorkspaceProvider implements IWorkspaceProvider {
 			if (options && options.reuse) {
 				window.location.href = targetHref;
 			} else {
-				window.open(targetHref);
+				if (isStandalone) {
+					window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
+				} else {
+					window.open(targetHref);
+				}
 			}
 		}
 	}

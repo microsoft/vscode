@@ -71,7 +71,6 @@ const indentationFilter = [
 	'!**/yarn-error.log',
 
 	// except multiple specific folders
-	'!**/octicons/**',
 	'!**/codicon/**',
 	'!**/fixtures/**',
 	'!**/lib/**',
@@ -125,6 +124,7 @@ const copyrightFilter = [
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/editor/test/node/classification/typescript-test.ts',
+	'!scripts/code-web.js'
 ];
 
 const eslintFilter = [

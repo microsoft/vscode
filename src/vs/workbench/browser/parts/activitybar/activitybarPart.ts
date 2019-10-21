@@ -15,7 +15,7 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
+import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -37,6 +37,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { isWeb } from 'vs/base/common/platform';
 
 interface ICachedViewlet {
 	id: string;
@@ -110,7 +111,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, assertIsDefined(this.viewletService.getViewlet(compositeId))),
-			getContextMenuActions: () => [this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar"))],
+			getContextMenuActions: () => {
+				const menuBarVisibility = this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+				const actions = [];
+
+				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
+					actions.push(this.instantiationService.createInstance(ToggleMenuBarAction, ToggleMenuBarAction.ID, menuBarVisibility === 'compact' ? nls.localize('hideMenu', "Hide Menu") : nls.localize('showMenu', "Show Menu")));
+				}
+
+				actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
+				return actions;
+			},
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			compositeSize: 50,
@@ -286,7 +297,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private createGlobalActivityActionBar(container: HTMLElement): void {
 		this.globalActivityActionBar = this._register(new ActionBar(container, {
-			actionViewItemProvider: action => this.instantiationService.createInstance(GlobalActivityActionViewItem, action, (theme: ITheme) => this.getActivitybarItemColors(theme)),
+			actionViewItemProvider: action => this.instantiationService.createInstance(GlobalActivityActionViewItem, action as ActivityAction, (theme: ITheme) => this.getActivitybarItemColors(theme)),
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('manage', "Manage"),
 			animated: false
@@ -424,12 +435,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			.filter(v => this.compositeBar.isPinned(v.id))
 			.sort((v1, v2) => pinnedCompositeIds.indexOf(v1.id) - pinnedCompositeIds.indexOf(v2.id))
 			.map(v => v.id);
-	}
-
-	setVisible(visible: boolean): void {
-		if (this.element) {
-			this.element.style.display = visible ? '' : 'none';
-		}
 	}
 
 	layout(width: number, height: number): void {

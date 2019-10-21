@@ -16,6 +16,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
 import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { isWindows } from 'vs/base/common/platform';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -153,6 +154,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	}
 
 	private async report(): Promise<void> {
+		// Windows-only Edition Event
+		this.reportWindowsEdition();
 
 		// Workspace Stats
 		this.workspaceStatsService.getTags()
@@ -165,6 +168,25 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
 		this.getWorkspaceInformation().then(stats => diagnosticsChannel.call('reportWorkspaceStats', stats));
+	}
+
+	async reportWindowsEdition(): Promise<void> {
+		if (!isWindows) {
+			return;
+		}
+
+		const Registry = await import('vscode-windows-registry');
+
+		let value;
+		try {
+			value = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', 'EditionID');
+		} catch { }
+
+		if (value === undefined) {
+			value = 'Unknown';
+		}
+
+		this.telemetryService.publicLog2<{ edition: string }, { edition: { classification: 'SystemMetaData', purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
 	}
 
 	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {

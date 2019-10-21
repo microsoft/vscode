@@ -467,6 +467,7 @@ export interface IDebugConfiguration {
 	};
 	focusWindowOnBreak: boolean;
 	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
+	showBreakpointsInOverviewRuler: boolean;
 }
 
 export interface IGlobalConfig {

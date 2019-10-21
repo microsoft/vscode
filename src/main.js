@@ -32,6 +32,14 @@ const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
 app.setPath('userData', userDataPath);
 
+// Set logs path before app 'ready' event if running portable
+// to ensure that no 'logs' folder is created on disk at a
+// location outside of the portable directory
+// (https://github.com/microsoft/vscode/issues/56651)
+if (portable.isPortable) {
+	app.setAppLogsPath(path.join(userDataPath, 'logs'));
+}
+
 // Update cwd based on environment and platform
 setCurrentWorkingDirectory();
 

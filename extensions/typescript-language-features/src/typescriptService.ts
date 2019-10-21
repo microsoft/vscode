@@ -57,13 +57,13 @@ interface StandardTsServerRequests {
 	'selectionRange': [Proto.SelectionRangeRequestArgs, Proto.SelectionRangeResponse];
 	'signatureHelp': [Proto.SignatureHelpRequestArgs, Proto.SignatureHelpResponse];
 	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
+	'updateOpen': [Proto.UpdateOpenRequestArgs, Proto.Response];
 }
 
 interface NoResponseTsServerRequests {
 	'open': [Proto.OpenRequestArgs, null];
-	'close': [Proto.FileRequestArgs];
+	'close': [Proto.FileRequestArgs, null];
 	'change': [Proto.ChangeRequestArgs, null];
-	'updateOpen': [Proto.UpdateOpenRequestArgs, null];
 	'compilerOptionsForInferredProjects': [Proto.SetCompilerOptionsForInferredProjectsArgs, null];
 	'reloadProjects': [null, null];
 	'configurePlugin': [Proto.ConfigurePluginRequest, Proto.ConfigurePluginResponse];
@@ -76,7 +76,8 @@ interface AsyncTsServerRequests {
 export type TypeScriptRequests = StandardTsServerRequests & NoResponseTsServerRequests & AsyncTsServerRequests;
 
 export type ExecConfig = {
-	lowPriority?: boolean;
+	readonly lowPriority?: boolean;
+	readonly nonRecoverable?: boolean;
 };
 
 export interface ITypeScriptServiceClient {

@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorIsSaveableContext, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorIsSaveableContext, toResource, SideBySideEditor, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -73,6 +73,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private isFullscreenContext: IContextKey<boolean>;
 	private isCenteredLayoutContext: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
+	private editorAreaVisibleContext: IContextKey<boolean>;
 	private panelPositionContext: IContextKey<string>;
 
 	constructor(
@@ -146,6 +147,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Centered Layout
 		this.isCenteredLayoutContext = IsCenteredLayoutContext.bindTo(this.contextKeyService);
 
+		// Editor Area
+		this.editorAreaVisibleContext = EditorAreaVisibleContext.bindTo(this.contextKeyService);
+
 		// Sidebar
 		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
 
@@ -184,6 +188,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
 		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
+
+		this._register(this.layoutService.onPartVisibilityChange(() => this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART))));
 	}
 
 	private updateEditorContextKeys(): void {

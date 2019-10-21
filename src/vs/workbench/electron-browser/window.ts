@@ -702,6 +702,11 @@ class NativeMenubarControl extends MenubarControl {
 	}
 
 	protected doUpdateMenubar(firstTime: boolean): void {
+		// Since the native menubar is shared between windows (main process)
+		// only allow the focused window to update the menubar
+		if (!this.hostService.hasFocus) {
+			return;
+		}
 
 		// Send menus to main process to be rendered by Electron
 		const menubarData = { menus: {}, keybindings: {} };

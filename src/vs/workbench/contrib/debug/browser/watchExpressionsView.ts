@@ -24,7 +24,6 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -71,7 +70,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),
 		});
 
-		this.tree.setInput(this.debugService).then(undefined, onUnexpectedError);
+		this.tree.setInput(this.debugService);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
 
 		if (this.toolbar) {
@@ -154,7 +153,7 @@ export class WatchExpressionsView extends ViewletPanel {
 				return Promise.resolve();
 			}));
 			if (!expression.hasChildren) {
-				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value, 'watch', this.debugService));
+				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value, 'watch'));
 			}
 			actions.push(new Separator());
 
@@ -168,7 +167,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			if (element instanceof Variable) {
 				const variable = element as Variable;
 				if (!variable.hasChildren) {
-					actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'watch', this.debugService));
+					actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'watch'));
 				}
 				actions.push(new Separator());
 			}

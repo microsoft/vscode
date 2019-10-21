@@ -19,19 +19,19 @@ import product from 'vs/platform/product/common/product';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
-	_: any[];
+	_!: any[];
 
-	machineId: string;
-	windowId: number;
-	logLevel: LogLevel;
+	machineId!: string;
+	windowId!: number;
+	logLevel!: LogLevel;
 
-	mainPid: number;
+	mainPid!: number;
 
-	appRoot: string;
-	execPath: string;
+	appRoot!: string;
+	execPath!: string;
 	isInitialStartup?: boolean;
 
-	userEnv: IProcessEnvironment;
+	userEnv!: IProcessEnvironment;
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
@@ -54,7 +54,7 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
-	perfEntries: ExportData;
+	perfEntries!: ExportData;
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
@@ -133,14 +133,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	untitledWorkspacesHome: URI;
 	extensionTestsLocationURI?: URI;
 	args: any;
-	execPath: string;
-	cliPath: string;
+	execPath!: string;
+	cliPath!: string;
 	appRoot: string;
-	userHome: string;
-	userDataPath: string;
+	userHome!: string;
+	userDataPath!: string;
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: URI;
+	appSettingsHome!: URI;
 	userRoamingDataHome: URI;
 	settingsResource: URI;
 	keybindingsResource: URI;
@@ -148,37 +148,37 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	argvResource: URI;
 	settingsSyncPreviewResource: URI;
 	userDataSyncLogResource: URI;
-	machineSettingsHome: URI;
-	machineSettingsResource: URI;
-	globalStorageHome: string;
-	workspaceStorageHome: string;
+	machineSettingsHome!: URI;
+	machineSettingsResource!: URI;
+	globalStorageHome!: string;
+	workspaceStorageHome!: string;
 	backupHome: URI;
-	backupWorkspacesPath: string;
-	workspacesHome: string;
-	isExtensionDevelopment: boolean;
-	disableExtensions: boolean | string[];
-	builtinExtensionsPath: string;
+	backupWorkspacesPath!: string;
+	workspacesHome!: string;
+	isExtensionDevelopment!: boolean;
+	disableExtensions!: boolean | string[];
+	builtinExtensionsPath!: string;
 	extensionsPath?: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsPath?: string;
 	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch: IDebugParams;
-	logExtensionHostCommunication: boolean;
-	isBuilt: boolean;
-	wait: boolean;
-	status: boolean;
+	debugSearch!: IDebugParams;
+	logExtensionHostCommunication!: boolean;
+	isBuilt!: boolean;
+	wait!: boolean;
+	status!: boolean;
 	log?: string;
 	logsPath: string;
-	verbose: boolean;
-	skipReleaseNotes: boolean;
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
+	verbose!: boolean;
+	skipReleaseNotes!: boolean;
+	mainIPCHandle!: string;
+	sharedIPCHandle!: string;
 	nodeCachedDataDir?: string;
-	installSourcePath: string;
-	disableUpdates: boolean;
-	disableCrashReporter: boolean;
+	installSourcePath!: string;
+	disableUpdates!: boolean;
+	disableCrashReporter!: boolean;
 	driverHandle?: string;
-	driverVerbose: boolean;
+	driverVerbose!: boolean;
 	galleryMachineIdResource?: URI;
 	readonly logFile: URI;
 

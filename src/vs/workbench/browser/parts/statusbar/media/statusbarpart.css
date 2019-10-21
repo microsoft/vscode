@@ -104,7 +104,8 @@
 	pointer-events: none;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.octicon {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.codicon {
 	text-align: center;
 	font-size: 14px;
+	color: inherit;
 }

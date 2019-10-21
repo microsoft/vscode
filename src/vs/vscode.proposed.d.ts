@@ -651,21 +651,6 @@ declare module 'vscode' {
 		consoleMode?: DebugConsoleMode;
 	}
 
-	export namespace debug {
-		/**
-		 * Start debugging by using either a named launch or named compound configuration,
-		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
-		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
-		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
-		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
-		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
-		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @param parentSessionOrOptions Debug sesison options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
-		 * @return A thenable that resolves when debugging could be successfully started.
-		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
-	}
-
 	//#endregion
 
 	//#region Rob, Matt: logging
@@ -760,35 +745,6 @@ declare module 'vscode' {
 		 * An event signaling when the selection state changes.
 		 */
 		readonly onDidChangeSelection: Event<boolean>;
-	}
-
-	//#endregion
-
-	//#region Joao: SCM tree rendering
-
-	/**
-	 * Options for creating a [SourceControl](#SourceControl) instance.
-	 */
-	export interface SourceControlOptions {
-
-		/**
-		 * Whether tree rendering is supported by the [SourceControl](#SourceControl) instance.
-		 */
-		readonly treeRendering?: boolean;
-	}
-
-	export namespace scm {
-
-		/**
-		 * Creates a new [source control](#SourceControl) instance.
-		 *
-		 * @param id An `id` for the source control. Something short, e.g.: `git`.
-		 * @param label A human-readable string for the source control. E.g.: `Git`.
-		 * @param rootUri An optional Uri of the root of the source control. E.g.: `Uri.parse(workspaceRoot)`.
-		 * @param options Additional options for creating the source control.
-		 * @return An instance of [source control](#SourceControl).
-		 */
-		export function createSourceControl(id: string, label: string, rootUri?: Uri, options?: SourceControlOptions): SourceControl;
 	}
 
 	//#endregion
@@ -1134,6 +1090,7 @@ declare module 'vscode' {
 		export function registerWebviewEditorProvider(
 			viewType: string,
 			provider: WebviewEditorProvider,
+			options?: WebviewPanelOptions
 		): Disposable;
 	}
 

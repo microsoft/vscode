@@ -10,10 +10,8 @@ import { values } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -150,7 +148,6 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 	) { }
 
 	public createWebview(
@@ -270,23 +267,9 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		const webview = this._webviewService.createWebviewEditorOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
-		}, {
-			...options,
-			localResourceRoots: options.localResourceRoots || this.getDefaultLocalResourceRoots(extension),
-		});
+		}, options);
 		webview.extension = extension;
 		return webview;
-	}
-
-	private getDefaultLocalResourceRoots(extension: undefined | {
-		location: URI,
-		id: ExtensionIdentifier
-	}): URI[] {
-		const rootPaths = this._contextService.getWorkspace().folders.map(x => x.uri);
-		if (extension) {
-			rootPaths.push(extension.location);
-		}
-		return rootPaths;
 	}
 }
 

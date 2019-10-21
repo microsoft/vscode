@@ -7,6 +7,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent } from 'vs/editor/common/modes';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 import { keys } from 'vs/base/common/map';
 
 export class TokenizationRegistryImpl implements ITokenizationRegistry {
@@ -17,7 +18,11 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 	private readonly _onDidChange = new Emitter<ITokenizationSupportChangedEvent>();
 	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
 
-	private _colorMap: Color[] | undefined;
+	private _colorMap: Color[] | null;
+
+	constructor() {
+		this._colorMap = null;
+	}
 
 	public fire(languages: string[]): void {
 		this._onDidChange.fire({
@@ -71,8 +76,8 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		return null;
 	}
 
-	public get(language: string): ITokenizationSupport | undefined {
-		return this._map.get(language);
+	public get(language: string): ITokenizationSupport | null {
+		return withUndefinedAsNull(this._map.get(language));
 	}
 
 	public setColorMap(colorMap: Color[]): void {
@@ -83,14 +88,14 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		});
 	}
 
-	public getColorMap(): Color[] | undefined {
+	public getColorMap(): Color[] | null {
 		return this._colorMap;
 	}
 
-	public getDefaultBackground(): Color | undefined {
+	public getDefaultBackground(): Color | null {
 		if (this._colorMap && this._colorMap.length > ColorId.DefaultBackground) {
 			return this._colorMap[ColorId.DefaultBackground];
 		}
-		return undefined;
+		return null;
 	}
 }

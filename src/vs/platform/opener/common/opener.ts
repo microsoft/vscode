@@ -9,13 +9,27 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
-type OpenToSideOptions = { readonly openToSide?: boolean };
+type OpenInternalOptions = {
+
+	/**
+	 * Signals that the intent is to open an editor to the side
+	 * of the currently active editor.
+	 */
+	readonly openToSide?: boolean;
+
+	/**
+	 * Signals that the editor to open was triggered through a user
+	 * action, such as keyboard or mouse usage.
+	 */
+	readonly fromUserGesture?: boolean;
+};
+
 type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
 
-export type OpenOptions = OpenToSideOptions & OpenExternalOptions;
+export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
 
 export interface IOpener {
-	open(resource: URI, options?: OpenToSideOptions): Promise<boolean>;
+	open(resource: URI, options?: OpenInternalOptions): Promise<boolean>;
 	open(resource: URI, options?: OpenExternalOptions): Promise<boolean>;
 }
 
@@ -53,7 +67,7 @@ export interface IOpenerService {
 	 * @param resource A resource
 	 * @return A promise that resolves when the opening is done.
 	 */
-	open(resource: URI, options?: OpenToSideOptions): Promise<boolean>;
+	open(resource: URI, options?: OpenInternalOptions): Promise<boolean>;
 	open(resource: URI, options?: OpenExternalOptions): Promise<boolean>;
 
 	resolveExternalUri(resource: URI, options?: { readonly allowTunneling?: boolean }): Promise<{ resolved: URI, dispose(): void }>;

@@ -82,12 +82,12 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 	private _debugAdapters: Map<number, IDebugAdapter>;
 	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
 
-	private _variableResolver: IConfigurationResolverService;
+	private _variableResolver: IConfigurationResolverService | undefined;
 
 	private _integratedTerminalInstance?: vscode.Terminal;
-	private _terminalDisposedListener: IDisposable;
+	private _terminalDisposedListener: IDisposable | undefined;
 
-	private _signService: ISignService;
+	private _signService: ISignService | undefined;
 
 
 	constructor(
@@ -1070,10 +1070,8 @@ interface IDapTransport {
 
 class DirectDebugAdapter extends AbstractDebugAdapter implements IDapTransport {
 
-	readonly onError: Event<Error>;
-	readonly onExit: Event<number>;
 
-	private _sendUp: (msg: DebugProtocol.ProtocolMessage) => void;
+	private _sendUp!: (msg: DebugProtocol.ProtocolMessage) => void;
 
 	constructor(implementation: any) {
 		super();

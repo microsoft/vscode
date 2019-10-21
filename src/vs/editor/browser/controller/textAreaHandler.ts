@@ -11,7 +11,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { Configuration } from 'vs/editor/browser/config/configuration';
-import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
+import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
@@ -53,40 +53,6 @@ class VisibleTextAreaData {
 }
 
 const canUseZeroSizeTextarea = (browser.isEdgeOrIE || browser.isFirefox);
-
-interface LocalClipboardMetadata {
-	lastCopiedValue: string;
-	isFromEmptySelection: boolean;
-	multicursorText: string[] | null;
-}
-
-/**
- * Every time we write to the clipboard, we record a bit of extra metadata here.
- * Every time we read from the cipboard, if the text matches our last written text,
- * we can fetch the previous metadata.
- */
-class LocalClipboardMetadataManager {
-	public static readonly INSTANCE = new LocalClipboardMetadataManager();
-
-	private _lastState: LocalClipboardMetadata | null;
-
-	constructor() {
-		this._lastState = null;
-	}
-
-	public set(state: LocalClipboardMetadata | null): void {
-		this._lastState = state;
-	}
-
-	public get(pastedText: string): LocalClipboardMetadata | null {
-		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
-			// match!
-			return this._lastState;
-		}
-		this._lastState = null;
-		return null;
-	}
-}
 
 export class TextAreaHandler extends ViewPart {
 
@@ -172,39 +138,26 @@ export class TextAreaHandler extends ViewPart {
 		};
 
 		const textAreaInputHost: ITextAreaInputHost = {
-			getPlainTextToCopy: (): string => {
-				const rawWhatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard, platform.isWindows);
+			getDataToCopy: (generateHTML: boolean): ClipboardDataToCopy => {
+				const rawTextToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard, platform.isWindows);
 				const newLineCharacter = this._context.model.getEOL();
 
 				const isFromEmptySelection = (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty());
-				const multicursorText = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy : null);
-				const whatToCopy = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy.join(newLineCharacter) : rawWhatToCopy);
+				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
+				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
 
-				let metadata: LocalClipboardMetadata | null = null;
-				if (isFromEmptySelection || multicursorText) {
-					// Only store the non-default metadata
-
-					// When writing "LINE\r\n" to the clipboard and then pasting,
-					// Firefox pastes "LINE\n", so let's work around this quirk
-					const lastCopiedValue = (browser.isFirefox ? whatToCopy.replace(/\r\n/g, '\n') : whatToCopy);
-					metadata = {
-						lastCopiedValue: lastCopiedValue,
-						isFromEmptySelection: (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty()),
-						multicursorText: multicursorText
-					};
+				let html: string | null | undefined = undefined;
+				if (generateHTML) {
+					if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
+						html = this._context.model.getHTMLToCopy(this._selections, this._emptySelectionClipboard);
+					}
 				}
-
-				LocalClipboardMetadataManager.INSTANCE.set(metadata);
-
-				return whatToCopy;
-			},
-
-			getHTMLToCopy: (): string | null => {
-				if (!this._copyWithSyntaxHighlighting && !CopyOptions.forceCopyWithSyntaxHighlighting) {
-					return null;
-				}
-
-				return this._context.model.getHTMLToCopy(this._selections, this._emptySelectionClipboard);
+				return {
+					isFromEmptySelection,
+					multicursorText,
+					text,
+					html
+				};
 			},
 
 			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
@@ -255,13 +208,11 @@ export class TextAreaHandler extends ViewPart {
 		}));
 
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
-			const metadata = LocalClipboardMetadataManager.INSTANCE.get(e.text);
-
 			let pasteOnNewLine = false;
 			let multicursorText: string[] | null = null;
-			if (metadata) {
-				pasteOnNewLine = (this._emptySelectionClipboard && metadata.isFromEmptySelection);
-				multicursorText = metadata.multicursorText;
+			if (e.metadata) {
+				pasteOnNewLine = (this._emptySelectionClipboard && !!e.metadata.isFromEmptySelection);
+				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
 			}
 			this._viewController.paste('keyboard', e.text, pasteOnNewLine, multicursorText);
 		}));

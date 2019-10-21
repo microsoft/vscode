@@ -611,12 +611,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
-		return this.executeImpl(command, args, {
+		const execution = this.executeImpl(command, args, {
 			isAsync: false,
 			token,
 			expectsResult: true,
 			lowPriority: config ? config.lowPriority : undefined
 		});
+
+		if (config?.nonRecoverable) {
+			execution.catch(() => this.fatalError(command));
+		}
+
+		return execution;
 	}
 
 	public executeWithoutWaitingForResponse(command: keyof TypeScriptRequests, args: any): void {
@@ -645,6 +651,21 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	public interruptGetErr<R>(f: () => R): R {
 		return this.bufferSyncSupport.interuptGetErr(f);
+	}
+
+	private fatalError(command: string): void {
+		/* __GDPR__
+			"fatalError" : {
+				"${include}": [
+					"${TypeScriptCommonProperties}",
+					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				]
+			}
+		*/
+		this.logTelemetry('fatalError', { command });
+		console.error(`A non-recoverable error occured while executing tsserver command: ${command}`);
+
+		this.restartTsServer();
 	}
 
 	private dispatchEvent(event: Proto.Event) {

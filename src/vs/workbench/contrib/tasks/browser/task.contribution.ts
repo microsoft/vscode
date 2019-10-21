@@ -39,7 +39,7 @@ import schemaVersion1 from '../common/jsonSchema_v1';
 import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
 import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -106,7 +106,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 
 			if (promise && (event.kind === TaskEventKind.Active) && (this.activeTasksCount === 1)) {
-				this.progressService.withProgress({ location: ProgressLocation.Window }, progress => {
+				this.progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
 					progress.report({ message: nls.localize('building', 'Building...') });
 					return promise!;
 				}).then(() => {
@@ -307,7 +307,7 @@ ProblemMatcherRegistry.onMatcherChanged(() => {
 	jsonRegistry.notifySchemaChanged(tasksSchemaId);
 });
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	id: 'task',
 	order: 100,
@@ -334,6 +334,23 @@ configurationRegistry.registerConfiguration({
 		'task.autoDetect': {
 			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions my provide settings to disabled auto detection."),
 			type: 'boolean',
+			default: true
+		},
+		'task.slowProviderWarning': {
+			markdownDescription: nls.localize('task.slowProviderWarning', "Configures whether a warning is shown when a provider is slow"),
+			'oneOf': [
+				{
+					type: 'boolean',
+					markdownDescription: nls.localize('task.slowProviderWarning.boolean', 'Sets the slow provider warning for all tasks.')
+				},
+				{
+					type: 'array',
+					items: {
+						type: 'string',
+						markdownDescription: nls.localize('task.slowProviderWarning.array', 'An array of task types to never show the slow provider warning.')
+					}
+				}
+			],
 			default: true
 		}
 	}

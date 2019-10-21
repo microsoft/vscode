@@ -9,7 +9,7 @@ import { isUndefinedOrNull, withNullAsUndefined, assertIsDefined } from 'vs/base
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -38,6 +38,7 @@ export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated()
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false);
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
+export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true);
 
 /**
  * Text diff editor id.
@@ -781,6 +782,18 @@ export class EditorOptions implements IEditorOptions {
 	ignoreOverrides: boolean | undefined;
 
 	/**
+	 * A optional hint to signal in which context the editor opens.
+	 *
+	 * If configured to be `EditorOpenContext.USER`, this hint can be
+	 * used in various places to control the experience. For example,
+	 * if the editor to open fails with an error, a notification could
+	 * inform about this in a modal dialog. If the editor opened through
+	 * some background task, the notification would show in the background,
+	 * not as a modal dialog.
+	 */
+	context: EditorOpenContext | undefined;
+
+	/**
 	 * Overwrites option values from the provided bag.
 	 */
 	overwrite(options: IEditorOptions): EditorOptions {
@@ -826,6 +839,10 @@ export class EditorOptions implements IEditorOptions {
 
 		if (typeof options.ignoreOverrides === 'boolean') {
 			this.ignoreOverrides = options.ignoreOverrides;
+		}
+
+		if (typeof options.context === 'number') {
+			this.context = options.context;
 		}
 
 		return this;

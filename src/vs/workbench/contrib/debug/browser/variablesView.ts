@@ -25,7 +25,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Emitter } from 'vs/base/common/event';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -57,28 +56,27 @@ export class VariablesView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		// Use scheduler to prevent unnecessary flashing
-		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
+		this.onFocusStackFrameScheduler = new RunOnceScheduler(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 
 			this.needsRefresh = false;
 			if (stackFrame && this.savedViewState) {
-				this.tree.setInput(this.debugService.getViewModel(), this.savedViewState).then(null, onUnexpectedError);
+				await this.tree.setInput(this.debugService.getViewModel(), this.savedViewState);
 				this.savedViewState = undefined;
 			} else {
 				if (!stackFrame) {
 					// We have no stackFrame, save tree state before it is cleared
 					this.savedViewState = this.tree.getViewState();
 				}
-				this.tree.updateChildren().then(() => {
-					if (stackFrame) {
-						stackFrame.getScopes().then(scopes => {
-							// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
-							if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
-								this.tree.expand(scopes[0]).then(undefined, onUnexpectedError);
-							}
-						});
+				await this.tree.updateChildren();
+				if (stackFrame) {
+					const scopes = await stackFrame.getScopes();
+					// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
+					if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
+						this.tree.expand(scopes[0]);
 					}
-				}, onUnexpectedError);
+				}
+
 			}
 		}, 400);
 	}
@@ -96,7 +94,7 @@ export class VariablesView extends ViewletPanel {
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e }
 		});
 
-		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
+		this.tree.setInput(this.debugService.getViewModel());
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 

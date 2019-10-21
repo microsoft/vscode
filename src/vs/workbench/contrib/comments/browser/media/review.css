@@ -34,7 +34,7 @@
 	width: 100%;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title .action-label.octicon {
+.monaco-editor .review-widget .body .review-comment .comment-title .action-label.codicon {
 	line-height: 18px;
 }
 
@@ -413,7 +413,7 @@
 	background-position: center center;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label.octicon {
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label.codicon {
 	margin: 0;
 }
 

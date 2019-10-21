@@ -71,7 +71,7 @@ export class MarkdownRenderer extends Disposable {
 						// ignore
 					}
 					if (uri && this._openerService) {
-						this._openerService.open(uri).catch(onUnexpectedError);
+						this._openerService.open(uri, { fromUserGesture: true }).catch(onUnexpectedError);
 					}
 				},
 				disposeables
