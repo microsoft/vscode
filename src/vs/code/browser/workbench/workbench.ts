@@ -212,7 +212,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	) { }
 
 	async open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
-		if (options && options.reuse && !options.payload && this.isSame(this.workspace, workspace)) {
+		if (options?.reuse && !options.payload && this.isSame(this.workspace, workspace)) {
 			return; // return early if workspace and environment is not changing and we are reusing window
 		}
 
@@ -233,12 +233,12 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		}
 
 		// Environment
-		if (options && options.payload) {
+		if (options?.payload) {
 			targetHref += `&payload=${encodeURIComponent(JSON.stringify(options.payload))}`;
 		}
 
 		if (targetHref) {
-			if (options && options.reuse) {
+			if (options?.reuse) {
 				window.location.href = targetHref;
 			} else {
 				if (isStandalone) {
@@ -290,7 +290,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 	// Find payload
 	let payload = Object.create(null);
-	if (document && document.location && document.location.search) {
+	if (document.location.search) {
 		const query = document.location.search.substring(1);
 		const vars = query.split('&');
 		for (let p of vars) {

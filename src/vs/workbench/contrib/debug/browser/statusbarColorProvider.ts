@@ -109,7 +109,7 @@ export function isStatusbarInDebugMode(debugService: IDebugService): boolean {
 	}
 
 	const session = debugService.getViewModel().focusedSession;
-	const isRunningWithoutDebug = session && session.configuration && session.configuration.noDebug;
+	const isRunningWithoutDebug = session?.configuration?.noDebug;
 	if (isRunningWithoutDebug) {
 		return false;
 	}

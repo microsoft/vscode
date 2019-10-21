@@ -293,7 +293,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		// Title
 		let title: string;
-		if (badge && badge.getDescription()) {
+		if (badge?.getDescription()) {
 			if (this.activity.name) {
 				title = nls.localize('badgeTitle', "{0} - {1}", this.activity.name, badge.getDescription());
 			} else {

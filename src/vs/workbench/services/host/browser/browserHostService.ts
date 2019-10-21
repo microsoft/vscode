@@ -144,7 +144,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	private shouldReuse(options: IOpenWindowOptions = {}): boolean {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
+		const openFolderInNewWindowConfig = windowConfig?.openFoldersInNewWindow || 'default' /* default */;
 
 		let openFolderInNewWindow = !!options.forceNewWindow && !options.forceReuseWindow;
 		if (!options.forceNewWindow && !options.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
@@ -155,7 +155,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.workspaceProvider.open(undefined, { reuse: options && options.forceReuseWindow });
+		this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
 	}
 
 	async toggleFullScreen(): Promise<void> {

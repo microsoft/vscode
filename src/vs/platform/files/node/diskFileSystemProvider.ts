@@ -380,7 +380,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 
 			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, 'move', opts && opts.overwrite);
+			await this.validateTargetDeleted(from, to, 'move', opts.overwrite);
 
 			// Move
 			await move(fromFilePath, toFilePath);
@@ -407,7 +407,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 
 			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, 'copy', opts && opts.overwrite);
+			await this.validateTargetDeleted(from, to, 'copy', opts.overwrite);
 
 			// Copy
 			await copy(fromFilePath, toFilePath);

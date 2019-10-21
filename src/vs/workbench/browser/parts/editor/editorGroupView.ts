@@ -826,7 +826,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Determine options
 		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : undefined,
-			pinned: !this.accessor.partOptions.enablePreview || editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
+			pinned: !this.accessor.partOptions.enablePreview || editor.isDirty() || options?.pinned || typeof options?.index === 'number',
 			active: this._group.count === 0 || !options || !options.inactive
 		};
 
@@ -840,13 +840,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let activateGroup = false;
 		let restoreGroup = false;
 
-		if (options && options.activation === EditorActivation.ACTIVATE) {
+		if (options?.activation === EditorActivation.ACTIVATE) {
 			// Respect option to force activate an editor group.
 			activateGroup = true;
-		} else if (options && options.activation === EditorActivation.RESTORE) {
+		} else if (options?.activation === EditorActivation.RESTORE) {
 			// Respect option to force restore an editor group.
 			restoreGroup = true;
-		} else if (options && options.activation === EditorActivation.PRESERVE) {
+		} else if (options?.activation === EditorActivation.PRESERVE) {
 			// Respect option to preserve active editor group.
 			activateGroup = false;
 			restoreGroup = false;
@@ -931,7 +931,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 
 			// If the context is USER, we try to show a modal dialog instead of a background notification
-			if (options && options.context === EditorOpenContext.USER) {
+			if (options?.context === EditorOpenContext.USER) {
 				const buttons: string[] = [];
 				if (Array.isArray(errorActions) && errorActions.length > 0) {
 					errorActions.forEach(action => buttons.push(action.label));
@@ -1114,7 +1114,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Do close
-		this.doCloseEditor(editor, options && options.preserveFocus ? false : undefined);
+		this.doCloseEditor(editor, options?.preserveFocus ? false : undefined);
 	}
 
 	private doCloseEditor(editor: EditorInput, focusNext = (this.accessor.activeGroup === this), fromError?: boolean): void {
@@ -1363,7 +1363,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close active editor last if contained in editors list to close
 		if (closeActiveEditor) {
-			this.doCloseActiveEditor(options && options.preserveFocus ? false : undefined);
+			this.doCloseActiveEditor(options?.preserveFocus ? false : undefined);
 		}
 
 		// Forward to title control

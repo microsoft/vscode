@@ -366,7 +366,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					cancelId: buttons.length - 1,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-						if (resolved && resolved.commandId) {
+						if (resolved?.commandId) {
 							if (allowableCommands.indexOf(resolved.commandId) === -1) {
 								EventHelper.stop(event, true);
 							}

@@ -152,12 +152,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (isMacintosh) {
 				options.acceptFirstMouse = true; // enabled by default
 
-				if (windowConfig && windowConfig.clickThroughInactive === false) {
+				if (windowConfig?.clickThroughInactive === false) {
 					options.acceptFirstMouse = false;
 				}
 			}
 
-			const useNativeTabs = isMacintosh && windowConfig && windowConfig.nativeTabs === true;
+			const useNativeTabs = isMacintosh && windowConfig?.nativeTabs === true;
 			if (useNativeTabs) {
 				options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 			}
@@ -639,7 +639,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Set zoomlevel
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		const zoomLevel = windowConfig && windowConfig.zoomLevel;
+		const zoomLevel = windowConfig?.zoomLevel;
 		if (typeof zoomLevel === 'number') {
 			windowConfiguration.zoomLevel = zoomLevel;
 		}
@@ -649,7 +649,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Set Accessibility Config
 		let autoDetectHighContrast = true;
-		if (windowConfig && windowConfig.autoDetectHighContrast === false) {
+		if (windowConfig?.autoDetectHighContrast === false) {
 			autoDetectHighContrast = false;
 		}
 		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
@@ -825,7 +825,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Multi Montior (fullscreen): try to find the previously used display
 		if (state.display && state.mode === WindowMode.Fullscreen) {
 			const display = displays.filter(d => d.id === state.display)[0];
-			if (display && display.bounds && typeof display.bounds.x === 'number' && typeof display.bounds.y === 'number') {
+			if (display && typeof display.bounds?.x === 'number' && typeof display.bounds?.y === 'number') {
 				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
 				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
 				defaults.y = display.bounds.y;

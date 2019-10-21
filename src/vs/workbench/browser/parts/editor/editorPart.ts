@@ -494,7 +494,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		const group = this.doAddGroup(locationView, direction);
 
-		if (options && options.activate) {
+		if (options?.activate) {
 			this.doSetGroupActive(group);
 		}
 
@@ -748,7 +748,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			const inactive = !sourceView.isActive(editor) || this._activeGroup !== sourceView;
 			const copyOptions: ICopyEditorOptions = { index, inactive, preserveFocus: inactive };
 
-			if (options && options.mode === MergeGroupMode.COPY_EDITORS) {
+			if (options?.mode === MergeGroupMode.COPY_EDITORS) {
 				sourceView.copyEditor(editor, targetView, copyOptions);
 			} else {
 				sourceView.moveEditor(editor, targetView, copyOptions);
@@ -870,7 +870,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private doCreateGridControlWithPreviousState(): boolean {
 		const uiState: IEditorPartUIState = this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
-		if (uiState && uiState.serializedGrid) {
+		if (uiState?.serializedGrid) {
 			try {
 
 				// MRU

@@ -57,13 +57,13 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		let changed = false;
 
 		// Tree horizontal scrolling support
-		if (config.workbench && config.workbench.list && typeof config.workbench.list.horizontalScrolling === 'boolean' && config.workbench.list.horizontalScrolling !== this.treeHorizontalScrolling) {
+		if (typeof config.workbench?.list?.horizontalScrolling === 'boolean' && config.workbench.list.horizontalScrolling !== this.treeHorizontalScrolling) {
 			this.treeHorizontalScrolling = config.workbench.list.horizontalScrolling;
 			changed = true;
 		}
 
 		// Debug console word wrap
-		if (config.debug && typeof config.debug.console.wordWrap === 'boolean' && config.debug.console.wordWrap !== this.debugConsoleWordWrap) {
+		if (typeof config.debug?.console.wordWrap === 'boolean' && config.debug.console.wordWrap !== this.debugConsoleWordWrap) {
 			this.debugConsoleWordWrap = config.debug.console.wordWrap;
 			changed = true;
 		}
@@ -71,44 +71,44 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		if (isNative) {
 
 			// Titlebar style
-			if (config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
+			if (typeof config.window?.titleBarStyle === 'string' && config.window?.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
 				this.titleBarStyle = config.window.titleBarStyle;
 				changed = true;
 			}
 
 			// macOS: Native tabs
-			if (isMacintosh && config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
+			if (isMacintosh && typeof config.window?.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
 				this.nativeTabs = config.window.nativeTabs;
 				changed = true;
 			}
 
 			// macOS: Native fullscreen
-			if (isMacintosh && config.window && typeof config.window.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
+			if (isMacintosh && typeof config.window?.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
 				this.nativeFullScreen = config.window.nativeFullScreen;
 				changed = true;
 			}
 
 			// macOS: Click through (accept first mouse)
-			if (isMacintosh && config.window && typeof config.window.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
+			if (isMacintosh && typeof config.window?.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
 				this.clickThroughInactive = config.window.clickThroughInactive;
 				changed = true;
 			}
 
 			// Update channel
-			if (config.update && typeof config.update.mode === 'string' && config.update.mode !== this.updateMode) {
+			if (typeof config.update?.mode === 'string' && config.update.mode !== this.updateMode) {
 				this.updateMode = config.update.mode;
 				changed = true;
 			}
 
 			// Crash reporter
-			if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
+			if (typeof config.telemetry?.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 				this.enableCrashReporter = config.telemetry.enableCrashReporter;
 				changed = true;
 			}
 		}
 
 		// Configuration Sync Auth
-		if (config.configurationSync && typeof config.configurationSync.enableAuth === 'boolean' && config.configurationSync.enableAuth !== this.enableConfigSyncAuth) {
+		if (typeof config.configurationSync?.enableAuth === 'boolean' && config.configurationSync.enableAuth !== this.enableConfigSyncAuth) {
 			this.enableConfigSyncAuth = config.configurationSync.enableAuth;
 			changed = true;
 		}

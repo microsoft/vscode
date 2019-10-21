@@ -110,7 +110,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		const toDispose = new DisposableStore();
 
 		// Handle neverShowAgain option accordingly
-		if (options && options.neverShowAgain) {
+		if (options?.neverShowAgain) {
 			const scope = options.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
 
 			// If the user already picked to not show the notification
@@ -163,7 +163,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		// Show notification with actions
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		handle = this.notify({ severity, message, actions, sticky: options && options.sticky, silent: options && options.silent });
+		handle = this.notify({ severity, message, actions, sticky: options?.sticky, silent: options?.silent });
 
 		Event.once(handle.onDidClose)(() => {
 

@@ -211,11 +211,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private decorateLabel(label: string): string {
 		const model = this.textFileService.models.get(this.resource);
 
-		if (model && model.hasState(ModelState.ORPHAN)) {
+		if (model?.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted)", label);
 		}
 
-		if (model && model.isReadonly()) {
+		if (model?.isReadonly()) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}
 

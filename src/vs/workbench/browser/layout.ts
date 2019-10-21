@@ -457,7 +457,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Files to diff is exclusive
 			return pathsToEditors(configuration.filesToDiff, fileService).then(filesToDiff => {
-				if (filesToDiff && filesToDiff.length === 2) {
+				if (filesToDiff?.length === 2) {
 					return [{
 						leftResource: filesToDiff[0].resource,
 						rightResource: filesToDiff[1].resource,
