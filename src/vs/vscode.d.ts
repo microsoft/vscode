@@ -6178,6 +6178,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Possible kinds of UI that can use extensions.
+	 */
+	export enum UIKind {
+
+		/**
+		 * Extensions are accessed from a desktop application.
+		 */
+		Desktop = 1,
+
+		/**
+		 * Extensions are accessed from a web browser.
+		 */
+		Web = 2
+	}
+
+	/**
 	 * Namespace describing the environment the editor runs in.
 	 */
 	export namespace env {
@@ -6234,6 +6250,13 @@ declare module 'vscode' {
 		 * `terminal.integrated.shell` setting for the extension host's platform.
 		 */
 		export const shell: string;
+
+		/**
+		 * The UI kind property indicates from which UI extensions
+		 * are accessed from. For example, extensions could be accessed
+		 * from a desktop application or a web browser.
+		 */
+		export const uiKind: UIKind;
 
 		/**
 		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the

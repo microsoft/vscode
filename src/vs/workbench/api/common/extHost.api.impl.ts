@@ -255,7 +255,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return getRemoteName(initData.remote.authority);
 			},
 			get uiKind() {
-				checkProposedApiEnabled(extension);
 				return initData.uiKind;
 			}
 		};
