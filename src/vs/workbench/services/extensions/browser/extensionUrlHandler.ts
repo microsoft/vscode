@@ -363,9 +363,13 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 		ExtensionUrlBootstrapHandler.disposable = urlService.registerHandler(this);
 	}
 
-	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+	async handleURL(uri: URI): Promise<boolean> {
+		if (!isExtensionId(uri.authority)) {
+			return false;
+		}
+
 		ExtensionUrlBootstrapHandler._cache.push(uri);
-		return Promise.resolve(true);
+		return true;
 	}
 }
 
