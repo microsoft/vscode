@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -472,7 +472,7 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private get currentMenubarVisibility(): MenuBarVisibility {
-		return this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+		return getMenuBarVisibility(this.configurationService, this.environmentService);
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {

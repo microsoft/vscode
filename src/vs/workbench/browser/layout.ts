@@ -23,7 +23,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -40,7 +40,6 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 
 enum Settings {
-	MENUBAR_VISIBLE = 'window.menuBarVisibility',
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
 	STATUSBAR_VISIBLE = 'workbench.statusBar.visible',
 
@@ -326,7 +325,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Menubar visibility
-		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
+		const newMenubarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 
 	}
@@ -373,7 +372,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.fullscreen = isFullscreen();
 
 		// Menubar visibility
-		this.state.menuBar.visibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
+		this.state.menuBar.visibility = getMenuBarVisibility(this.configurationService, this.environmentService);
 
 		// Activity bar visibility
 		this.state.activityBar.hidden = !this.configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);

@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
@@ -77,6 +77,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private menubar?: HTMLElement;
 	private resizer: HTMLElement | undefined;
 	private lastLayoutDimensions: Dimension | undefined;
+	private titleBarStyle: 'native' | 'custom';
 
 	private pendingTitle: string | undefined;
 
@@ -110,6 +111,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.contextMenu = this._register(menuService.createMenu(MenuId.TitleBarContext, contextKeyService));
 
+		this.titleBarStyle = getTitleBarStyle(this.configurationService, this.environmentService);
+
 		this.registerListeners();
 	}
 
@@ -138,11 +141,13 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.titleUpdater.schedule();
 		}
 
-		if (event.affectsConfiguration('window.menuBarVisibility')) {
-			if (this.currentMenubarVisibility === 'compact') {
-				this.uninstallMenubar();
-			} else {
-				this.installMenubar();
+		if (this.titleBarStyle !== 'native') {
+			if (event.affectsConfiguration('window.menuBarVisibility')) {
+				if (this.currentMenubarVisibility === 'compact') {
+					this.uninstallMenubar();
+				} else {
+					this.installMenubar();
+				}
 			}
 		}
 
@@ -385,7 +390,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Menubar: install a custom menu bar depending on configuration
 		// and when not in activity bar
-		if (getTitleBarStyle(this.configurationService, this.environmentService) !== 'native'
+		if (this.titleBarStyle !== 'native'
 			&& (!isMacintosh || isWeb)
 			&& this.currentMenubarVisibility !== 'compact') {
 			this.installMenubar();
@@ -567,7 +572,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private get currentMenubarVisibility(): MenuBarVisibility {
-		return this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+		return getMenuBarVisibility(this.configurationService, this.environmentService);
 	}
 
 	updateLayout(dimension: Dimension): void {
