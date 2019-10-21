@@ -7,7 +7,7 @@ import 'vs/workbench/browser/style';
 
 import { localize } from 'vs/nls';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
-import { addClasses, addClass, removeClasses, Dimension } from 'vs/base/browser/dom';
+import { addClasses, addClass, removeClasses } from 'vs/base/browser/dom';
 import { runWhenIdle } from 'vs/base/common/async';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
@@ -44,10 +44,6 @@ import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { coalesce } from 'vs/base/common/arrays';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Layout } from 'vs/workbench/browser/layout';
-import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class Workbench extends Layout {
 
@@ -144,7 +140,6 @@ export class Workbench extends Layout {
 				const lifecycleService = accessor.get(ILifecycleService);
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
-				const themeService = accessor.get(IThemeService);
 
 				// Layout
 				this.initLayout(accessor);
@@ -156,10 +151,10 @@ export class Workbench extends Layout {
 				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
 
 				// Register Listeners
-				this.registerListeners(lifecycleService, storageService, configurationService, accessor.get(IHostService), themeService);
+				this.registerListeners(lifecycleService, storageService, configurationService);
 
 				// Render Workbench
-				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService, themeService);
+				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
 
 				// Workbench Layout
 				this.createWorkbenchLayout();
@@ -229,17 +224,11 @@ export class Workbench extends Layout {
 	private registerListeners(
 		lifecycleService: ILifecycleService,
 		storageService: IStorageService,
-		configurationService: IConfigurationService,
-		hostService: IHostService,
-		themeService: IThemeService
+		configurationService: IConfigurationService
 	): void {
 
 		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(() => {
-			// Ensure that the theme has updated with any configuration changes
-			setTimeout(() => this.setWindowBorder(configurationService, themeService), 0);
-			this.setFontAliasing(configurationService);
-		}));
+		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
 
 		// Font Info
 		if (isNative) {
@@ -259,15 +248,6 @@ export class Workbench extends Layout {
 			this._onShutdown.fire();
 			this.dispose();
 		}));
-
-		// Listen for window focus changes
-		this._register(hostService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e, configurationService, themeService)));
-	}
-
-	private isActive = false;
-	private onDidChangeWindowFocus(hasFocus: boolean, configurationService: IConfigurationService, themeService: IThemeService): void {
-		this.isActive = hasFocus;
-		this.setWindowBorder(configurationService, themeService);
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
@@ -286,46 +266,6 @@ export class Workbench extends Layout {
 		// Add specific
 		if (fontAliasingValues.some(option => option === aliasing)) {
 			addClass(this.container, `monaco-font-aliasing-${aliasing}`);
-		}
-	}
-
-	private windowBorder = false;
-	private setWindowBorder(configurationService: IConfigurationService, themeService: IThemeService, suppressLayout: boolean = true) {
-		if (isWeb || getTitleBarStyle(configurationService, this.environmentService) !== 'custom') {
-			return;
-		}
-
-		const theme = themeService.getTheme();
-
-		const activeBorder = theme.getColor(WINDOW_ACTIVE_BORDER);
-		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
-
-		let windowBorder = false;
-		if (activeBorder || inactiveBorder) {
-			windowBorder = true;
-
-			let borderColor = this.isActive ? activeBorder : inactiveBorder;
-			if (!borderColor) {
-				borderColor = theme.getColor(this.isActive ? TITLE_BAR_ACTIVE_BACKGROUND : TITLE_BAR_INACTIVE_BACKGROUND);
-			}
-			this.container.style.setProperty('--window-border-color', borderColor ? borderColor.toString() : 'transparent');
-		}
-
-		if (windowBorder === this.windowBorder) {
-			return;
-		}
-
-		this.windowBorder = windowBorder;
-
-		if (windowBorder) {
-			addClass(this.container, 'border');
-		}
-		else {
-			removeClasses(this.container, 'border');
-		}
-
-		if (!suppressLayout) {
-			this.layout();
 		}
 	}
 
@@ -364,7 +304,8 @@ export class Workbench extends Layout {
 		}
 	}
 
-	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService, themeService: IThemeService): void {
+	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
+
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
 		const workbenchClasses = coalesce([
@@ -376,9 +317,6 @@ export class Workbench extends Layout {
 
 		addClasses(this.container, ...workbenchClasses);
 		addClass(document.body, platformClass); // used by our fonts
-
-		// Apply active border
-		this.setWindowBorder(configurationService, themeService, true);
 
 		if (isWeb) {
 			addClass(document.body, 'web');
@@ -523,10 +461,5 @@ export class Workbench extends Layout {
 			// Telemetry: startup metrics
 			mark('didStartWorkbench');
 		}
-	}
-
-	getClientArea(): Dimension {
-		const dim = super.getClientArea();
-		return this.windowBorder ? new Dimension(dim.width - 2, dim.height - 2) : dim;
 	}
 }
