@@ -320,7 +320,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 				nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint..."),
 				undefined,
 				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column))
+				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.CONDITION))
 			));
 			actions.push(new Action(
 				'addLogPoint',
