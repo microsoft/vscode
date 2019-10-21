@@ -497,14 +497,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return group;
 	}
 
-	private getSplitSizingStyle(): Sizing {
-		const splitStyle = this._partOptions.splitSizing;
-		if (splitStyle === 'split') {
-			return Sizing.Split;
-		}
-		return Sizing.Distribute;
-	}
-
 	private doAddGroup(locationView: IEditorGroupView, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
 		const newGroupView = this.doCreateGroupView(groupToCopy);
 
@@ -526,6 +518,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.notifyGroupIndexChange();
 
 		return newGroupView;
+	}
+
+	private getSplitSizingStyle(): Sizing {
+		return this._partOptions.splitSizing === 'split' ? Sizing.Split : Sizing.Distribute;
 	}
 
 	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroup | null): IEditorGroupView {
