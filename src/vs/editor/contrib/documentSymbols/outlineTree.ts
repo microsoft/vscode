@@ -278,301 +278,301 @@ export class OutlineDataSource implements IDataSource<OutlineModel, OutlineItem>
 	}
 }
 
-export const OUTLINE_ARRAY_SYMBOL_FOREGROUND = registerColor('outlineArraySymbol.foreground', {
+export const SYMBOL_ICON_ARRAY_FOREGROUND = registerColor('symbolIcon.arrayForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineArraySymbol.foreground', 'The foreground color for array symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.arrayForeground', 'The foreground color for array symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_BOOLEAN_SYMBOL_FOREGROUND = registerColor('outlineBooleanSymbol.foreground', {
+export const SYMBOL_ICON_BOOLEAN_FOREGROUND = registerColor('symbolIcon.booleanForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineBooleanSymbol.foreground', 'The foreground color for boolean symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.booleanForeground', 'The foreground color for boolean symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_CLASS_SYMBOL_FOREGROUND = registerColor('outlineClassSymbol.foreground', {
+export const SYMBOL_ICON_CLASS_FOREGROUND = registerColor('symbolIcon.classForeground', {
 	dark: '#EE9D28',
 	light: '#D67E00',
 	hc: '#EE9D28'
-}, localize('outlineClassSymbol.foreground', 'The foreground color for class symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.classForeground', 'The foreground color for class symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_CONSTANT_SYMBOL_FOREGROUND = registerColor('outlineContstantSymbol.foreground', {
+export const SYMBOL_ICON_CONSTANT_FOREGROUND = registerColor('symbolIcon.contstantForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineContstantSymbol.foreground', 'The foreground color for contstant symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.contstantForeground', 'The foreground color for contstant symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_CONSTRUCTOR_SYMBOL_FOREGROUND = registerColor('outlineConstructorSymbol.foreground', {
+export const SYMBOL_ICON_CONSTRUCTOR_FOREGROUND = registerColor('symbolIcon.constructorForeground', {
 	dark: '#B180D7',
 	light: '#652D90',
 	hc: '#B180D7'
-}, localize('outlineConstructorSymbol.foreground', 'The foreground color for constructor symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.constructorForeground', 'The foreground color for constructor symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_ENUMERATOR_SYMBOL_FOREGROUND = registerColor('outlineEnumeratorSymbol.foreground', {
+export const SYMBOL_ICON_ENUMERATOR_FOREGROUND = registerColor('symbolIcon.enumeratorForeground', {
 	dark: '#EE9D28',
 	light: '#D67E00',
 	hc: '#EE9D28'
-}, localize('outlineEnumeratorSymbol.foreground', 'The foreground color for enumerator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.enumeratorForeground', 'The foreground color for enumerator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_ENUMERATOR_MEMBER_SYMBOL_FOREGROUND = registerColor('outlineEnumeratorMemberSymbol.foreground', {
+export const SYMBOL_ICON_ENUMERATOR_MEMBER_FOREGROUND = registerColor('symbolIcon.enumeratorMemberForeground', {
 	dark: '#75BEFF',
 	light: '#007ACC',
 	hc: '#75BEFF'
-}, localize('outlineEnumeratorMemberSymbol.foreground', 'The foreground color for enumerator member symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.enumeratorMemberForeground', 'The foreground color for enumerator member symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_EVENT_SYMBOL_FOREGROUND = registerColor('outlineEventSymbol.foreground', {
+export const SYMBOL_ICON_EVENT_FOREGROUND = registerColor('symbolIcon.eventForeground', {
 	dark: '#EE9D28',
 	light: '#D67E00',
 	hc: '#EE9D28'
-}, localize('outlineEventSymbol.foreground', 'The foreground color for event symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.eventForeground', 'The foreground color for event symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_FIELD_SYMBOL_FOREGROUND = registerColor('outlineFieldSymbol.foreground', {
+export const SYMBOL_ICON_FIELD_FOREGROUND = registerColor('symbolIcon.fieldForeground', {
 	dark: '#75BEFF',
 	light: '#007ACC',
 	hc: '#75BEFF'
-}, localize('outlineFieldSymbol.foreground', 'The foreground color for field symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.fieldForeground', 'The foreground color for field symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_FILE_SYMBOL_FOREGROUND = registerColor('outlineFileSymbol.foreground', {
+export const SYMBOL_ICON_FILE_FOREGROUND = registerColor('symbolIcon.fileForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineFileSymbol.foreground', 'The foreground color for file symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.fileForeground', 'The foreground color for file symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_FUNCTION_SYMBOL_FOREGROUND = registerColor('outlineFunctionSymbol.foreground', {
+export const SYMBOL_ICON_FUNCTION_FOREGROUND = registerColor('symbolIcon.functionForeground', {
 	dark: '#B180D7',
 	light: '#652D90',
 	hc: '#B180D7'
-}, localize('outlineFunctionSymbol.foreground', 'The foreground color for function symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.functionForeground', 'The foreground color for function symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_INTERFACE_SYMBOL_FOREGROUND = registerColor('outlineInterfaceSymbol.foreground', {
+export const SYMBOL_ICON_INTERFACE_FOREGROUND = registerColor('symbolIcon.interfaceForeground', {
 	dark: '#75BEFF',
 	light: '#007ACC',
 	hc: '#75BEFF'
-}, localize('outlineInterfaceSymbol.foreground', 'The foreground color for interface symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.interfaceForeground', 'The foreground color for interface symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_KEY_SYMBOL_FOREGROUND = registerColor('outlineKeySymbol.foreground', {
+export const SYMBOL_ICON_KEY_FOREGROUND = registerColor('symbolIcon.keyForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineKeySymbol.foreground', 'The foreground color for key symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.keyForeground', 'The foreground color for key symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_METHOD_SYMBOL_FOREGROUND = registerColor('outlineMethodSymbol.foreground', {
+export const SYMBOL_ICON_METHOD_FOREGROUND = registerColor('symbolIcon.methodForeground', {
 	dark: '#B180D7',
 	light: '#652D90',
 	hc: '#B180D7'
-}, localize('outlineMethodSymbol.foreground', 'The foreground color for method symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.methodForeground', 'The foreground color for method symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_MODULE_SYMBOL_FOREGROUND = registerColor('outlineModuleSymbol.foreground', {
+export const SYMBOL_ICON_MODULE_FOREGROUND = registerColor('symbolIcon.moduleForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineModuleSymbol.foreground', 'The foreground color for module symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.moduleForeground', 'The foreground color for module symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_NAMESPACE_SYMBOL_FOREGROUND = registerColor('outlineNamespaceSymbol.foreground', {
+export const SYMBOL_ICON_NAMESPACE_FOREGROUND = registerColor('symbolIcon.namespaceForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineNamespaceSymbol.foreground', 'The foreground color for namespace symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.namespaceForeground', 'The foreground color for namespace symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_NULL_SYMBOL_FOREGROUND = registerColor('outlineNullSymbol.foreground', {
+export const SYMBOL_ICON_NULL_FOREGROUND = registerColor('symbolIcon.nullForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineNullSymbol.foreground', 'The foreground color for null symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.nullForeground', 'The foreground color for null symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_NUMBER_SYMBOL_FOREGROUND = registerColor('outlineNumberSymbol.foreground', {
+export const SYMBOL_ICON_NUMBER_FOREGROUND = registerColor('symbolIcon.numberForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineNumberSymbol.foreground', 'The foreground color for number symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.numberForeground', 'The foreground color for number symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_OBJECT_SYMBOL_FOREGROUND = registerColor('outlineObjectSymbol.foreground', {
+export const SYMBOL_ICON_OBJECT_FOREGROUND = registerColor('symbolIcon.objectForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineObjectSymbol.foreground', 'The foreground color for object symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.objectForeground', 'The foreground color for object symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_OPERATOR_SYMBOL_FOREGROUND = registerColor('outlineOperatorSymbol.foreground', {
+export const SYMBOL_ICON_OPERATOR_FOREGROUND = registerColor('symbolIcon.operatorForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineOperatorSymbol.foreground', 'The foreground color for operator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.operatorForeground', 'The foreground color for operator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_PACKAGE_SYMBOL_FOREGROUND = registerColor('outlinePackageSymbol.foreground', {
+export const SYMBOL_ICON_PACKAGE_FOREGROUND = registerColor('symbolIcon.packageForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlinePackageSymbol.foreground', 'The foreground color for package symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.packageForeground', 'The foreground color for package symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_PROPERTY_SYMBOL_FOREGROUND = registerColor('outlinePropertySymbol.foreground', {
+export const SYMBOL_ICON_PROPERTY_FOREGROUND = registerColor('symbolIcon.propertyForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlinePropertySymbol.foreground', 'The foreground color for property symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.propertyForeground', 'The foreground color for property symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_STRING_SYMBOL_FOREGROUND = registerColor('outlineStringSymbol.foreground', {
+export const SYMBOL_ICON_STRING_FOREGROUND = registerColor('symbolIcon.stringForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineStringSymbol.foreground', 'The foreground color for string symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.stringForeground', 'The foreground color for string symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_STRUCT_SYMBOL_FOREGROUND = registerColor('outlineStructSymbol.foreground', {
+export const SYMBOL_ICON_STRUCT_FOREGROUND = registerColor('symbolIcon.structForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineStructSymbol.foreground', 'The foreground color for struct symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.structForeground', 'The foreground color for struct symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_TYPEPARAMETER_SYMBOL_FOREGROUND = registerColor('outlineTypeParameterSymbol.foreground', {
+export const SYMBOL_ICON_TYPEPARAMETER_FOREGROUND = registerColor('symbolIcon.typeParameterForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('outlineTypeParameterSymbol.foreground', 'The foreground color for type parameter symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.typeParameterForeground', 'The foreground color for type parameter symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const OUTLINE_VARIABLE_SYMBOL_FOREGROUND = registerColor('outlineVariableSymbol.foreground', {
+export const SYMBOL_ICON_VARIABLE_FOREGROUND = registerColor('symbolIcon.variableForeground', {
 	dark: '#75BEFF',
 	light: '#007ACC',
 	hc: '#75BEFF'
-}, localize('outlineVariableSymbol.foreground', 'The foreground color for variable symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.variableForeground', 'The foreground color for variable symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
-	const outlineArraySymbolColor = theme.getColor(OUTLINE_ARRAY_SYMBOL_FOREGROUND);
-	if (outlineArraySymbolColor) {
+	const symbolIconArrayColor = theme.getColor(SYMBOL_ICON_ARRAY_FOREGROUND);
+	if (symbolIconArrayColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-array {
-				color: ${outlineArraySymbolColor};
+				color: ${symbolIconArrayColor};
 			}
 		`);
 	}
 
-	const outlineBooleanSymbolColor = theme.getColor(OUTLINE_BOOLEAN_SYMBOL_FOREGROUND);
-	if (outlineBooleanSymbolColor) {
+	const symbolIconBooleanColor = theme.getColor(SYMBOL_ICON_BOOLEAN_FOREGROUND);
+	if (symbolIconBooleanColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-boolean {
-				color: ${outlineBooleanSymbolColor};
+				color: ${symbolIconBooleanColor};
 			}
 		`);
 	}
 
-	const outlineClassSymbolColor = theme.getColor(OUTLINE_CLASS_SYMBOL_FOREGROUND);
-	if (outlineClassSymbolColor) {
+	const symbolIconClassColor = theme.getColor(SYMBOL_ICON_CLASS_FOREGROUND);
+	if (symbolIconClassColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-class {
-				color: ${outlineClassSymbolColor};
+				color: ${symbolIconClassColor};
 			}
 		`);
 	}
 
-	const outlineMethodSymbolColor = theme.getColor(OUTLINE_METHOD_SYMBOL_FOREGROUND);
-	if (outlineMethodSymbolColor) {
+	const symbolIconMethodColor = theme.getColor(SYMBOL_ICON_METHOD_FOREGROUND);
+	if (symbolIconMethodColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-method {
-				color: ${outlineMethodSymbolColor};
+				color: ${symbolIconMethodColor};
 			}
 		`);
 	}
 
-	const outlineConstantSymbolColor = theme.getColor(OUTLINE_CONSTANT_SYMBOL_FOREGROUND);
-	if (outlineConstantSymbolColor) {
+	const symbolIconConstantColor = theme.getColor(SYMBOL_ICON_CONSTANT_FOREGROUND);
+	if (symbolIconConstantColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-constant {
-				color: ${outlineConstantSymbolColor};
+				color: ${symbolIconConstantColor};
 			}
 		`);
 	}
 
-	const outlineConstructorSymbolColor = theme.getColor(OUTLINE_CONSTRUCTOR_SYMBOL_FOREGROUND);
-	if (outlineConstructorSymbolColor) {
+	const symbolIconConstructorColor = theme.getColor(SYMBOL_ICON_CONSTRUCTOR_FOREGROUND);
+	if (symbolIconConstructorColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-constructor {
-				color: ${outlineConstructorSymbolColor};
+				color: ${symbolIconConstructorColor};
 			}
 		`);
 	}
 
-	const outlineEnumeratorSymbolColor = theme.getColor(OUTLINE_ENUMERATOR_SYMBOL_FOREGROUND);
-	if (outlineEnumeratorSymbolColor) {
+	const symbolIconEnumeratorColor = theme.getColor(SYMBOL_ICON_ENUMERATOR_FOREGROUND);
+	if (symbolIconEnumeratorColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-value,
 			.monaco-workbench .codicon-symbol-enum {
-				color: ${outlineEnumeratorSymbolColor};
+				color: ${symbolIconEnumeratorColor};
 			}
 		`);
 	}
 
-	const outlineEnumeratorMemberSymbolColor = theme.getColor(OUTLINE_ENUMERATOR_MEMBER_SYMBOL_FOREGROUND);
-	if (outlineEnumeratorMemberSymbolColor) {
+	const symbolIconEnumeratorMemberColor = theme.getColor(SYMBOL_ICON_ENUMERATOR_MEMBER_FOREGROUND);
+	if (symbolIconEnumeratorMemberColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-enum-member {
-				color: ${outlineEnumeratorMemberSymbolColor};
+				color: ${symbolIconEnumeratorMemberColor};
 			}
 		`);
 	}
 
-	const outlineEventSymbolColor = theme.getColor(OUTLINE_EVENT_SYMBOL_FOREGROUND);
-	if (outlineEventSymbolColor) {
+	const symbolIconEventColor = theme.getColor(SYMBOL_ICON_EVENT_FOREGROUND);
+	if (symbolIconEventColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-event {
-				color: ${outlineEventSymbolColor};
+				color: ${symbolIconEventColor};
 			}
 		`);
 	}
 
-	const outlineFieldSymbolColor = theme.getColor(OUTLINE_FIELD_SYMBOL_FOREGROUND);
-	if (outlineFieldSymbolColor) {
+	const symbolIconFieldColor = theme.getColor(SYMBOL_ICON_FIELD_FOREGROUND);
+	if (symbolIconFieldColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-field {
-				color: ${outlineFieldSymbolColor};
+				color: ${symbolIconFieldColor};
 			}
 		`);
 	}
 
-	const outlineFileSymbolColor = theme.getColor(OUTLINE_FILE_SYMBOL_FOREGROUND);
-	if (outlineFileSymbolColor) {
+	const symbolIconFileColor = theme.getColor(SYMBOL_ICON_FILE_FOREGROUND);
+	if (symbolIconFileColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-file {
-				color: ${outlineFileSymbolColor};
+				color: ${symbolIconFileColor};
 			}
 		`);
 	}
 
-	const outlineFunctionSymbolColor = theme.getColor(OUTLINE_FUNCTION_SYMBOL_FOREGROUND);
-	if (outlineFunctionSymbolColor) {
+	const symbolIconFunctionColor = theme.getColor(SYMBOL_ICON_FUNCTION_FOREGROUND);
+	if (symbolIconFunctionColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-function {
-				color: ${outlineFunctionSymbolColor};
+				color: ${symbolIconFunctionColor};
 			}
 		`);
 	}
 
-	const outlineInterfaceSymbolColor = theme.getColor(OUTLINE_INTERFACE_SYMBOL_FOREGROUND);
-	if (outlineInterfaceSymbolColor) {
+	const symbolIconInterfaceColor = theme.getColor(SYMBOL_ICON_INTERFACE_FOREGROUND);
+	if (symbolIconInterfaceColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-interface {
-				color: ${outlineInterfaceSymbolColor};
+				color: ${symbolIconInterfaceColor};
 			}
 		`);
 	}
 
-	const outlineKeySymbolColor = theme.getColor(OUTLINE_KEY_SYMBOL_FOREGROUND);
-	if (outlineKeySymbolColor) {
+	const symbolIconKeyColor = theme.getColor(SYMBOL_ICON_KEY_FOREGROUND);
+	if (symbolIconKeyColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-key {
-				color: ${outlineKeySymbolColor};
+				color: ${symbolIconKeyColor};
 			}
 		`);
 	}
 
-	const outlineModuleSymbolColor = theme.getColor(OUTLINE_MODULE_SYMBOL_FOREGROUND);
-	if (outlineModuleSymbolColor) {
+	const symbolIconModuleColor = theme.getColor(SYMBOL_ICON_MODULE_FOREGROUND);
+	if (symbolIconModuleColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-module {
-				color: ${outlineModuleSymbolColor};
+				color: ${symbolIconModuleColor};
 			}
 		`);
 	}
 
-	const outlineNamespaceColor = theme.getColor(OUTLINE_NAMESPACE_SYMBOL_FOREGROUND);
+	const outlineNamespaceColor = theme.getColor(SYMBOL_ICON_NAMESPACE_FOREGROUND);
 	if (outlineNamespaceColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-namespace {
@@ -581,92 +581,92 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	const outlineNullSymbolColor = theme.getColor(OUTLINE_NULL_SYMBOL_FOREGROUND);
-	if (outlineNullSymbolColor) {
+	const symbolIconNullColor = theme.getColor(SYMBOL_ICON_NULL_FOREGROUND);
+	if (symbolIconNullColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-null {
-				color: ${outlineNullSymbolColor};
+				color: ${symbolIconNullColor};
 			}
 		`);
 	}
 
-	const outlineNumberSymbolColor = theme.getColor(OUTLINE_NUMBER_SYMBOL_FOREGROUND);
-	if (outlineNumberSymbolColor) {
+	const symbolIconNumberColor = theme.getColor(SYMBOL_ICON_NUMBER_FOREGROUND);
+	if (symbolIconNumberColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-number {
-				color: ${outlineNumberSymbolColor};
+				color: ${symbolIconNumberColor};
 			}
 		`);
 	}
 
-	const outlineObjectSymbolColor = theme.getColor(OUTLINE_OBJECT_SYMBOL_FOREGROUND);
-	if (outlineObjectSymbolColor) {
+	const symbolIconObjectColor = theme.getColor(SYMBOL_ICON_OBJECT_FOREGROUND);
+	if (symbolIconObjectColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-object {
-				color: ${outlineObjectSymbolColor};
+				color: ${symbolIconObjectColor};
 			}
 		`);
 	}
 
-	const outlineOperatorSymbolColor = theme.getColor(OUTLINE_OPERATOR_SYMBOL_FOREGROUND);
-	if (outlineOperatorSymbolColor) {
+	const symbolIconOperatorColor = theme.getColor(SYMBOL_ICON_OPERATOR_FOREGROUND);
+	if (symbolIconOperatorColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-operator {
-				color: ${outlineOperatorSymbolColor};
+				color: ${symbolIconOperatorColor};
 			}
 		`);
 	}
 
-	const outlinePackageSymbolColor = theme.getColor(OUTLINE_PACKAGE_SYMBOL_FOREGROUND);
-	if (outlinePackageSymbolColor) {
+	const symbolIconPackageColor = theme.getColor(SYMBOL_ICON_PACKAGE_FOREGROUND);
+	if (symbolIconPackageColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-package {
-				color: ${outlinePackageSymbolColor};
+				color: ${symbolIconPackageColor};
 			}
 		`);
 	}
 
-	const outlinePropertySymbolColor = theme.getColor(OUTLINE_PROPERTY_SYMBOL_FOREGROUND);
-	if (outlinePropertySymbolColor) {
+	const symbolIconPropertyColor = theme.getColor(SYMBOL_ICON_PROPERTY_FOREGROUND);
+	if (symbolIconPropertyColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-property {
-				color: ${outlinePropertySymbolColor};
+				color: ${symbolIconPropertyColor};
 			}
 		`);
 	}
 
-	const outlineStringSymbolColor = theme.getColor(OUTLINE_STRING_SYMBOL_FOREGROUND);
-	if (outlineStringSymbolColor) {
+	const symbolIconStringColor = theme.getColor(SYMBOL_ICON_STRING_FOREGROUND);
+	if (symbolIconStringColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-string {
-				color: ${outlineStringSymbolColor};
+				color: ${symbolIconStringColor};
 			}
 		`);
 	}
 
-	const outlineStructSymbolColor = theme.getColor(OUTLINE_STRUCT_SYMBOL_FOREGROUND);
-	if (outlineStructSymbolColor) {
+	const symbolIconStructColor = theme.getColor(SYMBOL_ICON_STRUCT_FOREGROUND);
+	if (symbolIconStructColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-struct {
-				color: ${outlineStructSymbolColor};
+				color: ${symbolIconStructColor};
 			}
 		`);
 	}
 
-	const outlineTypeParameterSymbolColor = theme.getColor(OUTLINE_TYPEPARAMETER_SYMBOL_FOREGROUND);
-	if (outlineTypeParameterSymbolColor) {
+	const symbolIconTypeParameterColor = theme.getColor(SYMBOL_ICON_TYPEPARAMETER_FOREGROUND);
+	if (symbolIconTypeParameterColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-type-parameter {
-				color: ${outlineTypeParameterSymbolColor};
+				color: ${symbolIconTypeParameterColor};
 			}
 		`);
 	}
 
-	const outlineVariableSymbolColor = theme.getColor(OUTLINE_VARIABLE_SYMBOL_FOREGROUND);
-	if (outlineVariableSymbolColor) {
+	const symbolIconVariableColor = theme.getColor(SYMBOL_ICON_VARIABLE_FOREGROUND);
+	if (symbolIconVariableColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-variable {
-				color: ${outlineVariableSymbolColor};
+				color: ${symbolIconVariableColor};
 			}
 		`);
 	}
