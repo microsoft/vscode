@@ -75,6 +75,11 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 				'description': nls.localize('enablePreview', "Controls whether opened editors show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing) and show up with an italic font style."),
 				'default': true
 			},
+			'workbench.editor.enablePreviewFromSearch': {
+				'type': 'boolean',
+				'description': nls.localize('enablePreviewFromSearch', "Controls whether opened editors from search show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing) and show up with an italic font style."),
+				'default': false
+			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
 				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether opened editors from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),

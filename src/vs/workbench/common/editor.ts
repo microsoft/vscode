@@ -1016,6 +1016,7 @@ interface IEditorPartConfiguration {
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
 	enablePreview?: boolean;
+	enablePreviewFromSearch?: boolean;
 	enablePreviewFromQuickOpen?: boolean;
 	closeOnFileDelete?: boolean;
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
