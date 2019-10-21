@@ -16,6 +16,7 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
+import { serializableToMap } from 'vs/base/common/map';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
@@ -101,8 +102,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
 
 		// Fill in selected extra environmental properties
-		if (options.workspaceProvider && options.workspaceProvider.environment) {
-			const environment = options.workspaceProvider.environment;
+		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
+			const environment = serializableToMap(options.workspaceProvider.payload);
 			for (const [key, value] of environment) {
 				switch (key) {
 					case 'extensionDevelopmentPath':
