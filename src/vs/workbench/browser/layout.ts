@@ -38,7 +38,7 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
 import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 
 enum Settings {
@@ -266,7 +266,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Theme changes
-		this._register(this.themeService.onThemeChange(() => this.setWindowBorder()));
+		this._register(this.themeService.onThemeChange(theme => this.onThemeChanged(theme)));
 
 		// Window focus changes
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
@@ -308,6 +308,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this._onFullscreenChange.fire(this.state.fullscreen);
+	}
+
+	private onThemeChanged(theme: ITheme) {
+		this.updateStyles();
 	}
 
 	private onWindowFocusChanged(hasFocus: boolean): void {
@@ -425,6 +429,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!skipLayout) {
 			this.layout();
 		}
+	}
+
+	private updateStyles() {
+		this.setWindowBorder();
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {

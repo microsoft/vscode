@@ -66,10 +66,6 @@ body.web {
 	border-radius: 5px;
 }
 
-.monaco-workbench.border.windows {
-	border-radius: none;
-}
-
 .monaco-workbench img {
 	border: 0;
 }
