@@ -765,19 +765,17 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (!this._isDoingComposition && source === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
-			for (let i = 0, len = text.length; i < len; i++) {
-				let charCode = text.charCodeAt(i);
-				let chr: string;
-				if (strings.isHighSurrogate(charCode) && i + 1 < len) {
-					chr = text.charAt(i) + text.charAt(i + 1);
-					i++;
-				} else {
-					chr = text.charAt(i);
-				}
+			const len = text.length;
+			let offset = 0;
+			while (offset < len) {
+				const charLength = strings.nextCharLength(text, offset);
+				const chr = text.substr(offset, charLength);
 
 				// Here we must interpret each typed character individually
 				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
 				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
+
+				offset += charLength;
 			}
 
 		} else {

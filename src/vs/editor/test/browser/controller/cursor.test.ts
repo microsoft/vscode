@@ -726,6 +726,45 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
+	test('combining marks', () => {
+		withTestCodeEditor([
+			'abcabc',
+			'ãããããã',
+			'辻󠄀辻󠄀辻󠄀',
+			'பு',
+		], {}, (editor, cursor) => {
+
+			cursor.setSelections('test', [new Selection(2, 1, 2, 1)]);
+			moveRight(cursor);
+			assertCursor(cursor, new Position(2, 3));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(2, 1));
+
+			cursor.setSelections('test', [new Selection(3, 1, 3, 1)]);
+			moveRight(cursor);
+			assertCursor(cursor, new Position(3, 4));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(3, 1));
+
+			cursor.setSelections('test', [new Selection(4, 1, 4, 1)]);
+			moveRight(cursor);
+			assertCursor(cursor, new Position(4, 3));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(4, 1));
+
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			moveDown(cursor);
+			assertCursor(cursor, new Position(2, 5));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(3, 4));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(2, 5));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(1, 3));
+
+		});
+	});
+
 	test('issue #4905 - column select is biased to the right', () => {
 		const model = createTextModel([
 			'var gulp = require("gulp");',
