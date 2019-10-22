@@ -57,7 +57,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 			// in the provided custom execution map that is cleaned up after the
 			// task is executed.
 			if (CustomExecutionDTO.is(dto.execution)) {
-				await this.addCustomExecution(dto, <vscode.Task2>task, false);
+				await this.addCustomExecution(dto, task, false);
 			}
 
 			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
