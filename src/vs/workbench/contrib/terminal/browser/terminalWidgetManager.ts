@@ -43,13 +43,13 @@ export class TerminalWidgetManager implements IDisposable {
 		mutationObserver.observe(this._xtermViewport, { attributes: true, attributeFilter: ['style'] });
 	}
 
-	public showMessage(left: number, top: number, text: string): void {
+	public showMessage(left: number, bottom: number, text: string, positionIsTopOfWidget: boolean = false): void {
 		if (!this._container) {
 			return;
 		}
 		dispose(this._messageWidget);
 		this._messageListeners.clear();
-		this._messageWidget = new MessageWidget(this._container, left, top, text);
+		this._messageWidget = new MessageWidget(this._container, left, bottom, text, positionIsTopOfWidget);
 	}
 
 	public closeMessage(): void {
@@ -71,9 +71,10 @@ class MessageWidget {
 	private _domNode: HTMLDivElement;
 
 	public get left(): number { return this._left; }
-	public get top(): number { return this._top; }
+	public get bottom(): number { return this._bottom; }
 	public get text(): string { return this._text; }
 	public get domNode(): HTMLElement { return this._domNode; }
+	public get positionTop(): boolean { return this._positionTop; }
 
 	public static fadeOut(messageWidget: MessageWidget): IDisposable {
 		let handle: any;
@@ -91,13 +92,22 @@ class MessageWidget {
 	constructor(
 		private _container: HTMLElement,
 		private _left: number,
-		private _top: number,
-		private _text: string
+		private _bottom: number,
+		private _text: string,
+		private _positionTop: boolean
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.left = `${_left}px`;
-		this._domNode.style.bottom = `${_container.offsetHeight - Math.max(_top, WIDGET_HEIGHT)}px`;
+
+		if (this.positionTop) {
+			// Bottom position is to the top of the widget
+			this._domNode.style.bottom = `${Math.max(_bottom, WIDGET_HEIGHT) - WIDGET_HEIGHT}px`;
+		} else {
+			// Bottom position is to the bottom of the widget
+			this._domNode.style.bottom = `${Math.min(Math.max(_bottom, WIDGET_HEIGHT), _container.offsetHeight - WIDGET_HEIGHT)}px`;
+		}
+
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
 		this._domNode.textContent = _text;
 		this._container.appendChild(this._domNode);
