@@ -39,3 +39,7 @@
 	font-size: 14px;
 	opacity: 0.4;
 }
+
+.monaco-list .outline-element .outline-element-icon {
+	margin-right: 4px;
+}
