@@ -59,7 +59,7 @@ export class TypeScriptVersionPicker {
 			label: (!this.useWorkspaceTsdkSetting
 				? '• '
 				: '') + localize('useVSCodeVersionOption', 'Use VS Code\'s Version'),
-			description: shippedVersion.versionString,
+			description: shippedVersion.displayName,
 			detail: shippedVersion.pathLabel,
 			id: MessageAction.useBundled,
 		});
@@ -69,7 +69,7 @@ export class TypeScriptVersionPicker {
 				label: (this.useWorkspaceTsdkSetting && this.currentVersion.path === version.path
 					? '• '
 					: '') + localize('useWorkspaceVersionOption', 'Use Workspace Version'),
-				description: version.versionString,
+				description: version.displayName,
 				detail: version.pathLabel,
 				id: MessageAction.useLocal,
 				version

@@ -159,7 +159,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					return this.serverState.tsserverVersion;
 				}
 			}
-			return this.apiVersion.versionString;
+			return this.apiVersion.version;
 		}));
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
@@ -303,7 +303,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		*/
 		this.logTelemetry('tsserver.spawned', {
-			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.versionString : '',
+			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
 		});
 
 		handle.onError((err: Error) => {

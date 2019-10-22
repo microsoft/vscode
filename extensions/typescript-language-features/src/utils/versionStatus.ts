@@ -29,7 +29,7 @@ export default class VersionStatus extends Disposable {
 
 	public onDidChangeTypeScriptVersion(version: TypeScriptVersion) {
 		this.showHideStatus();
-		this._versionBarEntry.text = version.versionString;
+		this._versionBarEntry.text = version.displayName;
 		this._versionBarEntry.tooltip = version.path;
 		this._versionBarEntry.command = 'typescript.selectTypeScriptVersion';
 	}
