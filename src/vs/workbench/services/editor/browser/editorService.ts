@@ -15,7 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -152,8 +152,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		for (const handler of this.openEditorHandlers) {
 			const result = handler(event.editor, event.options, group);
-			if (result && result.override) {
-				event.prevent((() => result.override!.then(editor => withNullAsUndefined(editor))));
+			const override = result ? result.override : undefined;
+			if (override) {
+				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
 				break;
 			}
 		}
@@ -306,7 +307,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const groupsByLastActive = this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 
 			// Respect option to reveal an editor if it is already visible in any group
-			if (options && options.revealIfVisible) {
+			if (options?.revealIfVisible) {
 				for (const group of groupsByLastActive) {
 					if (group.isActive(input)) {
 						targetGroup = group;
@@ -318,7 +319,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Respect option to reveal an editor if it is open (not necessarily visible)
 			// Still prefer to reveal an editor in a group where the editor is active though.
 			if (!targetGroup) {
-				if ((options && options.revealIfOpened) || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
+				if (options?.revealIfOpened || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
 					let groupWithInputActive: IEditorGroup | undefined = undefined;
 					let groupWithInputOpened: IEditorGroup | undefined = undefined;
 
@@ -464,7 +465,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					}
 
 					const resourceInput = editor as IResourceInput | IUntitledResourceInput;
-					if (resourceInput.resource && resource.toString() === resourceInput.resource.toString()) {
+					if (resourceInput.resource && isEqual(resource, resourceInput.resource)) {
 						return editorInGroup;
 					}
 				}

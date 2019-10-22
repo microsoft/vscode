@@ -20,7 +20,7 @@ export const NullTelemetryService = new class implements ITelemetryService {
 		return this.publicLog(eventName, data as ITelemetryData);
 	}
 	setEnabled() { }
-	isOptedIn: true;
+	isOptedIn = true;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',

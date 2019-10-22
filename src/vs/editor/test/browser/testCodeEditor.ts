@@ -42,9 +42,9 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 	public getCursor(): Cursor | undefined {
 		return this._modelData ? this._modelData.cursor : undefined;
 	}
-	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(ctor: any): T {
+	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(id: string, ctor: any): T {
 		let r = <T>this._instantiationService.createInstance(ctor, this);
-		this._contributions[r.getId()] = r;
+		this._contributions[id] = r;
 		return r;
 	}
 	public dispose() {

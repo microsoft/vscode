@@ -87,10 +87,11 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { INativeOpenDialogOptions, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue } from 'vs/platform/dialogs/node/dialogs';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { find } from 'vs/base/common/arrays';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -186,11 +187,11 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestTextFileService extends NativeTextFileService {
-	public cleanupBackupsBeforeShutdownCalled: boolean;
+	public cleanupBackupsBeforeShutdownCalled!: boolean;
 
-	private promptPath: URI;
-	private confirmResult: ConfirmResult;
-	private resolveTextContentError: FileOperationError | null;
+	private promptPath!: URI;
+	private confirmResult!: ConfirmResult;
+	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -461,14 +462,10 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onCenteredLayoutChange: Event<boolean> = Event.None;
 	onFullscreenChange: Event<boolean> = Event.None;
 	onPanelPositionChange: Event<string> = Event.None;
+	onPartVisibilityChange: Event<void> = Event.None;
 	onLayout = Event.None;
 
-	private readonly _onTitleBarVisibilityChange = new Emitter<void>();
 	private readonly _onMenubarVisibilityChange = new Emitter<Dimension>();
-
-	public get onTitleBarVisibilityChange(): Event<void> {
-		return this._onTitleBarVisibilityChange.event;
-	}
 
 	public get onMenubarVisibilityChange(): Event<Dimension> {
 		return this._onMenubarVisibilityChange.event;
@@ -582,8 +579,8 @@ export class TestViewletService implements IViewletService {
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 
-	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
-		return Promise.resolve(null!);
+	public openViewlet(id: string, focus?: boolean): Promise<IViewlet | undefined> {
+		return Promise.resolve(undefined);
 	}
 
 	public getViewlets(): ViewletDescriptor[] {
@@ -610,7 +607,7 @@ export class TestViewletService implements IViewletService {
 	}
 
 	public getProgressIndicator(id: string) {
-		return null!;
+		return undefined;
 	}
 
 	public hideActiveViewlet(): void { }
@@ -626,19 +623,19 @@ export class TestPanelService implements IPanelService {
 	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	public openPanel(id: string, focus?: boolean): IPanel {
-		return null!;
+	public openPanel(id: string, focus?: boolean): undefined {
+		return undefined;
 	}
 
 	public getPanel(id: string): any {
 		return activeViewlet;
 	}
 
-	public getPanels(): any[] {
+	public getPanels() {
 		return [];
 	}
 
-	public getPinnedPanels(): any[] {
+	public getPinnedPanels() {
 		return [];
 	}
 
@@ -700,14 +697,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		return this.groups;
 	}
 
-	getGroup(identifier: number): IEditorGroup {
-		for (const group of this.groups) {
-			if (group.id === identifier) {
-				return group;
-			}
-		}
-
-		return undefined!;
+	getGroup(identifier: number): IEditorGroup | undefined {
+		return find(this.groups, group => group.id === identifier);
 	}
 
 	getLabel(_identifier: number): string {
@@ -762,7 +753,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		return false;
 	}
 
-	partOptions: IEditorPartOptions;
+	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable {
 		return Disposable.None;
 	}
@@ -773,20 +764,20 @@ export class TestEditorGroup implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	get group(): EditorGroup { throw new Error('not implemented'); }
-	activeControl: IVisibleEditor;
-	activeEditor: IEditorInput;
-	previewEditor: IEditorInput;
-	count: number;
-	disposed: boolean;
+	activeControl!: IVisibleEditor;
+	activeEditor!: IEditorInput;
+	previewEditor!: IEditorInput;
+	count!: number;
+	disposed!: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
-	label: string;
-	index: number;
+	label!: string;
+	index!: number;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
-	element: HTMLElement;
-	minimumWidth: number;
-	maximumWidth: number;
-	minimumHeight: number;
-	maximumHeight: number;
+	element!: HTMLElement;
+	minimumWidth!: number;
+	maximumWidth!: number;
+	minimumHeight!: number;
+	maximumHeight!: number;
 
 	isEmpty = true;
 	isMinimized = false;
@@ -877,9 +868,9 @@ export class TestEditorService implements EditorServiceImpl {
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 
-	activeControl: IVisibleEditor;
+	activeControl!: IVisibleEditor;
 	activeTextEditorWidget: any;
-	activeEditor: IEditorInput;
+	activeEditor!: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
 	visibleControls: ReadonlyArray<IVisibleEditor> = [];
 	visibleTextEditorWidgets = [];
@@ -929,7 +920,7 @@ export class TestFileService implements IFileService {
 	readonly onError: Event<Error> = Event.None;
 
 	private content = 'Hello Html';
-	private lastReadFileUri: URI;
+	private lastReadFileUri!: URI;
 
 	constructor() {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
@@ -1170,22 +1161,22 @@ export class TestCodeEditorService implements ICodeEditorService {
 	addDiffEditor(_editor: IDiffEditor): void { }
 	removeDiffEditor(_editor: IDiffEditor): void { }
 	listDiffEditors(): IDiffEditor[] { return []; }
-	getFocusedCodeEditor(): ICodeEditor | undefined { return undefined; }
+	getFocusedCodeEditor(): ICodeEditor | null { return null; }
 	registerDecorationType(_key: string, _options: IDecorationRenderOptions, _parentTypeKey?: string): void { }
 	removeDecorationType(_key: string): void { }
 	resolveDecorationOptions(_typeKey: string, _writable: boolean): IModelDecorationOptions { return Object.create(null); }
 	setTransientModelProperty(_model: ITextModel, _key: string, _value: any): void { }
 	getTransientModelProperty(_model: ITextModel, _key: string) { }
-	getActiveCodeEditor(): ICodeEditor | undefined { return undefined; }
-	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor | undefined> { return Promise.resolve(undefined); }
+	getActiveCodeEditor(): ICodeEditor | null { return null; }
+	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor | null> { return Promise.resolve(null); }
 }
 
 export class TestLifecycleService implements ILifecycleService {
 
 	public _serviceBrand: undefined;
 
-	public phase: LifecyclePhase;
-	public startupKind: StartupKind;
+	public phase!: LifecyclePhase;
+	public startupKind!: StartupKind;
 
 	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
 	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
@@ -1246,12 +1237,10 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 	) {
 	}
 
-	getEOL(resource: URI): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
-		if (filesConfiguration && filesConfiguration.eol) {
-			if (filesConfiguration.eol !== 'auto') {
-				return filesConfiguration.eol;
-			}
+	getEOL(resource: URI, language?: string): string {
+		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
+		if (eol && eol !== 'auto') {
+			return eol;
 		}
 		return (isLinux || isMacintosh) ? '\n' : '\r\n';
 	}
@@ -1317,7 +1306,6 @@ export class TestHostService implements IHostService {
 
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
-	async closeWorkspace(): Promise<void> { }
 
 	async focus(): Promise<void> { }
 
@@ -1355,9 +1343,9 @@ export class TestElectronService implements IElectronService {
 	async minimizeWindow(): Promise<void> { }
 	async isWindowFocused(): Promise<boolean> { return true; }
 	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
-	async showMessageBox(options: Electron.MessageBoxOptions): Promise<MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
-	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
-	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
+	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
+	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
+	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
 	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
@@ -1375,14 +1363,13 @@ export class TestElectronService implements IElectronService {
 	async toggleWindowTabsBar(): Promise<void> { }
 	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }
-	async closeWorkspace(): Promise<void> { }
 	async closeWindow(): Promise<void> { }
 	async quit(): Promise<void> { }
 	async openDevTools(options?: Electron.OpenDevToolsOptions | undefined): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
 	async startCrashReporter(options: Electron.CrashReporterStartOptions): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
-	async openExtensionDevelopmentHostWindow(args: minimist.ParsedArgs, env: IProcessEnvironment): Promise<void> { }
+	async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> { }
 }
 
 export class TestBackupMainService implements IBackupMainService {
@@ -1448,15 +1435,15 @@ export class TestDialogMainService implements IDialogMainService {
 		throw new Error('Method not implemented.');
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<MessageBoxReturnValue> {
+	showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.MessageBoxReturnValue> {
 		throw new Error('Method not implemented.');
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<SaveDialogReturnValue> {
+	showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.SaveDialogReturnValue> {
 		throw new Error('Method not implemented.');
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<OpenDialogReturnValue> {
+	showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.OpenDialogReturnValue> {
 		throw new Error('Method not implemented.');
 	}
 }

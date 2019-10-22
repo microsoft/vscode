@@ -238,12 +238,12 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		// Look up default language from settings if any
 		if (!mode && !hasAssociatedFilePath) {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>();
-			if (configuration.files && configuration.files.defaultLanguage) {
+			if (configuration.files?.defaultLanguage) {
 				mode = configuration.files.defaultLanguage;
 			}
 		}
 
-		const input = this.instantiationService.createInstance(UntitledEditorInput, untitledResource, hasAssociatedFilePath, mode, initialValue, encoding);
+		const input = this.instantiationService.createInstance(UntitledEditorInput, untitledResource, !!hasAssociatedFilePath, mode, initialValue, encoding);
 
 		const contentListener = input.onDidModelChangeContent(() => this._onDidChangeContent.fire(untitledResource));
 		const dirtyListener = input.onDidChangeDirty(() => this._onDidChangeDirty.fire(untitledResource));

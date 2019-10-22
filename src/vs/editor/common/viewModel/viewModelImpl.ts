@@ -15,7 +15,7 @@ import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } fr
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
@@ -24,6 +24,7 @@ import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLi
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import * as platform from 'vs/base/common/platform';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -128,6 +129,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		super.dispose();
 		this.decorations.dispose();
 		this.lines.dispose();
+		this.invalidateMinimapColorCache();
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 	}
 
@@ -626,9 +628,19 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		ranges = ranges.slice(0);
 		ranges.sort(Range.compareRangesUsingStarts);
-		const nonEmptyRanges = ranges.filter((r) => !r.isEmpty());
 
-		if (nonEmptyRanges.length === 0) {
+		let hasEmptyRange = false;
+		let hasNonEmptyRange = false;
+		for (const range of ranges) {
+			if (range.isEmpty()) {
+				hasEmptyRange = true;
+			} else {
+				hasNonEmptyRange = true;
+			}
+		}
+
+		if (!hasNonEmptyRange) {
+			// all ranges are empty
 			if (!emptySelectionClipboard) {
 				return '';
 			}
@@ -648,9 +660,29 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			return result;
 		}
 
+		if (hasEmptyRange && emptySelectionClipboard) {
+			// mixed empty selections and non-empty selections
+			let result: string[] = [];
+			let prevModelLineNumber = 0;
+			for (const range of ranges) {
+				const modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
+				if (range.isEmpty()) {
+					if (modelLineNumber !== prevModelLineNumber) {
+						result.push(this.model.getLineContent(modelLineNumber));
+					}
+				} else {
+					result.push(this.getValueInRange(range, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+				}
+				prevModelLineNumber = modelLineNumber;
+			}
+			return result.length === 1 ? result[0] : result;
+		}
+
 		let result: string[] = [];
-		for (const nonEmptyRange of nonEmptyRanges) {
-			result.push(this.getValueInRange(nonEmptyRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		for (const range of ranges) {
+			if (!range.isEmpty()) {
+				result.push(this.getValueInRange(range, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+			}
 		}
 		return result.length === 1 ? result[0] : result;
 	}
@@ -713,7 +745,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			if (lineContent === '') {
 				result += '<br>';
 			} else {
-				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize);
+				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize, platform.isWindows);
 			}
 		}
 

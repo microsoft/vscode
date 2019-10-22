@@ -96,7 +96,7 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webviewService';
-import 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminalNativeService';

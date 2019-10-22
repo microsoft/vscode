@@ -67,7 +67,7 @@ export class Gesture extends Disposable {
 
 	private static readonly SCROLL_FRICTION = -0.005;
 	private static INSTANCE: Gesture;
-	private static HOLD_DELAY = 700;
+	private static readonly HOLD_DELAY = 700;
 
 	private dispatched = false;
 	private targets: HTMLElement[];

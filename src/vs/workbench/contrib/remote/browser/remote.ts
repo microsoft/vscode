@@ -468,7 +468,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 class OpenRemoteViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static LABEL = nls.localize('toggleRemoteViewlet', "Show Remote Explorer");
+	static readonly LABEL = nls.localize('toggleRemoteViewlet', "Show Remote Explorer");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);

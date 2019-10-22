@@ -15,16 +15,16 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 	private _id: number;
 	private _alignment: number;
 	private _priority?: number;
-	private _disposed: boolean;
-	private _visible: boolean;
+	private _disposed: boolean = false;
+	private _visible: boolean = false;
 
 	private _statusId: string;
 	private _statusName: string;
 
-	private _text: string;
-	private _tooltip: string;
-	private _color: string | ThemeColor;
-	private _command: string;
+	private _text: string = '';
+	private _tooltip?: string;
+	private _color?: string | ThemeColor;
+	private _command?: string;
 
 	private _timeoutHandle: any;
 	private _proxy: MainThreadStatusBarShape;
@@ -54,15 +54,15 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 		return this._text;
 	}
 
-	public get tooltip(): string {
+	public get tooltip(): string | undefined {
 		return this._tooltip;
 	}
 
-	public get color(): string | ThemeColor {
+	public get color(): string | ThemeColor | undefined {
 		return this._color;
 	}
 
-	public get command(): string {
+	public get command(): string | undefined {
 		return this._command;
 	}
 
@@ -71,17 +71,17 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 		this.update();
 	}
 
-	public set tooltip(tooltip: string) {
+	public set tooltip(tooltip: string | undefined) {
 		this._tooltip = tooltip;
 		this.update();
 	}
 
-	public set color(color: string | ThemeColor) {
+	public set color(color: string | ThemeColor | undefined) {
 		this._color = color;
 		this.update();
 	}
 
-	public set command(command: string) {
+	public set command(command: string | undefined) {
 		this._command = command;
 		this.update();
 	}

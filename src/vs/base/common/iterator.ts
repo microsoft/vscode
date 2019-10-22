@@ -60,7 +60,7 @@ export module Iterator {
 		};
 	}
 
-	export function fromArray<T>(array: T[], index = 0, length = array.length): Iterator<T> {
+	export function fromArray<T>(array: ReadonlyArray<T>, index = 0, length = array.length): Iterator<T> {
 		return {
 			next(): IteratorResult<T> {
 				if (index >= length) {

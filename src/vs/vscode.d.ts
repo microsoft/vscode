@@ -5222,7 +5222,7 @@ declare module 'vscode' {
 		/**
 		 * The shell command line. Is `undefined` if created with a command and arguments.
 		 */
-		commandLine: string;
+		commandLine: string | undefined;
 
 		/**
 		 * The shell command. Is `undefined` if created with a full command line.
@@ -5239,6 +5239,22 @@ declare module 'vscode' {
 		 * Defaults to undefined.
 		 */
 		options?: ShellExecutionOptions;
+	}
+
+	/**
+	 * Class used to execute an extension callback as a task.
+	 */
+	export class CustomExecution {
+		/**
+		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
+		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
+		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
+		 * @param callback The callback that will be called when the task is started by a user.
+		 */
+		constructor(callback: () => Thenable<Pseudoterminal>);
 	}
 
 	/**
@@ -5283,7 +5299,7 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * ~~Creates a new task.~~
@@ -5318,7 +5334,7 @@ declare module 'vscode' {
 		/**
 		 * The task's execution engine
 		 */
-		execution?: ProcessExecution | ShellExecution;
+		execution?: ProcessExecution | ShellExecution | CustomExecution;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -6178,6 +6194,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Possible kinds of UI that can use extensions.
+	 */
+	export enum UIKind {
+
+		/**
+		 * Extensions are accessed from a desktop application.
+		 */
+		Desktop = 1,
+
+		/**
+		 * Extensions are accessed from a web browser.
+		 */
+		Web = 2
+	}
+
+	/**
 	 * Namespace describing the environment the editor runs in.
 	 */
 	export namespace env {
@@ -6236,8 +6268,18 @@ declare module 'vscode' {
 		export const shell: string;
 
 		/**
-		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
-		 * default application.
+		 * The UI kind property indicates from which UI extensions
+		 * are accessed from. For example, extensions could be accessed
+		 * from a desktop application or a web browser.
+		 */
+		export const uiKind: UIKind;
+
+		/**
+		 * Opens a link externally using the default application. Depending on the
+		 * used scheme this can be:
+		 * * a browser (`http:`, `https:`)
+		 * * a mail client (`mailto:`)
+		 * * VSCode itself (`vscode:` from `vscode.env.uriScheme`)
 		 *
 		 * *Note* that [`showTextDocument`](#window.showTextDocument) is the right
 		 * way to open a text document inside the editor, not this function.
@@ -6246,6 +6288,28 @@ declare module 'vscode' {
 		 * @returns A promise indicating if open was successful.
 		 */
 		export function openExternal(target: Uri): Thenable<boolean>;
+
+		/**
+		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
+		 * uri to the same resource on the client machine.
+		 *
+		 * This is a no-op if the extension is running on the client machine. Currently only supports
+		 * `https:` and `http:` uris.
+		 *
+		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
+		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
+		 * the port fowarding tunnel is managed by VS Code and the tunnel can be closed by the user.
+		 *
+		 * Extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
+		 * a system or user action — for example, in remote cases, a user may close a port forwardng tunnel
+		 * that was opened by `asExternalUri`.
+		 *
+		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri`
+		 * on them.
+		 *
+		 * @return A uri that can be used on the client machine.
+		 */
+		export function asExternalUri(target: Uri): Thenable<Uri>;
 	}
 
 	/**
@@ -6333,7 +6397,7 @@ declare module 'vscode' {
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
 
 		/**
-		 * Retrieve the list of all available commands. Commands starting an underscore are
+		 * Retrieve the list of all available commands. Commands starting with an underscore are
 		 * treated as internal commands.
 		 *
 		 * @param filterInternal Set `true` to not see internal commands (starting with an underscore)
@@ -7298,7 +7362,7 @@ declare module 'vscode' {
 		 * A number can be used to provide an exit code for the terminal. Exit codes must be
 		 * positive and a non-zero exit codes signals failure which shows a notification for a
 		 * regular terminal and allows dependent tasks to proceed when used with the
-		 * `CustomExecution2` API.
+		 * `CustomExecution` API.
 		 *
 		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript
@@ -9308,10 +9372,10 @@ declare module 'vscode' {
 		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
 		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
 		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @param parent If specified the newly created debug session is registered as a "child" session of a "parent" debug session.
+		 * @param parentSessionOrOptions Debug sesison options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
 		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSession?: DebugSession): Thenable<boolean>;
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
 
 		/**
 		 * Add breakpoints.

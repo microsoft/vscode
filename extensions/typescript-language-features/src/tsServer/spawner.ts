@@ -18,7 +18,7 @@ import { PluginManager } from '../utils/plugins';
 import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
-import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess } from './server';
+import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess, TsServerDelegate } from './server';
 
 type ServerKind = 'main' | 'syntax' | 'semantic';
 
@@ -35,12 +35,13 @@ export class TypeScriptServerSpawner {
 	public spawn(
 		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
-		pluginManager: PluginManager
+		pluginManager: PluginManager,
+		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		if (this.shouldUseSeparateSyntaxServer(version, configuration)) {
 			const syntaxServer = this.spawnTsServer('syntax', version, configuration, pluginManager);
 			const semanticServer = this.spawnTsServer('semantic', version, configuration, pluginManager);
-			return new SyntaxRoutingTsServer(syntaxServer, semanticServer);
+			return new SyntaxRoutingTsServer(syntaxServer, semanticServer, delegate);
 		}
 
 		return this.spawnTsServer('main', version, configuration, pluginManager);
@@ -65,14 +66,14 @@ export class TypeScriptServerSpawner {
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
 			if (tsServerLogFile) {
-				this._logger.info(`<${kind}>  Log file: ${tsServerLogFile}`);
+				this._logger.info(`<${kind}> Log file: ${tsServerLogFile}`);
 			} else {
 				this._logger.error(`<${kind}> Could not create log directory`);
 			}
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions(kind));
+		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions(kind, configuration));
 		this._logger.info(`<${kind}> Starting...`);
 
 		return new ProcessBasedTsServer(
@@ -85,10 +86,13 @@ export class TypeScriptServerSpawner {
 			this._tracer);
 	}
 
-	private getForkOptions(kind: ServerKind) {
+	private getForkOptions(kind: ServerKind, configuration: TypeScriptServiceConfiguration) {
 		const debugPort = TypeScriptServerSpawner.getDebugPort(kind);
 		const tsServerForkOptions: electron.ForkOptions = {
-			execArgv: debugPort ? [`--inspect=${debugPort}`] : [],
+			execArgv: [
+				...(debugPort ? [`--inspect=${debugPort}`] : []),
+				...(configuration.maxTsServerMemory ? [`--max-old-space-size=${configuration.maxTsServerMemory}`] : [])
+			]
 		};
 		return tsServerForkOptions;
 	}

@@ -24,8 +24,12 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this.entries.clear();
 	}
 
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void {
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: string | undefined, color: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined): void {
 		const entry: IStatusbarEntry = { text, tooltip, command, color };
+
+		if (typeof priority === 'undefined') {
+			priority = 0;
+		}
 
 		// Reset existing entry if alignment or priority changed
 		let existingEntry = this.entries.get(id);

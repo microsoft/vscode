@@ -54,14 +54,16 @@ export interface WebviewContentOptions {
 	readonly enableCommandUris?: boolean;
 }
 
+export interface WebviewExtensionDescription {
+	readonly location: URI;
+	readonly id: ExtensionIdentifier;
+}
+
 export interface Webview extends IDisposable {
 
 	html: string;
 	contentOptions: WebviewContentOptions;
-	extension: {
-		readonly location: URI;
-		readonly id?: ExtensionIdentifier;
-	} | undefined;
+	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;
 
@@ -73,19 +75,16 @@ export interface Webview extends IDisposable {
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
 	sendMessage(data: any): void;
-	update(
-		html: string,
-		options: WebviewContentOptions,
-		retainContextWhenHidden: boolean
-	): void;
 
-	layout(): void;
 	focus(): void;
 	reload(): void;
 
 	showFind(): void;
 	hideFind(): void;
 	runFindAction(previous: boolean): void;
+
+	windowDidDragStart(): void;
+	windowDidDragEnd(): void;
 }
 
 export interface WebviewElement extends Webview {
@@ -94,7 +93,7 @@ export interface WebviewElement extends Webview {
 
 export interface WebviewEditorOverlay extends Webview {
 	readonly container: HTMLElement;
-	readonly options: WebviewOptions;
+	options: WebviewOptions;
 
 	claim(owner: any): void;
 	release(owner: any): void;

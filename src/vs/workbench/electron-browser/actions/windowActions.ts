@@ -140,7 +140,7 @@ export class ZoomResetAction extends BaseZoomAction {
 export class ReloadWindowWithExtensionsDisabledAction extends Action {
 
 	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
-	static LABEL = nls.localize('reloadWindowWithExtensionsDisabled', "Reload With Extensions Disabled");
+	static readonly LABEL = nls.localize('reloadWindowWithExtensionsDisabled', "Reload With Extensions Disabled");
 
 	constructor(
 		id: string,
@@ -217,7 +217,7 @@ export abstract class BaseSwitchWindow extends Action {
 export class SwitchWindow extends BaseSwitchWindow {
 
 	static readonly ID = 'workbench.action.switchWindow';
-	static LABEL = nls.localize('switchWindow', "Switch Window...");
+	static readonly LABEL = nls.localize('switchWindow', "Switch Window...");
 
 	constructor(
 		id: string,
@@ -240,7 +240,7 @@ export class SwitchWindow extends BaseSwitchWindow {
 export class QuickSwitchWindow extends BaseSwitchWindow {
 
 	static readonly ID = 'workbench.action.quickSwitchWindow';
-	static LABEL = nls.localize('quickSwitchWindow', "Quick Switch Window...");
+	static readonly LABEL = nls.localize('quickSwitchWindow', "Quick Switch Window...");
 
 	constructor(
 		id: string,

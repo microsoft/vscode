@@ -2,69 +2,6 @@
 # yarn lockfile v1
 
 
-"@microsoft/applicationinsights-analytics-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-analytics-js/-/applicationinsights-analytics-js-2.1.1.tgz#6d09c1915f808026e2d45165d04802f09affed59"
-  integrity sha512-VKIutoFKY99CyKwxLUuj6Vnq14/QwXo9/QSQDpYnHEjo+uKn7QmLsHqWw0K9uYNfNAXt4BZimX/zDg6jZtzeXg==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-channel-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-channel-js/-/applicationinsights-channel-js-2.1.1.tgz#e205eddd93e49d17d9e0711a612b4bfc9810888f"
-  integrity sha512-fYr9IAqtaEr9AmaPaL3SLQVT3t3GQzl+n74gpNKyAVakDIm0nYQ/bimjdcAhJMDf1VGNSPg/xICneyuZg7Wxlg==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-common@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-common/-/applicationinsights-common-2.1.1.tgz#27e6074584a7a3a8ca3f11f7ff2b7ff0f395bf2d"
-  integrity sha512-2hkS1Ia1FmAjCuYZ5JlG20/WgObqdsKtmK5YALAFGHIB4KSQ/Za1qazS+7GsG+E0F9UJivNWL1geUIcNqg5Qjg==
-  dependencies:
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-core-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.1.1.tgz#30fb6a519cc1c6119c419c4811ce72c260217d9e"
-  integrity sha512-4t4wf6SKqIcWEQDPg/uOhm+BxtHhu/AFreyEoYZmMfcxzAu33h1FtTQRtxBNbYH1+thiNZCh80yUpnT7d9Hrlw==
-  dependencies:
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-dependencies-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-dependencies-js/-/applicationinsights-dependencies-js-2.1.1.tgz#8154c3efcb24617d015d0bce7c2cc47797a8d3c4"
-  integrity sha512-yhb4EToBp+aI+qLo0h5NDNtoo3sDFV60uyIOK843YjzXqVotcXX/lRShlghTkJtYH09QhrdzDjViUHnD4sMFSQ==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-properties-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-properties-js/-/applicationinsights-properties-js-2.1.1.tgz#ca34232766eb16167b5d87693e2ae5d94f2a1559"
-  integrity sha512-8l+/ppw6xKTam2RL4EHZ52Lcf217olw81j6kyBNKtIcGwSnLNHrFwEeF3vBWIteG2JKzlg1GhGjrkB3oxXsV2g==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-web@^2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-web/-/applicationinsights-web-2.1.1.tgz#1a44eddda7c244b88d9eb052dab6c855682e4f05"
-  integrity sha512-crvhCkNsNxkFuPWmttyWNSAA96D5FxBtKS6UA9MV9f9XHevTfchf/E3AuU9JZcsXufWMQLwLrUQ9ZiA1QJ0EWA==
-  dependencies:
-    "@microsoft/applicationinsights-analytics-js" "2.1.1"
-    "@microsoft/applicationinsights-channel-js" "2.1.1"
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    "@microsoft/applicationinsights-dependencies-js" "2.1.1"
-    "@microsoft/applicationinsights-properties-js" "2.1.1"
-
 agent-base@4, agent-base@^4.1.0:
   version "4.2.0"
   resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-4.2.0.tgz#9838b5c3392b962bad031e6a4c5e1024abec45ce"
@@ -79,10 +16,10 @@ agent-base@~4.2.0:
   dependencies:
     es6-promisify "^5.0.0"
 
-anymatch@^3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-3.1.0.tgz#e609350e50a9313b472789b2f14ef35808ee14d6"
-  integrity sha512-Ozz7l4ixzI7Oxj2+cw+p0tVUt27BpaJ+1+q1TCeANWxHpvyn2+Un+YamBdfKu0uh8xLodGhoa1v7595NhKDAuA==
+anymatch@~3.1.1:
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-3.1.1.tgz#c55ecf02185e2469259399310c173ce31233b142"
+  integrity sha512-mM8522psRCqzV+6LhomX5wgp25YVibjh8Wj23I5RPkPppSVSjyKD2A2mBJmWGa+KN7f2D6LNh9jkBCeyLktzjg==
   dependencies:
     normalize-path "^3.0.0"
     picomatch "^2.0.4"
@@ -108,7 +45,7 @@ bindings@^1.5.0:
   dependencies:
     file-uri-to-path "1.0.0"
 
-braces@^3.0.2:
+braces@~3.0.2:
   version "3.0.2"
   resolved "https://registry.yarnpkg.com/braces/-/braces-3.0.2.tgz#3454e1a462ee8d599e236df336cd9ea4f8afe107"
   integrity sha512-b8um+L1RzM3WDSzvhm6gIz1yfTbBt6YTlcEKAvsmqCZZFw46z626lVj9j1yEPW33H5H+lBQpZMP1k8l+78Ha0A==
@@ -120,20 +57,20 @@ buffer-crc32@~0.2.3:
   resolved "https://registry.yarnpkg.com/buffer-crc32/-/buffer-crc32-0.2.13.tgz#0d333e3f00eac50aa1454abd30ef8c2a5d9a7242"
   integrity sha1-DTM+PwDqxQqhRUq9MO+MKl2ackI=
 
-chokidar@3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/chokidar/-/chokidar-3.1.0.tgz#ff23d077682a90eadd209bfa76eb10ed6d359668"
-  integrity sha512-6vZfo+7W0EOlbSo0nhVKMz4yyssrwiPbBZ8wj1lq8/+l4ZhGZ2U4Md7PspvmijXp1a26D3B7AHEBmIB7aVtaOQ==
+chokidar@3.2.2:
+  version "3.2.2"
+  resolved "https://registry.yarnpkg.com/chokidar/-/chokidar-3.2.2.tgz#a433973350021e09f2b853a2287781022c0dc935"
+  integrity sha512-bw3pm7kZ2Wa6+jQWYP/c7bAZy3i4GwiIiMO2EeRjrE48l8vBqC/WvFhSF0xyM8fQiPEGvwMY/5bqDG7sSEOuhg==
   dependencies:
-    anymatch "^3.1.0"
-    braces "^3.0.2"
-    glob-parent "^5.0.0"
-    is-binary-path "^2.1.0"
-    is-glob "^4.0.1"
-    normalize-path "^3.0.0"
-    readdirp "^3.1.1"
+    anymatch "~3.1.1"
+    braces "~3.0.2"
+    glob-parent "~5.1.0"
+    is-binary-path "~2.1.0"
+    is-glob "~4.0.1"
+    normalize-path "~3.0.0"
+    readdirp "~3.2.0"
   optionalDependencies:
-    fsevents "^2.0.6"
+    fsevents "~2.1.1"
 
 cookie@^0.4.0:
   version "0.4.0"
@@ -199,15 +136,15 @@ fs-extra@^7.0.0:
     jsonfile "^4.0.0"
     universalify "^0.1.0"
 
-fsevents@^2.0.6:
-  version "2.0.7"
-  resolved "https://registry.yarnpkg.com/fsevents/-/fsevents-2.0.7.tgz#382c9b443c6cbac4c57187cdda23aa3bf1ccfc2a"
-  integrity sha512-a7YT0SV3RB+DjYcppwVDLtn13UQnmg0SWZS7ezZD0UjnLwXmy8Zm21GMVGLaFGimIqcvyMQaOJBrop8MyOp1kQ==
+fsevents@~2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/fsevents/-/fsevents-2.1.1.tgz#74c64e21df71721845d0c44fe54b7f56b82995a9"
+  integrity sha512-4FRPXWETxtigtJW/gxzEDsX1LVbPAM93VleB83kZB+ellqbHMkyt2aJfuzNLRvFPnGi6bcE5SvfxgbXPeKteJw==
 
-glob-parent@^5.0.0:
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/glob-parent/-/glob-parent-5.0.0.tgz#1dc99f0f39b006d3e92c2c284068382f0c20e954"
-  integrity sha512-Z2RwiujPRGluePM6j699ktJYxmPpJKCfpGA13jz2hmFZC7gKetzrWvg5KN3+OsIFmydGyZ1AVwERCq1w/ZZwRg==
+glob-parent@~5.1.0:
+  version "5.1.0"
+  resolved "https://registry.yarnpkg.com/glob-parent/-/glob-parent-5.1.0.tgz#5f4c1d1e748d30cd73ad2944b3577a81b081e8c2"
+  integrity sha512-qjtRgnIVmOfnKUE3NJAQEdk+lKrxfw8t5ke7SXtfMTHcjsBfOfWXCQfdb30zfDoZQ2IRSIiidmjtbHZPZ++Ihw==
   dependencies:
     is-glob "^4.0.1"
 
@@ -249,7 +186,7 @@ ip@^1.1.5:
   resolved "https://registry.yarnpkg.com/ip/-/ip-1.1.5.tgz#bdded70114290828c0a039e72ef25f5aaec4354a"
   integrity sha1-vd7XARQpCCjAoDnnLvJfWq7ENUo=
 
-is-binary-path@^2.1.0:
+is-binary-path@~2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/is-binary-path/-/is-binary-path-2.1.0.tgz#ea1f7f3b80f064236e83470f86c09c254fb45b09"
   integrity sha512-ZMERYes6pDydyuGidse7OsHxtbI7WVeUEozgR/g7rd0xUimYNlvZRE/K2MgZTjWy725IfelLeVcEM97mmtRGXw==
@@ -261,7 +198,7 @@ is-extglob@^2.1.1:
   resolved "https://registry.yarnpkg.com/is-extglob/-/is-extglob-2.1.1.tgz#a88c02535791f02ed37c76a1b9ea9773c833f8c2"
   integrity sha1-qIwCU1eR8C7TfHahueqXc8gz+MI=
 
-is-glob@^4.0.1:
+is-glob@^4.0.1, is-glob@~4.0.1:
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/is-glob/-/is-glob-4.0.1.tgz#7567dbe9f2f5e2467bc77ab83c4a29482407a5dc"
   integrity sha512-5G0tKtBTFImOqDnLB2hG6Bp2qcKEFduo4tZu9MT/H6NQv/ghhy30o55ufafxJ/LdH79LLs2Kfrn85TLKyA7BUg==
@@ -312,7 +249,7 @@ ms@2.0.0:
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
   integrity sha1-VgiurfwAvmwpAd9fmGF4jeDVl8g=
 
-nan@^2.0.0, nan@^2.13.2, nan@^2.14.0:
+nan@^2.0.0, nan@^2.14.0:
   version "2.14.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
@@ -327,14 +264,14 @@ node-addon-api@1.6.2:
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-1.6.2.tgz#d8aad9781a5cfc4132cc2fecdbdd982534265217"
   integrity sha512-479Bjw9nTE5DdBSZZWprFryHGjUaQC31y1wHo19We/k0BZlrmhqQitWoUL0cD8+scljCbIUL+E58oRDEakdGGA==
 
-node-pty@0.9.0-beta19:
-  version "0.9.0-beta19"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta19.tgz#0fd381b2006f4665c4c2ee0509219e591842371a"
-  integrity sha512-MkKEvBnauGnzgXNr/oaoWQLVXm1gheIKZs4YQp8883ZiETmbEnpSvD0FU3bELcPXG5VFPRqIGsQJ4KUMBLzkPA==
+node-pty@0.9.0:
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0.tgz#8f9bcc0d1c5b970a3184ffd533d862c7eb6590a6"
+  integrity sha512-MBnCQl83FTYOu7B4xWw10AW77AAh7ThCE1VXEv+JeWj8mSpGo+0bwgsV+b23ljBFwEM9OmsOv3kM27iUPPm84g==
   dependencies:
-    nan "^2.13.2"
+    nan "^2.14.0"
 
-normalize-path@^3.0.0:
+normalize-path@^3.0.0, normalize-path@~3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-3.0.0.tgz#0dcd69ff23a1c9b11fd0978316644a0388216a65"
   integrity sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==
@@ -371,10 +308,10 @@ picomatch@^2.0.4:
   resolved "https://registry.yarnpkg.com/picomatch/-/picomatch-2.0.7.tgz#514169d8c7cd0bdbeecc8a2609e34a7163de69f6"
   integrity sha512-oLHIdio3tZ0qH76NybpeneBhYVj0QFTfXEFTc/B3zKQspYfYYkWYgFsmzo+4kvId/bQRcNkVeguI3y+CD22BtA==
 
-readdirp@^3.1.1:
-  version "3.1.2"
-  resolved "https://registry.yarnpkg.com/readdirp/-/readdirp-3.1.2.tgz#fa85d2d14d4289920e4671dead96431add2ee78a"
-  integrity sha512-8rhl0xs2cxfVsqzreYCvs8EwBfn/DhVdqtoLmw19uI3SC5avYX9teCurlErfpPXGmYtMHReGaP2RsLnFvz/lnw==
+readdirp@~3.2.0:
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/readdirp/-/readdirp-3.2.0.tgz#c30c33352b12c96dfb4b895421a49fd5a9593839"
+  integrity sha512-crk4Qu3pmXwgxdSgGhgA/eXiJAPQiX4GMOZZMXnqKxHX7TaoL+3gQVo/WeuAiogr07DpnfjIMpXXa+PAIvwPGQ==
   dependencies:
     picomatch "^2.0.4"
 
@@ -430,11 +367,6 @@ to-regex-range@^5.0.1:
   dependencies:
     is-number "^7.0.0"
 
-tslib@^1.9.3:
-  version "1.10.0"
-  resolved "https://registry.yarnpkg.com/tslib/-/tslib-1.10.0.tgz#c3c19f95973fb0a62973fb09d90d961ee43e5c8a"
-  integrity sha512-qOebF53frne81cf0S9B41ByenJ3/IuH8yJKngAX35CmiZySA0khhkovshKK+jGCaMnVomla7gVlIcc3EvKPbTQ==
-
 universalify@^0.1.0:
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.2.tgz#b646f69be3942dabcecc9d6639c80dc105efaa66"
@@ -479,20 +411,20 @@ vscode-windows-registry@1.0.2:
   resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.2.tgz#b863e704a6a69c50b3098a55fbddbe595b0c124a"
   integrity sha512-/CLLvuOSM2Vme2z6aNyB+4Omd7hDxpf4Thrt8ImxnXeQtxzel2bClJpFQvQqK/s4oaXlkBKS7LqVLeZM+uSVIA==
 
-xterm-addon-search@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.2.0.tgz#46659c7c33f9fc268ad3e7e6c5824bb2fdb65852"
-  integrity sha512-C/v2VvFn3hb1qUgjJPo7LxzxNCLBgNJv8n6v/bH2NqPz32/PNUF+IHu0SFf1TaIH+pydUpKXCtob5a/UyZg/+Q==
+xterm-addon-search@0.3.0-beta5:
+  version "0.3.0-beta5"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.3.0-beta5.tgz#fd53d33a77a0235018479c712be8c12f7c0d083a"
+  integrity sha512-3GkGc4hST35/4hzgnQPLLvQ29WH7MkZ0mUrBE/Vm1IQum7TnMvWPTkGemwM+wAl4tdBmynNccHJlFeQzaQtVUg==
 
-xterm-addon-web-links@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.0.tgz#b408a0be46211d8d4a0bb5e701d8f3c2bd07d473"
-  integrity sha512-dq81c4Pzli2PgKVBgY2REte9sCVibR3df8AP3SEvCTM9uYFnUFxtxzMTplPnc7+rXabVhFdbU6x+rstIk8HNQg==
+xterm-addon-web-links@0.2.1:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.1.tgz#6d1f2ce613e09870badf17615e7a1170a31542b2"
+  integrity sha512-2KnHtiq0IG7hfwv3jw2/jQeH1RBk2d5CH4zvgwQe00rLofSJqSfgnJ7gwowxxpGHrpbPr6Lv4AmH/joaNw2+HQ==
 
-xterm@4.1.0-beta8:
-  version "4.1.0-beta8"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.1.0-beta8.tgz#c1ef323ba336d92f5b52302b66f672dfff75b3ef"
-  integrity sha512-6lf+XVv0qT285w49P92tSYoUB406jdbgdhnPKNzxCIGtGX8kcwK+pHZ8HncDwcEhmTmI4LZ/WXPGtOQJg+onwg==
+xterm@^4.2.0-beta20:
+  version "4.2.0-beta20"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.2.0-beta20.tgz#74a759414511b4577159293397914ac33a2375d8"
+  integrity sha512-lH52ksaNQqWmLVV4OdLKWvhGkSRUXgJNvb2YYmVkBAm1PdVVS36ir8Qr4zYygnc2tBw689Wj65t4cNckmfpU1Q==
 
 yauzl@^2.9.2:
   version "2.10.0"

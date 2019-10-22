@@ -17,7 +17,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
  */
 export class LargeFileOptimizationsWarner extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.largeFileOptimizationsWarner';
+	public static readonly ID = 'editor.contrib.largeFileOptimizationsWarner';
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -60,10 +60,6 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 			}
 		}));
 	}
-
-	public getId(): string {
-		return LargeFileOptimizationsWarner.ID;
-	}
 }
 
-registerEditorContribution(LargeFileOptimizationsWarner);
+registerEditorContribution(LargeFileOptimizationsWarner.ID, LargeFileOptimizationsWarner);

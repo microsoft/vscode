@@ -150,5 +150,5 @@ export {
 
 	// Updates
 	IUpdateProvider,
-	IUpdate
+	IUpdate,
 };

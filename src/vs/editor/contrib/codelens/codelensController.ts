@@ -21,7 +21,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
-	private static readonly ID: string = 'css.editor.codeLens';
+	public static readonly ID: string = 'css.editor.codeLens';
 
 	private _isEnabled: boolean;
 
@@ -76,10 +76,6 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.clear();
 		this._oldCodeLensModels.clear();
 		dispose(this._currentCodeLensModel);
-	}
-
-	getId(): string {
-		return CodeLensContribution.ID;
 	}
 
 	private _onModelChange(): void {
@@ -366,4 +362,4 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	}
 }
 
-registerEditorContribution(CodeLensContribution);
+registerEditorContribution(CodeLensContribution.ID, CodeLensContribution);

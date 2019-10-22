@@ -14,7 +14,7 @@ import { isEqual, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
-import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, SymbolKinds } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
@@ -51,16 +51,15 @@ export class EditorBreadcrumbsModel {
 	constructor(
 		private readonly _uri: URI,
 		private readonly _editor: ICodeEditor | undefined,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 
-		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
-		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
+		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(_configurationService);
+		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(_configurationService);
 
 		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
-
 		this._fileInfo = EditorBreadcrumbsModel._initFilePathInfo(this._uri, workspaceService);
 		this._bindToEditor();
 		this._onDidUpdate.fire(this);
@@ -137,6 +136,14 @@ export class EditorBreadcrumbsModel {
 		this._disposables.add(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
 		this._disposables.add(this._editor.onDidChangeModel(_ => this._updateOutline()));
 		this._disposables.add(this._editor.onDidChangeModelLanguage(_ => this._updateOutline()));
+
+		// update when config changes (re-render)
+		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('breadcrumbs.filteredTypes')) {
+				this._updateOutline(true);
+			}
+		}));
+
 
 		// update soon'ish as model content change
 		const updateSoon = new TimeoutTimer();
@@ -221,7 +228,18 @@ export class EditorBreadcrumbsModel {
 			}
 			item = parent;
 		}
-		return chain.reverse();
+		let result: Array<OutlineGroup | OutlineElement> = [];
+		for (let i = chain.length - 1; i >= 0; i--) {
+			let element = chain[i];
+			if (
+				element instanceof OutlineElement
+				&& !this._configurationService.getValue<boolean>(`breadcrumbs.filteredTypes.${SymbolKinds.toString(element.symbol.kind)}`)
+			) {
+				break;
+			}
+			result.push(element);
+		}
+		return result;
 	}
 
 	private _updateOutlineElements(elements: Array<OutlineModel | OutlineGroup | OutlineElement>): void {

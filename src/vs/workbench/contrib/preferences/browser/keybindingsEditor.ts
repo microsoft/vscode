@@ -29,7 +29,6 @@ import {
 } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -79,7 +78,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private keybindingsListContainer: HTMLElement;
 	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry | null;
 	private listEntries: IListEntry[];
-	private keybindingsList: List<IListEntry>;
+	private keybindingsList: WorkbenchList<IListEntry>;
 
 	private dimension: DOM.Dimension;
 	private delayedFiltering: Delayer<void>;
@@ -402,13 +401,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		const recordingBadge = DOM.append(container, DOM.$('.recording-badge.disabled'));
 		recordingBadge.textContent = localize('recording', "Recording Keys");
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder, badgeForeground }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
-			const color = colors.badgeForeground ? colors.badgeForeground.toString() : null;
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+			const color = colors.badgeForeground ? colors.badgeForeground.toString() : '';
 
 			recordingBadge.style.backgroundColor = background;
-			recordingBadge.style.borderWidth = border ? '1px' : null;
-			recordingBadge.style.borderStyle = border ? 'solid' : null;
+			recordingBadge.style.borderWidth = border ? '1px' : '';
+			recordingBadge.style.borderStyle = border ? 'solid' : '';
 			recordingBadge.style.borderColor = border;
 			recordingBadge.style.color = color ? color.toString() : null;
 		}));

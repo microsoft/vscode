@@ -65,7 +65,7 @@ export interface IPointerHandlerHelper {
 
 export class MouseHandler extends ViewEventHandler {
 
-	static MOUSE_MOVE_MINIMUM_TIME = 100; // ms
+	static readonly MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
 	protected _context: ViewContext;
 	protected viewController: ViewController;

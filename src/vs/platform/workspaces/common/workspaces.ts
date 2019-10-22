@@ -294,12 +294,7 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 
 export function useSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolean {
 	if (isWindows) {
-		for (const folder of storedFolders) {
-			if (isRawFileWorkspaceFolder(folder) && folder.path.indexOf(SLASH) >= 0) {
-				return true;
-			}
-		}
-		return false;
+		return storedFolders.some(folder => isRawFileWorkspaceFolder(folder) && folder.path.indexOf(SLASH) >= 0);
 	}
 	return true;
 }

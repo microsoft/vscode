@@ -132,6 +132,20 @@ class HEADItem implements QuickPickItem {
 	get alwaysShow(): boolean { return true; }
 }
 
+class AddRemoteItem implements QuickPickItem {
+
+	constructor(private cc: CommandCenter) { }
+
+	get label(): string { return localize('add remote', '$(plus) Add a new remote...'); }
+	get description(): string { return ''; }
+
+	get alwaysShow(): boolean { return true; }
+
+	async run(repository: Repository): Promise<void> {
+		await this.cc.addRemote(repository);
+	}
+}
+
 interface CommandOptions {
 	repository?: boolean;
 	diff?: boolean;
@@ -493,7 +507,7 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(_, token) => this.git.clone(url!, parentPath, token)
+				(progress, token) => this.git.clone(url!, parentPath, progress, token)
 			);
 
 			let message = localize('proposeopen', "Would you like to open the cloned repository?");
@@ -1249,11 +1263,13 @@ export class CommandCenter {
 			promptToSaveFilesBeforeCommit = 'never';
 		}
 
+		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+
 		if (promptToSaveFilesBeforeCommit !== 'never') {
 			let documents = workspace.textDocuments
 				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (promptToSaveFilesBeforeCommit === 'staged') {
+			if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
 				documents = documents
 					.filter(d => repository.indexGroup.resourceStates.some(s => s.resourceUri.path === d.uri.fsPath));
 			}
@@ -1275,7 +1291,6 @@ export class CommandCenter {
 			}
 		}
 
-		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
@@ -1360,28 +1375,38 @@ export class CommandCenter {
 	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
 		const message = repository.inputBox.value;
 		const getCommitMessage = async () => {
-			if (message) {
-				return message;
+			let _message: string | undefined = message;
+			if (!_message) {
+				let value: string | undefined = undefined;
+
+				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
+					value = (await repository.getCommit(repository.HEAD.commit)).message;
+				}
+
+				const branchName = repository.headShortName;
+				let placeHolder: string;
+
+				if (branchName) {
+					placeHolder = localize('commitMessageWithHeadLabel2', "Message (commit on '{0}')", branchName);
+				} else {
+					placeHolder = localize('commit message', "Commit message");
+				}
+
+				_message = await window.showInputBox({
+					value,
+					placeHolder,
+					prompt: localize('provide commit message', "Please provide a commit message"),
+					ignoreFocusOut: true
+				});
 			}
 
-			let value: string | undefined = undefined;
-
-			if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-				value = (await repository.getCommit(repository.HEAD.commit)).message;
-			}
-
-			return await window.showInputBox({
-				value,
-				placeHolder: localize('commit message', "Commit message"),
-				prompt: localize('provide commit message', "Please provide a commit message"),
-				ignoreFocusOut: true
-			});
+			return _message ? repository.cleanUpCommitEditMessage(_message) : _message;
 		};
 
 		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);
 
 		if (message && didCommit) {
-			repository.inputBox.value = await repository.getCommitTemplate();
+			repository.inputBox.value = await repository.getInputTemplate();
 		}
 	}
 
@@ -1458,6 +1483,15 @@ export class CommandCenter {
 
 		const commit = await repository.getCommit('HEAD');
 
+		if (commit.parents.length > 1) {
+			const yes = localize('undo commit', "Undo merge commit");
+			const result = await window.showWarningMessage(localize('merge commit', "The last commit was a merge commit. Are you sure you want to undo it?"), yes);
+
+			if (result !== yes) {
+				return;
+			}
+		}
+
 		if (commit.parents.length > 0) {
 			await repository.reset('HEAD~');
 		} else {
@@ -1483,7 +1517,6 @@ export class CommandCenter {
 		const quickpick = window.createQuickPick();
 		quickpick.items = picks;
 		quickpick.placeholder = placeHolder;
-		quickpick.ignoreFocusOut = true;
 		quickpick.show();
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));
@@ -1722,7 +1755,7 @@ export class CommandCenter {
 
 		const remoteRefs = repository.refs;
 		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
-		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name })) as { label: string; description: string }[];
+		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name! }));
 		const branchPlaceHolder = localize('pick branch pull', "Pick a branch to pull from");
 		const branchPick = await window.showQuickPick(branchPicks, { placeHolder: branchPlaceHolder });
 
@@ -1829,15 +1862,24 @@ export class CommandCenter {
 			}
 		} else {
 			const branchName = repository.HEAD.name;
-			const picks = remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl! }));
+			const addRemote = new AddRemoteItem(this);
+			const picks = [...remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
 			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-			const pick = await window.showQuickPick(picks, { placeHolder });
+			const choice = await window.showQuickPick(picks, { placeHolder });
 
-			if (!pick) {
+			if (!choice) {
 				return;
 			}
 
-			await repository.pushTo(pick.label, branchName, undefined, forcePushMode);
+			if (choice === addRemote) {
+				const newRemote = await this.addRemote(repository);
+
+				if (newRemote) {
+					await repository.pushTo(newRemote, branchName, undefined, forcePushMode);
+				}
+			} else {
+				await repository.pushTo(choice.label, branchName, undefined, forcePushMode);
+			}
 		}
 	}
 
@@ -1872,7 +1914,7 @@ export class CommandCenter {
 	}
 
 	@command('git.addRemote', { repository: true })
-	async addRemote(repository: Repository): Promise<void> {
+	async addRemote(repository: Repository): Promise<string | undefined> {
 		const remotes = repository.remotes;
 
 		const sanitize = (name: string) => {
@@ -1914,6 +1956,8 @@ export class CommandCenter {
 		}
 
 		await repository.addRemote(name, url);
+
+		return name;
 	}
 
 	@command('git.removeRemote', { repository: true })
@@ -2029,19 +2073,25 @@ export class CommandCenter {
 			return;
 		}
 
+		const addRemote = new AddRemoteItem(this);
+		const picks = [...repository.remotes.map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
 		const branchName = repository.HEAD && repository.HEAD.name || '';
-		const selectRemote = async () => {
-			const picks = repository.remotes.map(r => r.name);
-			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-			return await window.showQuickPick(picks, { placeHolder });
-		};
-		const choice = remotes.length === 1 ? remotes[0].name : await selectRemote();
+		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
+		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
 			return;
 		}
 
-		await repository.pushTo(choice, branchName, true);
+		if (choice === addRemote) {
+			const newRemote = await this.addRemote(repository);
+
+			if (newRemote) {
+				await repository.pushTo(newRemote, branchName, true);
+			}
+		} else {
+			await repository.pushTo(choice.label, branchName, true);
+		}
 	}
 
 	@command('git.ignore')
@@ -2067,6 +2117,19 @@ export class CommandCenter {
 		}
 
 		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
+	}
+
+	@command('git.revealInExplorer')
+	async revealInExplorer(resourceState: SourceControlResourceState): Promise<void> {
+		if (!resourceState) {
+			return;
+		}
+
+		if (!(resourceState.resourceUri instanceof Uri)) {
+			return;
+		}
+
+		await commands.executeCommand('revealInExplorer', resourceState.resourceUri);
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {

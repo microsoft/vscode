@@ -12,6 +12,7 @@ import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/br
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { isEqual } from 'vs/base/common/resources';
 
 // todo@joh move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {
@@ -75,7 +76,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		id = id.substr(0, id.indexOf(',')); //todo@joh HACK
 
 		for (const candidate of this._editorService.listCodeEditors()) {
-			if (candidate.getId() === id && candidate.hasModel() && candidate.getModel()!.uri.toString() === URI.revive(uri).toString()) {
+			if (candidate.getId() === id && candidate.hasModel() && isEqual(candidate.getModel().uri, URI.revive(uri))) {
 				editor = candidate;
 				break;
 			}

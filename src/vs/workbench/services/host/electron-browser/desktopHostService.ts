@@ -94,10 +94,6 @@ export class DesktopHostService extends Disposable implements IHostService {
 	reload(): Promise<void> {
 		return this.electronService.reload();
 	}
-
-	closeWorkspace(): Promise<void> {
-		return this.electronService.closeWorkspace();
-	}
 }
 
 registerSingleton(IHostService, DesktopHostService, true);

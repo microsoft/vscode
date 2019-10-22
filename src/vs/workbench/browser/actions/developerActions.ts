@@ -29,7 +29,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 class InspectContextKeysAction extends Action {
 
 	static readonly ID = 'workbench.action.inspectContextKeys';
-	static LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
+	static readonly LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
 
 	constructor(
 		id: string,
@@ -91,7 +91,7 @@ class InspectContextKeysAction extends Action {
 class ToggleScreencastModeAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleScreencastMode';
-	static LABEL = nls.localize('toggle screencast mode', "Toggle Screencast Mode");
+	static readonly LABEL = nls.localize('toggle screencast mode', "Toggle Screencast Mode");
 
 	static disposable: IDisposable | undefined;
 
@@ -195,7 +195,7 @@ class ToggleScreencastModeAction extends Action {
 class LogStorageAction extends Action {
 
 	static readonly ID = 'workbench.action.logStorage';
-	static LABEL = nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
+	static readonly LABEL = nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
 
 	constructor(
 		id: string,

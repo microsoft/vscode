@@ -7,7 +7,7 @@ import { registerEditorAction, registerEditorCommand, registerEditorContribution
 import { CodeActionCommand, OrganizeImportsAction, QuickFixAction, QuickFixController, RefactorAction, SourceAction, AutoFixAction, FixAllAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 
 
-registerEditorContribution(QuickFixController);
+registerEditorContribution(QuickFixController.ID, QuickFixController);
 registerEditorAction(QuickFixAction);
 registerEditorAction(RefactorAction);
 registerEditorAction(SourceAction);

@@ -157,7 +157,7 @@
 	flex-wrap: wrap;
 }
 
-.fullscreen .menubar {
+.fullscreen .menubar:not(.compact) {
 	margin: 0px;
 	padding: 0px 5px;
 }
@@ -176,6 +176,7 @@
 .menubar.compact > .menubar-menu-button {
 	width: 100%;
 	height: 100%;
+	padding: 0px;
 }
 
 .menubar .menubar-menu-items-holder {

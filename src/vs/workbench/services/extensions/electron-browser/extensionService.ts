@@ -537,9 +537,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
 	}
 
-	public getInspectPort(): number {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
 		if (this._extensionHostProcessManagers.length > 0) {
-			return this._extensionHostProcessManagers[0].getInspectPort();
+			return this._extensionHostProcessManagers[0].getInspectPort(tryEnableInspector);
 		}
 		return 0;
 	}

@@ -24,7 +24,6 @@
 		"editorGroupHeader.tabsBackground": "#282828",
 		"tab.inactiveBackground": "#404040",
 		"tab.border": "#303030",
-		"tab.modifiedBorder": "#6796e6",
 		"tab.inactiveForeground": "#d8d8d8",
 		"peekView.border": "#3655b5",
 		"panelTitle.activeForeground": "#ffffff",
@@ -48,15 +47,7 @@
 	"tokenColors": [
 		{
 			"settings": {
-				"background": "#1e1e1e",
 				"foreground": "#C5C8C6"
-			}
-		},
-		{
-			"name": "By uonick",
-			"settings": {
-				"background": "#202025ff",
-				"foreground": "#c5c8c6ff"
 			}
 		},
 		{
@@ -65,7 +56,6 @@
 				"source.groovy.embedded"
 			],
 			"settings": {
-				"background": "#1e1e1e",
 				"foreground": "#C5C8C6"
 			}
 		},
@@ -115,7 +105,6 @@
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#8080FF",
-				"background": "#1e1e1e"
 			}
 		},
 		{
@@ -148,7 +137,6 @@
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9B0000",
-				"background": "#1E1E1E"
 			}
 		},
 		{
@@ -482,7 +470,6 @@
 			"name": "diff: header",
 			"scope": "meta.diff, meta.diff.header",
 			"settings": {
-				"background": "#b58900",
 				"fontStyle": "italic",
 				"foreground": "#E0EDDD"
 			}
@@ -491,7 +478,6 @@
 			"name": "diff: deleted",
 			"scope": "markup.deleted",
 			"settings": {
-				"background": "#eee8d5",
 				"fontStyle": "",
 				"foreground": "#dc322f"
 			}
@@ -500,7 +486,6 @@
 			"name": "diff: changed",
 			"scope": "markup.changed",
 			"settings": {
-				"background": "#eee8d5",
 				"fontStyle": "",
 				"foreground": "#cb4b16"
 			}
@@ -509,7 +494,6 @@
 			"name": "diff: inserted",
 			"scope": "markup.inserted",
 			"settings": {
-				"background": "#eee8d5",
 				"foreground": "#219186"
 			}
 		},

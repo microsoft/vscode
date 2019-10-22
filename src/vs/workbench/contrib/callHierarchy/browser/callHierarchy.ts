@@ -29,13 +29,13 @@ export interface CallHierarchyItem {
 }
 
 export interface IncomingCall {
-	source: CallHierarchyItem;
-	sourceRanges: IRange[];
+	from: CallHierarchyItem;
+	fromRanges: IRange[];
 }
 
 export interface OutgoingCall {
-	sourceRanges: IRange[];
-	target: CallHierarchyItem;
+	fromRanges: IRange[];
+	to: CallHierarchyItem;
 }
 
 export interface CallHierarchyProvider {

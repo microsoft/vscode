@@ -196,7 +196,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 	private hasToShowViewlet(viewlet: ViewletDescriptor): boolean {
 		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(viewlet.id);
-		if (viewContainer && viewContainer.hideIfEmpty) {
+		if (viewContainer?.hideIfEmpty) {
 			const viewsCollection = this.viewsService.getViewDescriptors(viewContainer);
 			return !!viewsCollection && viewsCollection.activeViewDescriptors.length > 0;
 		}

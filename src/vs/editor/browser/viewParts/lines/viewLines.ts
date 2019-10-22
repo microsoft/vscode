@@ -20,6 +20,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Constants } from 'vs/base/common/uint';
 
 class LastRenderedData {
 
@@ -641,7 +642,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		const viewportEndX = viewportStartX + viewport.width;
 
 		const visibleRanges = this.visibleRangesForRange2(new Range(lineNumber, startColumn, lineNumber, endColumn));
-		let boxStartX = Number.MAX_VALUE;
+		let boxStartX = Constants.MAX_SAFE_SMALL_INTEGER;
 		let boxEndX = 0;
 
 		if (!visibleRanges) {

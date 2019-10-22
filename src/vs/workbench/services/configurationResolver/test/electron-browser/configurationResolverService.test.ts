@@ -494,7 +494,7 @@ suite('Configuration Resolver Service', () => {
 			'name': '${' + variable + '}',
 		};
 		configurationResolverService!.contributeVariable(variable, async () => { return buildTask; });
-		return configurationResolverService!.resolveAny(workspace, configuration).then(result => {
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration).then(result => {
 			assert.deepEqual(result, {
 				'name': `${buildTask}`
 			});

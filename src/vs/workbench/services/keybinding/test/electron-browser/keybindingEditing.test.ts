@@ -19,7 +19,6 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -49,6 +48,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 class TestEnvironmentService extends WorkbenchEnvironmentService {
 
@@ -81,11 +81,12 @@ suite('KeybindingsEditing', () => {
 			instantiationService = new TestInstantiationService();
 
 			const environmentService = new TestEnvironmentService(URI.file(testDir));
+
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('files', { 'eol': '\n' });
+
 			instantiationService.stub(IEnvironmentService, environmentService);
-			instantiationService.stub(IConfigurationService, ConfigurationService);
-			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
-			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
-			instantiationService.stub(IConfigurationService, 'onDidChangeConfiguration', () => { });
+			instantiationService.stub(IConfigurationService, configService);
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			const lifecycleService = new TestLifecycleService();
 			instantiationService.stub(ILifecycleService, lifecycleService);

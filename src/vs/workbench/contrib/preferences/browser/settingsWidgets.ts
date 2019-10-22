@@ -57,6 +57,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${checkboxBackgroundColor} !important; }`);
 	}
 
+	const checkboxForegroundColor = theme.getColor(settingsCheckboxForeground);
+	if (checkboxForegroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { color: ${checkboxForegroundColor} !important; }`);
+	}
+
 	const checkboxBorderColor = theme.getColor(settingsCheckboxBorder);
 	if (checkboxBorderColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { border-color: ${checkboxBorderColor} !important; }`);

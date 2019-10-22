@@ -222,7 +222,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 						promise.catch(e => {
 							unhandledPromises.splice(idx, 1);
 							console.warn(`rejected promise not handled within 1 second: ${e}`);
-							if (e.stack) {
+							if (e && e.stack) {
 								console.warn(`stack trace: ${e.stack}`);
 							}
 							onUnexpectedError(reason);
@@ -274,20 +274,6 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 		protocol.send(createMessageOfType(MessageType.Ready));
 	});
 }
-
-// patchExecArgv:
-(function () {
-	// when encountering the prevent-inspect flag we delete this
-	// and the prior flag
-	if (process.env.VSCODE_PREVENT_FOREIGN_INSPECT) {
-		for (let i = 0; i < process.execArgv.length; i++) {
-			if (process.execArgv[i].match(/--inspect-brk=\d+|--inspect=\d+/)) {
-				process.execArgv.splice(i, 1);
-				break;
-			}
-		}
-	}
-})();
 
 export async function startExtensionHostProcess(): Promise<void> {
 

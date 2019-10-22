@@ -88,6 +88,11 @@ export class Preview extends Disposable {
 				this.render();
 			}
 		}));
+		this._register(watcher.onDidDelete(e => {
+			if (e.toString() === this.resource.toString()) {
+				this.webviewEditor.dispose();
+			}
+		}));
 
 		this.render();
 		this.update();
@@ -115,6 +120,7 @@ export class Preview extends Disposable {
 			}
 			this._previewState = PreviewState.Visible;
 		}
+		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
 	private getWebiewContents(): string {

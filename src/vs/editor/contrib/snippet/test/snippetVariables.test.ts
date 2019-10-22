@@ -296,7 +296,7 @@ suite('Snippet Variables Resolver', function () {
 		assert.equal(snippet.toString(), 'It is not line 10');
 	});
 
-	test('Add workspace name variable for snippets #68261', function () {
+	test('Add workspace name and folder variables for snippets #68261', function () {
 
 		let workspace: IWorkspace;
 		let resolver: VariableResolver;
@@ -319,14 +319,21 @@ suite('Snippet Variables Resolver', function () {
 		// empty workspace
 		workspace = new Workspace('');
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', undefined);
+		assertVariableResolve(resolver, 'WORKSPACE_FOLDER', undefined);
 
 		// single folder workspace without config
 		workspace = new Workspace('', [toWorkspaceFolder(URI.file('/folderName'))]);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'folderName');
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'WORKSPACE_FOLDER', '/folderName');
+		}
 
 		// workspace with config
 		const workspaceConfigPath = URI.file('testWorkspace.code-workspace');
 		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceConfigPath), workspaceConfigPath);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'testWorkspace');
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'WORKSPACE_FOLDER', '/');
+		}
 	});
 });

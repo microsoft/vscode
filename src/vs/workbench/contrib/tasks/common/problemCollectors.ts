@@ -524,4 +524,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		});
 		super.done();
 	}
+
+	public isWatching(): boolean {
+		return this.backgroundPatterns.length > 0;
+	}
 }

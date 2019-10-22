@@ -163,15 +163,15 @@ export class FileService extends Disposable implements IFileService {
 	private async doResolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		const provider = await this.withProvider(resource);
 
-		const resolveTo = options && options.resolveTo;
-		const resolveSingleChildDescendants = !!(options && options.resolveSingleChildDescendants);
-		const resolveMetadata = !!(options && options.resolveMetadata);
+		const resolveTo = options?.resolveTo;
+		const resolveSingleChildDescendants = options?.resolveSingleChildDescendants;
+		const resolveMetadata = options?.resolveMetadata;
 
 		const stat = await provider.stat(resource);
 
 		let trie: TernarySearchTree<boolean> | undefined;
 
-		return this.toFileStat(provider, resource, stat, undefined, resolveMetadata, (stat, siblings) => {
+		return this.toFileStat(provider, resource, stat, undefined, !!resolveMetadata, (stat, siblings) => {
 
 			// lazy trie to check for recursive resolving
 			if (!trie) {
@@ -274,8 +274,7 @@ export class FileService extends Disposable implements IFileService {
 	async createFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream = VSBuffer.fromString(''), options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// validate overwrite
-		const overwrite = !!(options && options.overwrite);
-		if (!overwrite && await this.exists(resource)) {
+		if (!options?.overwrite && await this.exists(resource)) {
 			throw new FileOperationError(localize('fileExists', "File to create already exists ({0})", this.resourceForError(resource)), FileOperationResult.FILE_MODIFIED_SINCE, options);
 		}
 
@@ -507,7 +506,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Return early if file is too large to load
-		if (options && options.limits) {
+		if (options?.limits) {
 			if (typeof options.limits.memory === 'number' && stat.size > options.limits.memory) {
 				throw new FileOperationError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), FileOperationResult.FILE_EXCEED_MEMORY_LIMIT);
 			}
@@ -529,7 +528,7 @@ export class FileService extends Disposable implements IFileService {
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withReadWriteProvider(target));
 
 		// move
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', overwrite);
+		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite);
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
@@ -543,7 +542,7 @@ export class FileService extends Disposable implements IFileService {
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withReadWriteProvider(target));
 
 		// copy
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
+		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', !!overwrite);
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
@@ -552,7 +551,7 @@ export class FileService extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	private async doMoveCopy(sourceProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<'move' | 'copy'> {
+	private async doMoveCopy(sourceProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI, mode: 'move' | 'copy', overwrite: boolean): Promise<'move' | 'copy'> {
 		if (source.toString() === target.toString()) {
 			return mode; // simulate node.js behaviour here and do a no-op if paths match
 		}
@@ -573,7 +572,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// same provider with fast copy: leverage copy() functionality
 			if (sourceProvider === targetProvider && hasFileFolderCopyCapability(sourceProvider)) {
-				await sourceProvider.copy(source, target, { overwrite: !!overwrite });
+				await sourceProvider.copy(source, target, { overwrite });
 			}
 
 			// when copying via buffer/unbuffered, we have to manually
@@ -595,7 +594,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// same provider: leverage rename() functionality
 			if (sourceProvider === targetProvider) {
-				await sourceProvider.rename(source, target, { overwrite: !!overwrite });
+				await sourceProvider.rename(source, target, { overwrite });
 
 				return mode;
 			}
@@ -744,13 +743,13 @@ export class FileService extends Disposable implements IFileService {
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
 
 		// Validate trash support
-		const useTrash = !!(options && options.useTrash);
+		const useTrash = !!options?.useTrash;
 		if (useTrash && !(provider.capabilities & FileSystemProviderCapabilities.Trash)) {
 			throw new Error(localize('err.trash', "Provider does not support trash."));
 		}
 
 		// Validate recursive
-		const recursive = !!(options && options.recursive);
+		const recursive = !!options?.recursive;
 		if (!recursive && await this.exists(resource)) {
 			const stat = await this.resolve(resource);
 			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
@@ -1062,7 +1061,7 @@ export class FileService extends Disposable implements IFileService {
 	private throwIfTooLarge(totalBytesRead: number, options?: IReadFileOptions): boolean {
 
 		// Return early if file is too large to load
-		if (options && options.limits) {
+		if (options?.limits) {
 			if (typeof options.limits.memory === 'number' && totalBytesRead > options.limits.memory) {
 				throw new FileOperationError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), FileOperationResult.FILE_EXCEED_MEMORY_LIMIT);
 			}

@@ -16,7 +16,7 @@ import { IMAGE_PREVIEW_BORDER } from 'vs/workbench/common/theme';
 export interface IResourceDescriptor {
 	readonly resource: URI;
 	readonly name: string;
-	readonly size: number;
+	readonly size?: number;
 	readonly etag?: string;
 	readonly mime: string;
 }
@@ -82,8 +82,8 @@ export class ResourceViewer {
 		container.className = 'monaco-resource-viewer';
 
 		// Large Files
-		if (descriptor.size > ResourceViewer.MAX_OPEN_INTERNAL_SIZE) {
-			return FileTooLargeFileView.create(container, descriptor, scrollbar, delegate);
+		if (typeof descriptor.size === 'number' && descriptor.size > ResourceViewer.MAX_OPEN_INTERNAL_SIZE) {
+			return FileTooLargeFileView.create(container, descriptor.size, scrollbar, delegate);
 		}
 
 		// Seemingly Binary Files
@@ -96,11 +96,11 @@ export class ResourceViewer {
 class FileTooLargeFileView {
 	static create(
 		container: HTMLElement,
-		descriptor: IResourceDescriptor,
+		descriptorSize: number,
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate
 	) {
-		const size = BinarySize.formatSize(descriptor.size);
+		const size = BinarySize.formatSize(descriptorSize);
 		delegate.metadataClb(size);
 
 		DOM.clearNode(container);

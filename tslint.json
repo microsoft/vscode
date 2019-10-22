@@ -472,8 +472,7 @@
 					"**/vs/workbench/api/{common,browser}/**",
 					"**/vs/workbench/services/**/{common,browser}/**",
 					"vscode-textmate",
-					"onigasm-umd",
-					"@microsoft/applicationinsights-web"
+					"onigasm-umd"
 				]
 			},
 			{

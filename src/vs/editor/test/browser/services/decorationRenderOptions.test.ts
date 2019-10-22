@@ -15,12 +15,12 @@ import { TestTheme, TestThemeService } from 'vs/platform/theme/test/common/testT
 const themeServiceMock = new TestThemeService();
 
 export class TestCodeEditorServiceImpl extends CodeEditorServiceImpl {
-	getActiveCodeEditor(): ICodeEditor | undefined {
-		return undefined;
+	getActiveCodeEditor(): ICodeEditor | null {
+		return null;
 	}
 
-	openCodeEditor(input: IResourceInput, source: ICodeEditor | undefined, sideBySide?: boolean): Promise<ICodeEditor | undefined> {
-		return Promise.resolve(undefined);
+	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+		return Promise.resolve(null);
 	}
 }
 

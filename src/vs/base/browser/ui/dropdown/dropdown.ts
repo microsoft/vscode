@@ -208,8 +208,8 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 
 export class DropdownMenu extends BaseDropdown {
 	private _contextMenuProvider: IContextMenuProvider;
-	private _menuOptions: IMenuOptions;
-	private _actions: ReadonlyArray<IAction>;
+	private _menuOptions: IMenuOptions | undefined;
+	private _actions: ReadonlyArray<IAction> = [];
 	private actionProvider?: IActionProvider;
 	private menuClassName: string;
 
@@ -222,11 +222,11 @@ export class DropdownMenu extends BaseDropdown {
 		this.menuClassName = options.menuClassName || '';
 	}
 
-	set menuOptions(options: IMenuOptions) {
+	set menuOptions(options: IMenuOptions | undefined) {
 		this._menuOptions = options;
 	}
 
-	get menuOptions(): IMenuOptions {
+	get menuOptions(): IMenuOptions | undefined {
 		return this._menuOptions;
 	}
 
@@ -256,7 +256,7 @@ export class DropdownMenu extends BaseDropdown {
 			getMenuClassName: () => this.menuClassName,
 			onHide: () => this.onHide(),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : undefined,
-			anchorAlignment: this.menuOptions.anchorAlignment
+			anchorAlignment: this.menuOptions ? this.menuOptions.anchorAlignment : AnchorAlignment.LEFT
 		});
 	}
 
@@ -345,7 +345,11 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		super.setActionContext(newContext);
 
 		if (this.dropdownMenu) {
-			this.dropdownMenu.menuOptions.context = newContext;
+			if (this.dropdownMenu.menuOptions) {
+				this.dropdownMenu.menuOptions.context = newContext;
+			} else {
+				this.dropdownMenu.menuOptions = { context: newContext };
+			}
 		}
 	}
 

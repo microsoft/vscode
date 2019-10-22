@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isFunction } from 'vs/base/common/types';
+import { isFunction, assertIsDefined } from 'vs/base/common/types';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
@@ -68,7 +68,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private onFilesChanged(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
-		if (deleted && deleted.length) {
+		if (deleted?.length) {
 			this.clearTextEditorViewState(deleted.map(d => d.resource));
 		}
 	}
@@ -118,7 +118,8 @@ export class TextFileEditor extends BaseTextEditor {
 	setOptions(options: EditorOptions | undefined): void {
 		const textOptions = options as TextEditorOptions;
 		if (textOptions && isFunction(textOptions.apply)) {
-			textOptions.apply(this.getControl(), ScrollType.Smooth);
+			const textEditor = assertIsDefined(this.getControl());
+			textOptions.apply(textEditor, ScrollType.Smooth);
 		}
 	}
 
@@ -147,7 +148,7 @@ export class TextFileEditor extends BaseTextEditor {
 			const textFileModel = <ITextFileEditorModel>resolvedModel;
 
 			// Editor
-			const textEditor = this.getControl();
+			const textEditor = assertIsDefined(this.getControl());
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Always restore View State if any associated
@@ -241,7 +242,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 	protected getAriaLabel(): string {
 		const input = this.input;
-		const inputName = input && input.getName();
+		const inputName = input?.getName();
 
 		let ariaLabel: string;
 		if (inputName) {
@@ -259,7 +260,10 @@ export class TextFileEditor extends BaseTextEditor {
 		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Clear Model
-		this.getControl().setModel(null);
+		const textEditor = this.getControl();
+		if (textEditor) {
+			textEditor.setModel(null);
+		}
 
 		// Pass to super
 		super.clearInput();

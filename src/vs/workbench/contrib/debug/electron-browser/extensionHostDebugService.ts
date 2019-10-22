@@ -8,7 +8,6 @@ import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHo
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class ExtensionHostDebugService extends ExtensionHostDebugChannelClient {
@@ -20,7 +19,7 @@ export class ExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 		super(mainProcessService.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
 	}
 
-	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> {
 		// TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
 		return this.electronService.openExtensionDevelopmentHostWindow(args, env);
 	}

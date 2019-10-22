@@ -34,7 +34,7 @@ class ToggleBreakpointAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
 		if (editor.hasModel()) {
 			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
@@ -49,12 +49,10 @@ class ToggleBreakpointAction extends EditorAction {
 				} else if (canSet) {
 					return (debugService.addBreakpoints(modelUri, [{ lineNumber: line }], 'debugEditorActions.toggleBreakpointAction'));
 				} else {
-					return Promise.resolve([]);
+					return [];
 				}
 			}));
 		}
-
-		return Promise.resolve();
 	}
 }
 
@@ -75,7 +73,7 @@ class ConditionalBreakpointAction extends EditorAction {
 
 		const position = editor.getPosition();
 		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, undefined);
+			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, undefined, BreakpointWidgetContext.CONDITION);
 		}
 	}
 }
@@ -97,15 +95,15 @@ class LogPointAction extends EditorAction {
 
 		const position = editor.getPosition();
 		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, BreakpointWidgetContext.LOG_MESSAGE);
+			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.LOG_MESSAGE);
 		}
 	}
 }
 
 export class RunToCursorAction extends EditorAction {
 
-	public static ID = 'editor.debug.action.runToCursor';
-	public static LABEL = nls.localize('runToCursor', "Run to Cursor");
+	public static readonly ID = 'editor.debug.action.runToCursor';
+	public static readonly LABEL = nls.localize('runToCursor', "Run to Cursor");
 
 	constructor() {
 		super({
@@ -120,11 +118,11 @@ export class RunToCursorAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const focusedSession = debugService.getViewModel().focusedSession;
 		if (debugService.state !== State.Stopped || !focusedSession) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		let breakpointToRemove: IBreakpoint;
@@ -139,18 +137,18 @@ export class RunToCursorAction extends EditorAction {
 		});
 
 		const position = editor.getPosition();
-		if (!editor.hasModel() || !position) {
-			return Promise.resolve();
-		}
-
-		const uri = editor.getModel().uri;
-		const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
-		return (bpExists ? Promise.resolve(null) : <Promise<any>>debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }], 'debugEditorActions.runToCursorAction')).then((breakpoints) => {
-			if (breakpoints && breakpoints.length) {
-				breakpointToRemove = breakpoints[0];
+		if (editor.hasModel() && position) {
+			const uri = editor.getModel().uri;
+			const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
+			if (!bpExists) {
+				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }], 'debugEditorActions.runToCursorAction');
+				if (breakpoints && breakpoints.length) {
+					breakpointToRemove = breakpoints[0];
+				}
 			}
-			debugService.getViewModel().focusedThread!.continue();
-		});
+
+			await debugService.getViewModel().focusedThread!.continue();
+		}
 	}
 }
 
@@ -169,13 +167,13 @@ class SelectionToReplAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const panelService = accessor.get(IPanelService);
 		const viewModel = debugService.getViewModel();
 		const session = viewModel.focusedSession;
 		if (!editor.hasModel() || !session) {
-			return Promise.resolve();
+			return;
 		}
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
@@ -199,15 +197,16 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const viewletService = accessor.get(IViewletService);
 		if (!editor.hasModel()) {
-			return Promise.resolve();
+			return;
 		}
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
-		return viewletService.openViewlet(VIEWLET_ID).then(() => debugService.addWatchExpression(text));
+		await viewletService.openViewlet(VIEWLET_ID);
+		debugService.addWatchExpression(text);
 	}
 }
 
@@ -227,14 +226,14 @@ class ShowDebugHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const position = editor.getPosition();
 		if (!position || !editor.hasModel()) {
-			return Promise.resolve();
+			return;
 		}
 		const word = editor.getModel().getWordAtPosition(position);
 		if (!word) {
-			return Promise.resolve();
+			return;
 		}
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
@@ -247,7 +246,7 @@ class GoToBreakpointAction extends EditorAction {
 		super(opts);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<any> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
 		if (editor.hasModel()) {
@@ -279,8 +278,6 @@ class GoToBreakpointAction extends EditorAction {
 				return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
 			}
 		}
-
-		return Promise.resolve(null);
 	}
 }
 

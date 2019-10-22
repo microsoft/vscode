@@ -20,7 +20,7 @@ export interface IConfigurationResolverService {
 	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.
 	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
 	 */
-	resolveAny(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolveContributed?: boolean): Promise<any>;
+	resolveAny(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any;
 
 	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.

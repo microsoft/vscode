@@ -505,7 +505,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: string | undefined, color: string | ThemeColor | undefined, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
 	$dispose(id: number): void;
 }
 
@@ -540,8 +540,13 @@ export interface WebviewPanelShowOptions {
 	readonly preserveFocus?: boolean;
 }
 
+export interface WebviewExtensionDescription {
+	readonly id: ExtensionIdentifier;
+	readonly location: UriComponents;
+}
+
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
+	$createWebviewPanel(extension: WebviewExtensionDescription, handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
@@ -550,14 +555,13 @@ export interface MainThreadWebviewsShape extends IDisposable {
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void;
-	$setExtension(handle: WebviewPanelHandle, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
 
 	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
 
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 
-	$registerEditorProvider(viewType: string): void;
+	$registerEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
 }
 
@@ -575,7 +579,7 @@ export interface ExtHostWebviewsShape {
 	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
-	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$save(handle: WebviewPanelHandle): Promise<boolean>;
 }
 
@@ -1189,7 +1193,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
-	$spawnExtHostProcess(id: number, shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+	$spawnExtHostProcess(id: number, shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
 	$startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;

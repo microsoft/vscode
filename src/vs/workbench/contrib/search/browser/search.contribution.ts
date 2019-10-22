@@ -50,7 +50,7 @@ import { registerContributions as searchWidgetContributions } from 'vs/workbench
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch, Match, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_CONTAINER, VIEW_ID } from 'vs/workbench/services/search/common/search';
@@ -134,7 +134,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-			accessor.get(IInstantiationService).createInstance(RemoveAction, tree, tree.getFocus()[0]).run();
+			accessor.get(IInstantiationService).createInstance(RemoveAction, tree, tree.getFocus()[0]!).run();
 		}
 	}
 });
@@ -148,7 +148,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-			accessor.get(IInstantiationService).createInstance(ReplaceAction, tree, tree.getFocus()[0], searchView).run();
+			accessor.get(IInstantiationService).createInstance(ReplaceAction, tree, tree.getFocus()[0] as Match, searchView).run();
 		}
 	}
 });
@@ -163,7 +163,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-			accessor.get(IInstantiationService).createInstance(ReplaceAllAction, searchView, tree.getFocus()[0]).run();
+			accessor.get(IInstantiationService).createInstance(ReplaceAllAction, searchView, tree.getFocus()[0] as FileMatch).run();
 		}
 	}
 });
@@ -178,7 +178,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-			accessor.get(IInstantiationService).createInstance(ReplaceAllInFolderAction, tree, tree.getFocus()[0]).run();
+			accessor.get(IInstantiationService).createInstance(ReplaceAllInFolderAction, tree, tree.getFocus()[0] as FolderMatch).run();
 		}
 	}
 });
@@ -759,17 +759,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('search.showLineNumbers', "Controls whether to show line numbers for search results."),
-		},
-		'searchRipgrep.enable': {
-			type: 'boolean',
-			default: false,
-			deprecationMessage: nls.localize('search.searchRipgrepEnableDeprecated', "Deprecated. Use \"search.runInExtensionHost\" instead"),
-			description: nls.localize('search.searchRipgrepEnable', "Whether to run search in the extension host")
-		},
-		'search.runInExtensionHost': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('search.runInExtensionHost', "Whether to run search in the extension host. Requires a restart to take effect.")
 		},
 		'search.usePCRE2': {
 			type: 'boolean',

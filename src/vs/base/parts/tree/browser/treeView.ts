@@ -398,8 +398,8 @@ function reactionEquals(one: _.IDragOverReaction, other: _.IDragOverReaction | n
 
 export class TreeView extends HeightMap {
 
-	static BINDING = 'monaco-tree-row';
-	static LOADING_DECORATION_DELAY = 800;
+	static readonly BINDING = 'monaco-tree-row';
+	static readonly LOADING_DECORATION_DELAY = 800;
 
 	private static counter: number = 0;
 	private instance: number;
@@ -925,16 +925,15 @@ export class TreeView extends HeightMap {
 			if (!skipDiff) {
 				const lcs = new Diff.LcsDiff(
 					{
-						getLength: () => previousChildrenIds.length,
-						getElementAtIndex: (i: number) => previousChildrenIds[i]
-					}, {
-					getLength: () => afterModelItems.length,
-					getElementAtIndex: (i: number) => afterModelItems[i].id
-				},
+						getElements: () => previousChildrenIds
+					},
+					{
+						getElements: () => afterModelItems.map(item => item.id)
+					},
 					null
 				);
 
-				diff = lcs.ComputeDiff(false);
+				diff = lcs.ComputeDiff(false).changes;
 
 				// this means that the result of the diff algorithm would result
 				// in inserting items that were already registered. this can only
