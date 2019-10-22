@@ -356,6 +356,16 @@ export default class BufferSyncSupport extends Disposable {
 		return this.syncedBuffers.has(resource);
 	}
 
+	public toVsCodeResource(resource: vscode.Uri): vscode.Uri {
+		const filepath = this.client.normalizedPath(resource);
+		for (const buffer of this.syncedBuffers.allBuffers) {
+			if (buffer.filepath === filepath) {
+				return buffer.resource;
+			}
+		}
+		return resource;
+	}
+
 	public toResource(filePath: string): vscode.Uri {
 		const buffer = this.syncedBuffers.getForPath(filePath);
 		if (buffer) {

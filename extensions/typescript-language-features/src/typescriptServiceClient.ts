@@ -91,7 +91,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private lastStart: number;
 	private numberRestarts: number;
 	private isRestarting: boolean = false;
-	private loadingIndicator = new ServerInitializingIndicator();
+	private readonly loadingIndicator = new ServerInitializingIndicator();
 
 	public readonly telemetryReporter: TelemetryReporter;
 
@@ -545,7 +545,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
 			const dirName = path.dirname(resource.path);
 			const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
-			return resource.with({ path: path.posix.join(dirName, fileName) }).toString(true);
+			return resource.with({ path: path.posix.join(dirName, fileName), query: '' }).toString(true);
 		}
 
 		if (resource.scheme !== fileSchemes.file) {
@@ -585,10 +585,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				const dirName = path.dirname(resource.path);
 				const fileName = path.basename(resource.path);
 				if (fileName.startsWith(this.inMemoryResourcePrefix)) {
-					resource = resource.with({ path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
+					resource = resource.with({
+						path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length))
+					});
 				}
 			}
-			return resource;
+			return this.bufferSyncSupport.toVsCodeResource(resource);
 		}
 
 		return this.bufferSyncSupport.toResource(filepath);
@@ -715,7 +717,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			case 'projectsUpdatedInBackground':
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
-				const resources = body.openFiles.map(vscode.Uri.file);
+				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);
 				break;
 
