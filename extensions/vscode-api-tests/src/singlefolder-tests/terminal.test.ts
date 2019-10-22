@@ -173,29 +173,24 @@ suite('window namespace tests', () => {
 				const dataEvents: { name: string, data: string }[] = [];
 				const closeEvents: string[] = [];
 				const reg1 = window.onDidOpenTerminal(e => openEvents.push(e.name));
-				const reg2 = window.onDidWriteTerminalData(e => dataEvents.push({ name: e.terminal.name, data: e.data }));
+
+				let resolveOnceDataWritten: (() => void) | undefined;
+
+				const reg2 = window.onDidWriteTerminalData(e => {
+					dataEvents.push({ name: e.terminal.name, data: e.data });
+
+					resolveOnceDataWritten!();
+				});
+
 				const reg3 = window.onDidCloseTerminal(e => {
 					closeEvents.push(e.name);
 
 					if (closeEvents.length === 1) {
-						const term2Write = new EventEmitter<string>();
-						const term2Close = new EventEmitter<void>();
-						window.createTerminal({
-							name: 'test2', pty: {
-								onDidWrite: term2Write.event,
-								onDidClose: term2Close.event,
-								open: () => {
-									term2Write.fire('write2');
-									// Need to wait to ensure the data will be fired, because it will be buffered for 5ms (currently)
-									setTimeout(() => term2Close.fire(), 100);
-								},
-								close: () => { }
-							}
-						});
-						return;
+						deepEqual(openEvents, ['test1']);
+						deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }]);
+						deepEqual(closeEvents, ['test1']);
 					}
-
-					if (closeEvents.length === 2) {
+					else if (closeEvents.length === 2) {
 						deepEqual(openEvents, ['test1', 'test2']);
 						deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
 						deepEqual(closeEvents, ['test1', 'test2']);
@@ -213,10 +208,30 @@ suite('window namespace tests', () => {
 					name: 'test1', pty: {
 						onDidWrite: term1Write.event,
 						onDidClose: term1Close.event,
-						open: () => {
+						open: async () => {
 							term1Write.fire('write1');
-							// Need to wait to ensure the data will be fired, because it will be buffered for 5ms (currently)
-							setTimeout(() => term1Close.fire(), 100);
+
+							// Wait until the data is written
+							await new Promise(resolve => { resolveOnceDataWritten = resolve; });
+							term1Close.fire();
+
+							const term2Write = new EventEmitter<string>();
+							const term2Close = new EventEmitter<void>();
+							window.createTerminal({
+								name: 'test2', pty: {
+									onDidWrite: term2Write.event,
+									onDidClose: term2Close.event,
+									open: async () => {
+										term2Write.fire('write2');
+
+										// Wait until the data is written
+										await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
+
+										term2Close.fire();
+									},
+									close: () => { }
+								}
+							});
 						},
 						close: () => { }
 					}
