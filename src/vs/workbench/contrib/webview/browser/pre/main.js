@@ -479,6 +479,7 @@
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
 					newFrame.contentWindow.addEventListener('auxclick', handleAuxClick);
 					newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+					newFrame.contentWindow.addEventListener('contextmenu', e => e.preventDefault());
 
 					if (host.onIframeLoaded) {
 						host.onIframeLoaded(newFrame);
