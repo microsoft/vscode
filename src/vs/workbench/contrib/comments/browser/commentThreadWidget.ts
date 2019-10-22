@@ -46,6 +46,8 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action';
@@ -84,6 +86,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _commentEditorIsEmpty!: IContextKey<boolean>;
 	private _commentFormActions!: CommentFormActions;
 	private _scopedInstatiationService: IInstantiationService;
+	private _focusedComment: number | undefined = undefined;
+	private setFocusedComment(value: number | undefined) {
+		if (this._focusedComment !== undefined) {
+			this._commentElements[this._focusedComment!].setFocus(false);
+		}
+		this._focusedComment = value;
+		if (this._focusedComment !== undefined) {
+			this._commentElements[this._focusedComment!].setFocus(true);
+		}
+	}
+
 
 	public get owner(): string {
 		return this._owner;
@@ -401,6 +414,21 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._commentsElement = dom.append(this._bodyElement, dom.$('div.comments-container'));
 		this._commentsElement.setAttribute('role', 'presentation');
+		this._commentsElement.tabIndex = 0;
+
+		dom.addDisposableListener(this._commentsElement, dom.EventType.KEY_DOWN, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
+				const moveFocusWithinBounds = (change: number): number => {
+					if (this._focusedComment === undefined && change >= 0) { return 0; }
+					if (this._focusedComment === undefined && change < 0) { return this._commentElements.length - 1; }
+					let newIndex = this._focusedComment! + change;
+					return Math.min(Math.max(0, newIndex), this._commentElements.length - 1);
+				};
+
+				this.setFocusedComment(event.equals(KeyCode.UpArrow) ? moveFocusWithinBounds(-1) : moveFocusWithinBounds(1));
+			}
+		});
 
 		this._commentElements = [];
 		if (this._commentThread.comments) {
@@ -631,7 +659,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			if (this._commentThread.comments!.length === 0) {
 				this.dispose();
 			}
+
+			if (deletedElementIndex === this._focusedComment) { this.setFocusedComment(undefined); }
+			if (this._focusedComment && deletedElementIndex < this._focusedComment) { this.setFocusedComment(this._focusedComment - 1); }
 		}));
+
+		this._disposables.add(newCommentNode.onDidClick(clickedNode =>
+			this.setFocusedComment(arrays.firstIndex(this._commentElements, commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
+		));
 
 		return newCommentNode;
 	}
