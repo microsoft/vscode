@@ -114,7 +114,7 @@
 }
 
 .scm-viewlet .monaco-list-row .resource-group > .count {
-	padding: 0 8px;
+	padding: 0 12px 0 8px;
 	display: flex;
 }
 
@@ -160,7 +160,7 @@
 
 .scm-viewlet .scm-editor {
 	box-sizing: border-box;
-	padding: 5px 9px 5px 16px;
+	padding: 5px 12px 5px 16px;
 }
 
 .scm-viewlet .scm-editor.hidden {
