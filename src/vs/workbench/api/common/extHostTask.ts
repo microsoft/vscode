@@ -261,6 +261,7 @@ export namespace TaskDTO {
 			problemMatchers: value.problemMatchers,
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
 			runOptions: (<vscode.Task>value).runOptions ? (<vscode.Task>value).runOptions : { reevaluateOnRerun: true },
+			detail: (<vscode.Task2>value).detail
 		};
 		return result;
 	}
@@ -302,6 +303,9 @@ export namespace TaskDTO {
 		}
 		if (value._id) {
 			result._id = value._id;
+		}
+		if (value.detail) {
+			result.detail = value.detail;
 		}
 		return result;
 	}

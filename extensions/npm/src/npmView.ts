@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import {
-	Event, EventEmitter, ExtensionContext, Task,
+	Event, EventEmitter, ExtensionContext, Task2 as Task,
 	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
 	WorkspaceFolder, commands, window, workspace, tasks, Selection, TaskGroup
 } from 'vscode';
@@ -108,6 +108,9 @@ class NpmScript extends TreeItem {
 				dark: context.asAbsolutePath(path.join('resources', 'dark', 'script.svg'))
 			};
 		}
+		if (task.detail) {
+			this.tooltip = task.detail;
+		}
 	}
 
 	getFolder(): WorkspaceFolder {
@@ -206,7 +209,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		let task = createTask('install', 'install', selection.folder.workspaceFolder, uri, []);
+		let task = createTask('install', 'install', selection.folder.workspaceFolder, uri, undefined, []);
 		tasks.executeTask(task);
 	}
 
