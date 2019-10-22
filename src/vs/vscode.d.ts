@@ -6259,8 +6259,11 @@ declare module 'vscode' {
 		export const uiKind: UIKind;
 
 		/**
-		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
-		 * default application.
+		 * Opens a link externally using the default application. Depending on the
+		 * used scheme this can be:
+		 * * a browser (`http:`, `https:`)
+		 * * a mail client (`mailto:`)
+		 * * VSCode itself (`vscode:` from `vscode.env.uriScheme`)
 		 *
 		 * *Note* that [`showTextDocument`](#window.showTextDocument) is the right
 		 * way to open a text document inside the editor, not this function.
@@ -6285,7 +6288,7 @@ declare module 'vscode' {
 		 * a system or user action — for example, in remote cases, a user may close a port forwardng tunnel
 		 * that was opened by `asExternalUri`.
 		 *
-		 * Note: uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri`
+		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri`
 		 * on them.
 		 *
 		 * @return A uri that can be used on the client machine.
