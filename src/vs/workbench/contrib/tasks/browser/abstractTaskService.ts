@@ -745,7 +745,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (CustomTask.is(task)) {
 			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
-			return configProperties.problemMatcher === undefined && !task.hasDefinedMatchers;
+			const type: string = (<any>configProperties).type;
+			return configProperties.problemMatcher === undefined && !task.hasDefinedMatchers && (Types.isStringArray(settingValue) && (settingValue.indexOf(type) < 0));
 		}
 		return false;
 	}
