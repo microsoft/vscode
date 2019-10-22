@@ -60,7 +60,7 @@ export class ViewletActivityAction extends ActivityAction {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
+		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
 			this.logAction('hide');
 			this.layoutService.setSideBarHidden(true);
 			return true;
@@ -95,7 +95,7 @@ export class ToggleViewletAction extends Action {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this._viewlet.id) {
+		if (sideBarVisible && activeViewlet?.getId() === this._viewlet.id) {
 			this.layoutService.setSideBarHidden(true);
 			return Promise.resolve();
 		}

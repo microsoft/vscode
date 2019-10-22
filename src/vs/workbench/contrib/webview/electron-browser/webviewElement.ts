@@ -321,9 +321,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	}
 
 	protected postMessage(channel: string, data?: any): void {
-		if (this.element) {
-			this.element.send(channel, data);
-		}
+		this.element?.send(channel, data);
 	}
 
 	public focus(): void {
@@ -408,57 +406,39 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	}
 
 	public showFind() {
-		if (this._webviewFindWidget) {
-			this._webviewFindWidget.reveal();
-		}
+		this._webviewFindWidget?.reveal();
 	}
 
 	public hideFind() {
-		if (this._webviewFindWidget) {
-			this._webviewFindWidget.hide();
-		}
+		this._webviewFindWidget?.hide();
 	}
 
 	public runFindAction(previous: boolean) {
-		if (this._webviewFindWidget) {
-			this._webviewFindWidget.find(previous);
-		}
+		this._webviewFindWidget?.find(previous);
 	}
 
 	public selectAll() {
-		if (this.element) {
-			this.element.selectAll();
-		}
+		this.element?.selectAll();
 	}
 
 	public copy() {
-		if (this.element) {
-			this.element.copy();
-		}
+		this.element?.copy();
 	}
 
 	public paste() {
-		if (this.element) {
-			this.element.paste();
-		}
+		this.element?.paste();
 	}
 
 	public cut() {
-		if (this.element) {
-			this.element.cut();
-		}
+		this.element?.cut();
 	}
 
 	public undo() {
-		if (this.element) {
-			this.element.undo();
-		}
+		this.element?.undo();
 	}
 
 	public redo() {
-		if (this.element) {
-			this.element.redo();
-		}
+		this.element?.redo();
 	}
 
 	protected on<T = unknown>(channel: WebviewMessageChannels | string, handler: (data: T) => void): IDisposable {

@@ -752,7 +752,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 			const selection: Array<IEditorIdentifier | IEditorGroup> = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 
 			// Only respect selection if it contains focused element
-			if (selection && selection.some(s => {
+			if (selection?.some(s => {
 				if (isEditorGroup(s)) {
 					return s.id === focus.groupId;
 				}

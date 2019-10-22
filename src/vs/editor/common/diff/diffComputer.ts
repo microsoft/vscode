@@ -502,8 +502,8 @@ export class DiffComputer {
 		if (prevChange.originalEndLineNumber + 1 === originalLineNumber && prevChange.modifiedEndLineNumber + 1 === modifiedLineNumber) {
 			prevChange.originalEndLineNumber = originalLineNumber;
 			prevChange.modifiedEndLineNumber = modifiedLineNumber;
-			if (this.shouldComputeCharChanges) {
-				prevChange.charChanges!.push(new CharChange(
+			if (this.shouldComputeCharChanges && prevChange.charChanges) {
+				prevChange.charChanges.push(new CharChange(
 					originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
 					modifiedLineNumber, modifiedStartColumn, modifiedLineNumber, modifiedEndColumn
 				));

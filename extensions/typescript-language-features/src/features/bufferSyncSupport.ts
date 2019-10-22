@@ -8,6 +8,7 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Delayer } from '../utils/async';
+import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 import { ResourceMap } from '../utils/resourceMap';
@@ -142,7 +143,7 @@ class BufferSynchronizer {
 					case 'close': closedFiles.push(change.args); break;
 				}
 			}
-			this.client.executeWithoutWaitingForResponse('updateOpen', { changedFiles, closedFiles, openFiles });
+			this.client.execute('updateOpen', { changedFiles, closedFiles, openFiles }, nulToken, { nonRecoverable: true });
 			this._pending.clear();
 		}
 	}
@@ -353,6 +354,16 @@ export default class BufferSyncSupport extends Disposable {
 
 	public handles(resource: vscode.Uri): boolean {
 		return this.syncedBuffers.has(resource);
+	}
+
+	public toVsCodeResource(resource: vscode.Uri): vscode.Uri {
+		const filepath = this.client.normalizedPath(resource);
+		for (const buffer of this.syncedBuffers.allBuffers) {
+			if (buffer.filepath === filepath) {
+				return buffer.resource;
+			}
+		}
+		return resource;
 	}
 
 	public toResource(filePath: string): vscode.Uri {

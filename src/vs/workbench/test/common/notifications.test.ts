@@ -134,6 +134,12 @@ suite('Notifications', () => {
 
 		let item9 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.OFF)!;
 		assert.equal(item9.silent, false);
+
+		let item10 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.ERROR)!;
+		assert.equal(item10.silent, false);
+
+		let item11 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message' }, NotificationsFilter.ERROR)!;
+		assert.equal(item11.silent, true);
 	});
 
 	test('Model', () => {

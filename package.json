@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.40.0",
-  "distro": "d0f88ee04b0049d5e278110d2eea4bd91caa7dbd",
+  "distro": "c4406f67d23097ea3ddc5e388290c06ad37021eb",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -53,9 +53,9 @@
     "vscode-ripgrep": "^1.5.7",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
-    "xterm": "4.2.0-beta10",
+    "xterm": "^4.2.0-beta20",
     "xterm-addon-search": "0.3.0-beta5",
-    "xterm-addon-web-links": "0.2.0",
+    "xterm-addon-web-links": "0.2.1",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -129,7 +129,7 @@
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
     "tslint": "^5.16.0",
-    "typescript": "3.6",
+    "typescript": "3.7.0-dev.20191017",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",

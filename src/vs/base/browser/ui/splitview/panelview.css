@@ -32,6 +32,7 @@
 	justify-content: center;
 	transform-origin: center;
 	color: inherit;
+	flex-shrink: 0;
 }
 
 .monaco-panel-view .panel > .panel-header.expanded > .twisties::before {

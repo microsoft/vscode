@@ -288,7 +288,7 @@ class DropOverlay extends Themable {
 	}
 
 	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
-		if (draggedEditor && draggedEditor.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
+		if (draggedEditor?.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
 			return false;
 		}
 
@@ -460,6 +460,10 @@ class DropOverlay extends Themable {
 	}
 }
 
+export interface EditorDropTargetDelegate {
+	groupContainsPredicate?(groupView: IEditorGroupView): boolean;
+}
+
 export class EditorDropTarget extends Themable {
 
 	private _overlay?: DropOverlay;
@@ -472,6 +476,7 @@ export class EditorDropTarget extends Themable {
 	constructor(
 		private accessor: IEditorGroupsAccessor,
 		private container: HTMLElement,
+		private readonly delegate: EditorDropTargetDelegate,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -545,7 +550,7 @@ export class EditorDropTarget extends Themable {
 
 	private findTargetGroupView(child: HTMLElement): IEditorGroupView | undefined {
 		const groups = this.accessor.groups;
-		return find(groups, groupView => isAncestor(child, groupView.element));
+		return find(groups, groupView => isAncestor(child, groupView.element) || this.delegate.groupContainsPredicate?.(groupView));
 	}
 
 	private updateContainer(isDraggedOver: boolean): void {

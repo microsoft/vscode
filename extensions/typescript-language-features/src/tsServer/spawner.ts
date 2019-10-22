@@ -18,7 +18,7 @@ import { PluginManager } from '../utils/plugins';
 import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
-import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess } from './server';
+import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess, TsServerDelegate } from './server';
 
 type ServerKind = 'main' | 'syntax' | 'semantic';
 
@@ -35,12 +35,13 @@ export class TypeScriptServerSpawner {
 	public spawn(
 		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
-		pluginManager: PluginManager
+		pluginManager: PluginManager,
+		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		if (this.shouldUseSeparateSyntaxServer(version, configuration)) {
 			const syntaxServer = this.spawnTsServer('syntax', version, configuration, pluginManager);
 			const semanticServer = this.spawnTsServer('semantic', version, configuration, pluginManager);
-			return new SyntaxRoutingTsServer(syntaxServer, semanticServer);
+			return new SyntaxRoutingTsServer(syntaxServer, semanticServer, delegate);
 		}
 
 		return this.spawnTsServer('main', version, configuration, pluginManager);
@@ -65,7 +66,7 @@ export class TypeScriptServerSpawner {
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
 			if (tsServerLogFile) {
-				this._logger.info(`<${kind}>  Log file: ${tsServerLogFile}`);
+				this._logger.info(`<${kind}> Log file: ${tsServerLogFile}`);
 			} else {
 				this._logger.error(`<${kind}> Could not create log directory`);
 			}

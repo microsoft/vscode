@@ -90,8 +90,18 @@ export class ContextMenuController implements IEditorContribution {
 		this._editor.focus();
 
 		// Ensure the cursor is at the position of the mouse click
-		if (e.target.position && !this._editor.getSelection().containsPosition(e.target.position)) {
-			this._editor.setPosition(e.target.position);
+		if (e.target.position) {
+			let hasSelectionAtPosition = false;
+			for (const selection of this._editor.getSelections()) {
+				if (selection.containsPosition(e.target.position)) {
+					hasSelectionAtPosition = true;
+					break;
+				}
+			}
+
+			if (!hasSelectionAtPosition) {
+				this._editor.setPosition(e.target.position);
+			}
 		}
 
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position

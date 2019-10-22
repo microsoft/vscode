@@ -83,7 +83,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 		const activeInput = this.editorService.activeEditor;
 		if (activeInput instanceof DiffEditorInput && activeInput.originalInput instanceof ResourceEditorInput && activeInput.modifiedInput instanceof FileEditorInput) {
 			const resource = activeInput.originalInput.getResource();
-			if (resource && resource.scheme === CONFLICT_RESOLUTION_SCHEME) {
+			if (resource?.scheme === CONFLICT_RESOLUTION_SCHEME) {
 				isActiveEditorSaveConflictResolution = true;
 				activeConflictResolutionResource = activeInput.modifiedInput.getResource();
 			}

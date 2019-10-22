@@ -106,12 +106,12 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		// read through encoding library
 		const decoder = await toDecodeStream(streamToNodeReadable(bufferStream.value), {
-			guessEncoding: (options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
 			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
 		});
 
 		// validate binary
-		if (options && options.acceptTextOnly && decoder.detected.seemsBinary) {
+		if (options?.acceptTextOnly && decoder.detected.seemsBinary) {
 			throw new TextFileOperationError(localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
 		}
 
@@ -163,7 +163,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		// check for overwriteReadonly property (only supported for local file://)
 		try {
-			if (options && options.overwriteReadonly && resource.scheme === Schemas.file && await exists(resource.fsPath)) {
+			if (options?.overwriteReadonly && resource.scheme === Schemas.file && await exists(resource.fsPath)) {
 				const fileStat = await stat(resource.fsPath);
 
 				// try to change mode to writeable
@@ -174,7 +174,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		// check for writeElevated property (only supported for local file://)
-		if (options && options.writeElevated && resource.scheme === Schemas.file) {
+		if (options?.writeElevated && resource.scheme === Schemas.file) {
 			return this.writeElevated(resource, value, options);
 		}
 
@@ -277,7 +277,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 			};
 
 			const sudoCommand: string[] = [`"${this.environmentService.cliPath}"`];
-			if (options && options.overwriteReadonly) {
+			if (options?.overwriteReadonly) {
 				sudoCommand.push('--file-chmod');
 			}
 
@@ -353,7 +353,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 
 		// Ensure that we preserve an existing BOM if found for UTF8
 		// unless we are instructed to overwrite the encoding
-		const overwriteEncoding = options && options.overwriteEncoding;
+		const overwriteEncoding = options?.overwriteEncoding;
 		if (!overwriteEncoding && encoding === UTF8) {
 			try {
 				const buffer = (await this.fileService.readFile(resource, { length: UTF8_BOM.length })).value;
@@ -381,7 +381,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
-		if (options && options.encoding) {
+		if (options?.encoding) {
 			if (detectedEncoding === UTF8 && options.encoding === UTF8) {
 				preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
 			} else {

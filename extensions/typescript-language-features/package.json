@@ -212,6 +212,18 @@
           "description": "%configuration.suggest.completeFunctionCalls%",
           "scope": "resource"
         },
+        "javascript.suggest.includeAutomaticOptionalChainCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+          "scope": "resource"
+        },
+        "typescript.suggest.includeAutomaticOptionalChainCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+          "scope": "resource"
+        },
         "typescript.reportStyleChecksAsWarnings": {
           "type": "boolean",
           "default": true,
@@ -463,7 +475,7 @@
         "javascript.suggest.names": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.suggest.names%",
+          "markdownDescription": "%configuration.suggest.names%",
           "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
@@ -688,7 +700,7 @@
         },
         "typescript.tsserver.maxTsServerMemory": {
           "type": "number",
-          "default": 0,
+          "default": 3072,
           "description": "%configuration.tsserver.maxTsServerMemory%",
           "scope": "window"
         }

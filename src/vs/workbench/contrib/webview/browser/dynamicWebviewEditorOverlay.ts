@@ -198,4 +198,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 			f(this._webview.value);
 		}
 	}
+
+	windowDidDragStart() {
+		this.withWebview(webview => webview.windowDidDragStart());
+	}
+
+	windowDidDragEnd() {
+		this.withWebview(webview => webview.windowDidDragEnd());
+	}
 }

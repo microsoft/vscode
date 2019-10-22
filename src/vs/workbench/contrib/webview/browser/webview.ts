@@ -82,6 +82,9 @@ export interface Webview extends IDisposable {
 	showFind(): void;
 	hideFind(): void;
 	runFindAction(previous: boolean): void;
+
+	windowDidDragStart(): void;
+	windowDidDragEnd(): void;
 }
 
 export interface WebviewElement extends Webview {

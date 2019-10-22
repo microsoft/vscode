@@ -22,11 +22,13 @@ suite('ExtHostTypeConverter', function () {
 
 		data = MarkdownString.from('Hello [link](foo)');
 		assert.equal(data.value, 'Hello [link](foo)');
-		assert.equal(isEmptyObject(data.uris), true); // no scheme, no uri
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['foo']);
 
 		data = MarkdownString.from('Hello [link](www.noscheme.bad)');
 		assert.equal(data.value, 'Hello [link](www.noscheme.bad)');
-		assert.equal(isEmptyObject(data.uris), true); // no scheme, no uri
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['www.noscheme.bad']);
 
 		data = MarkdownString.from('Hello [link](foo:path)');
 		assert.equal(data.value, 'Hello [link](foo:path)');

@@ -549,6 +549,29 @@ export class CursorColumns {
 		return result;
 	}
 
+	public static toStatusbarColumn(lineContent: string, column: number, tabSize: number): number {
+		let endOffset = lineContent.length;
+		if (endOffset > column - 1) {
+			endOffset = column - 1;
+		}
+
+		let result = 0;
+		for (let i = 0; i < endOffset; i++) {
+			let charCode = lineContent.charCodeAt(i);
+			if (charCode === CharCode.Tab) {
+				result = this.nextRenderTabStop(result, tabSize);
+			} else {
+				if (strings.isHighSurrogate(charCode)) {
+					result = result + 1;
+					i = i + 1;
+				} else {
+					result = result + 1;
+				}
+			}
+		}
+		return result + 1;
+	}
+
 	public static visibleColumnFromColumn2(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): number {
 		return this.visibleColumnFromColumn(model.getLineContent(position.lineNumber), position.column, config.tabSize);
 	}

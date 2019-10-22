@@ -20,7 +20,7 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 	}
 
 	let list = listService.lastFocusedList;
-	if (list && list.getHTMLElement() === document.activeElement) {
+	if (list?.getHTMLElement() === document.activeElement) {
 		let focus: unknown;
 		if (list instanceof List) {
 			const focused = list.getFocusedElements();
@@ -46,7 +46,7 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 
 export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService): Array<URI> {
 	const list = listService.lastFocusedList;
-	if (list && list.getHTMLElement() === document.activeElement) {
+	if (list?.getHTMLElement() === document.activeElement) {
 		// Explorer
 		if (list instanceof WorkbenchAsyncDataTree) {
 			const selection = list.getSelection().map((fs: ExplorerItem) => fs.resource);

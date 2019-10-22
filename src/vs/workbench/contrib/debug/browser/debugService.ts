@@ -120,7 +120,7 @@ export class DebugService implements IDebugService {
 		this._onWillNewSession = new Emitter<IDebugSession>();
 		this._onDidEndSession = new Emitter<IDebugSession>();
 
-		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this);
+		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.toDispose.push(this.configurationManager);
 
 		this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
@@ -289,6 +289,13 @@ export class DebugService implements IDebugService {
 					throw new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
 						"Compound must have \"configurations\" attribute set in order to start multiple configurations."));
 				}
+				if (compound.preLaunchTask) {
+					const taskResult = await this.runTaskAndCheckErrors(launch?.workspace || this.contextService.getWorkspace(), compound.preLaunchTask);
+					if (taskResult === TaskRunResult.Failure) {
+						this.endInitializingState();
+						return false;
+					}
+				}
 
 				const values = await Promise.all(compound.configurations.map(configData => {
 					const name = typeof configData === 'string' ? configData : configData.name;
@@ -394,10 +401,10 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const workspace = launch ? launch.workspace : undefined;
+				const workspace = launch ? launch.workspace : this.contextService.getWorkspace();
 				const taskResult = await this.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask);
 				if (taskResult === TaskRunResult.Success) {
-					return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
+					return this.doCreateSession(launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
 				}
 				return false;
 			} catch (err) {
@@ -701,13 +708,13 @@ export class DebugService implements IDebugService {
 
 	//---- task management
 
-	private async runTaskAndCheckErrors(root: IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<TaskRunResult> {
+	private async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | TaskIdentifier | undefined): Promise<TaskRunResult> {
 		try {
 			const taskSummary = await this.runTask(root, taskId);
 
 			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
-			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+			const failureExitCode = taskSummary && taskSummary.exitCode !== 0;
 			const onTaskErrors = this.configurationService.getValue<IDebugConfiguration>('debug').onTaskErrors;
 			if (successExitCode || onTaskErrors === 'debugAnyway' || (errorCount === 0 && !failureExitCode)) {
 				return TaskRunResult.Success;

@@ -135,7 +135,7 @@ abstract class BaseOpenRecentAction extends Action {
 		});
 
 		if (pick) {
-			return this.hostService.openWindow([pick.openable], { forceNewWindow: keyMods && keyMods.ctrlCmd });
+			return this.hostService.openWindow([pick.openable], { forceNewWindow: keyMods?.ctrlCmd });
 		}
 	}
 }

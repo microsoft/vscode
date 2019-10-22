@@ -16,13 +16,14 @@ import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/ed
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
+import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
@@ -232,6 +233,16 @@ export class ToggleEditorVisibilityAction extends Action {
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory);
 
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '2_workbench_layout',
+	command: {
+		id: ToggleEditorVisibilityAction.ID,
+		title: nls.localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
+		toggled: EditorAreaVisibleContext
+	},
+	order: 5
+});
+
 export class ToggleSidebarVisibilityAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleSidebarVisibility';
@@ -403,13 +414,14 @@ export class ToggleMenuBarAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		let currentVisibilityValue = this.configurationService.getValue<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey);
+		let currentVisibilityValue = getMenuBarVisibility(this.configurationService, this.environmentService);
 		if (typeof currentVisibilityValue !== 'string') {
 			currentVisibilityValue = 'default';
 		}
@@ -417,8 +429,10 @@ export class ToggleMenuBarAction extends Action {
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
 			newVisibilityValue = 'toggle';
+		} else if (currentVisibilityValue === 'compact') {
+			newVisibilityValue = 'hidden';
 		} else {
-			newVisibilityValue = 'default';
+			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'default';
 		}
 
 		this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);

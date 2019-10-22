@@ -121,7 +121,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		const isReadonly = !(this.input instanceof UntitledEditorInput);
 
 		let ariaLabel: string;
-		const inputName = input && input.getName();
+		const inputName = input?.getName();
 		if (isReadonly) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
 		} else {

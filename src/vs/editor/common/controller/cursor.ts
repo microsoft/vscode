@@ -21,10 +21,14 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { dispose } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { equals } from 'vs/base/common/arrays';
 
-function containsLineMappingChanged(events: readonly viewEvents.ViewEvent[]): boolean {
-	return events.some(event => event.type === viewEvents.ViewEventType.ViewLineMappingChanged);
+function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
+	for (let i = 0, len = events.length; i < len; i++) {
+		if (events[i].type === viewEvents.ViewEventType.ViewLineMappingChanged) {
+			return true;
+		}
+	}
+	return false;
 }
 
 export class CursorStateChangedEvent {
@@ -69,7 +73,15 @@ export class CursorModelState {
 		if (this.modelVersionId !== other.modelVersionId) {
 			return false;
 		}
-		return equals(this.cursorState, other.cursorState, (a, b) => a.equals(b));
+		if (this.cursorState.length !== other.cursorState.length) {
+			return false;
+		}
+		for (let i = 0, len = this.cursorState.length; i < len; i++) {
+			if (!this.cursorState[i].equals(other.cursorState[i])) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
@@ -937,7 +949,12 @@ class CommandExecutor {
 	}
 
 	private static _arrayIsEmpty(commands: (editorCommon.ICommand | null)[]): boolean {
-		return commands.every(command => !command);
+		for (let i = 0, len = commands.length; i < len; i++) {
+			if (commands[i]) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private static _getEditOperations(ctx: IExecContext, commands: (editorCommon.ICommand | null)[]): ICommandsData {
