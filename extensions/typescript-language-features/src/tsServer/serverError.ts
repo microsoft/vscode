@@ -14,7 +14,7 @@ export class TypeScriptServerError extends Error {
 		response: Proto.Response
 	): TypeScriptServerError {
 		const parsedResult = TypeScriptServerError.parseErrorText(version, response);
-		return new TypeScriptServerError(serverId, version, response, parsedResult ? parsedResult.message : undefined, parsedResult ? parsedResult.stack : undefined);
+		return new TypeScriptServerError(serverId, version, response, parsedResult?.message, parsedResult?.stack);
 	}
 
 	private constructor(

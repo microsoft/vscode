@@ -621,7 +621,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			isAsync: false,
 			token,
 			expectsResult: true,
-			lowPriority: config ? config.lowPriority : undefined
+			lowPriority: config?.lowPriority
 		});
 
 		if (config?.nonRecoverable) {
