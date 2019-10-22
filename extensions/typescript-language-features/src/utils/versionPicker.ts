@@ -58,7 +58,7 @@ export class TypeScriptVersionPicker {
 		pickOptions.push({
 			label: (!this.useWorkspaceTsdkSetting
 				? '• '
-				: '') + localize('useVSCodeVersionOption', 'Use VS Code\'s Version'),
+				: '') + localize('useVSCodeVersionOption', "Use VS Code's Version"),
 			description: shippedVersion.displayName,
 			detail: shippedVersion.pathLabel,
 			id: MessageAction.useBundled,
@@ -68,7 +68,7 @@ export class TypeScriptVersionPicker {
 			pickOptions.push({
 				label: (this.useWorkspaceTsdkSetting && this.currentVersion.path === version.path
 					? '• '
-					: '') + localize('useWorkspaceVersionOption', 'Use Workspace Version'),
+					: '') + localize('useWorkspaceVersionOption', "Use Workspace Version"),
 				description: version.displayName,
 				detail: version.pathLabel,
 				id: MessageAction.useLocal,
@@ -85,7 +85,7 @@ export class TypeScriptVersionPicker {
 		const selected = await vscode.window.showQuickPick<MyQuickPickItem>(pickOptions, {
 			placeHolder: localize(
 				'selectTsVersion',
-				'Select the TypeScript version used for JavaScript and TypeScript language features'),
+				"Select the TypeScript version used for JavaScript and TypeScript language features"),
 			ignoreFocusOut: firstRun,
 		});
 
