@@ -7,6 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CHILD_CONCURRENCY: "1"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
     - uses: actions/checkout@v1
     # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
@@ -45,6 +46,7 @@ jobs:
     runs-on: windows-2016
     env:
       CHILD_CONCURRENCY: "1"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
     - uses: actions/checkout@v1
     - uses: actions/setup-node@v1
@@ -76,6 +78,7 @@ jobs:
     runs-on: macos-latest
     env:
       CHILD_CONCURRENCY: "1"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
     - uses: actions/checkout@v1
     - uses: actions/setup-node@v1
