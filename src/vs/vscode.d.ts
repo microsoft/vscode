@@ -3393,15 +3393,17 @@ declare module 'vscode' {
 		insertText?: string | SnippetString;
 
 		/**
-		 * A range of text that should be replaced by this completion item.
+		 * A range or a insert and replace range selecting the text that should be replaced by this completion item.
 		 *
-		 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
-		 * current position.
+		 * When omitted, the range of the [current word](#TextDocument.getWordRangeAtPosition) is used as replace-range
+		 * and as insert-range the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position is used.
 		 *
-		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+		 * *Note 1:* A range must be a [single line](#Range.isSingleLine) and it must
 		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
 		 */
-		range?: Range;
+		range?: Range | { insert: Range; replace: Range; };
 
 		/**
 		 * An optional set of characters that when pressed while this completion is active will accept it first and

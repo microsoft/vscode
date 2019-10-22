@@ -658,13 +658,13 @@ class SuggestAdapter {
 			this._disposables.set(pid, disposables);
 
 			// the default text edit range
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
-				.with({ end: pos });
+			const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
+			const insertRange = replaceRange.with({ end: pos });
 
 			const result: extHostProtocol.ISuggestResultDto = {
 				x: pid,
 				b: [],
-				a: typeConvert.Range.from(wordRangeBeforePos),
+				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
 				c: list.isIncomplete || undefined
 			};
 
@@ -751,20 +751,43 @@ class SuggestAdapter {
 		}
 
 		// 'overwrite[Before|After]'-logic
-		let range: vscode.Range | undefined;
+		let range: vscode.Range | { insert: vscode.Range, replace: vscode.Range } | undefined;
 		if (item.textEdit) {
 			range = item.textEdit.range;
 		} else if (item.range) {
 			range = item.range;
 		}
-		result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
 
-		if (range && (!range.isSingleLine || range.start.line !== position.line)) {
-			console.warn('INVALID text edit -> must be single line and on the same line');
-			return undefined;
+		if (range) {
+			if (Range.isRange(range)) {
+				if (!SuggestAdapter._isValidRangeForCompletion(range, position)) {
+					console.trace('INVALID range -> must be single line and on the same line');
+					return undefined;
+				}
+				result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
+
+			} else {
+				if (
+					!SuggestAdapter._isValidRangeForCompletion(range.insert, position)
+					|| !SuggestAdapter._isValidRangeForCompletion(range.replace, position)
+					|| !range.insert.start.isEqual(range.replace.start)
+					|| !range.replace.contains(range.insert)
+				) {
+					console.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
+					return undefined;
+				}
+				result[extHostProtocol.ISuggestDataDtoField.range] = {
+					insert: typeConvert.Range.from(range.insert),
+					replace: typeConvert.Range.from(range.replace)
+				};
+			}
 		}
 
 		return result;
+	}
+
+	private static _isValidRangeForCompletion(range: vscode.Range, position: vscode.Position): boolean {
+		return range.isSingleLine || range.start.line === position.line;
 	}
 }
 

@@ -4765,7 +4765,10 @@ declare namespace monaco.languages {
 		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 		 */
-		range: IRange;
+		range: IRange | {
+			insert: IRange;
+			replace: IRange;
+		};
 		/**
 		 * An optional set of characters that when pressed while this completion is active will accept it first and
 		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous

@@ -412,11 +412,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(values.length, 4);
 				let [first, second, third, fourth] = values;
 				assert.equal(first.label, 'item1');
-				assert.equal(first.textEdit!.newText, 'item1');
-				assert.equal(first.textEdit!.range.start.line, 0);
-				assert.equal(first.textEdit!.range.start.character, 0);
-				assert.equal(first.textEdit!.range.end.line, 0);
-				assert.equal(first.textEdit!.range.end.character, 4);
+				assert.equal(first.textEdit, undefined);// no text edit, default ranges
+				assert.ok(!types.Range.isRange(first.range));
 
 				assert.equal(second.label, 'item2');
 				assert.equal(second.textEdit!.newText, 'foo');
@@ -434,10 +431,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 				assert.equal(fourth.label, 'item4');
 				assert.equal(fourth.textEdit, undefined);
-				assert.equal(fourth.range!.start.line, 0);
-				assert.equal(fourth.range!.start.character, 1);
-				assert.equal(fourth.range!.end.line, 0);
-				assert.equal(fourth.range!.end.character, 4);
+
+				const range: any = fourth.range!;
+				assert.ok(types.Range.isRange(range));
+				assert.equal(range.start.line, 0);
+				assert.equal(range.start.character, 1);
+				assert.equal(range.end.line, 0);
+				assert.equal(range.end.character, 4);
 				assert.ok(fourth.insertText instanceof types.SnippetString);
 				assert.equal((<types.SnippetString>fourth.insertText).value, 'foo$0bar');
 			});
