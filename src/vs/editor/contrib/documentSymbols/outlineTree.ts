@@ -440,7 +440,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconArrayColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-array {
-				color: ${symbolIconArrayColor};
+				color: ${symbolIconArrayColor} !important;
 			}
 		`);
 	}
@@ -449,7 +449,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconBooleanColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-boolean {
-				color: ${symbolIconBooleanColor};
+				color: ${symbolIconBooleanColor} !important;
 			}
 		`);
 	}
@@ -458,7 +458,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconClassColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-class {
-				color: ${symbolIconClassColor};
+				color: ${symbolIconClassColor} !important;
 			}
 		`);
 	}
@@ -467,7 +467,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconMethodColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-method {
-				color: ${symbolIconMethodColor};
+				color: ${symbolIconMethodColor} !important;
 			}
 		`);
 	}
@@ -476,7 +476,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconConstantColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-constant {
-				color: ${symbolIconConstantColor};
+				color: ${symbolIconConstantColor} !important;
 			}
 		`);
 	}
@@ -485,7 +485,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconConstructorColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-constructor {
-				color: ${symbolIconConstructorColor};
+				color: ${symbolIconConstructorColor} !important;
 			}
 		`);
 	}
@@ -494,8 +494,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconEnumeratorColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-value,
-			.monaco-workbench .codicon-symbol-enum {
-				color: ${symbolIconEnumeratorColor};
+			.monaco-workbench .codicon-symbol-enum  !important{
+				color: ${symbolIconEnumeratorColor} !important;
 			}
 		`);
 	}
@@ -504,7 +504,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconEnumeratorMemberColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-enum-member {
-				color: ${symbolIconEnumeratorMemberColor};
+				color: ${symbolIconEnumeratorMemberColor} !important;
 			}
 		`);
 	}
@@ -513,7 +513,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconEventColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-event {
-				color: ${symbolIconEventColor};
+				color: ${symbolIconEventColor} !important;
 			}
 		`);
 	}
@@ -522,7 +522,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconFieldColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-field {
-				color: ${symbolIconFieldColor};
+				color: ${symbolIconFieldColor} !important;
 			}
 		`);
 	}
@@ -531,7 +531,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconFileColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-file {
-				color: ${symbolIconFileColor};
+				color: ${symbolIconFileColor} !important;
 			}
 		`);
 	}
@@ -540,7 +540,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconFunctionColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-function {
-				color: ${symbolIconFunctionColor};
+				color: ${symbolIconFunctionColor} !important;
 			}
 		`);
 	}
@@ -549,7 +549,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconInterfaceColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-interface {
-				color: ${symbolIconInterfaceColor};
+				color: ${symbolIconInterfaceColor} !important;
 			}
 		`);
 	}
@@ -558,7 +558,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconKeyColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-key {
-				color: ${symbolIconKeyColor};
+				color: ${symbolIconKeyColor} !important;
 			}
 		`);
 	}
@@ -567,7 +567,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconModuleColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-module {
-				color: ${symbolIconModuleColor};
+				color: ${symbolIconModuleColor} !important;
 			}
 		`);
 	}
@@ -576,7 +576,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (outlineNamespaceColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-namespace {
-				color: ${outlineNamespaceColor};
+				color: ${outlineNamespaceColor} !important;
 			}
 		`);
 	}
@@ -585,7 +585,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconNullColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-null {
-				color: ${symbolIconNullColor};
+				color: ${symbolIconNullColor} !important;
 			}
 		`);
 	}
@@ -594,7 +594,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconNumberColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-number {
-				color: ${symbolIconNumberColor};
+				color: ${symbolIconNumberColor} !important;
 			}
 		`);
 	}
@@ -603,7 +603,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconObjectColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-object {
-				color: ${symbolIconObjectColor};
+				color: ${symbolIconObjectColor} !important;
 			}
 		`);
 	}
@@ -612,7 +612,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconOperatorColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-operator {
-				color: ${symbolIconOperatorColor};
+				color: ${symbolIconOperatorColor} !important;
 			}
 		`);
 	}
@@ -621,7 +621,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconPackageColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-package {
-				color: ${symbolIconPackageColor};
+				color: ${symbolIconPackageColor} !important;
 			}
 		`);
 	}
@@ -630,7 +630,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconPropertyColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-property {
-				color: ${symbolIconPropertyColor};
+				color: ${symbolIconPropertyColor} !important;
 			}
 		`);
 	}
@@ -639,7 +639,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconStringColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-string {
-				color: ${symbolIconStringColor};
+				color: ${symbolIconStringColor} !important;
 			}
 		`);
 	}
@@ -648,7 +648,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconStructColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-struct {
-				color: ${symbolIconStructColor};
+				color: ${symbolIconStructColor} !important;
 			}
 		`);
 	}
@@ -657,7 +657,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconTypeParameterColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-type-parameter {
-				color: ${symbolIconTypeParameterColor};
+				color: ${symbolIconTypeParameterColor} !important;
 			}
 		`);
 	}
@@ -666,7 +666,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconVariableColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-variable {
-				color: ${symbolIconVariableColor};
+				color: ${symbolIconVariableColor} !important;
 			}
 		`);
 	}
