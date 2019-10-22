@@ -10,6 +10,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IURLService } from 'vs/platform/url/common/url';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -22,6 +24,8 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		extHostContext: IExtHostContext,
 		@IHostService private readonly hostService: IHostService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IURLService private readonly urlService: IURLService,
+		@IProductService private readonly productService: IProductService
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
@@ -44,6 +48,20 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	async $openUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<boolean> {
 		const uri = URI.from(uriComponents);
+
+		if (uri.scheme === this.productService.urlProtocol) {
+			// special case for URLs using URL protocol: we transform
+			// the URL via the IURLService to correctly address this
+			// instance of VSCode when the link is opened. depending on
+			// using desktop or web, this means:
+			// - desktop: a window ID parameter is added to ensure the
+			//            correct window is targeted when multiple are open
+			// -     web: the URL uses http/https scheme because the URL
+			//            protocol will only work if addressable by browsers
+			const resolvedAppUri = this.urlService.create(uri);
+			return this.openerService.open(resolvedAppUri, { openExternal: true });
+		}
+
 		return this.openerService.open(uri, { openExternal: true, allowTunneling: options.allowTunneling });
 	}
 
