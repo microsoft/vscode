@@ -492,7 +492,8 @@ export class ToggleAutoSaveAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(id, label);
 	}
@@ -511,7 +512,9 @@ export class ToggleAutoSaveAction extends Action {
 			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
 		}
 
-		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue, ConfigurationTarget.USER).then(() => {
+			this.notificationService.info(nls.localize('toggleAutoSaveActionInfo', "Config files.autoSave updated to ") + newAutoSaveValue);
+		});
 	}
 }
 
