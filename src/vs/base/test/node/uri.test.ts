@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
-
+import { pathToFileURL } from 'url';
 
 suite('URI', () => {
 	test('file#toString', () => {
@@ -427,21 +427,24 @@ suite('URI', () => {
 	});
 
 	test('Unable to open \'%A0.txt\': URI malformed #76506', function () {
-
-		let uri = URI.file('/foo/%A0.txt');
-		let uri2 = URI.parse(uri.toString());
-		assert.equal(uri.scheme, uri2.scheme);
-		assert.equal(uri.path, uri2.path);
-
-		uri = URI.file('/foo/%2e.txt');
-		uri2 = URI.parse(uri.toString());
-		assert.equal(uri.scheme, uri2.scheme);
-		assert.equal(uri.path, uri2.path);
+		let uriFromPath = URI.file('/foo/%A0.txt');
+		let uriFromStr = URI.parse(uriFromPath.toString());
+		assert.equal(uriFromPath.scheme, uriFromStr.scheme);
+		assert.equal(uriFromPath.path, uriFromStr.path);
+		assert.equal(uriFromPath.toString(), 'file:///foo/%25A0.txt');
+		assert.equal(uriFromStr.toString(), 'file:///foo/%25A0.txt');
 	});
 
+	test('Valid percent-encoded character in filename', function () {
+		let uriFromPath = URI.file('/foo/%2e.txt');
+		let uriFromStr = URI.parse(uriFromPath.toString());
+		assert.equal(uriFromPath.scheme, uriFromStr.scheme);
+		assert.equal(uriFromPath.path, uriFromStr.path);
+		assert.equal(uriFromPath.toString(), 'file:///foo/%252e.txt');
+		assert.equal(uriFromStr.toString(), 'file:///foo/%252e.txt');
+	});
 
 	test('Links in markdown are broken if url contains encoded parameters #79474', function () {
-		this.skip();
 		let strIn = 'https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom';
 		let uri1 = URI.parse(strIn);
 		let strOut = uri1.toString();
@@ -456,7 +459,6 @@ suite('URI', () => {
 	});
 
 	test('Uri#parse can break path-component #45515', function () {
-		this.skip();
 		let strIn = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
 		let uri1 = URI.parse(strIn);
 		let strOut = uri1.toString();
@@ -498,5 +500,21 @@ suite('URI', () => {
 		}
 		// }
 		// console.profileEnd();
+	});
+
+	function assertFileUri(path: string): void {
+		// check that our uri aligns with nodejs
+		const actual = URI.file(path).toString();
+		const expected = pathToFileURL(path).href;
+		assert.equal(actual, expected);
+	}
+
+	test('URI.file vs pathToFileURL', function () {
+		assertFileUri('/foo/bar');
+		assertFileUri('/foo/%2e.txt'); // %2e -> .
+		assertFileUri('/foo/%A0.txt'); // %A0 -> invalid
+		assertFileUri('/foo/ü.txt');
+		assertFileUri('/foo/ß.txt');
+		// assertFileUri('foo'); nodejs resolves the path first
 	});
 });

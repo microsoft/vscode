@@ -74,7 +74,16 @@ function _referenceResolution(scheme: string, path: string): string {
 
 const _empty = '';
 const _slash = '/';
+
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
+
+const enum MatchIndex {
+	scheme = 2,
+	authority = 4,
+	path = 5,
+	query = 7,
+	fragment = 9
+}
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -262,15 +271,24 @@ export class URI implements UriComponents {
 	static parse(value: string): URI {
 		const match = _regexp.exec(value);
 		if (!match) {
-			return new _URI(_empty, _empty, _empty, _empty, _empty);
+			throw new Error(`[UriError]: Invalid input: ${value}`);
 		}
-		return new _URI(
-			match[2] || _empty,
-			percentDecode(match[4] || _empty),
-			percentDecode(match[5] || _empty),
-			percentDecode(match[7] || _empty),
-			percentDecode(match[9] || _empty)
+
+		const scheme = _schemeFix(match[MatchIndex.scheme]) || _empty;
+		const authority = match[MatchIndex.authority] || _empty;
+		const path = _referenceResolution(scheme, match[MatchIndex.path] || _empty);
+		const query = match[MatchIndex.query] || _empty;
+		const fragment = match[MatchIndex.fragment] || _empty;
+
+		const result = new _URI(
+			scheme,
+			percentDecode(authority),
+			percentDecode(path),
+			percentDecode(query),
+			percentDecode(fragment),
 		);
+		result._formatted = _toString(false, scheme, authority, path, query, fragment);
+		return result;
 	}
 
 	/**
@@ -318,7 +336,15 @@ export class URI implements UriComponents {
 			}
 		}
 
-		return new _URI('file', authority, path, _empty, _empty);
+		if (path.charAt(0) !== _slash) {
+			path = _slash + path;
+		}
+
+		// escape some vital characters
+		authority = authority.replace(/%/g, '%25');
+		path = path.replace(/%/g, '%25');
+
+		return URI.parse('file://' + authority + path);
 	}
 
 	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string; }): URI {
