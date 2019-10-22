@@ -81,6 +81,7 @@ import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
+const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -1876,6 +1877,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return true;
 	}
 
+	private showDetail(): boolean {
+		return this.configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
+	}
+
 	private createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry): TaskQuickPickEntry[] {
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
@@ -1892,7 +1897,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					description = workspaceFolder.name;
 				}
 			}
-			return { label: task._label, description, task };
+
+			return { label: task._label, description, task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
 		};
 		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
 			if (tasks.length) {
