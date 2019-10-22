@@ -5029,6 +5029,26 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #82701: auto close does not execute when IME is canceled via backspace', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'{}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 2, 1, 2)]);
+
+			// Typing a + backspace
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: 'a' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+			assert.equal(model.getValue(), '{}');
+		});
+		mode.dispose();
+	});
+
 	test('issue #20891: All cursors should do the same thing', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
