@@ -152,7 +152,7 @@ class ToggleScreencastModeAction extends Action {
 			}
 		}));
 
-		const onKeyDown = domEvent(container, 'keydown', true);
+		const onKeyDown = domEvent(window, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
 		let length = 0;
 
