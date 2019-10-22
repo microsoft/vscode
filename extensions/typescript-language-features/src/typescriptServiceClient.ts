@@ -515,7 +515,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						}
 					*/
 					this.logTelemetry('serviceExited');
-				} else if (diff < 60 * 1000 /* 1 Minutes */) {
+				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
 					this.lastStart = Date.now();
 					prompt = vscode.window.showWarningMessage<MyMessageItem>(
 						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
