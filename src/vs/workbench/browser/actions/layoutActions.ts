@@ -16,13 +16,14 @@ import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/ed
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
@@ -413,13 +414,14 @@ export class ToggleMenuBarAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		let currentVisibilityValue = this.configurationService.getValue<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey);
+		let currentVisibilityValue = getMenuBarVisibility(this.configurationService, this.environmentService);
 		if (typeof currentVisibilityValue !== 'string') {
 			currentVisibilityValue = 'default';
 		}

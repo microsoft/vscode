@@ -36,8 +36,9 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWeb } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface ICachedViewlet {
 	id: string;
@@ -89,7 +90,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -112,7 +114,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, assertIsDefined(this.viewletService.getViewlet(compositeId))),
 			getContextMenuActions: () => {
-				const menuBarVisibility = this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+				const menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
 				const actions = [];
 
 				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
@@ -157,7 +159,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Register for configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.menuBarVisibility')) {
-				if (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'compact') {
+				if (getMenuBarVisibility(this.configurationService, this.environmentService) === 'compact') {
 					this.installMenubar();
 				} else {
 					this.uninstallMenubar();
@@ -244,7 +246,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		parent.appendChild(this.content);
 
 		// Install menubar if compact
-		if (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'compact') {
+		if (getMenuBarVisibility(this.configurationService, this.environmentService) === 'compact') {
 			this.installMenubar();
 		}
 

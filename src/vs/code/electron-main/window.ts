@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product/common/product';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -936,12 +936,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		if (!windowConfig || !windowConfig.menuBarVisibility) {
-			return 'default';
-		}
-
-		let menuBarVisibility = windowConfig.menuBarVisibility;
+		let menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService, !!this.config?.extensionDevelopmentPath);
 		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
 			menuBarVisibility = 'default';
 		}

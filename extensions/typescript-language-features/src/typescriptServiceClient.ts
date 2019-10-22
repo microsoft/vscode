@@ -91,7 +91,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private lastStart: number;
 	private numberRestarts: number;
 	private isRestarting: boolean = false;
-	private loadingIndicator = new ServerInitializingIndicator();
+	private readonly loadingIndicator = new ServerInitializingIndicator();
 
 	public readonly telemetryReporter: TelemetryReporter;
 
@@ -288,7 +288,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		const apiVersion = this.versionPicker.currentVersion.apiVersion || API.defaultVersion;
 		this.onDidChangeTypeScriptVersion(currentVersion);
 		let mytoken = ++this.token;
-		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager);
+		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager, {
+			onFatalError: (command) => this.fatalError(command),
+		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
 
@@ -515,7 +517,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						}
 					*/
 					this.logTelemetry('serviceExited');
-				} else if (diff < 60 * 1000 /* 1 Minutes */) {
+				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
 					this.lastStart = Date.now();
 					prompt = vscode.window.showWarningMessage<MyMessageItem>(
 						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
@@ -543,7 +545,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
 			const dirName = path.dirname(resource.path);
 			const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
-			return resource.with({ path: path.posix.join(dirName, fileName) }).toString(true);
+			return resource.with({ path: path.posix.join(dirName, fileName), query: '' }).toString(true);
 		}
 
 		if (resource.scheme !== fileSchemes.file) {
@@ -583,10 +585,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				const dirName = path.dirname(resource.path);
 				const fileName = path.basename(resource.path);
 				if (fileName.startsWith(this.inMemoryResourcePrefix)) {
-					resource = resource.with({ path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
+					resource = resource.with({
+						path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length))
+					});
 				}
 			}
-			return resource;
+			return this.bufferSyncSupport.toVsCodeResource(resource);
 		}
 
 		return this.bufferSyncSupport.toResource(filepath);
@@ -665,7 +669,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.logTelemetry('fatalError', { command });
 		console.error(`A non-recoverable error occured while executing tsserver command: ${command}`);
 
-		this.restartTsServer();
+		if (this.serverState.type === ServerState.Type.Running) {
+			this.info('Killing TS Server');
+			this.serverState.server.kill();
+		}
 	}
 
 	private dispatchEvent(event: Proto.Event) {
@@ -710,7 +717,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			case 'projectsUpdatedInBackground':
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
-				const resources = body.openFiles.map(vscode.Uri.file);
+				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);
 				break;
 
