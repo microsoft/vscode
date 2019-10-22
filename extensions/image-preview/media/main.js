@@ -232,9 +232,6 @@
 			return;
 		}
 
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (scale === 'fit') {
 			firstZoom();
 		}
