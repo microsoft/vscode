@@ -287,7 +287,7 @@ export class URI implements UriComponents {
 			percentDecode(query),
 			percentDecode(fragment),
 		);
-		result._formatted = _toString(false, scheme, authority, path, query, fragment);
+		result._formatted = _toString(normalEncode, scheme, authority, path, query, fragment);
 		return result;
 	}
 
@@ -344,6 +344,10 @@ export class URI implements UriComponents {
 		authority = authority.replace(/%/g, '%25');
 		path = path.replace(/%/g, '%25');
 
+		if (!isWindows) {
+			path = path.replace(/\\/g, '%5C');
+		}
+
 		return URI.parse('file://' + authority + path);
 	}
 
@@ -371,7 +375,7 @@ export class URI implements UriComponents {
 	 * @param skipEncoding Do not encode the result, default is `false`
 	 */
 	toString(skipEncoding: boolean = false): string {
-		return _toString(skipEncoding, this.scheme, this.authority, this.path, this.query, this.fragment);
+		return _toString(skipEncoding ? minialEncode : normalEncode, this.scheme, this.authority, this.path, this.query, this.fragment);
 	}
 
 	toJSON(): UriComponents {
@@ -429,10 +433,10 @@ class _URI extends URI {
 	toString(skipEncoding: boolean = false): string {
 		if (skipEncoding) {
 			// we don't cache that
-			return _toString(true, this.scheme, this.authority, this.path, this.query, this.fragment);
+			return _toString(minialEncode, this.scheme, this.authority, this.path, this.query, this.fragment);
 		}
 		if (!this._formatted) {
-			this._formatted = _toString(false, this.scheme, this.authority, this.path, this.query, this.fragment);
+			this._formatted = _toString(normalEncode, this.scheme, this.authority, this.path, this.query, this.fragment);
 		}
 		return this._formatted;
 	}
@@ -552,6 +556,11 @@ function isQueryPrecentEncodeSet(code: number): boolean {
 		|| code === 0x27; // <- todo@joh https://url.spec.whatwg.org/#is-special
 }
 
+// this is non-standard and uses for `URI.toString(true)`
+function isHashOrQuestionMark(code: number): boolean {
+	return code === CharCode.Hash || code === CharCode.QuestionMark;
+}
+
 function isLowerAsciiHex(code: number): boolean {
 	return code >= CharCode.Digit0 && code <= CharCode.Digit9
 		|| code >= CharCode.a && code <= CharCode.z;
@@ -605,10 +614,16 @@ function percentEncode(str: string, mustEncode: (code: number) => boolean): stri
 	return lazyOutStr || str;
 }
 
+const enum EncodePart {
+	user, authority, path, query, fragment
+}
+const normalEncode: { (code: number): boolean }[] = [isUserInfoPercentEncodeSet, isC0ControlPercentEncodeSet, isPathPercentEncodeSet, isFragmentPercentEncodeSet, isQueryPrecentEncodeSet];
+const minialEncode: { (code: number): boolean }[] = [isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, () => false];
+
 /**
  * Create the external version of a uri
  */
-function _toString(minimal: boolean, scheme: string, authority: string, path: string, query: string, fragment: string): string {
+function _toString(encoder: { (code: number): boolean }[], scheme: string, authority: string, path: string, query: string, fragment: string): string {
 
 	let res = '';
 	if (scheme) {
@@ -626,11 +641,11 @@ function _toString(minimal: boolean, scheme: string, authority: string, path: st
 			const userInfo = authority.substr(0, idxUserInfo);
 			const idxPasswordOrToken = userInfo.indexOf(':');
 			if (idxPasswordOrToken !== -1) {
-				res += percentEncode(userInfo.substr(0, idxPasswordOrToken), isUserInfoPercentEncodeSet);
+				res += percentEncode(userInfo.substr(0, idxPasswordOrToken), encoder[EncodePart.user]);
 				res += ':';
-				res += percentEncode(userInfo.substr(idxPasswordOrToken + 1), isUserInfoPercentEncodeSet);
+				res += percentEncode(userInfo.substr(idxPasswordOrToken + 1), encoder[EncodePart.user]);
 			} else {
-				res += percentEncode(userInfo, isUserInfoPercentEncodeSet);
+				res += percentEncode(userInfo, encoder[EncodePart.user]);
 			}
 			res += '@';
 		}
@@ -638,31 +653,30 @@ function _toString(minimal: boolean, scheme: string, authority: string, path: st
 		const idxPort = authority.indexOf(':');
 		if (idxPort !== -1) {
 			// <authority>:<port>
-			res += percentEncode(authority.substr(0, idxPort), isC0ControlPercentEncodeSet);
+			res += percentEncode(authority.substr(0, idxPort), encoder[EncodePart.authority]);
 			res += ':';
 		}
-		res += percentEncode(authority.substr(idxPort + 1), isC0ControlPercentEncodeSet);
+		res += percentEncode(authority.substr(idxPort + 1), encoder[EncodePart.authority]);
 	}
 	if (path) {
 		// encode the path
-		let pathEncoded = percentEncode(path, isPathPercentEncodeSet);
+		let pathEncoded = percentEncode(path, encoder[EncodePart.path]);
 
 		// lower-case windows drive letters in /C:/fff or C:/fff and escape `:`
-		if (!minimal) {
-			let match = /(\/?[a-zA-Z]):/.exec(pathEncoded); // <- todo@joh make fast!
-			if (match) {
-				pathEncoded = match[1].toLowerCase() + '%3A' + pathEncoded.substr(match[0].length);
-			}
+
+		let match = /(\/?[a-zA-Z]):/.exec(pathEncoded); // <- todo@joh make fast!
+		if (match) {
+			pathEncoded = match[1].toLowerCase() + '%3A' + pathEncoded.substr(match[0].length);
 		}
 		res += pathEncoded;
 	}
 	if (query) {
 		res += '?';
-		res += percentEncode(query, isQueryPrecentEncodeSet);
+		res += percentEncode(query, encoder[EncodePart.query]);
 	}
 	if (fragment) {
 		res += '#';
-		res += percentEncode(fragment, isFragmentPercentEncodeSet);
+		res += percentEncode(fragment, encoder[EncodePart.fragment]);
 	}
 	return res;
 }

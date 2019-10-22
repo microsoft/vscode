@@ -63,8 +63,8 @@ suite('URI', () => {
 		assert.equal(URI.from({ scheme: 'http', authority: '', path: 'my/path' }).toString(), 'http:/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: '', path: '/my/path' }).toString(), 'http:/my/path');
 		//http://a-test-site.com/#test=true
-		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(), 'http://a-test-site.com/?test%3Dtrue');
-		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(), 'http://a-test-site.com/#test%3Dtrue');
+		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(), 'http://a-test-site.com/?test=true');
+		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(), 'http://a-test-site.com/#test=true');
 	});
 
 	test('http#toString, encode=FALSE', () => {
@@ -102,12 +102,12 @@ suite('URI', () => {
 
 	test('with, changes', () => {
 		assert.equal(URI.parse('before:some/file/path').with({ scheme: 'after' }).toString(), 'after:some/file/path');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTP:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTPS:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTP:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTPS:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t=1234');
 	});
 
 	test('with, remove components #8465', () => {
@@ -327,7 +327,7 @@ suite('URI', () => {
 	test('URI#toString, escape all the bits', () => {
 
 		const value = URI.file('/Users/jrieken/Code/_samples/18500/Mödel + Other Thîngß/model.js');
-		assert.equal(value.toString(), 'file:///Users/jrieken/Code/_samples/18500/M%C3%B6del%20%2B%20Other%20Th%C3%AEng%C3%9F/model.js');
+		assert.equal(value.toString(), 'file:///Users/jrieken/Code/_samples/18500/M%C3%B6del%20+%20Other%20Th%C3%AEng%C3%9F/model.js');
 	});
 
 	test('URI#toString, don\'t encode port', () => {
@@ -376,7 +376,7 @@ suite('URI', () => {
 		let uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008');
 		assert.equal(uri.query, 'LinkId=518008');
 		assert.equal(uri.toString(true), 'https://go.microsoft.com/fwlink/?LinkId=518008');
-		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId%3D518008');
+		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId=518008');
 
 		let uri2 = URI.parse(uri.toString());
 		assert.equal(uri2.query, 'LinkId=518008');
@@ -385,7 +385,7 @@ suite('URI', () => {
 		uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri.query, 'LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri.toString(true), 'https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
-		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId%3D518008%26fo%C3%B6%26k%C3%A9%C2%A5%3D%C3%BC%C3%BC');
+		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId=518008&fo%C3%B6&k%C3%A9%C2%A5=%C3%BC%C3%BC');
 
 		uri2 = URI.parse(uri.toString());
 		assert.equal(uri2.query, 'LinkId=518008&foö&ké¥=üü');
@@ -516,5 +516,8 @@ suite('URI', () => {
 		assertFileUri('/foo/ü.txt');
 		assertFileUri('/foo/ß.txt');
 		// assertFileUri('foo'); nodejs resolves the path first
+		if (!isWindows) {
+			assertFileUri('/c\\win\\path');
+		}
 	});
 });
