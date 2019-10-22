@@ -92,9 +92,13 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private preprocessHtml(value: string): string {
-		return value.replace(/(["'])vscode-resource:(\/\/([^\s'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_, startQuote, _1, scheme, path, endQuote) => {
-			return `${startQuote}${this.externalEndpoint}/vscode-resource/${scheme || ''}${path}${endQuote}`;
-		});
+		return value
+			.replace(/(["'])vscode-resource:(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
+				if (scheme) {
+					return `${startQuote}${this.externalEndpoint}/vscode-resource/${scheme}${path}${endQuote}`;
+				}
+				return `${startQuote}${this.externalEndpoint}/vscode-resource/file${path}${endQuote}`;
+			});
 	}
 
 	protected get extraContentOptions() {
