@@ -299,11 +299,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				],
-				"localTypeScriptVersion":  { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"localTypeScriptVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.logTelemetry('tsserver.spawned', {
 			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
+			typeScriptVersionSource: currentVersion.source,
 		});
 
 		handle.onError((err: Error) => {
