@@ -494,7 +494,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (symbolIconEnumeratorColor) {
 		collector.addRule(`
 			.monaco-workbench .codicon-symbol-value,
-			.monaco-workbench .codicon-symbol-enum  !important{
+			.monaco-workbench .codicon-symbol-enum {
 				color: ${symbolIconEnumeratorColor} !important;
 			}
 		`);
