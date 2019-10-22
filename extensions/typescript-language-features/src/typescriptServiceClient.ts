@@ -288,7 +288,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		const apiVersion = this.versionPicker.currentVersion.apiVersion || API.defaultVersion;
 		this.onDidChangeTypeScriptVersion(currentVersion);
 		let mytoken = ++this.token;
-		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager);
+		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager, {
+			onFatalError: (command) => this.fatalError(command),
+		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
 
@@ -665,7 +667,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.logTelemetry('fatalError', { command });
 		console.error(`A non-recoverable error occured while executing tsserver command: ${command}`);
 
-		this.restartTsServer();
+		if (this.serverState.type === ServerState.Type.Running) {
+			this.info('Killing TS Server');
+			this.serverState.server.kill();
+		}
 	}
 
 	private dispatchEvent(event: Proto.Event) {
