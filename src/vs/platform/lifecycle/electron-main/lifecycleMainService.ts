@@ -504,11 +504,11 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		this.logService.trace('Lifecycle#relaunch()');
 
 		const args = process.argv.slice(1);
-		if (options && options.addArgs) {
+		if (options?.addArgs) {
 			args.push(...options.addArgs);
 		}
 
-		if (options && options.removeArgs) {
+		if (options?.removeArgs) {
 			for (const a of options.removeArgs) {
 				const idx = args.indexOf(a);
 				if (idx >= 0) {

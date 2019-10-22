@@ -954,7 +954,7 @@ export namespace SymbolKinds {
 	 * @internal
 	 */
 	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		return `symbol-icon ${inline ? 'inline' : 'block'} ${byKind.get(kind) || 'property'}`;
+		return `codicon ${inline ? 'inline' : 'block'} codicon-symbol-${byKind.get(kind) || 'property'}`;
 	}
 }
 
@@ -1617,9 +1617,9 @@ export interface ITokenizationRegistry {
 
 	/**
 	 * Get the tokenization support for a language.
-	 * Returns `undefined` if not found.
+	 * Returns `null` if not found.
 	 */
-	get(language: string): ITokenizationSupport | undefined;
+	get(language: string): ITokenizationSupport | null;
 
 	/**
 	 * Get the promise of a tokenization support for a language.
@@ -1632,9 +1632,9 @@ export interface ITokenizationRegistry {
 	 */
 	setColorMap(colorMap: Color[]): void;
 
-	getColorMap(): Color[] | undefined;
+	getColorMap(): Color[] | null;
 
-	getDefaultBackground(): Color | undefined;
+	getDefaultBackground(): Color | null;
 }
 
 /**

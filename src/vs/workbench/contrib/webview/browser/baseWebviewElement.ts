@@ -272,4 +272,19 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		// And re-dispatch
 		window.dispatchEvent(emulatedKeyboardEvent);
 	}
+
+	windowDidDragStart(): void {
+		// Webview break drag and droping around the main window (no events are generated when you are over them)
+		// Work around this by disabling pointer events during the drag.
+		// https://github.com/electron/electron/issues/18226
+		if (this.element) {
+			this.element.style.pointerEvents = 'none';
+		}
+	}
+
+	windowDidDragEnd(): void {
+		if (this.element) {
+			this.element.style.pointerEvents = '';
+		}
+	}
 }

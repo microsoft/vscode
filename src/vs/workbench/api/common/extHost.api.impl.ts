@@ -248,14 +248,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
 			asExternalUri(uri: URI) {
-				checkProposedApiEnabled(extension);
 				return extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
 			},
 			get uiKind() {
-				checkProposedApiEnabled(extension);
 				return initData.uiKind;
 			}
 		};

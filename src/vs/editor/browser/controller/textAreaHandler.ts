@@ -454,6 +454,18 @@ export class TextAreaHandler extends ViewPart {
 		}
 
 		// The primary cursor is in the viewport (at least vertically) => place textarea on the cursor
+
+		if (platform.isMacintosh) {
+			// For the popup emoji input, we will make the text area as high as the line height
+			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
+			this._renderInsideEditor(
+				top, left,
+				canUseZeroSizeTextarea ? 0 : 1, this._lineHeight,
+				true
+			);
+			return;
+		}
+
 		this._renderInsideEditor(
 			top, left,
 			canUseZeroSizeTextarea ? 0 : 1, canUseZeroSizeTextarea ? 0 : 1,

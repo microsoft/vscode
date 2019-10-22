@@ -316,6 +316,12 @@ export interface IEditor {
 	getVisibleColumnFromPosition(position: IPosition): number;
 
 	/**
+	 * Given a position, returns a column number that takes tab-widths into account.
+	 * @internal
+	 */
+	getStatusbarColumn(position: IPosition): number;
+
+	/**
 	 * Returns the primary position of the cursor.
 	 */
 	getPosition(): Position | null;

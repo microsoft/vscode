@@ -61,8 +61,8 @@ class Settings {
 		const minimapOpts = options.get(EditorOption.minimap);
 		const minimapEnabled = minimapOpts.enabled;
 		const minimapSide = minimapOpts.side;
-		const backgroundColor = (minimapEnabled ? TokenizationRegistry.getDefaultBackground() : undefined);
-		if (typeof backgroundColor === 'undefined' || minimapSide === 'left') {
+		const backgroundColor = (minimapEnabled ? TokenizationRegistry.getDefaultBackground() : null);
+		if (backgroundColor === null || minimapSide === 'left') {
 			this.backgroundColor = null;
 		} else {
 			this.backgroundColor = Color.Format.CSS.formatHex(backgroundColor);

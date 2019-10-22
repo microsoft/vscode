@@ -106,7 +106,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 
 			if (promise && (event.kind === TaskEventKind.Active) && (this.activeTasksCount === 1)) {
-				this.progressService.withProgress({ location: ProgressLocation.Window }, progress => {
+				this.progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
 					progress.report({ message: nls.localize('building', 'Building...') });
 					return promise!;
 				}).then(() => {
@@ -333,6 +333,33 @@ configurationRegistry.registerConfiguration({
 		},
 		'task.autoDetect': {
 			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions my provide settings to disabled auto detection."),
+			type: 'boolean',
+			default: true
+		},
+		'task.slowProviderWarning': {
+			markdownDescription: nls.localize('task.slowProviderWarning', "Configures whether a warning is shown when a provider is slow"),
+			'oneOf': [
+				{
+					type: 'boolean',
+					markdownDescription: nls.localize('task.slowProviderWarning.boolean', 'Sets the slow provider warning for all tasks.')
+				},
+				{
+					type: 'array',
+					items: {
+						type: 'string',
+						markdownDescription: nls.localize('task.slowProviderWarning.array', 'An array of task types to never show the slow provider warning.')
+					}
+				}
+			],
+			default: true
+		},
+		'task.quickOpen.history': {
+			markdownDescription: nls.localize('task.quickOpen.history', "Controls the number of recent items tracked in task quick open dialog."),
+			type: 'number',
+			default: 30, minimum: 0, maximum: 30
+		},
+		'task.quickOpen.detail': {
+			markdownDescription: nls.localize('task.quickOpen.detail', "Controls whether to show the task detail for task that have a detail in the Run Task quick pick."),
 			type: 'boolean',
 			default: true
 		}

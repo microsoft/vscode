@@ -60,5 +60,6 @@
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
+	"gulp.autoDetect": "off",
 	"files.insertFinalNewline": true
 }

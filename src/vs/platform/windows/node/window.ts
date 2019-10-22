@@ -111,7 +111,7 @@ export function findWindowOnExtensionDevelopmentPath<W extends IWindowContext>(w
 	for (const window of windows) {
 		// match on extension development path. The path can be one or more paths or uri strings, using paths.isEqual is not 100% correct but good enough
 		const currPaths = window.extensionDevelopmentPath;
-		if (currPaths && currPaths.some(p => matches(p))) {
+		if (currPaths?.some(p => matches(p))) {
 			return window;
 		}
 	}

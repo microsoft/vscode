@@ -52,7 +52,7 @@ export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspac
 
 	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
 		const window = this.windowsMainService.getWindowById(windowId);
-		if (window && window.config) {
+		if (window?.config) {
 			return this.workspacesHistoryMainService.getRecentlyOpened(window.config.workspace, window.config.folderUri, window.config.filesToOpenOrCreate);
 		}
 

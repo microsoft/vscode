@@ -726,6 +726,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.getValueLengthInRange(this.validateRange(rawRange), eol);
 	}
 
+	public getCharacterCountInRange(rawRange: IRange, eol: model.EndOfLinePreference = model.EndOfLinePreference.TextDefined): number {
+		this._assertNotDisposed();
+		return this._buffer.getCharacterCountInRange(this.validateRange(rawRange), eol);
+	}
+
 	public getLineCount(): number {
 		this._assertNotDisposed();
 		return this._buffer.getLineCount();

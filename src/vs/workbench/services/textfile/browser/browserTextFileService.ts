@@ -44,7 +44,7 @@ export class BrowserTextFileService extends AbstractTextFileService {
 
 			if (this.fileService.canHandleResource(dirtyResource)) {
 				const model = this.models.get(dirtyResource);
-				hasBackup = !!(model && model.hasBackup());
+				hasBackup = !!(model?.hasBackup());
 			} else if (dirtyResource.scheme === Schemas.untitled) {
 				hasBackup = this.untitledEditorService.hasBackup(dirtyResource);
 			}

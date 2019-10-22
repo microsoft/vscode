@@ -367,9 +367,9 @@ export class Menubar {
 			label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => {
 				const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
 				if (
-					this.windowsMainService.getWindowCount() === 0 || 		// allow to quit when no more windows are open
-					!!BrowserWindow.getFocusedWindow() ||					// allow to quit when window has focus (fix for https://github.com/Microsoft/vscode/issues/39191)
-					(lastActiveWindow && lastActiveWindow.isMinimized())	// allow to quit when window has no focus but is minimized (https://github.com/Microsoft/vscode/issues/63000)
+					this.windowsMainService.getWindowCount() === 0 || 	// allow to quit when no more windows are open
+					!!BrowserWindow.getFocusedWindow() ||				// allow to quit when window has focus (fix for https://github.com/Microsoft/vscode/issues/39191)
+					lastActiveWindow?.isMinimized()						// allow to quit when window has no focus but is minimized (https://github.com/Microsoft/vscode/issues/63000)
 				) {
 					this.electronMainService.quit(undefined);
 				}
@@ -717,7 +717,7 @@ export class Menubar {
 		let activeBrowserWindow = BrowserWindow.getFocusedWindow();
 		if (!activeBrowserWindow) {
 			const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
-			if (lastActiveWindow && lastActiveWindow.isMinimized()) {
+			if (lastActiveWindow?.isMinimized()) {
 				activeBrowserWindow = lastActiveWindow.win;
 			}
 		}
@@ -749,7 +749,7 @@ export class Menubar {
 		const binding = typeof commandId === 'string' ? this.keybindings[commandId] : undefined;
 
 		// Apply binding if there is one
-		if (binding && binding.label) {
+		if (binding?.label) {
 
 			// if the binding is native, we can just apply it
 			if (binding.isNative !== false) {

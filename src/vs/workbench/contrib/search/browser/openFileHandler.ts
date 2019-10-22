@@ -8,10 +8,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { untildify } from 'vs/base/common/labels';
-import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
-import { isAbsolute } from 'vs/base/common/path';
-import { basename, dirname } from 'vs/base/common/resources';
+import { basename, dirname, toLocalResource } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -33,6 +31,8 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { IFileQuery, IFileSearchStats, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
@@ -122,8 +122,10 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService,
 	) {
 		super();
 
@@ -186,15 +188,13 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private async getAbsolutePathResult(query: IPreparedQuery): Promise<URI | undefined> {
 		const detildifiedQuery = untildify(query.original, this.environmentService.userHome);
-		if (isAbsolute(detildifiedQuery)) {
-			const workspaceFolders = this.contextService.getWorkspace().folders;
-			const resource = workspaceFolders[0] && workspaceFolders[0].uri.scheme !== Schemas.file ?
-				workspaceFolders[0].uri.with({ path: detildifiedQuery }) :
-				URI.file(detildifiedQuery);
+		if ((await this.remotePathService.path).isAbsolute(detildifiedQuery)) {
+			const resource = toLocalResource(
+				await this.remotePathService.fileURI(detildifiedQuery),
+				this.workbenchEnvironmentService.configuration.remoteAuthority);
 
 			try {
 				const stat = await this.fileService.resolve(resource);
-
 				return stat.isDirectory ? undefined : resource;
 			} catch (error) {
 				// ignore

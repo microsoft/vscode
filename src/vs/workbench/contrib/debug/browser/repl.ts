@@ -46,7 +46,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { renderExpressionValue, AbstractExpressionsRenderer, IExpressionTemplateData, renderVariable, IInputBoxOptions } from 'vs/workbench/contrib/debug/browser/baseDebugView';
@@ -795,38 +795,33 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, Fuzz
 	}
 }
 
-class ReplDelegate implements IListVirtualDelegate<IReplElement> {
+class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 
-	constructor(private configurationService: IConfigurationService) { }
+	constructor(private configurationService: IConfigurationService) {
+		super();
+	}
 
 	getHeight(element: IReplElement): number {
-		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
-
-		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const fontSize = config.console.fontSize;
-		const rowHeight = Math.ceil(1.4 * fontSize);
-		const wordWrap = config.console.wordWrap;
-		if (!wordWrap) {
-			return rowHeight;
+
+		if (!config.console.wordWrap) {
+			return Math.ceil(1.4 * config.console.fontSize);
 		}
 
-		// In order to keep scroll position we need to give a good approximation to the tree
-		// For every 150 characters increase the number of lines needed
-		if (element instanceof ReplEvaluationResult) {
+		return super.getHeight(element);
+	}
+
+	protected estimateHeight(element: IReplElement): number {
+		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+		const rowHeight = Math.ceil(1.4 * config.console.fontSize);
+		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
+		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
+
+		// Calculate a rough overestimation for the height
+		// For every 30 characters increase the number of lines needed
+		if (hasValue(element)) {
 			let value = element.value;
-
-			if (element.hasChildren) {
-				return rowHeight;
-			}
-
-			let valueRows = value ? (countNumberOfLines(value) + Math.floor(value.length / 150)) : 0;
-			return rowHeight * valueRows;
-		}
-
-		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput) {
-			let value = element.value;
-			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 30);
 
 			return valueRows * rowHeight;
 		}
@@ -852,7 +847,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 		return ReplRawObjectsRenderer.ID;
 	}
 
-	hasDynamicHeight?(element: IReplElement): boolean {
+	hasDynamicHeight(element: IReplElement): boolean {
 		// Empty elements should not have dynamic height since they will be invisible
 		return element.toString().length > 0;
 	}

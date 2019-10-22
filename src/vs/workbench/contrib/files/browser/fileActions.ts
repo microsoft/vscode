@@ -762,7 +762,7 @@ export function validateFileName(item: ExplorerItem, name: string): string | nul
 
 	if (name !== item.name) {
 		// Do not allow to overwrite existing file
-		const child = parent && parent.getChild(name);
+		const child = parent?.getChild(name);
 		if (child && child !== item) {
 			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 		}
@@ -778,7 +778,7 @@ export function validateFileName(item: ExplorerItem, name: string): string | nul
 }
 
 function trimLongName(name: string): string {
-	if (name && name.length > 255) {
+	if (name?.length > 255) {
 		return `${name.substr(0, 255)}...`;
 	}
 

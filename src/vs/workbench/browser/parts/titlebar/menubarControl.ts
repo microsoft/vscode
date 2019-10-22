@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -120,6 +120,9 @@ export abstract class MenubarControl extends Disposable {
 	protected abstract doUpdateMenubar(firstTime: boolean): void;
 
 	protected registerListeners(): void {
+		// Listen for window focus changes
+		this._register(this.hostService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
+
 		// Update when config changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
@@ -176,6 +179,13 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		return result;
+	}
+
+	protected onDidChangeWindowFocus(hasFocus: boolean): void {
+		// When we regain focus, update the recent menu items
+		if (hasFocus) {
+			this.onRecentlyOpenedChange();
+		}
 	}
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
@@ -434,9 +444,9 @@ export class CustomMenubarControl extends MenubarControl {
 				return null;
 
 			case StateType.Idle:
-				const windowId = this.electronEnvironmentService.windowId;
+				const context = `window:${this.electronEnvironmentService ? this.electronEnvironmentService.windowId : 'any'}`;
 				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
-					this.updateService.checkForUpdates({ windowId }));
+					this.updateService.checkForUpdates(context));
 
 			case StateType.CheckingForUpdates:
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking for Updates..."), undefined, false);
@@ -462,7 +472,7 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private get currentMenubarVisibility(): MenuBarVisibility {
-		return this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+		return getMenuBarVisibility(this.configurationService, this.environmentService);
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {
@@ -636,7 +646,9 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 	}
 
-	private onDidChangeWindowFocus(hasFocus: boolean): void {
+	protected onDidChangeWindowFocus(hasFocus: boolean): void {
+		super.onDidChangeWindowFocus(hasFocus);
+
 		if (this.container) {
 			if (hasFocus) {
 				DOM.removeClass(this.container, 'inactive');
@@ -651,9 +663,6 @@ export class CustomMenubarControl extends MenubarControl {
 
 	protected registerListeners(): void {
 		super.registerListeners();
-
-		// Listen for window focus changes
-		this._register(this.hostService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
 
 		// Listen for maximize/unmaximize
 		if (!isWeb) {

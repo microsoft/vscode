@@ -27,8 +27,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { startDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -203,8 +201,8 @@ export function registerCommands(): void {
 			}
 
 			if (!session) {
-				const historyService = accessor.get(IHistoryService);
-				startDebugging(debugService, historyService, false);
+				const { launch, name } = debugService.getConfigurationManager().selectedConfiguration;
+				debugService.startDebugging(launch, name, { noDebug: false });
 			} else {
 				session.removeReplExpressions();
 				debugService.restartSession(session).then(undefined, onUnexpectedError);

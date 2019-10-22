@@ -65,6 +65,17 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
+export function getMenuBarVisibility(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): MenuBarVisibility {
+	const titleBarStyle = getTitleBarStyle(configurationService, environment, isExtensionDevelopment);
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+
+	if (titleBarStyle === 'native' && menuBarVisibility === 'compact') {
+		return 'default';
+	} else {
+		return menuBarVisibility;
+	}
+}
+
 export interface IWindowsConfiguration {
 	window: IWindowSettings;
 }

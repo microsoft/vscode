@@ -338,7 +338,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	protected getCurrentWorkspaceIdentifier(): IWorkspaceIdentifier | undefined {
 		const workspace = this.contextService.getWorkspace();
-		if (workspace && workspace.configuration) {
+		if (workspace?.configuration) {
 			return { id: workspace.id, configPath: workspace.configuration };
 		}
 

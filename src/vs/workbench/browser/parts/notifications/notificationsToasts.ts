@@ -95,7 +95,7 @@ export class NotificationsToasts extends Themable {
 
 		// Filter
 		this._register(this.model.onDidFilterChange(filter => {
-			if (filter === NotificationsFilter.SILENT) {
+			if (filter === NotificationsFilter.SILENT || filter === NotificationsFilter.ERROR) {
 				this.hide();
 			}
 		}));

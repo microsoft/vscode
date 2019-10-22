@@ -127,7 +127,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		// Model exists
 		let model = this.get(resource);
 		if (model) {
-			if (options && options.reload) {
+			if (options?.reload) {
 
 				// async reload: trigger a reload but return immediately
 				if (options.reload.async) {
@@ -198,7 +198,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			this.mapResourceToPendingModelLoaders.delete(resource);
 
 			// Apply mode if provided
-			if (options && options.mode) {
+			if (options?.mode) {
 				resolvedModel.setMode(options.mode);
 			}
 

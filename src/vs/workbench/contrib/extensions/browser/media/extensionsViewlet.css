@@ -8,9 +8,9 @@
 }
 
 .extensions-viewlet > .header {
-	height: 38px;
+	height: 41px;
 	box-sizing: border-box;
-	padding: 5px 9px 5px 16px;
+	padding: 5px 12px 6px 16px;
 }
 
 .extensions-viewlet > .header > .search-box {
@@ -47,7 +47,7 @@
 }
 
 .extensions-viewlet > .extensions .panel-header {
-	padding-right: 6px;
+	padding-right: 12px;
 }
 
 .extensions-viewlet > .extensions .panel-header > .title {

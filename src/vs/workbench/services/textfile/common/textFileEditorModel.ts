@@ -329,8 +329,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private async loadFromFile(options?: ILoadOptions): Promise<TextFileEditorModel> {
-		const forceReadFromDisk = options && options.forceReadFromDisk;
-		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || (options && options.allowBinary);
+		const forceReadFromDisk = options?.forceReadFromDisk;
+		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || options?.allowBinary;
 
 		// Decide on etag
 		let etag: string | undefined;
@@ -436,7 +436,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		} else {
 			type FileGetClassification = {} & FileTelemetryDataFragment;
 
-			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
+			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(options?.reason ?? LoadReason.OTHER));
 		}
 
 		return this;

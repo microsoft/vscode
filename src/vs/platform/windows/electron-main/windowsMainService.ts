@@ -374,12 +374,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
 		let cli = this.environmentService.args;
-		const remote = options && options.remoteAuthority;
+		const remote = options?.remoteAuthority;
 		if (cli && (cli.remote !== remote)) {
 			cli = { ...cli, remote };
 		}
 
-		const forceReuseWindow = options && options.forceReuseWindow;
+		const forceReuseWindow = options?.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;
 
 		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
@@ -568,7 +568,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				windows,
 				newWindow: openFilesInNewWindow,
 				context: openConfig.context,
-				fileUri: fileToCheck && fileToCheck.fileUri,
+				fileUri: fileToCheck?.fileUri,
 				localWorkspaceResolver: workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesMainService.resolveLocalWorkspaceSync(workspace.configPath) : null
 			});
 
@@ -621,7 +621,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const windowsOnWorkspace = arrays.coalesce(allWorkspacesToOpen.map(workspaceToOpen => findWindowOnWorkspace(WindowsMainService.WINDOWS, workspaceToOpen.workspace)));
 			if (windowsOnWorkspace.length > 0) {
 				const windowOnWorkspace = windowsOnWorkspace[0];
-				const fileInputsForWindow = (fileInputs && fileInputs.remoteAuthority === windowOnWorkspace.remoteAuthority) ? fileInputs : undefined;
+				const fileInputsForWindow = (fileInputs?.remoteAuthority === windowOnWorkspace.remoteAuthority) ? fileInputs : undefined;
 
 				// Do open files
 				usedWindows.push(this.doOpenFilesInExistingWindow(openConfig, windowOnWorkspace, fileInputsForWindow));
@@ -641,7 +641,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 
 				const remoteAuthority = workspaceToOpen.remoteAuthority;
-				const fileInputsForWindow = (fileInputs && fileInputs.remoteAuthority === remoteAuthority) ? fileInputs : undefined;
+				const fileInputsForWindow = (fileInputs?.remoteAuthority === remoteAuthority) ? fileInputs : undefined;
 
 				// Do open folder
 				usedWindows.push(this.doOpenFolderOrWorkspace(openConfig, workspaceToOpen, openFolderInNewWindow, fileInputsForWindow));
@@ -663,7 +663,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const windowsOnFolderPath = arrays.coalesce(allFoldersToOpen.map(folderToOpen => findWindowOnWorkspace(WindowsMainService.WINDOWS, folderToOpen.folderUri)));
 			if (windowsOnFolderPath.length > 0) {
 				const windowOnFolderPath = windowsOnFolderPath[0];
-				const fileInputsForWindow = fileInputs && fileInputs.remoteAuthority === windowOnFolderPath.remoteAuthority ? fileInputs : undefined;
+				const fileInputsForWindow = fileInputs?.remoteAuthority === windowOnFolderPath.remoteAuthority ? fileInputs : undefined;
 
 				// Do open files
 				usedWindows.push(this.doOpenFilesInExistingWindow(openConfig, windowOnFolderPath, fileInputsForWindow));
@@ -684,7 +684,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 
 				const remoteAuthority = folderToOpen.remoteAuthority;
-				const fileInputsForWindow = (fileInputs && fileInputs.remoteAuthority === remoteAuthority) ? fileInputs : undefined;
+				const fileInputsForWindow = (fileInputs?.remoteAuthority === remoteAuthority) ? fileInputs : undefined;
 
 				// Do open folder
 				usedWindows.push(this.doOpenFolderOrWorkspace(openConfig, folderToOpen, openFolderInNewWindow, fileInputsForWindow));
@@ -703,7 +703,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (allEmptyToRestore.length > 0) {
 			allEmptyToRestore.forEach(emptyWindowBackupInfo => {
 				const remoteAuthority = emptyWindowBackupInfo.remoteAuthority;
-				const fileInputsForWindow = (fileInputs && fileInputs.remoteAuthority === remoteAuthority) ? fileInputs : undefined;
+				const fileInputsForWindow = (fileInputs?.remoteAuthority === remoteAuthority) ? fileInputs : undefined;
 
 				usedWindows.push(this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
@@ -966,12 +966,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				for (const openedWindow of openedWindows) {
 					if (openedWindow.workspace) { // Workspaces
 						const pathToOpen = this.parseUri({ workspaceUri: openedWindow.workspace.configPath }, { remoteAuthority: openedWindow.remoteAuthority });
-						if (pathToOpen && pathToOpen.workspace) {
+						if (pathToOpen?.workspace) {
 							windowsToOpen.push(pathToOpen);
 						}
 					} else if (openedWindow.folderUri) { // Folders
 						const pathToOpen = this.parseUri({ folderUri: openedWindow.folderUri }, { remoteAuthority: openedWindow.remoteAuthority });
-						if (pathToOpen && pathToOpen.folderUri) {
+						if (pathToOpen?.folderUri) {
 							windowsToOpen.push(pathToOpen);
 						}
 					} else if (restoreWindows !== 'folders' && openedWindow.backupPath && !openedWindow.remoteAuthority) { // Local windows that were empty. Empty windows with backups will always be restored in open()
@@ -996,7 +996,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			restoreWindows = 'all'; // always reopen all windows when an update was applied
 		} else {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			restoreWindows = ((windowConfig && windowConfig.restoreWindows) || 'one');
+			restoreWindows = windowConfig?.restoreWindows || 'one';
 
 			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
 				restoreWindows = 'one';
@@ -1173,7 +1173,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.removeFromRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
 
 			// assume this is a file that does not yet exist
-			if (options && options.ignoreFileNotFound) {
+			if (options?.ignoreFileNotFound) {
 				return {
 					fileUri,
 					remoteAuthority,
@@ -1189,8 +1189,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// let the user settings override how folders are open in a new window or same window unless we are forced
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
-		const openFilesInNewWindowConfig = (windowConfig && windowConfig.openFilesInNewWindow) || 'off' /* default */;
+		const openFolderInNewWindowConfig = windowConfig?.openFoldersInNewWindow || 'default' /* default */;
+		const openFilesInNewWindowConfig = windowConfig?.openFilesInNewWindow || 'off' /* default */;
 
 		let openFolderInNewWindow = (openConfig.preferNewWindow || openConfig.forceNewWindow) && !openConfig.forceReuseWindow;
 		if (!openConfig.forceNewWindow && !openConfig.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
@@ -1378,12 +1378,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
 			let allowFullscreen: boolean;
 			if (state.hasDefaultState) {
-				allowFullscreen = (windowConfig && windowConfig.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0);
+				allowFullscreen = (windowConfig?.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0);
 			}
 
 			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
 			else {
-				allowFullscreen = this.lifecycleMainService.wasRestarted || (windowConfig && windowConfig.restoreFullscreen);
+				allowFullscreen = this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen;
 
 				if (allowFullscreen && isMacintosh && WindowsMainService.WINDOWS.some(win => win.isFullScreen)) {
 					// macOS: Electron does not allow to restore multiple windows in
@@ -1566,7 +1566,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Check for newWindowDimensions setting and adjust accordingly
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		let ensureNoOverlap = true;
-		if (windowConfig && windowConfig.newWindowDimensions) {
+		if (windowConfig?.newWindowDimensions) {
 			if (windowConfig.newWindowDimensions === 'maximized') {
 				state.mode = WindowMode.Maximized;
 				ensureNoOverlap = false;

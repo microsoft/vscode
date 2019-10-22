@@ -6,7 +6,6 @@
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { equals } from 'vs/base/common/arrays';
 
 export class LineDecoration {
 	_lineDecorationBrand: void;
@@ -28,8 +27,18 @@ export class LineDecoration {
 		);
 	}
 
-	public static equalsArr(a: readonly LineDecoration[], b: readonly LineDecoration[]): boolean {
-		return equals(a, b, LineDecoration._equals);
+	public static equalsArr(a: LineDecoration[], b: LineDecoration[]): boolean {
+		let aLen = a.length;
+		let bLen = b.length;
+		if (aLen !== bLen) {
+			return false;
+		}
+		for (let i = 0; i < aLen; i++) {
+			if (!LineDecoration._equals(a[i], b[i])) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public static filter(lineDecorations: InlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): LineDecoration[] {

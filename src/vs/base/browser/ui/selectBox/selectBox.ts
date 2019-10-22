@@ -78,7 +78,7 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 		super();
 
 		// Default to native SelectBox for OSX unless overridden
-		if (isMacintosh && !(selectBoxOptions && selectBoxOptions.useCustomDrawn)) {
+		if (isMacintosh && !selectBoxOptions?.useCustomDrawn) {
 			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, selectBoxOptions);
 		} else {
 			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);

@@ -20,7 +20,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -35,6 +35,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { sequence } from 'vs/base/common/async';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { first } from 'vs/base/common/arrays';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -56,7 +58,6 @@ export class ConfigurationManager implements IConfigurationManager {
 	private debugConfigurationTypeContext: IContextKey<string>;
 
 	constructor(
-		private debugService: IDebugService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -65,7 +66,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		@ICommandService private readonly commandService: ICommandService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHistoryService historyService: IHistoryService
 	) {
 		this.configProviders = [];
 		this.adapterDescriptorFactories = [];
@@ -78,6 +80,14 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
 		if (previousSelectedLaunch) {
 			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+		} else if (this.launches.length > 0) {
+			const rootUri = historyService.getLastActiveWorkspaceRoot();
+			let launch = this.getLaunch(rootUri);
+			if (!launch || launch.getConfigurationNames().length === 0) {
+				launch = first(this.launches, l => !!(l && l.getConfigurationNames().length), launch) || this.launches[0];
+			}
+
+			this.selectConfiguration(launch);
 		}
 	}
 
@@ -236,12 +246,6 @@ export class ConfigurationManager implements IConfigurationManager {
 			delta.removed.forEach(removed => {
 				const removedTypes = removed.value.map(rawAdapter => rawAdapter.type);
 				this.debuggers = this.debuggers.filter(d => removedTypes.indexOf(d.type) === -1);
-				this.debugService.getModel().getSessions().forEach(async s => {
-					// Stop sessions if their debugger has been removed
-					if (removedTypes.indexOf(s.configuration.type) >= 0) {
-						await this.debugService.stopSession(s);
-					}
-				});
 			});
 
 			// update the schema to include all attributes, snippets and types from extensions.

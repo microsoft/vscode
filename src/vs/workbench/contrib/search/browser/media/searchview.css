@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .search-view .search-widgets-container {
-	margin: 0px 9px 0 2px;
+	margin: 0px 12px 0 2px;
 	padding-top: 6px;
 }
 
@@ -25,7 +25,7 @@
 
 .search-view .search-widget .search-container,
 .search-view .search-widget .replace-container {
-	margin-left: 17px;
+	margin-left: 18px;
 }
 
 .search-view .search-widget .monaco-inputbox > .wrapper {
@@ -82,7 +82,7 @@
 }
 
 .search-view .search-widget .replace-container .monaco-action-bar {
-	margin-left: 3px;
+	margin-left: 0;
 }
 
 .search-view .search-widget .replace-container .monaco-action-bar {
@@ -107,7 +107,7 @@
 
 .search-view .query-details .more {
 	position: absolute;
-	right: 0;
+	right: -2px;
 	cursor: pointer;
 	width: 25px;
 	height: 16px;
