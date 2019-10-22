@@ -45,32 +45,6 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			dataPaths
-		},
-		middleware: {
-			async provideCompletionItem(document, position, context, token, next) {
-				const result = await next(document, position, context, token);
-				if (result) {
-					if (isArray(result)) {
-						return result.map(r => {
-							return {
-								...r,
-								tags: (r as any).deprecated ? [CompletionItemTag.Deprecated] : undefined
-							};
-						});
-					} else {
-						return {
-							isIncomplete: result.isIncomplete,
-							items: result.items.map(r => {
-								return {
-									...r,
-									tags: (r as any).deprecated ? [CompletionItemTag.Deprecated] : undefined
-								};
-							})
-						};
-					}
-				}
-				return result;
-			}
 		}
 	};
 
