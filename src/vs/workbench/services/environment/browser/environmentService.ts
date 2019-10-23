@@ -21,7 +21,7 @@ import { memoize } from 'vs/base/common/decorators';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
-	constructor(private readonly options: IBrowserWorkbenchEnvironemntConstructionOptions, private readonly environment: IWorkbenchEnvironmentService) { }
+	constructor(private readonly options: IBrowserWorkbenchEnvironmentConstructionOptions, private readonly environment: IWorkbenchEnvironmentService) { }
 
 	//#region PROPERLY CONFIGURED
 
@@ -84,7 +84,7 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	}
 }
 
-interface IBrowserWorkbenchEnvironemntConstructionOptions extends IWorkbenchConstructionOptions {
+interface IBrowserWorkbenchEnvironmentConstructionOptions extends IWorkbenchConstructionOptions {
 	workspaceId: string;
 	logsPath: URI;
 }
@@ -232,7 +232,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	//#endregion
 
-	constructor(readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) { }
+	constructor(readonly options: IBrowserWorkbenchEnvironmentConstructionOptions) { }
 
 	private resolveExtensionHostDebugEnvironment(): IExtensionHostDebugEnvironment {
 		const extensionHostDebugEnvironment: IExtensionHostDebugEnvironment = {
