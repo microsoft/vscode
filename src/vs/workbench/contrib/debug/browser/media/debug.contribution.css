@@ -4,10 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Activity Bar */
-.monaco-workbench .activitybar .monaco-action-bar .action-label.debug {
-	-webkit-mask: url('debug-activity-bar.svg') no-repeat 50% 50%;
-}
-
 .monaco-editor .debug-top-stack-frame-column::before {
 	background: url('current-arrow.svg') center center no-repeat;
 }
