@@ -137,7 +137,7 @@ export interface IEditorOptions {
 	fixedOverflowWidgets?: boolean;
 	/**
 	 * The number of vertical lanes the overview ruler should render.
-	 * Defaults to 2.
+	 * Defaults to 3.
 	 */
 	overviewRulerLanes?: number;
 	/**
@@ -3094,8 +3094,7 @@ export const EditorOptions = {
 	)),
 	overviewRulerLanes: register(new EditorIntOption(
 		EditorOption.overviewRulerLanes, 'overviewRulerLanes',
-		3, 0, 3,
-		{ description: nls.localize('overviewRulerLanes', "Controls the number of decorations that can show up at the same position in the overview ruler.") }
+		3, 0, 3
 	)),
 	parameterHints: register(new EditorParameterHints()),
 	quickSuggestions: register(new EditorQuickSuggestions()),
