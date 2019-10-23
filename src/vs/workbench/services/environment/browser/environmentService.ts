@@ -17,12 +17,24 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
 import { serializableToMap } from 'vs/base/common/map';
+import { memoize } from 'vs/base/common/decorators';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
+	constructor(private readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) { }
+
+	//#region PROPERLY CONFIGURED
+
+	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
+
+	//#endregion
+
+
+	//#region TODO@ben TO BE DONE
+
 	_!: any[];
 
-	machineId!: string;
+	readonly machineId = generateUuid();
 	windowId!: number;
 	logLevel!: LogLevel;
 
@@ -41,7 +53,6 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 
-	remoteAuthority?: string;
 	connectionToken?: string;
 
 	zoomLevel?: number;
@@ -61,6 +72,8 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
 	termProgram?: string;
+
+	//#endregion
 }
 
 interface IBrowserWorkbenchEnvironemntConstructionOptions extends IWorkbenchConstructionOptions {
@@ -72,23 +85,112 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	_serviceBrand: undefined;
 
-	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
+	//#region PROPERLY CONFIGURED
+
+	@memoize
+	get logsPath(): string { return this.options.logsPath.path; }
+
+	@memoize
+	get logFile(): URI { return joinPath(this.options.logsPath, 'window.log'); }
+
+	@memoize
+	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.userData }); }
+
+	@memoize
+	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
+
+	@memoize
+	get settingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.settings.json'); }
+
+	@memoize
+	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
+
+	@memoize
+	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
+
+	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
+
+	//#endregion
+
+
+	//#region TODO@ben TO BE DONE
+
+	private _configuration: IWindowConfiguration | undefined = undefined;
+	get configuration(): IWindowConfiguration {
+		if (!this._configuration) {
+			this._configuration = new BrowserWindowConfiguration(this.options);
+		}
+
+		return this._configuration;
+	}
+
+	readonly args = { _: [] };
+	readonly appRoot = '/web/';
+
+	// TODO@Ben get out of product.json?!
+	readonly appNameLong = 'Visual Studio Code - Web';
+
+	untitledWorkspacesHome: URI;
+	extensionTestsLocationURI?: URI;
+
+	execPath!: string;
+	cliPath!: string;
+	userHome!: string;
+	userDataPath!: string;
+	appQuality?: string;
+	appSettingsHome!: URI;
+	argvResource: URI;
+	machineSettingsHome!: URI;
+	machineSettingsResource!: URI;
+	globalStorageHome!: string;
+	workspaceStorageHome!: string;
+	backupHome: URI;
+	backupWorkspacesPath!: string;
+	workspacesHome!: string;
+	isExtensionDevelopment!: boolean;
+	disableExtensions!: boolean | string[];
+	builtinExtensionsPath!: string;
+	extensionsPath?: string;
+	extensionDevelopmentLocationURI?: URI[];
+	extensionTestsPath?: string;
+	debugExtensionHost: IExtensionHostDebugParams;
+	debugSearch!: IDebugParams;
+	logExtensionHostCommunication!: boolean;
+	isBuilt!: boolean;
+	wait!: boolean;
+	status!: boolean;
+	log?: string;
+
+	verbose!: boolean;
+	skipReleaseNotes!: boolean;
+	mainIPCHandle!: string;
+	sharedIPCHandle!: string;
+	nodeCachedDataDir?: string;
+	installSourcePath!: string;
+	disableUpdates!: boolean;
+	disableCrashReporter!: boolean;
+	driverHandle?: string;
+	driverVerbose!: boolean;
+	galleryMachineIdResource?: URI;
+
+	get webviewExternalEndpoint(): string {
+		// TODO: get fallback from product.json
+		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}')
+			.replace('{{commit}}', product.commit || 'c58aaab8a1cc22a7139b761166a0d4f37d41e998');
+	}
+
+	get webviewResourceRoot(): string {
+		return `${this.webviewExternalEndpoint}/vscode-resource/{{resource}}`;
+	}
+
+	get webviewCspSource(): string {
+		return this.webviewExternalEndpoint
+			.replace('{{uuid}}', '*');
+	}
+
+	//#endregion
 
 	constructor(readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) {
-		this.args = { _: [] };
-		this.logsPath = options.logsPath.path;
-		this.logFile = joinPath(options.logsPath, 'window.log');
-		this.appRoot = '/web/';
-		this.appNameLong = 'Visual Studio Code - Web';
-
-		this.configuration.remoteAuthority = options.remoteAuthority;
-		this.configuration.machineId = generateUuid();
-		this.userRoamingDataHome = URI.file('/User').with({ scheme: Schemas.userData });
-		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
-		this.settingsSyncPreviewResource = joinPath(this.userRoamingDataHome, '.settings.json');
-		this.userDataSyncLogResource = joinPath(options.logsPath, 'userDataSync.log');
-		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
-		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
 		this.argvResource = joinPath(this.userRoamingDataHome, 'argv.json');
 		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
 		this.untitledWorkspacesHome = joinPath(this.userRoamingDataHome, 'Workspaces');
@@ -149,73 +251,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 				}
 			}
 		}
-	}
-
-	untitledWorkspacesHome: URI;
-	extensionTestsLocationURI?: URI;
-	args: any;
-	execPath!: string;
-	cliPath!: string;
-	appRoot: string;
-	userHome!: string;
-	userDataPath!: string;
-	appNameLong: string;
-	appQuality?: string;
-	appSettingsHome!: URI;
-	userRoamingDataHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
-	keyboardLayoutResource: URI;
-	argvResource: URI;
-	settingsSyncPreviewResource: URI;
-	userDataSyncLogResource: URI;
-	machineSettingsHome!: URI;
-	machineSettingsResource!: URI;
-	globalStorageHome!: string;
-	workspaceStorageHome!: string;
-	backupHome: URI;
-	backupWorkspacesPath!: string;
-	workspacesHome!: string;
-	isExtensionDevelopment!: boolean;
-	disableExtensions!: boolean | string[];
-	builtinExtensionsPath!: string;
-	extensionsPath?: string;
-	extensionDevelopmentLocationURI?: URI[];
-	extensionTestsPath?: string;
-	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch!: IDebugParams;
-	logExtensionHostCommunication!: boolean;
-	isBuilt!: boolean;
-	wait!: boolean;
-	status!: boolean;
-	log?: string;
-	logsPath: string;
-	verbose!: boolean;
-	skipReleaseNotes!: boolean;
-	mainIPCHandle!: string;
-	sharedIPCHandle!: string;
-	nodeCachedDataDir?: string;
-	installSourcePath!: string;
-	disableUpdates!: boolean;
-	disableCrashReporter!: boolean;
-	driverHandle?: string;
-	driverVerbose!: boolean;
-	galleryMachineIdResource?: URI;
-	readonly logFile: URI;
-
-	get webviewExternalEndpoint(): string {
-		// TODO: get fallback from product.json
-		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}')
-			.replace('{{commit}}', product.commit || 'c58aaab8a1cc22a7139b761166a0d4f37d41e998');
-	}
-
-	get webviewResourceRoot(): string {
-		return `${this.webviewExternalEndpoint}/vscode-resource/{{resource}}`;
-	}
-
-	get webviewCspSource(): string {
-		return this.webviewExternalEndpoint
-			.replace('{{uuid}}', '*');
 	}
 }
 
