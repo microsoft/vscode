@@ -158,6 +158,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			if (this.options.icon) {
 				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
+				// TODO @misolori find a cleaner way to do this
 				const isExtension = this.activity.cssClass?.indexOf('extensionViewlet') === 0;
 				if (!isExtension) {
 					// Apply foreground color to activity bar items (codicons)
@@ -318,6 +319,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
+			// TODO @misolori find a cleaner way to do this
 			const isExtension = this.activity.cssClass?.indexOf('extensionViewlet') === 0;
 			if (this.options.icon && !isExtension) {
 				// Only apply icon class to activity bar items (exclude extensions + remote explorer)
