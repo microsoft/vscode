@@ -31,10 +31,10 @@ vscode-textmate@^4.2.2:
   dependencies:
     oniguruma "^7.2.0"
 
-xterm-addon-search@0.3.0-beta5:
-  version "0.3.0-beta5"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.3.0-beta5.tgz#fd53d33a77a0235018479c712be8c12f7c0d083a"
-  integrity sha512-3GkGc4hST35/4hzgnQPLLvQ29WH7MkZ0mUrBE/Vm1IQum7TnMvWPTkGemwM+wAl4tdBmynNccHJlFeQzaQtVUg==
+xterm-addon-search@0.3.0-beta10:
+  version "0.3.0-beta10"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.3.0-beta10.tgz#24ca32062e8a2488e7df5d2e30855f0e2ce3e23d"
+  integrity sha512-3yPcHDgUYBM7Co5KGJkdOPUsRj2i+ZfhLSAJrHTNEP2vK6x6dO3YJ6M+YfBfiqP6ATXBXa+xTi0h0AV/IMukvQ==
 
 xterm-addon-web-links@0.2.1:
   version "0.2.1"
