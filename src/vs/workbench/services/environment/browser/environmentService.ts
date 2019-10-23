@@ -26,6 +26,9 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	//#region PROPERLY CONFIGURED
 
 	@memoize
+	get sessionId(): string { return generateUuid(); }
+
+	@memoize
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
 
 	@memoize
@@ -43,7 +46,6 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 
 	readonly machineId = generateUuid();
 	windowId!: number;
-	sessionId!: string;
 	logLevel!: LogLevel;
 
 	mainPid!: number;
