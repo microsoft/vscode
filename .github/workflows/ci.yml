@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - master
+      - release/*
 
 jobs:
   linux:
