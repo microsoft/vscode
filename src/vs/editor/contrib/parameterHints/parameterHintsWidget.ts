@@ -236,19 +236,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
-		let hasDocs = false;
-		if (activeParameter && typeof (activeParameter.documentation) === 'string' && activeParameter.documentation.length > 0) {
-			hasDocs = true;
-		}
-		if (activeParameter && typeof (activeParameter.documentation) === 'object' && activeParameter.documentation.value.length > 0) {
-			hasDocs = true;
-		}
-		if (typeof (signature.documentation) === 'string' && signature.documentation.length > 0) {
-			hasDocs = true;
-		}
-		if (typeof (signature.documentation) === 'object' && signature.documentation.value.length > 0) {
-			hasDocs = true;
-		}
+		const hasDocs = this.hasDocs(signature, activeParameter);
 
 		dom.toggleClass(this.domNodes.signature, 'has-docs', hasDocs);
 		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
@@ -274,6 +262,22 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 
 		this.editor.layoutContentWidget(this);
 		this.domNodes.scrollbar.scanDomNode();
+	}
+
+	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {
+		if (activeParameter && typeof (activeParameter.documentation) === 'string' && activeParameter.documentation.length > 0) {
+			return true;
+		}
+		if (activeParameter && typeof (activeParameter.documentation) === 'object' && activeParameter.documentation.value.length > 0) {
+			return true;
+		}
+		if (typeof (signature.documentation) === 'string' && signature.documentation.length > 0) {
+			return true;
+		}
+		if (typeof (signature.documentation) === 'object' && signature.documentation.value.length > 0) {
+			return true;
+		}
+		return false;
 	}
 
 	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
