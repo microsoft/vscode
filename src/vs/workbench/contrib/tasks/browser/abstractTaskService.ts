@@ -82,6 +82,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
+const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -183,6 +184,13 @@ class TaskMap {
 interface TaskQuickPickEntry extends IQuickPickItem {
 	task: Task | undefined | null;
 }
+
+interface ProblemMatcherDisableMetrics {
+	type: string;
+}
+type ProblemMatcherDisableMetricsClassification = {
+	type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
 
 export abstract class AbstractTaskService extends Disposable implements ITaskService {
 
@@ -724,11 +732,32 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return settingValue === true;
 	}
 
+	private isProblemMatcherPromptEnabled(type?: string): boolean {
+		const settingValue = this.configurationService.getValue(PROBLEM_MATCHER_NEVER_CONFIG);
+		if (Types.isBoolean(settingValue)) {
+			return !settingValue;
+		}
+		if (type === undefined) {
+			return true;
+		}
+		const settingValueMap: IStringDictionary<boolean> = <any>settingValue;
+		return !settingValueMap[type];
+	}
+
+	private getTypeForTask(task: Task): string {
+		let type: string;
+		if (CustomTask.is(task)) {
+			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+			type = (<any>configProperties).type;
+		} else {
+			type = task.getDefinition()!.type;
+		}
+		return type;
+	}
+
 	private shouldAttachProblemMatcher(task: Task): boolean {
-		const settingValue = this.configurationService.getValue('task.problemMatchers.neverPrompt');
-		if (settingValue === true) {
-			return false;
-		} else if (task.type && Types.isStringArray(settingValue) && (settingValue.indexOf(task.type) >= 0)) {
+		const enabled = this.isProblemMatcherPromptEnabled(this.getTypeForTask(task));
+		if (enabled === false) {
 			return false;
 		}
 		if (!this.canCustomize(task)) {
@@ -745,10 +774,25 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (CustomTask.is(task)) {
 			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
-			const type: string = (<any>configProperties).type;
-			return configProperties.problemMatcher === undefined && !task.hasDefinedMatchers && (Types.isStringArray(settingValue) && (settingValue.indexOf(type) < 0));
+			return configProperties.problemMatcher === undefined && !task.hasDefinedMatchers;
 		}
 		return false;
+	}
+
+	private async updateNeverProblemMatcherSetting(type: string): Promise<void> {
+		this.telemetryService.publicLog2<ProblemMatcherDisableMetrics, ProblemMatcherDisableMetricsClassification>('problemMatcherDisabled', { type });
+		const current = this.configurationService.getValue(PROBLEM_MATCHER_NEVER_CONFIG);
+		if (current === true) {
+			return;
+		}
+		let newValue: IStringDictionary<boolean>;
+		if (current !== false) {
+			newValue = <any>current;
+		} else {
+			newValue = Object.create(null);
+		}
+		newValue[type] = true;
+		return this.configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue, ConfigurationTarget.USER);
 	}
 
 	private attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task | undefined> {
@@ -756,6 +800,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			matcher: NamedProblemMatcher | undefined;
 			never?: boolean;
 			learnMore?: boolean;
+			setting?: string;
 		}
 		let entries: QuickPickInput<ProblemMatcherPickEntry>[] = [];
 		for (let key of ProblemMatcherRegistry.keys()) {
@@ -782,14 +827,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			});
 			entries.unshift({ type: 'separator', label: nls.localize('TaskService.associate', 'associate') });
+			let taskType: string;
+			if (CustomTask.is(task)) {
+				let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+				taskType = (<any>configProperties).type;
+			} else {
+				taskType = task.getDefinition().type;
+			}
 			entries.unshift(
 				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
-				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output'), matcher: undefined, never: true },
+				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output for this task'), matcher: undefined, never: true },
+				{ label: nls.localize('TaskService.attachProblemMatcher.neverType', 'Never scan the task output for {0} tasks', taskType), matcher: undefined, setting: taskType },
 				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the task output'), matcher: undefined, learnMore: true }
 			);
 			return this.quickInputService.pick(entries, {
 				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output'),
-			}).then((selected) => {
+			}).then(async (selected) => {
 				if (selected) {
 					if (selected.learnMore) {
 						this.openDocumentation();
@@ -809,6 +862,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 						this.customize(task, properties, true);
 						return newTask;
+					} else if (selected.setting) {
+						await this.updateNeverProblemMatcherSetting(selected.setting);
+						return task;
 					} else {
 						return task;
 					}
@@ -1299,7 +1355,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						this.notificationService.prompt(Severity.Warning, nls.localize('TaskSystem.slowProvider', "The {0} task provider is slow. The extension that provides {0} tasks may provide a setting to disable it, or you can disable all tasks providers", type),
 							[settings, disableAll, dontShow]);
 					}
-				}, 2000);
+				}, 4000);
 			}
 		});
 	}

@@ -102,10 +102,6 @@ export class EnvironmentService implements IEnvironmentService {
 		return parseUserDataDir(this._args, process);
 	}
 
-	get appNameLong(): string { return product.nameLong; }
-
-	get appQuality(): string | undefined { return product.quality; }
-
 	@memoize
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 

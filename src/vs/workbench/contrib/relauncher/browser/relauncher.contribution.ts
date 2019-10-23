@@ -10,7 +10,6 @@ import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -20,6 +19,7 @@ import { isMacintosh, isNative } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
@@ -44,7 +44,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	constructor(
 		@IHostService private readonly hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly envService: IEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
@@ -120,8 +120,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 					localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect.") :
 					localize('relaunchSettingMessageWeb', "A setting has changed that requires a reload to take effect."),
 				isNative ?
-					localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.envService.appNameLong) :
-					localize('relaunchSettingDetailWeb', "Press the reload button to reload {0} and enable the setting.", this.envService.appNameLong),
+					localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.productService.nameLong) :
+					localize('relaunchSettingDetailWeb', "Press the reload button to reload {0} and enable the setting.", this.productService.nameLong),
 				isNative ?
 					localize('restart', "&&Restart") :
 					localize('restartWeb', "&&Reload"),

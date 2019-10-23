@@ -39,6 +39,7 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 // TODO@sbatten https://github.com/microsoft/vscode/issues/81360
 // tslint:disable-next-line: import-patterns layering
@@ -104,6 +105,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
+		@IProductService private readonly productService: IProductService,
 		@optional(IElectronService) private electronService: IElectronService,
 		@optional(IElectronEnvironmentService) private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
@@ -207,7 +209,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Always set the native window title to identify us properly to the OS
 		let nativeTitle = title;
 		if (!trim(nativeTitle)) {
-			nativeTitle = this.environmentService.appNameLong;
+			nativeTitle = this.productService.nameLong;
 		}
 		window.document.title = nativeTitle;
 
@@ -229,15 +231,15 @@ export class TitlebarPart extends Part implements ITitleService {
 		let title = this.doGetWindowTitle();
 
 		if (this.properties.isAdmin) {
-			title = `${title || this.environmentService.appNameLong} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
+			title = `${title || this.productService.nameLong} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
 		}
 
 		if (!this.properties.isPure) {
-			title = `${title || this.environmentService.appNameLong} ${TitlebarPart.NLS_UNSUPPORTED}`;
+			title = `${title || this.productService.nameLong} ${TitlebarPart.NLS_UNSUPPORTED}`;
 		}
 
 		if (this.environmentService.isExtensionDevelopment) {
-			title = `${TitlebarPart.NLS_EXTENSION_HOST} - ${title || this.environmentService.appNameLong}`;
+			title = `${TitlebarPart.NLS_EXTENSION_HOST} - ${title || this.productService.nameLong}`;
 		}
 
 		return title;
@@ -317,7 +319,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor?.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
-		const appName = this.environmentService.appNameLong;
+		const appName = this.productService.nameLong;
 		const remoteName = this.environmentService.configuration.remoteAuthority;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
 		const titleTemplate = this.configurationService.getValue<string>('window.title');

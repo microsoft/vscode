@@ -48,7 +48,6 @@ export class CursorUndoRedoController extends Disposable implements IEditorContr
 
 	private _undoStack: CursorState[];
 	private _redoStack: CursorState[];
-	private _prevState: CursorState | null;
 
 	constructor(editor: ICodeEditor) {
 		super();
@@ -57,38 +56,36 @@ export class CursorUndoRedoController extends Disposable implements IEditorContr
 
 		this._undoStack = [];
 		this._redoStack = [];
-		this._prevState = null;
 
 		this._register(editor.onDidChangeModel((e) => {
 			this._undoStack = [];
 			this._redoStack = [];
-			this._prevState = null;
 		}));
 		this._register(editor.onDidChangeModelContent((e) => {
 			this._undoStack = [];
 			this._redoStack = [];
-			this._prevState = null;
-			this._pushStateIfNecessary();
 		}));
-		this._register(editor.onDidChangeCursorSelection(() => this._pushStateIfNecessary()));
-	}
-
-	private _pushStateIfNecessary(): void {
-		const newState = new CursorState(this._editor.getSelections()!);
-
-		if (!this._isCursorUndoRedo && this._prevState) {
-			const isEqualToLastUndoStack = (this._undoStack.length > 0 && this._undoStack[this._undoStack.length - 1].equals(this._prevState));
+		this._register(editor.onDidChangeCursorSelection((e) => {
+			if (this._isCursorUndoRedo) {
+				return;
+			}
+			if (!e.oldSelections) {
+				return;
+			}
+			if (e.oldModelVersionId !== e.modelVersionId) {
+				return;
+			}
+			const prevState = new CursorState(e.oldSelections);
+			const isEqualToLastUndoStack = (this._undoStack.length > 0 && this._undoStack[this._undoStack.length - 1].equals(prevState));
 			if (!isEqualToLastUndoStack) {
-				this._undoStack.push(this._prevState);
+				this._undoStack.push(prevState);
 				this._redoStack = [];
 				if (this._undoStack.length > 50) {
 					// keep the cursor undo stack bounded
 					this._undoStack.shift();
 				}
 			}
-		}
-
-		this._prevState = newState;
+		}));
 	}
 
 	public cursorUndo(): void {

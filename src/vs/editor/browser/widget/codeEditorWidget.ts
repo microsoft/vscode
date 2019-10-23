@@ -1371,6 +1371,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const e2: ICursorSelectionChangedEvent = {
 				selection: e.selections[0],
 				secondarySelections: e.selections.slice(1),
+				modelVersionId: e.modelVersionId,
+				oldSelections: e.oldSelections,
+				oldModelVersionId: e.oldModelVersionId,
 				source: e.source,
 				reason: e.reason
 			};

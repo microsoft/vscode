@@ -616,41 +616,6 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	/**
-	 * Debug console mode used by debug session, see [options](#DebugSessionOptions).
-	 */
-	export enum DebugConsoleMode {
-		/**
-		 * Debug session should have a separate debug console.
-		 */
-		Separate = 0,
-
-		/**
-		 * Debug session should share debug console with its parent session.
-		 * This value has no effect for sessions which do not have a parent session.
-		 */
-		MergeWithParent = 1
-	}
-
-	/**
-	 * Options for [starting a debug session](#debug.startDebugging).
-	 */
-	export interface DebugSessionOptions {
-
-		/**
-		 * When specified the newly created debug session is registered as a "child" session of this
-		 * "parent" debug session.
-		 */
-		parentSession?: DebugSession;
-
-		/**
-		 * Controls whether this session should have a separate debug console or share it
-		 * with the parent session. Has no effect for sessions which do not have a parent session.
-		 * Defaults to Separate.
-		 */
-		consoleMode?: DebugConsoleMode;
-	}
-
 	//#endregion
 
 	//#region Rob, Matt: logging
