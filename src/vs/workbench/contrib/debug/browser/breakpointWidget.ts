@@ -146,7 +146,6 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	fitHeightToContent(): void {
 		const lineNum = this.input.getModel().getLineCount();
 		this._relayout(lineNum + 1);
-		this.centerInputVertically();
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -238,7 +237,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}));
 
 		this.toDispose.push(this._configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('editor.fontSize')) {
+			if (e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.lineHeight')) {
 				this.input.updateOptions(this.createEditorOptions());
 				this.centerInputVertically();
 			}
