@@ -528,6 +528,7 @@ suite('URI', () => {
 		assertFileUri('/foo/%A0.txt'); // %A0 -> invalid
 		assertFileUri('/foo/ü.txt');
 		assertFileUri('/foo/ß.txt');
+		assertFileUri('/my/c#project/d.cs');
 		// assertFileUri('foo'); nodejs resolves the path first
 		if (!isWindows) {
 			assertFileUri('/c\\win\\path');
@@ -541,6 +542,7 @@ suite('URI', () => {
 		assertFsPath('file:///foö/bar');
 		assertFsPath('file:///fo%C3%B6/bar');
 		assertFsPath('file:///');
+		assertFsPath('file:///my/c%23project/c.cs');
 
 		// assertFsPath('file:///fo%2f/bar'); not allowed in nodejs
 

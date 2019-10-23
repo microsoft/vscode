@@ -343,6 +343,7 @@ export class URI implements UriComponents {
 		// escape some vital characters
 		authority = authority.replace(/%/g, '%25');
 		path = path.replace(/%/g, '%25');
+		path = path.replace(/#/g, '%23');
 
 		if (!isWindows) {
 			path = path.replace(/\\/g, '%5C');
