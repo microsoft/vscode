@@ -17,12 +17,11 @@ import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/v
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -59,7 +58,7 @@ export interface IPointerHandlerHelper {
 	 */
 	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position | null;
 
-	visibleRangeForPosition2(lineNumber: number, column: number): HorizontalRange | null;
+	visibleRangeForPosition(lineNumber: number, column: number): HorizontalPosition | null;
 	getLineWidth(lineNumber: number): number;
 }
 

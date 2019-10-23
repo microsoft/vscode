@@ -121,7 +121,7 @@ export class ViewCursor {
 
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
 			const visibleRange = ctx.visibleRangeForPosition(this._position);
-			if (!visibleRange) {
+			if (!visibleRange || visibleRange.outsideRenderedLine) {
 				// Outside viewport
 				return null;
 			}
@@ -151,13 +151,18 @@ export class ViewCursor {
 		const lineContent = this._context.model.getLineContent(this._position.lineNumber);
 		const nextCharLength = strings.nextCharLength(lineContent, this._position.column - 1);
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(this._position.lineNumber, this._position.column, this._position.lineNumber, this._position.column + nextCharLength), false);
-
-		if (!visibleRangeForCharacter || visibleRangeForCharacter.length === 0 || visibleRangeForCharacter[0].ranges.length === 0) {
+		if (!visibleRangeForCharacter || visibleRangeForCharacter.length === 0) {
 			// Outside viewport
 			return null;
 		}
 
-		const range = visibleRangeForCharacter[0].ranges[0];
+		const firstVisibleRangeForCharacter = visibleRangeForCharacter[0];
+		if (firstVisibleRangeForCharacter.outsideRenderedLine || firstVisibleRangeForCharacter.ranges.length === 0) {
+			// Outside viewport
+			return null;
+		}
+
+		const range = firstVisibleRangeForCharacter.ranges[0];
 		const width = range.width < 1 ? this._typicalHalfwidthCharacterWidth : range.width;
 
 		let textContentClassName = '';
