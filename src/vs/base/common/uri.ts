@@ -634,7 +634,7 @@ const enum EncodePart {
 const _normalEncoder: { (code: number): boolean }[] = [isUserInfoPercentEncodeSet, isC0ControlPercentEncodeSet, isPathPercentEncodeSet, isFragmentPercentEncodeSet, isQueryPrecentEncodeSet];
 const _minimalEncoder: { (code: number): boolean }[] = [isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, () => false];
 
-const _driveLetterRegExp = /(\/?[a-z])(:|%3a)/i;
+const _driveLetterRegExp = /^(\/?[a-z])(:|%3a)/i;
 
 /**
  * Create the external version of a uri
