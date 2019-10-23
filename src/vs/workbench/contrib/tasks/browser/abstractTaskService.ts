@@ -732,11 +732,32 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return settingValue === true;
 	}
 
-	private shouldAttachProblemMatcher(task: Task): boolean {
+	private isProblemMatcherPromptEnabled(type?: string): boolean {
 		const settingValue = this.configurationService.getValue(PROBLEM_MATCHER_NEVER_CONFIG);
-		if (settingValue === true) {
-			return false;
-		} else if (task.type && Types.isStringArray(settingValue) && (settingValue.indexOf(task.type) >= 0)) {
+		if (Types.isBoolean(settingValue)) {
+			return !settingValue;
+		}
+		if (type === undefined) {
+			return true;
+		}
+		const settingValueMap: IStringDictionary<boolean> = <any>settingValue;
+		return !settingValueMap[type];
+	}
+
+	private getTypeForTask(task: Task): string {
+		let type: string;
+		if (CustomTask.is(task)) {
+			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+			type = (<any>configProperties).type;
+		} else {
+			type = task.getDefinition()!.type;
+		}
+		return type;
+	}
+
+	private shouldAttachProblemMatcher(task: Task): boolean {
+		const enabled = this.isProblemMatcherPromptEnabled(this.getTypeForTask(task));
+		if (enabled === false) {
 			return false;
 		}
 		if (!this.canCustomize(task)) {
@@ -753,8 +774,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (CustomTask.is(task)) {
 			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
-			const type: string = (<any>configProperties).type;
-			return configProperties.problemMatcher === undefined && !task.hasDefinedMatchers && (!Types.isStringArray(settingValue) || (settingValue.indexOf(type) < 0));
+			return configProperties.problemMatcher === undefined && !task.hasDefinedMatchers;
 		}
 		return false;
 	}
@@ -765,12 +785,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (current === true) {
 			return;
 		}
-		let newValue: string[] = [];
-		if (Types.isStringArray(current)) {
-			newValue = current;
+		let newValue: IStringDictionary<boolean>;
+		if (current !== false) {
+			newValue = <any>current;
+		} else {
+			newValue = Object.create(null);
 		}
-		newValue.push(type);
-		return this.configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue);
+		newValue[type] = true;
+		return this.configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue, ConfigurationTarget.USER);
 	}
 
 	private attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task | undefined> {

@@ -322,10 +322,15 @@ configurationRegistry.registerConfiguration({
 					markdownDescription: nls.localize('task.problemMatchers.neverPrompt.boolean', 'Sets problem matcher prompting behavior for all tasks.')
 				},
 				{
-					type: 'array',
-					items: {
-						type: 'string',
-						markdownDescription: nls.localize('task.problemMatchers.neverPrompt.array', 'An array of task types to never prompt for problem matchers on.')
+					type: 'object',
+					patternProperties: {
+						'.*': {
+							type: 'boolean'
+						}
+					},
+					markdownDescription: nls.localize('task.problemMatchers.neverPrompt.array', 'An object containing task type-boolean pairs to never prompt for problem matchers on.'),
+					default: {
+						'shell': true
 					}
 				}
 			],
