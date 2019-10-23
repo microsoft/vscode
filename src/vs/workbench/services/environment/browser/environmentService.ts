@@ -43,6 +43,7 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 
 	readonly machineId = generateUuid();
 	windowId!: number;
+	sessionId!: string;
 	logLevel!: LogLevel;
 
 	mainPid!: number;

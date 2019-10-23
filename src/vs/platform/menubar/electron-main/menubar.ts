@@ -551,8 +551,8 @@ export class Menubar {
 					label: this.mnemonicLabel(nls.localize('miCheckForUpdates', "Check for &&Updates...")), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
 
-						const focusedWindow = BrowserWindow.getFocusedWindow();
-						const context = focusedWindow ? { windowId: focusedWindow.id } : null;
+						const window = this.windowsMainService.getLastActiveWindow();
+						const context = window?.config?.sessionId;
 						this.updateService.checkForUpdates(context);
 					}, 0)
 				})];
