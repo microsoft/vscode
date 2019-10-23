@@ -66,13 +66,13 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return;
 		}
 
-		const newFile = this.client.toPath(newResource);
-		if (!newFile) {
+		const newFilePath = this.client.toPath(newResource);
+		if (!newFilePath) {
 			return;
 		}
 
-		const oldFile = this.client.toPath(oldResource);
-		if (!oldFile) {
+		const oldFilePath = this.client.toPath(oldResource);
+		if (!oldFilePath) {
 			return;
 		}
 
@@ -88,7 +88,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		this.client.bufferSyncSupport.closeResource(oldResource);
 		this.client.bufferSyncSupport.openTextDocument(document);
 
-		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
+		const edits = await this.getEditsForFileRename(document, oldFilePath, newFilePath);
 		if (!edits || !edits.size) {
 			return;
 		}
@@ -207,18 +207,18 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 	private async getEditsForFileRename(
 		document: vscode.TextDocument,
-		oldFile: string,
-		newFile: string,
+		oldFilePath: string,
+		newFilePath: string,
 	): Promise<vscode.WorkspaceEdit | undefined> {
 		const response = await this.client.interruptGetErr(() => {
 			this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
 			const args: Proto.GetEditsForFileRenameRequestArgs = {
-				oldFilePath: oldFile,
-				newFilePath: newFile,
+				oldFilePath,
+				newFilePath,
 			};
 			return this.client.execute('getEditsForFileRename', args, nulToken);
 		});
-		if (response.type !== 'response' || !response.body) {
+		if (response.type !== 'response') {
 			return;
 		}
 
