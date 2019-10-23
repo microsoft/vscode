@@ -678,7 +678,7 @@ function _toString(encoder: { (code: number): boolean }[], scheme: string, autho
 
 		// lower-case windows drive letters in /C:/fff or C:/fff and escape `:`
 
-		let match = /(\/?[a-zA-Z]):/.exec(pathEncoded); // <- todo@joh make fast!
+		let match = /(\/?[a-z])(:|%3a)/i.exec(pathEncoded); // <- todo@joh make fast!
 		if (match) {
 			pathEncoded = match[1].toLowerCase() + '%3A' + pathEncoded.substr(match[0].length);
 		}

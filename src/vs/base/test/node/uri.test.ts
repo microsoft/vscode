@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
@@ -483,6 +484,28 @@ suite('URI', () => {
 		assert.equal(uri1.fragment, '');
 	});
 
+	test('URI#parse creates normalized output', function () {
+		function assertToString(input: string, output: string = input): void {
+			const uri = URI.parse(input);
+			assert.equal(uri.toString(), output);
+		}
+
+		// don't break query string, encoded characters
+		assertToString('https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437');
+		assertToString('https://go.microsoft.com/fwlink/?LinkId=518008');
+		assertToString('https://twitter.com/search?src=typd&q=%23tag');
+		assertToString('http://localhost:3000/#/foo?bar=baz');
+		assertToString('https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom');
+		assertToString('https://myhost.com/Redirect?url=http%3a%2f%2Fwww.bing.com%3Fsearch%3Dtom', 'https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom'); // upper-case hex
+		assertToString('https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü', 'https://go.microsoft.com/fwlink/?LinkId=518008&fo%C3%B6&k%C3%A9%C2%A5=%C3%BC%C3%BC'); // encode umlaute and friends
+
+		// normalize things like
+		assertToString('file:///c:/test/me', 'file:///c%3A/test/me'); // drive letter treatment
+		assertToString('file:///C:/test/me', 'file:///c%3A/test/me');
+		assertToString('file:///c%3A/test/me', 'file:///c%3A/test/me');
+		assertToString('file:///C%3A/test/me', 'file:///c%3A/test/me');
+	});
+
 	test('URI - (de)serialize', function () {
 
 		const values = [
@@ -578,6 +601,9 @@ suite('URI', () => {
 			'file:///foo%5cbar',
 			'file:///foo%5Cbar',
 			'file:///foo%5C%5cbar',
+			'file:///Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins',
+			'file:///monacotools/folder/isi.txt',
+			'file:///monacotools1/certificates/SSL/',
 		];
 		const windowsUris = [
 			'file:///f:/foo/bar',
@@ -590,6 +616,10 @@ suite('URI', () => {
 			'file://unc-host/foö/bar',
 			'file://unc-host/',
 			'file:///c:/bar/foo',
+			'file:///c:/alex.txt',
+			'file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins',
+			'file://monacotools/folder/isi.txt',
+			'file://monacotools1/certificates/SSL/',
 		];
 
 		// nodejs is strict to the platform on which it runs
@@ -597,14 +627,14 @@ suite('URI', () => {
 	});
 
 	// ---- check against standard url
+	test('URI.toString equals (whatwg) URL.toString', function () {
 
-	function assertToString(uri: string): void {
-		const actual = URI.parse(uri).toString();
-		const expected = new URL(uri).href;
-		assert.equal(actual, expected);
-	}
+		function assertToString(uri: string): void {
+			const actual = URI.parse(uri).toString();
+			const expected = new URL(uri).href;
+			assert.equal(actual, expected);
+		}
 
-	test('URI.toString and URL.href', function () {
 		assertToString('before:some/file/path');
 		assertToString('scheme://authority/path');
 		assertToString('scheme:/path');
@@ -629,5 +659,12 @@ suite('URI', () => {
 		assertToString('debug:internalModule.js?session=aDebugSessionId&ref=11');
 		assertToString('debug:internalModule.js?session%3DaDebugSessionId%26ref%3D11');
 		assertToString('https://github.com/microsoft/vscode/issues/33746#issuecomment-545345356');
+		assertToString('http://localhost:3000/#/foo?bar=baz');
+		assertToString('https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom');
+		assertToString('https://myhost.com/my/pãth/ìß/hē®ę');
+		assertToString('http://foo:bar@localhost/far');
+		assertToString('http://foo@localhost/far');
+		assertToString('http://foo:bAr@localhost:8080/far');
+		assertToString('http://foo@localhost:8080/far');
 	});
 });
