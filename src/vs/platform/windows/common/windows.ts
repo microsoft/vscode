@@ -246,7 +246,6 @@ export interface IWindowConfiguration extends ParsedArgs {
 	fullscreen?: boolean;
 	maximized?: boolean;
 	highContrast?: boolean;
-	frameless?: boolean;
 	accessibilitySupport?: boolean;
 	partsSplashPath?: string;
 

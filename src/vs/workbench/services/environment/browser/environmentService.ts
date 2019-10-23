@@ -66,7 +66,6 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	fullscreen?: boolean;
 	maximized?: boolean;
 	highContrast?: boolean;
-	frameless?: boolean;
 	accessibilitySupport?: boolean;
 	partsSplashPath?: string;
 
@@ -105,6 +104,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	_serviceBrand: undefined;
 
 	//#region PROPERLY CONFIGURED
+
+	@memoize
+	get isBuilt(): boolean { return !!product.commit; }
 
 	@memoize
 	get logsPath(): string { return this.options.logsPath.path; }
@@ -196,8 +198,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	argvResource!: URI;
 
-	//#endregion
-
 	extensionTestsLocationURI?: URI;
 
 	execPath!: string;
@@ -211,15 +211,13 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	globalStorageHome!: string;
 	workspaceStorageHome!: string;
 	backupWorkspacesPath!: string;
-	workspacesHome!: string;
 
 	disableExtensions!: boolean | string[];
 	builtinExtensionsPath!: string;
 	extensionsPath?: string;
-	extensionTestsPath?: string;
 	debugSearch!: IDebugParams;
 	logExtensionHostCommunication!: boolean;
-	isBuilt!: boolean;
+
 	wait!: boolean;
 	status!: boolean;
 	log?: string;
@@ -235,6 +233,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	driverHandle?: string;
 	driverVerbose!: boolean;
 	galleryMachineIdResource?: URI;
+
+	//#endregion
 
 	constructor(readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) { }
 
