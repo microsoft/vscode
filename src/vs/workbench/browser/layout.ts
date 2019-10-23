@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, position, size, Dimension } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -38,6 +38,8 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
 import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
 
 enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -74,7 +76,8 @@ enum Classes {
 	EDITOR_HIDDEN = 'noeditorarea',
 	PANEL_HIDDEN = 'nopanel',
 	STATUSBAR_HIDDEN = 'nostatusbar',
-	FULLSCREEN = 'fullscreen'
+	FULLSCREEN = 'fullscreen',
+	WINDOW_BORDER = 'border'
 }
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
@@ -135,9 +138,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private contextService!: IWorkspaceContextService;
 	private backupFileService!: IBackupFileService;
 	private notificationService!: INotificationService;
+	private themeService!: IThemeService;
 
 	protected readonly state = {
 		fullscreen: false,
+		hasFocus: false,
+		windowBorder: false,
 
 		menuBar: {
 			visibility: 'default' as MenuBarVisibility,
@@ -204,6 +210,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.contextService = accessor.get(IWorkspaceContextService);
 		this.storageService = accessor.get(IStorageService);
 		this.backupFileService = accessor.get(IBackupFileService);
+		this.themeService = accessor.get(IThemeService);
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
@@ -257,6 +264,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
+
+		// Theme changes
+		this._register(this.themeService.onThemeChange(theme => this.updateStyles()));
+
+		// Window focus changes
+		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
 	}
 
 	private onMenubarToggled(visible: boolean) {
@@ -295,6 +308,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this._onFullscreenChange.fire(this.state.fullscreen);
+	}
+
+	private onWindowFocusChanged(hasFocus: boolean): void {
+		if (this.state.hasFocus === hasFocus) {
+			return;
+		}
+
+		this.state.hasFocus = hasFocus;
+		this.updateWindowBorder();
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
@@ -364,6 +386,44 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this.layout();
+	}
+
+	private updateWindowBorder(skipLayout: boolean = false) {
+		if (isWeb || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+			return;
+		}
+
+		const theme = this.themeService.getTheme();
+
+		const activeBorder = theme.getColor(WINDOW_ACTIVE_BORDER);
+		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
+
+		let windowBorder = false;
+		if (activeBorder || inactiveBorder) {
+			windowBorder = true;
+
+			// If one color is missing, just fallback to the other one
+			const borderColor = this.state.hasFocus
+				? activeBorder ?? inactiveBorder
+				: inactiveBorder ?? activeBorder;
+			this.container.style.setProperty('--window-border-color', borderColor ? borderColor.toString() : 'transparent');
+		}
+
+		if (windowBorder === this.state.windowBorder) {
+			return;
+		}
+
+		this.state.windowBorder = windowBorder;
+
+		toggleClass(this.container, Classes.WINDOW_BORDER, windowBorder);
+
+		if (!skipLayout) {
+			this.layout();
+		}
+	}
+
+	private updateStyles() {
+		this.updateWindowBorder();
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
@@ -441,6 +501,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Zen mode enablement
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
+
+		this.state.hasFocus = this.hostService.hasFocus;
+
+		// Window border
+		this.updateWindowBorder(true);
 
 	}
 
@@ -826,12 +891,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}));
 	}
 
+	getClientArea(): Dimension {
+		const dim = getClientArea(this.parent);
+		return this.state.windowBorder ? new Dimension(dim.width - 2, dim.height - 2) : dim;
+	}
+
 	layout(): void {
 		if (!this.disposed) {
-			this._dimension = getClientArea(this.parent);
-
-			position(this.container, 0, 0, 0, 0, 'relative');
-			size(this.container, this._dimension.width, this._dimension.height);
+			this._dimension = this.getClientArea();
 
 			// Layout the grid widget
 			this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
@@ -1169,7 +1236,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private createGridDescriptor(): ISerializedGrid {
-		const workbenchDimensions = getClientArea(this.parent);
+		const workbenchDimensions = this.getClientArea();
 		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, workbenchDimensions.width);
 		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, workbenchDimensions.height);
 		// At some point, we will not fall back to old keys from legacy layout, but for now, let's migrate the keys

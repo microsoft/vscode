@@ -954,7 +954,7 @@ export namespace SymbolKinds {
 	 * @internal
 	 */
 	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		return `symbol-icon ${inline ? 'inline' : 'block'} ${byKind.get(kind) || 'property'}`;
+		return `codicon ${inline ? 'inline' : 'block'} codicon-symbol-${byKind.get(kind) || 'property'}`;
 	}
 }
 

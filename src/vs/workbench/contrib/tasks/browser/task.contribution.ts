@@ -315,17 +315,22 @@ configurationRegistry.registerConfiguration({
 	type: 'object',
 	properties: {
 		'task.problemMatchers.neverPrompt': {
-			markdownDescription: nls.localize('task.problemMatchers.neverPrompt', "Configures whether to show the problem matcher prompt when running a task. Set to `true` to never promp, or use an array of task types to turn off prompting only for specific task types."),
+			markdownDescription: nls.localize('task.problemMatchers.neverPrompt', "Configures whether to show the problem matcher prompt when running a task. Set to `true` to never promp, or use a dictionary of task types to turn off prompting only for specific task types."),
 			'oneOf': [
 				{
 					type: 'boolean',
 					markdownDescription: nls.localize('task.problemMatchers.neverPrompt.boolean', 'Sets problem matcher prompting behavior for all tasks.')
 				},
 				{
-					type: 'array',
-					items: {
-						type: 'string',
-						markdownDescription: nls.localize('task.problemMatchers.neverPrompt.array', 'An array of task types to never prompt for problem matchers on.')
+					type: 'object',
+					patternProperties: {
+						'.*': {
+							type: 'boolean'
+						}
+					},
+					markdownDescription: nls.localize('task.problemMatchers.neverPrompt.array', 'An object containing task type-boolean pairs to never prompt for problem matchers on.'),
+					default: {
+						'shell': true
 					}
 				}
 			],
@@ -358,5 +363,10 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			default: 30, minimum: 0, maximum: 30
 		},
+		'task.quickOpen.detail': {
+			markdownDescription: nls.localize('task.quickOpen.detail', "Controls whether to show the task detail for task that have a detail in the Run Task quick pick."),
+			type: 'boolean',
+			default: true
+		}
 	}
 });

@@ -505,6 +505,7 @@ export interface IConfig extends IEnvConfig {
 
 export interface ICompound {
 	name: string;
+	preLaunchTask?: string | TaskIdentifier;
 	configurations: (string | { name: string, folder: string })[];
 }
 

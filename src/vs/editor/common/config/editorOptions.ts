@@ -1258,7 +1258,7 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
 		}
-		return EditorFloatOption.clamp(r, 8, 100);
+		return EditorFloatOption.clamp(r, 6, 100);
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The final fontSize respects the editor zoom level.

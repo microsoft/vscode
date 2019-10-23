@@ -35,7 +35,7 @@ export const enum Constants {
 	 */
 	MAX_UINT_32 = 4294967295, // 2^32 - 1
 
-
+	UNICODE_SUPPLEMENTARY_PLANE_BEGIN = 0x010000
 }
 
 export function toUint8(v: number): number {

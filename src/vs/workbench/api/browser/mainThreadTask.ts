@@ -323,6 +323,9 @@ namespace TaskDTO {
 		if (task.configurationProperties.group) {
 			result.group = task.configurationProperties.group;
 		}
+		if (task.configurationProperties.detail) {
+			result.detail = task.configurationProperties.detail;
+		}
 		if (!ConfiguringTask.is(task) && task.command) {
 			if (task.command.runtime === RuntimeType.Process) {
 				result.execution = ProcessExecutionDTO.from(task.command);
@@ -380,6 +383,7 @@ namespace TaskDTO {
 				group: task.group,
 				isBackground: !!task.isBackground,
 				problemMatchers: task.problemMatchers.slice(),
+				detail: task.detail
 			}
 		);
 		return result;

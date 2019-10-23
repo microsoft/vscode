@@ -571,21 +571,18 @@ export class RawDebugSession implements IDisposable {
 		const args: string[] = [];
 
 		for (let arg of vscodeArgs.args) {
-			if (arg.prefix) {
-				const a2 = (arg.prefix || '') + (arg.path || '');
-				const match = /^--(.+)=(.+)$/.exec(a2);
-				if (match && match.length === 3) {
-					const key = match[1];
-					let value = match[2];
+			const a2 = (arg.prefix || '') + (arg.path || '');
+			const match = /^--(.+)=(.+)$/.exec(a2);
+			if (match && match.length === 3) {
+				const key = match[1];
+				let value = match[2];
 
-					if ((key === 'file-uri' || key === 'folder-uri') && !isUri(arg.path)) {
-						value = URI.file(value).toString();
-					}
-
-					args.push(`--${key}=${value}`);
-				} else {
-					args.push(a2);
+				if ((key === 'file-uri' || key === 'folder-uri') && !isUri(arg.path)) {
+					value = URI.file(value).toString();
 				}
+				args.push(`--${key}=${value}`);
+			} else {
+				args.push(a2);
 			}
 		}
 
