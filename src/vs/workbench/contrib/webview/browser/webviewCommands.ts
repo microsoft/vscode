@@ -67,7 +67,7 @@ export class ReloadWebviewAction extends Action {
 	}
 }
 
-function getActiveWebviewEditor(accessor: ServicesAccessor): WebviewEditor | undefined {
+export function getActiveWebviewEditor(accessor: ServicesAccessor): WebviewEditor | undefined {
 	const editorService = accessor.get(IEditorService);
 	const activeControl = editorService.activeControl as WebviewEditor | undefined;
 	return activeControl?.isWebviewEditor ? activeControl : undefined;
