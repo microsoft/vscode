@@ -27,6 +27,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class InsertCursorAbove extends EditorAction {
 
@@ -747,7 +748,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 			id: 'editor.action.changeAll',
 			label: nls.localize('changeAll.label', "Change All Occurrences"),
 			alias: 'Change All Occurrences',
-			precondition: EditorContextKeys.writable,
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2,

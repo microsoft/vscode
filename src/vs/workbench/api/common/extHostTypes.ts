@@ -1815,6 +1815,7 @@ export class Task implements vscode.Task2 {
 	private _group: TaskGroup | undefined;
 	private _presentationOptions: vscode.TaskPresentationOptions;
 	private _runOptions: vscode.RunOptions;
+	private _detail: string | undefined;
 
 	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
@@ -1928,19 +1929,11 @@ export class Task implements vscode.Task2 {
 		this._name = value;
 	}
 
-	get execution(): ProcessExecution | ShellExecution | undefined {
-		return (this._execution instanceof CustomExecution) ? undefined : this._execution;
-	}
-
-	set execution(value: ProcessExecution | ShellExecution | undefined) {
-		this.execution2 = value;
-	}
-
-	get execution2(): ProcessExecution | ShellExecution | CustomExecution | undefined {
+	get execution(): ProcessExecution | ShellExecution | CustomExecution | undefined {
 		return this._execution;
 	}
 
-	set execution2(value: ProcessExecution | ShellExecution | CustomExecution | undefined) {
+	set execution(value: ProcessExecution | ShellExecution | CustomExecution | undefined) {
 		if (value === null) {
 			value = undefined;
 		}
@@ -2007,6 +2000,17 @@ export class Task implements vscode.Task2 {
 		}
 		this.clear();
 		this._group = value;
+	}
+
+	get detail(): string | undefined {
+		return this._detail;
+	}
+
+	set detail(value: string | undefined) {
+		if (value === null) {
+			value = undefined;
+		}
+		this._detail = value;
 	}
 
 	get presentationOptions(): vscode.TaskPresentationOptions {

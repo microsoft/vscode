@@ -89,6 +89,7 @@ export interface TaskDTO {
 	isBackground?: boolean;
 	source: TaskSourceDTO;
 	group?: string;
+	detail?: string;
 	presentationOptions?: TaskPresentationOptionsDTO;
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;

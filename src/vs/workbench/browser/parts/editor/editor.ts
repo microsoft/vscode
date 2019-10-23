@@ -37,7 +37,8 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	openSideBySideDirection: 'right',
 	closeEmptyGroups: true,
 	labelFormat: 'default',
-	iconTheme: 'vs-seti'
+	iconTheme: 'vs-seti',
+	splitSizing: 'distribute'
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {

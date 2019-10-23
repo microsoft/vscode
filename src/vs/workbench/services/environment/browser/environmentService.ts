@@ -91,6 +91,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
 		this.argvResource = joinPath(this.userRoamingDataHome, 'argv.json');
 		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
+		this.untitledWorkspacesHome = joinPath(this.userRoamingDataHome, 'Workspaces');
 		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, options.workspaceId);
 		this.configuration.connectionToken = options.connectionToken || getCookieValue('vscode-tkn');
 
@@ -98,8 +99,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			port: null,
 			break: false
 		};
-
-		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
 
 		// Fill in selected extra environmental properties
 		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
@@ -207,7 +206,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get webviewExternalEndpoint(): string {
 		// TODO: get fallback from product.json
 		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}')
-			.replace('{{commit}}', product.commit || '211fa02efe8c041fd7baa8ec3dce199d5185aa44');
+			.replace('{{commit}}', product.commit || 'c58aaab8a1cc22a7139b761166a0d4f37d41e998');
 	}
 
 	get webviewResourceRoot(): string {

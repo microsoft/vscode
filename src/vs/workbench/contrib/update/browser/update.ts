@@ -171,7 +171,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private updateStateContextKey: IContextKey<string>;
 
-	private windowId: number | undefined = this.electronEnvironmentService ? this.electronEnvironmentService.windowId : undefined;
+	private context = `window:${this.electronEnvironmentService ? this.electronEnvironmentService.windowId : 'any'}`;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -218,7 +218,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			case StateType.Idle:
 				if (state.error) {
 					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowId) {
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context === this.context) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -401,7 +401,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerGlobalActivityActions(): void {
-		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates({ windowId: this.windowId }));
+		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(this.context));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '6_update',
 			command: {

@@ -94,10 +94,12 @@ type Brackets = [Range, Range];
 class BracketsData {
 	public readonly position: Position;
 	public readonly brackets: Brackets | null;
+	public readonly options: ModelDecorationOptions;
 
-	constructor(position: Position, brackets: Brackets | null) {
+	constructor(position: Position, brackets: Brackets | null, options: ModelDecorationOptions) {
 		this.position = position;
 		this.brackets = brackets;
+		this.options = options;
 	}
 }
 
@@ -245,14 +247,18 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		}
 	}
 
-
-	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerBracketMatchForeground),
 			position: OverviewRulerLane.Center
 		}
+	});
+
+	private static readonly _DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'bracket-match'
 	});
 
 	private _updateBrackets(): void {
@@ -262,11 +268,11 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._recomputeBrackets();
 
 		let newDecorations: IModelDeltaDecoration[] = [], newDecorationsLen = 0;
-		for (let i = 0, len = this._lastBracketsData.length; i < len; i++) {
-			let brackets = this._lastBracketsData[i].brackets;
+		for (const bracketData of this._lastBracketsData) {
+			let brackets = bracketData.brackets;
 			if (brackets) {
-				newDecorations[newDecorationsLen++] = { range: brackets[0], options: BracketMatchingController._DECORATION_OPTIONS };
-				newDecorations[newDecorationsLen++] = { range: brackets[1], options: BracketMatchingController._DECORATION_OPTIONS };
+				newDecorations[newDecorationsLen++] = { range: brackets[0], options: bracketData.options };
+				newDecorations[newDecorationsLen++] = { range: brackets[1], options: bracketData.options };
 			}
 		}
 
@@ -325,10 +331,12 @@ export class BracketMatchingController extends Disposable implements editorCommo
 				newData[newDataLen++] = previousData[previousIndex];
 			} else {
 				let brackets = model.matchBracket(position);
+				let options = BracketMatchingController._DECORATION_OPTIONS_WITH_OVERVIEW_RULER;
 				if (!brackets) {
 					brackets = model.findEnclosingBrackets(position);
+					options = BracketMatchingController._DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER;
 				}
-				newData[newDataLen++] = new BracketsData(position, brackets);
+				newData[newDataLen++] = new BracketsData(position, brackets, options);
 			}
 		}
 

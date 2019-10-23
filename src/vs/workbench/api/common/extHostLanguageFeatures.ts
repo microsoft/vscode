@@ -740,14 +740,14 @@ class SuggestAdapter {
 
 		// 'insertText'-logic
 		if (item.textEdit) {
-			result.h = item.textEdit.newText;
+			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.textEdit.newText;
 
 		} else if (typeof item.insertText === 'string') {
-			result.h = item.insertText;
+			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.insertText;
 
 		} else if (item.insertText instanceof SnippetString) {
-			result.h = item.insertText.value;
-			result.i! |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
+			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.insertText.value;
+			result[extHostProtocol.ISuggestDataDtoField.insertTextRules]! |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
 		}
 
 		// 'overwrite[Before|After]'-logic
@@ -757,7 +757,7 @@ class SuggestAdapter {
 		} else if (item.range) {
 			range = item.range;
 		}
-		result.j = typeConvert.Range.from(range);
+		result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
 
 		if (range && (!range.isSingleLine || range.start.line !== position.line)) {
 			console.warn('INVALID text edit -> must be single line and on the same line');

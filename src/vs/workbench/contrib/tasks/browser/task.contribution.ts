@@ -358,5 +358,10 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			default: 30, minimum: 0, maximum: 30
 		},
+		'task.quickOpen.detail': {
+			markdownDescription: nls.localize('task.quickOpen.detail', "Controls whether to show the task detail for task that have a detail in the Run Task quick pick."),
+			type: 'boolean',
+			default: true
+		}
 	}
 });

@@ -533,6 +533,17 @@
             ],
             "default": "ignore",
             "description": "%scss.lint.idSelector.desc%"
+          },
+          "scss.lint.unknownAtRules": {
+            "type": "string",
+            "scope": "resource",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ],
+            "default": "warning",
+            "description": "%scss.lint.unknownAtRules.desc%"
           }
         }
       },
@@ -767,6 +778,17 @@
             ],
             "default": "ignore",
             "description": "%less.lint.idSelector.desc%"
+          },
+          "less.lint.unknownAtRules": {
+            "type": "string",
+            "scope": "resource",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ],
+            "default": "warning",
+            "description": "%less.lint.unknownAtRules.desc%"
           }
         }
       }
