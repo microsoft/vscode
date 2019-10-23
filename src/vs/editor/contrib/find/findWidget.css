@@ -139,7 +139,6 @@
 }
 
 .monaco-editor .find-widget .button {
-	min-width: 20px;
 	width: 20px;
 	height: 20px;
 	display: flex;
@@ -172,7 +171,7 @@
 .monaco-editor .find-widget .button.toggle {
 	position: absolute;
 	top: 0;
-	left: 0;
+	left: 3px;
 	width: 18px;
 	height: 100%;
 	-webkit-box-sizing:	border-box;
