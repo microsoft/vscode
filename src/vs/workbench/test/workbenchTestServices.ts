@@ -211,7 +211,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IElectronService electronService: IElectronService
+		@IElectronService electronService: IElectronService,
+		@IProductService productService: IProductService
 	) {
 		super(
 			contextService,
@@ -231,7 +232,8 @@ export class TestTextFileService extends NativeTextFileService {
 			fileDialogService,
 			editorService,
 			textResourceConfigurationService,
-			electronService
+			electronService,
+			productService
 		);
 	}
 

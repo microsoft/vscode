@@ -112,8 +112,6 @@ export interface IEnvironmentService {
 	userHome: string;
 	userDataPath: string;
 
-	appNameLong: string;
-	appQuality?: string;
 	appSettingsHome: URI;
 
 	// user roaming data

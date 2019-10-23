@@ -193,9 +193,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	argvResource!: URI;
 
-	// TODO@Ben get out of product.json?!
-	readonly appNameLong = 'Visual Studio Code - Web';
-
 	//#endregion
 
 	extensionTestsLocationURI?: URI;
@@ -204,7 +201,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	cliPath!: string;
 	userHome!: string;
 	userDataPath!: string;
-	appQuality?: string;
 	appSettingsHome!: URI;
 
 	machineSettingsHome!: URI;
