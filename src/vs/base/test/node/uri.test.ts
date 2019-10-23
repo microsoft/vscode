@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
-import { pathToFileURL } from 'url';
+import { pathToFileURL, fileURLToPath, URL } from 'url';
 
 suite('URI', () => {
 	test('file#toString', () => {
@@ -455,7 +455,7 @@ suite('URI', () => {
 		assert.equal(uri1.path, uri2.path);
 		assert.equal(uri1.query, uri2.query);
 		assert.equal(uri1.fragment, uri2.fragment);
-		assert.equal(strIn, strOut); // fails here!!
+		assert.equal(strIn, strOut);
 	});
 
 	test('Uri#parse can break path-component #45515', function () {
@@ -469,7 +469,7 @@ suite('URI', () => {
 		assert.equal(uri1.path, uri2.path);
 		assert.equal(uri1.query, uri2.query);
 		assert.equal(uri1.fragment, uri2.fragment);
-		assert.equal(strIn, strOut); // fails here!!
+		assert.equal(strIn, strOut);
 	});
 
 	test('URI - (de)serialize', function () {
@@ -502,14 +502,27 @@ suite('URI', () => {
 		// console.profileEnd();
 	});
 
-	function assertFileUri(path: string): void {
-		// check that our uri aligns with nodejs
+	// ------ check against standard URL and nodejs-file-url utils
+
+	function assertFileUri(path: string, recurse = true): void {
 		const actual = URI.file(path).toString();
 		const expected = pathToFileURL(path).href;
 		assert.equal(actual, expected);
+		if (recurse) {
+			assertFsPath(expected, false);
+		}
 	}
 
-	test('URI.file vs pathToFileURL', function () {
+	function assertFsPath(uri: string, recurse = true): void {
+		const actual = URI.parse(uri).fsPath;
+		const expected = fileURLToPath(uri);
+		assert.equal(actual, expected);
+		if (recurse) {
+			assertFileUri(actual, false);
+		}
+	}
+
+	test('URI.file and pathToFileURL', function () {
 		assertFileUri('/foo/bar');
 		assertFileUri('/foo/%2e.txt'); // %2e -> .
 		assertFileUri('/foo/%A0.txt'); // %A0 -> invalid
@@ -519,5 +532,65 @@ suite('URI', () => {
 		if (!isWindows) {
 			assertFileUri('/c\\win\\path');
 		}
+	});
+
+	test('URI.fsPath and fileURLToPath', function () {
+		assertFsPath('file:///foo/bar');
+		assertFsPath('file:///fo%25/bar');
+		assertFsPath('file:///foo/b ar/text.cs');
+		assertFsPath('file:///foö/bar');
+		assertFsPath('file:///fo%C3%B6/bar');
+		assertFsPath('file:///');
+
+		// assertFsPath('file:///fo%2f/bar'); not allowed in nodejs
+
+		if (isWindows) {
+			// nodejs doesn't create UNC-paths on non-windows
+			assertFsPath('file://unc-host/foö/bar');
+			assertFsPath('file://unc-host/');
+
+			// nodejs prepends c: with / on non-windows
+			assertFsPath('file:///c:/bar/foo');
+		}
+
+		if (!isWindows) {
+			//
+			assertFsPath('file:///foo%5cbar');
+			assertFsPath('file:///foo%5Cbar');
+			assertFsPath('file:///foo%5C%5cbar');
+		}
+	});
+
+	function assertToString(uri: string): void {
+		const actual = URI.parse(uri).toString();
+		const expected = new URL(uri).href;
+		assert.equal(actual, expected);
+	}
+
+	test('URI.toString and URL.href', function () {
+		assertToString('before:some/file/path');
+		assertToString('scheme://authority/path');
+		assertToString('scheme:/path');
+		assertToString('foo:bar/path');
+		// assertToString('http:/api/files/test.me?t=1234'); // URL make api the hostname,
+		assertToString('http://api/files/test.me?t=1234');
+		// assertToString('file:///c:/test/me'); // we encode the colon
+		// assertToString('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins/c%23/plugin.json');
+		// assertToString('file:///c:/test %25/path');
+		assertToString('file://shares/files/c%23/p.cs');
+		assertToString('inmemory:');
+		assertToString('foo:api/files/test');
+		assertToString('file:?q');
+		assertToString('file:#d');
+		assertToString('f3ile:#d');
+		assertToString('foo+bar:path');
+		assertToString('foo-bar:path');
+		assertToString('foo.bar:path');
+		assertToString('file:///_:/path');
+		assertToString('https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437');
+		assertToString('https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom');
+		assertToString('debug:internalModule.js?session=aDebugSessionId&ref=11');
+		assertToString('debug:internalModule.js?session%3DaDebugSessionId%26ref%3D11');
+		assertToString('https://github.com/microsoft/vscode/issues/33746#issuecomment-545345356');
 	});
 });
