@@ -48,6 +48,7 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedDBLogProvider';
 import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
+import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 
 class BrowserMain extends Disposable {
 
@@ -292,7 +293,7 @@ class BrowserMain extends Disposable {
 
 		// Multi-root workspace
 		if (workspace && isWorkspaceToOpen(workspace)) {
-			return { id: hash(workspace.workspaceUri.toString()).toString(16), configPath: workspace.workspaceUri };
+			return getWorkspaceIdentifier(workspace.workspaceUri);
 		}
 
 		// Single-folder workspace
@@ -303,7 +304,7 @@ class BrowserMain extends Disposable {
 		return { id: 'empty-window' };
 	}
 
-	private getRemoteUserDataUri(): URI | null {
+	private getRemoteUserDataUri(): URI | undefined {
 		const element = document.getElementById('vscode-remote-user-data-uri');
 		if (element) {
 			const remoteUserDataPath = element.getAttribute('data-settings');
@@ -312,7 +313,7 @@ class BrowserMain extends Disposable {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 }
 

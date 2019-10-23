@@ -70,6 +70,7 @@
 	let ctrlPressed = false;
 	let altPressed = false;
 	let hasLoadedImage = false;
+	let consumeClick = false;
 
 	// Elements
 	const container = document.body;
@@ -116,6 +117,18 @@
 		});
 	}
 
+	function changeActive(value) {
+		if (value) {
+			container.classList.add('zoom-in');
+			consumeClick = true;
+		} else {
+			ctrlPressed = false;
+			altPressed = false;
+			container.classList.remove('zoom-out');
+			container.classList.remove('zoom-in');
+		}
+	}
+
 	function firstZoom() {
 		if (!image || !hasLoadedImage) {
 			return;
@@ -123,6 +136,34 @@
 
 		scale = image.clientWidth / image.naturalWidth;
 		updateScale(scale);
+	}
+
+	function zoomIn() {
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		let i = 0;
+		for (; i < zoomLevels.length; ++i) {
+			if (zoomLevels[i] > scale) {
+				break;
+			}
+		}
+		updateScale(zoomLevels[i] || MAX_SCALE);
+	}
+
+	function zoomOut() {
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		let i = zoomLevels.length - 1;
+		for (; i >= 0; --i) {
+			if (zoomLevels[i] < scale) {
+				break;
+			}
+		}
+		updateScale(zoomLevels[i] || MIN_SCALE);
 	}
 
 	window.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
@@ -152,6 +193,18 @@
 		}
 	});
 
+	container.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
+		if (!image || !hasLoadedImage) {
+			return;
+		}
+
+		if (e.button !== 0) {
+			return;
+		}
+
+		consumeClick = false;
+	});
+
 	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
 		if (!image || !hasLoadedImage) {
 			return;
@@ -161,27 +214,27 @@
 			return;
 		}
 
+		ctrlPressed = e.ctrlKey;
+		altPressed = e.altKey;
+
+		if (isMac ? altPressed : ctrlPressed) {
+			container.classList.remove('zoom-in');
+			container.classList.add('zoom-out');
+		}
+
+		if (consumeClick) {
+			consumeClick = false;
+			return;
+		}
 		// left click
 		if (scale === 'fit') {
 			firstZoom();
 		}
 
 		if (!(isMac ? altPressed : ctrlPressed)) { // zoom in
-			let i = 0;
-			for (; i < zoomLevels.length; ++i) {
-				if (zoomLevels[i] > scale) {
-					break;
-				}
-			}
-			updateScale(zoomLevels[i] || MAX_SCALE);
+			zoomIn();
 		} else {
-			let i = zoomLevels.length - 1;
-			for (; i >= 0; --i) {
-				if (zoomLevels[i] < scale) {
-					break;
-				}
-			}
-			updateScale(zoomLevels[i] || MIN_SCALE);
+			zoomOut();
 		}
 	});
 
@@ -194,9 +247,6 @@
 		if (!isScrollWheelKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
 			return;
 		}
-
-		e.preventDefault();
-		e.stopPropagation();
 
 		if (scale === 'fit') {
 			firstZoom();
@@ -218,7 +268,6 @@
 	});
 
 	container.classList.add('image');
-	container.classList.add('zoom-in');
 
 	image.classList.add('scale-to-fit');
 
@@ -253,6 +302,18 @@
 		switch (e.data.type) {
 			case 'setScale':
 				updateScale(e.data.scale);
+				break;
+
+			case 'setActive':
+				changeActive(e.data.value);
+				break;
+
+			case 'zoomIn':
+				zoomIn();
+				break;
+
+			case 'zoomOut':
+				zoomOut();
 				break;
 		}
 	});

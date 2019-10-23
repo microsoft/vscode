@@ -11,7 +11,6 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -29,6 +28,7 @@ import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/termi
 import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { find } from 'vs/base/common/arrays';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -91,7 +91,6 @@ export class TerminalService implements ITerminalService {
 		@IPanelService private _panelService: IPanelService,
 		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@INotificationService private _notificationService: INotificationService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IExtensionService private _extensionService: IExtensionService,
@@ -392,12 +391,7 @@ export class TerminalService implements ITerminalService {
 			return null;
 		}
 
-		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
-		if (!instance) {
-			this._showNotEnoughSpaceToast();
-			return null;
-		}
-
+		const instance = tab.split(shellLaunchConfig);
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
 
@@ -414,13 +408,8 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 	}
 
-	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | null {
-		for (const tab of this._terminalTabs) {
-			if (tab.terminalInstances.indexOf(instance) !== -1) {
-				return tab;
-			}
-		}
-		return null;
+	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {
+		return find(this._terminalTabs, tab => tab.terminalInstances.indexOf(instance) !== -1);
 	}
 
 	public showPanel(focus?: boolean): Promise<void> {
@@ -497,10 +486,6 @@ export class TerminalService implements ITerminalService {
 			type: 'warning',
 		});
 		return !res.confirmed;
-	}
-
-	protected _showNotEnoughSpaceToast(): void {
-		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
 	}
 
 	protected _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {

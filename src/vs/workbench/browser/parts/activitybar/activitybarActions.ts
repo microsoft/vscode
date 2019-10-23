@@ -22,7 +22,7 @@ import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarCol
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -60,7 +60,7 @@ export class ViewletActivityAction extends ActivityAction {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
+		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
 			this.logAction('hide');
 			this.layoutService.setSideBarHidden(true);
 			return true;
@@ -95,7 +95,7 @@ export class ToggleViewletAction extends Action {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this._viewlet.id) {
+		if (sideBarVisible && activeViewlet?.getId() === this._viewlet.id) {
 			this.layoutService.setSideBarHidden(true);
 			return Promise.resolve();
 		}
@@ -226,7 +226,7 @@ class SwitchSideBarViewAction extends Action {
 export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 
 	static readonly ID = 'workbench.action.previousSideBarView';
-	static LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
+	static readonly LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
 
 	constructor(
 		id: string,
@@ -245,7 +245,7 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 export class NextSideBarViewAction extends SwitchSideBarViewAction {
 
 	static readonly ID = 'workbench.action.nextSideBarView';
-	static LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
+	static readonly LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
 
 	constructor(
 		id: string,
@@ -270,10 +270,34 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const activeForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activeForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label:not(.codicon),
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label:not(.codicon),
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label:not(.codicon) {
 				background-color: ${activeForegroundColor} !important;
+			}
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {
+				color: ${activeForegroundColor} !important;
+			}
+		`);
+	}
+
+	const activeBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER);
+	if (activeBorderColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+				border-left-color: ${activeBorderColor};
+			}
+		`);
+	}
+
+	const activeBackgroundColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND);
+	if (activeBackgroundColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+				z-index: 0;
+				background-color: ${activeBackgroundColor};
 			}
 		`);
 	}

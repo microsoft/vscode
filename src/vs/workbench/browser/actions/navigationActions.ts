@@ -94,8 +94,8 @@ abstract class BaseNavigationAction extends Action {
 		}
 		const activeViewletId = activeViewlet.getId();
 
-		const value = await this.viewletService.openViewlet(activeViewletId, true);
-		return value === null ? false : value;
+		const viewlet = await this.viewletService.openViewlet(activeViewletId, true);
+		return !!viewlet;
 	}
 
 	protected navigateAcrossEditorGroup(direction: GroupDirection): boolean {

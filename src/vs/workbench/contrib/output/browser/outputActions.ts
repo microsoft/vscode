@@ -213,8 +213,8 @@ export class OpenLogOutputFile extends Action {
 
 export class ShowLogsOutputChannelAction extends Action {
 
-	static ID = 'workbench.action.showLogs';
-	static LABEL = nls.localize('showLogs', "Show Logs...");
+	static readonly ID = 'workbench.action.showLogs';
+	static readonly LABEL = nls.localize('showLogs', "Show Logs...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -243,8 +243,8 @@ interface IOutputChannelQuickPickItem extends IQuickPickItem {
 
 export class OpenOutputLogFileAction extends Action {
 
-	static ID = 'workbench.action.openLogFile';
-	static LABEL = nls.localize('openLogFile', "Open Log File...");
+	static readonly ID = 'workbench.action.openLogFile';
+	static readonly LABEL = nls.localize('openLogFile', "Open Log File...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,

@@ -19,6 +19,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Event as CommonEvent } from 'vs/base/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
@@ -172,6 +173,10 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 	return undefined;
 }
 
+export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
+	return isEqualOrParent(path, environmentService.untitledWorkspacesHome);
+}
+
 export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
 export interface ISingleFolderWorkspaceInitializationPayload { id: string; folder: ISingleFolderWorkspaceIdentifier; }
 export interface IEmptyWorkspaceInitializationPayload { id: string; }
@@ -294,12 +299,7 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 
 export function useSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolean {
 	if (isWindows) {
-		for (const folder of storedFolders) {
-			if (isRawFileWorkspaceFolder(folder) && folder.path.indexOf(SLASH) >= 0) {
-				return true;
-			}
-		}
-		return false;
+		return storedFolders.some(folder => isRawFileWorkspaceFolder(folder) && folder.path.indexOf(SLASH) >= 0);
 	}
 	return true;
 }

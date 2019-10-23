@@ -536,7 +536,7 @@ export class MarkdownPreview extends Disposable {
 	}
 
 	private async onDidClickPreviewLink(href: string) {
-		let [hrefPath, fragment] = href.split('#');
+		let [hrefPath, fragment] = decodeURIComponent(href).split('#');
 
 		// We perviously already resolve absolute paths.
 		// Now make sure we handle relative file paths

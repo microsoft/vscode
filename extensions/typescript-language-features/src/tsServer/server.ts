@@ -59,6 +59,10 @@ export interface ITypeScriptServer {
 	dispose(): void;
 }
 
+export interface TsServerDelegate {
+	onFatalError(command: string): void;
+}
+
 export interface TsServerProcess {
 	readonly stdout: stream.Readable;
 	write(serverRequest: Proto.Request): void;
@@ -305,6 +309,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 	public constructor(
 		private readonly syntaxServer: ITypeScriptServer,
 		private readonly semanticServer: ITypeScriptServer,
+		private readonly _delegate: TsServerDelegate,
 	) {
 		super();
 
@@ -362,14 +367,18 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		} else if (SyntaxRoutingTsServer.sharedCommands.has(command)) {
 			// Dispatch to both server but only return from syntax one
 
+			const enum RequestState { Unresolved, Resolved, Errored }
+			let syntaxRequestState = RequestState.Unresolved;
+			let semanticRequestState = RequestState.Unresolved;
+
 			// Also make sure we never cancel requests to just one server
-			let hasCompletedSyntax = false;
-			let hasCompletedSemantic = false;
 			let token: vscode.CancellationToken | undefined = undefined;
 			if (executeInfo.token) {
 				const source = new vscode.CancellationTokenSource();
 				executeInfo.token.onCancellationRequested(() => {
-					if (hasCompletedSyntax && !hasCompletedSemantic || hasCompletedSemantic && !hasCompletedSyntax) {
+					if (syntaxRequestState !== RequestState.Unresolved && semanticRequestState === RequestState.Unresolved
+						|| syntaxRequestState === RequestState.Unresolved && semanticRequestState !== RequestState.Unresolved
+					) {
 						// Don't cancel.
 						// One of the servers completed this request so we don't want to leave the other
 						// in a different state
@@ -382,11 +391,41 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 
 			const semanticRequest = this.semanticServer.executeImpl(command, args, { ...executeInfo, token });
 			if (semanticRequest) {
-				semanticRequest.finally(() => { hasCompletedSemantic = true; });
+				semanticRequest
+					.then(result => {
+						semanticRequestState = RequestState.Resolved;
+						if (syntaxRequestState === RequestState.Errored) {
+							// We've gone out of sync
+							this._delegate.onFatalError(command);
+						}
+						return result;
+					}, err => {
+						semanticRequestState = RequestState.Errored;
+						if (syntaxRequestState === RequestState.Resolved) {
+							// We've gone out of sync
+							this._delegate.onFatalError(command);
+						}
+						throw err;
+					});
 			}
 			const syntaxRequest = this.syntaxServer.executeImpl(command, args, { ...executeInfo, token });
 			if (syntaxRequest) {
-				syntaxRequest.finally(() => { hasCompletedSyntax = true; });
+				syntaxRequest
+					.then(result => {
+						syntaxRequestState = RequestState.Resolved;
+						if (semanticRequestState === RequestState.Errored) {
+							// We've gone out of sync
+							this._delegate.onFatalError(command);
+						}
+						return result;
+					}, err => {
+						syntaxRequestState = RequestState.Errored;
+						if (semanticRequestState === RequestState.Resolved) {
+							// We've gone out of sync
+							this._delegate.onFatalError(command);
+						}
+						throw err;
+					});
 			}
 			return syntaxRequest;
 		} else {

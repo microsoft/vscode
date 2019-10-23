@@ -6,7 +6,7 @@
 				"git": {
 					"name": "TypeScript-TmLanguage",
 					"repositoryUrl": "https://github.com/Microsoft/TypeScript-TmLanguage",
-					"commitHash": "ce3979047399920f77d79272b3af45b4d86006ac"
+					"commitHash": "89075a4711cc0e7d7606b82f3972deee42654ec7"
 				}
 			},
 			"license": "MIT",

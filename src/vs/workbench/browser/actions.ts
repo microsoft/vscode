@@ -57,13 +57,7 @@ export class ContributableActionProvider implements IActionProvider {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (const contributor of contributors) {
-			if (contributor.hasActions(context)) {
-				return true;
-			}
-		}
-
-		return false;
+		return contributors.some(contributor => contributor.hasActions(context));
 	}
 
 	getActions(tree: ITree, element: unknown): ReadonlyArray<IAction> {

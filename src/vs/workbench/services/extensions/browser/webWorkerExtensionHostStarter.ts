@@ -113,6 +113,10 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 		return undefined;
 	}
 
+	enableInspectPort(): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+
 	private async _createExtHostInitData(): Promise<IInitData> {
 		const [telemetryInfo, extensionDescriptions] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._extensions]);
 		const workspace = this._contextService.getWorkspace();

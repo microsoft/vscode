@@ -155,10 +155,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			}
 		}
 
+		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
 		let lastActiveWorkspace: IWorkspaceFolder | null = null;
-		let activeWorkspaceRootUri: URI | undefined;
-		if (activeWorkspaceRootUriComponents) {
-			let activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
+		if (activeWorkspaceRootUriComponents && activeWorkspaceRootUri) {
 			// Get the environment
 			const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
 			if (apiLastActiveWorkspace) {

@@ -107,12 +107,12 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		}
 	}
 
-	public startProfiling(): Promise<any> | null {
+	public async startProfiling(): Promise<any> {
 		if (this._state !== ProfileSessionState.None) {
 			return null;
 		}
 
-		const inspectPort = this._extensionService.getInspectPort();
+		const inspectPort = await this._extensionService.getInspectPort(false);
 		if (!inspectPort) {
 			return this._dialogService.confirm({
 				type: 'info',

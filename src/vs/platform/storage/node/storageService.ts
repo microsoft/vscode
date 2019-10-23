@@ -21,8 +21,8 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 	_serviceBrand: undefined;
 
-	private static WORKSPACE_STORAGE_NAME = 'state.vscdb';
-	private static WORKSPACE_META_NAME = 'workspace.json';
+	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
+	private static readonly WORKSPACE_META_NAME = 'workspace.json';
 
 	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;

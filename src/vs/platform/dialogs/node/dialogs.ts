@@ -13,16 +13,3 @@ export interface INativeOpenDialogOptions {
 	telemetryEventName?: string;
 	telemetryExtraData?: ITelemetryData;
 }
-
-export interface MessageBoxReturnValue {
-	response: number;
-	checkboxChecked: boolean;
-}
-
-export interface SaveDialogReturnValue {
-	filePath?: string;
-}
-
-export interface OpenDialogReturnValue {
-	filePaths?: string[];
-}

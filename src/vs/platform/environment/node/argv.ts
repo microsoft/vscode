@@ -109,10 +109,16 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
-	'disable-inspect': { type: 'boolean' },
 	'force-user-env': { type: 'boolean' },
 
+	// chromium flags
+	'no-proxy-server': { type: 'boolean' },
+	'proxy-server': { type: 'string' },
+	'proxy-bypass-list': { type: 'string' },
+	'proxy-pac-url': { type: 'string' },
 	'js-flags': { type: 'string' }, // chrome js flags
+	'inspect': { type: 'string' },
+	'inspect-brk': { type: 'string' },
 	'nolazy': { type: 'boolean' }, // node inspect
 	'_urls': { type: 'string[]' },
 
@@ -303,7 +309,6 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
-
 
 export function addArg(argv: string[], ...args: string[]): string[] {
 	const endOfArgsMarkerIndex = argv.indexOf('--');

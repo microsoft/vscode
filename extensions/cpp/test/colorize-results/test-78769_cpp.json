@@ -606,7 +606,7 @@
 	},
 	{
 		"c": "static",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.function.definition.cpp meta.head.function.definition.cpp storage.modifier.static.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.function.definition.cpp storage.modifier.static.cpp",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",

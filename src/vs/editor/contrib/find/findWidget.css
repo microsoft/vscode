@@ -32,13 +32,13 @@
 .monaco-editor .find-widget {
 	position: absolute;
 	z-index: 10;
-	top: -44px;
 	height: 33px;
 	overflow: hidden;
 	line-height: 19px;
-	transition: top 200ms linear;
+	transition: transform 200ms linear;
 	padding: 0 4px;
 	box-sizing: border-box;
+	transform: translateY(Calc(-100% - 10px)); /* shadow (10px) */
 }
 
 .monaco-editor .find-widget.hiddenEditor {
@@ -46,30 +46,13 @@
 }
 
 /* Find widget when replace is toggled on */
-.monaco-editor .find-widget.replaceToggled {
-	top: -74px; /* find input height + replace input height + shadow (10px) */
-}
 .monaco-editor .find-widget.replaceToggled > .replace-part {
 	display: flex;
 	display: -webkit-flex;
 }
 
-.monaco-editor .find-widget.visible,
-.monaco-editor .find-widget.replaceToggled.visible {
-	top: 0;
-}
-
-/* Multiple line find widget */
-
-.monaco-editor .find-widget.multipleline {
-	top: unset;
-	bottom: 10px;
-}
-
-.monaco-editor .find-widget.multipleline.visible,
-.monaco-editor .find-widget.multipleline.replaceToggled.visible {
-	top: 0px;
-	bottom: unset;
+.monaco-editor .find-widget.visible  {
+	transform: translateY(0);
 }
 
 .monaco-editor .find-widget .monaco-inputbox.synthetic-focus {

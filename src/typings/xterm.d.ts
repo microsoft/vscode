@@ -83,6 +83,16 @@ declare module 'xterm' {
 		drawBoldTextInBrightColors?: boolean;
 
 		/**
+		 * The modifier key hold to multiply scroll speed.
+		 */
+		fastScrollModifier?: 'alt' | 'ctrl' | 'shift' | undefined;
+
+		/**
+		 * The scroll speed multiplier used for fast scrolling.
+		 */
+		fastScrollSensitivity?: number;
+
+		/**
 		 * The font size used to render text.
 		 */
 		fontSize?: number;
@@ -172,6 +182,11 @@ declare module 'xterm' {
 		 * viewport.
 		 */
 		scrollback?: number;
+
+		/**
+		 * The scrolling speed multiplier used for adjusting normal scrolling speed.
+		 */
+		scrollSensitivity?: number;
 
 		/**
 		 * The size of tab stops in the terminal.
@@ -269,7 +284,7 @@ declare module 'xterm' {
 		/**
 		 * A callback that fires when the mouse hovers over a link for a moment.
 		 */
-		tooltipCallback?: (event: MouseEvent, uri: string) => boolean | void;
+		tooltipCallback?: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void;
 
 		/**
 		 * A callback that fires when the mouse leaves a link. Note that this can
@@ -352,12 +367,12 @@ declare module 'xterm' {
 		/**
 		 * The element containing the terminal.
 		 */
-		readonly element: HTMLElement;
+		readonly element: HTMLElement | undefined;
 
 		/**
 		 * The textarea that accepts input for the terminal.
 		 */
-		readonly textarea: HTMLTextAreaElement;
+		readonly textarea: HTMLTextAreaElement | undefined;
 
 		/**
 		 * The number of rows in the terminal's viewport. Use
@@ -840,6 +855,36 @@ declare module 'xterm' {
 		 * The end row of the selection.
 		 */
 		endRow: number;
+	}
+
+	/**
+	 * An object representing a range within the viewport of the terminal.
+	 */
+	export interface IViewportRange {
+		/**
+		 * The start cell of the range.
+		 */
+		start: IViewportCellPosition;
+
+		/**
+		 * The end cell of the range.
+		 */
+		end: IViewportCellPosition;
+	}
+
+	/**
+	 * An object representing a cell position within the viewport of the terminal.
+	 */
+	interface IViewportCellPosition {
+		/**
+		 * The column of the cell. Note that this is 1-based; the first column is column 1.
+		 */
+		col: number;
+
+		/**
+		 * The row of the cell. Note that this is 1-based; the first row is row 1.
+		 */
+		row: number;
 	}
 
 	/**

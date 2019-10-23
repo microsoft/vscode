@@ -129,7 +129,7 @@
 			"name": "comment.line.shebang.php"
 		},
 		{
-			"include": "text.html.basic"
+			"include": "text.html.derivative"
 		}
 	],
 	"repository": {

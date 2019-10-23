@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .activitybar>.content .monaco-action-bar .action-label.remote {
-	-webkit-mask: url('remote-activity-bar.svg') no-repeat 50% 50%;
-}
-
 .remote-help-content .monaco-list .monaco-list-row .remote-help-tree-node-item {
 	display: flex;
 	height: 22px;

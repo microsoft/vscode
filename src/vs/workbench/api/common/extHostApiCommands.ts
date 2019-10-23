@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
@@ -27,7 +27,7 @@ export class ExtHostApiCommands {
 	}
 
 	private _commands: ExtHostCommands;
-	private _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
 	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
@@ -288,7 +288,7 @@ export class ExtHostApiCommands {
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
 		const disposable = this._commands.registerCommand(false, id, handler, this, description);
-		this._disposables.push(disposable);
+		this._disposables.add(disposable);
 	}
 
 	/**
@@ -576,30 +576,30 @@ export class ExtHostApiCommands {
 
 	private async _executeCallHierarchyIncomingCallsProvider(resource: URI, position: types.Position): Promise<vscode.CallHierarchyIncomingCall[]> {
 		type IncomingCallDto = {
-			source: ICallHierarchyItemDto;
-			sourceRanges: IRange[];
+			from: ICallHierarchyItemDto;
+			fromRanges: IRange[];
 		};
 		const args = { resource, position: typeConverters.Position.from(position) };
 		const calls = await this._commands.executeCommand<IncomingCallDto[]>('_executeCallHierarchyIncomingCalls', args);
 
 		const result: vscode.CallHierarchyIncomingCall[] = [];
 		for (const call of calls) {
-			result.push(new types.CallHierarchyIncomingCall(typeConverters.CallHierarchyItem.to(call.source), <vscode.Range[]>call.sourceRanges.map(typeConverters.Range.to)));
+			result.push(new types.CallHierarchyIncomingCall(typeConverters.CallHierarchyItem.to(call.from), <vscode.Range[]>call.fromRanges.map(typeConverters.Range.to)));
 		}
 		return result;
 	}
 
 	private async _executeCallHierarchyOutgoingCallsProvider(resource: URI, position: types.Position): Promise<vscode.CallHierarchyOutgoingCall[]> {
 		type OutgoingCallDto = {
-			sourceRanges: IRange[];
-			target: ICallHierarchyItemDto;
+			fromRanges: IRange[];
+			to: ICallHierarchyItemDto;
 		};
 		const args = { resource, position: typeConverters.Position.from(position) };
 		const calls = await this._commands.executeCommand<OutgoingCallDto[]>('_executeCallHierarchyOutgoingCalls', args);
 
 		const result: vscode.CallHierarchyOutgoingCall[] = [];
 		for (const call of calls) {
-			result.push(new types.CallHierarchyOutgoingCall(typeConverters.CallHierarchyItem.to(call.target), <vscode.Range[]>call.sourceRanges.map(typeConverters.Range.to)));
+			result.push(new types.CallHierarchyOutgoingCall(typeConverters.CallHierarchyItem.to(call.to), <vscode.Range[]>call.fromRanges.map(typeConverters.Range.to)));
 		}
 		return result;
 	}

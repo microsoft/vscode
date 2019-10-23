@@ -14,7 +14,7 @@ export class TypeScriptServerError extends Error {
 		response: Proto.Response
 	): TypeScriptServerError {
 		const parsedResult = TypeScriptServerError.parseErrorText(version, response);
-		return new TypeScriptServerError(serverId, version, response, parsedResult ? parsedResult.message : undefined, parsedResult ? parsedResult.stack : undefined);
+		return new TypeScriptServerError(serverId, version, response, parsedResult?.message, parsedResult?.stack);
 	}
 
 	private constructor(
@@ -24,7 +24,7 @@ export class TypeScriptServerError extends Error {
 		public readonly serverMessage: string | undefined,
 		public readonly serverStack: string | undefined
 	) {
-		super(`<${serverId}> TypeScript Server Error (${version.versionString})\n${serverMessage}\n${serverStack}`);
+		super(`<${serverId}> TypeScript Server Error (${version.displayName})\n${serverMessage}\n${serverStack}`);
 	}
 
 	public get serverErrorText() { return this.response.message; }

@@ -71,7 +71,7 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 		if (!this.dropdown) {
 			const statusContainr = document.getElementById('status.feedback');
 			if (statusContainr) {
-				const icon = statusContainr.getElementsByClassName('octicon').item(0) as HTMLElement | null;
+				const icon = statusContainr.getElementsByClassName('codicon').item(0) as HTMLElement | null;
 				if (!icon) {
 					throw new Error('Could not find icon');
 				}

@@ -59,7 +59,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		}
 
 		const width = viewlet.getOptimalWidth();
-
 		if (typeof width !== 'number') {
 			return;
 		}
@@ -70,9 +69,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	//#endregion
 
 	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
-
-	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
 
 	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
 	readonly onDidViewletDeregister: Event<ViewletDescriptor> = this._onDidViewletDeregister.event;
@@ -176,17 +172,17 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		// Part container
 		const container = assertIsDefined(this.getContainer());
 
-		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND);
+		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND);
 
 		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
-		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
-		container.style.borderRightColor = isPositionLeft ? borderColor : null;
-		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : null;
-		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : null;
-		container.style.borderLeftColor = !isPositionLeft ? borderColor : null;
+		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '';
+		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : '';
+		container.style.borderRightColor = isPositionLeft ? borderColor || '' : '';
+		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
+		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
+		container.style.borderLeftColor = !isPositionLeft ? borderColor || '' : '';
 	}
 
 	layout(width: number, height: number): void {
@@ -199,7 +195,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	// Viewlet service
 
-	getActiveViewlet(): IViewlet | null {
+	getActiveViewlet(): IViewlet | undefined {
 		return <IViewlet>this.getActiveComposite();
 	}
 
@@ -211,7 +207,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		this.hideActiveComposite();
 	}
 
-	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null> {
+	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | undefined> {
 		if (typeof id === 'string' && this.getViewlet(id)) {
 			return this.doOpenViewlet(id, focus);
 		}
@@ -222,7 +218,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			return this.doOpenViewlet(id, focus);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getViewlets(): ViewletDescriptor[] {
@@ -247,9 +243,9 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
 	}
 
-	private doOpenViewlet(id: string, focus?: boolean): Viewlet | null {
+	private doOpenViewlet(id: string, focus?: boolean): Viewlet | undefined {
 		if (this.blockOpeningViewlet) {
-			return null; // Workaround against a potential race condition
+			return undefined; // Workaround against a potential race condition
 		}
 
 		// First check if sidebar is hidden and show if so
@@ -285,10 +281,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		}
 	}
 
-	setVisible(visible: boolean): void {
-		this._onDidVisibilityChange.fire(visible);
-	}
-
 	toJSON(): object {
 		return {
 			type: Parts.SIDEBAR_PART
@@ -318,7 +310,7 @@ class FocusSideBarAction extends Action {
 		}
 
 		// Focus into active viewlet
-		let viewlet = this.viewletService.getActiveViewlet();
+		const viewlet = this.viewletService.getActiveViewlet();
 		if (viewlet) {
 			viewlet.focus();
 		}

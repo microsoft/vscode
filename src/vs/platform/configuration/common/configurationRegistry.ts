@@ -173,7 +173,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting', allowTrailingCommas: true, allowComments: true };
 		this.configurationProperties = {};
 		this.excludedConfigurationProperties = {};
-		this.computeOverridePropertyPattern();
+		this.overridePropertyPattern = this.computeOverridePropertyPattern();
 
 		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
 	}
@@ -413,7 +413,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		delete windowSettings.patternProperties[this.overridePropertyPattern];
 		delete resourceSettings.patternProperties[this.overridePropertyPattern];
 
-		this.computeOverridePropertyPattern();
+		this.overridePropertyPattern = this.computeOverridePropertyPattern();
 
 		allSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		applicationSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
@@ -440,8 +440,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		}
 	}
 
-	private computeOverridePropertyPattern(): void {
-		this.overridePropertyPattern = this.overrideIdentifiers.length ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', this.overrideIdentifiers.map(identifier => strings.createRegExp(identifier, false).source).join('|')) : OVERRIDE_PROPERTY;
+	private computeOverridePropertyPattern(): string {
+		return this.overrideIdentifiers.length ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', this.overrideIdentifiers.map(identifier => strings.createRegExp(identifier, false).source).join('|')) : OVERRIDE_PROPERTY;
 	}
 }
 

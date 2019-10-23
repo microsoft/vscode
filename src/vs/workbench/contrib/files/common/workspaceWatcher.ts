@@ -107,7 +107,7 @@ export class WorkspaceWatcher extends Disposable {
 		// Compute the watcher exclude rules from configuration
 		const excludes: string[] = [];
 		const config = this.configurationService.getValue<IFilesConfiguration>({ resource });
-		if (config.files && config.files.watcherExclude) {
+		if (config.files?.watcherExclude) {
 			for (const key in config.files.watcherExclude) {
 				if (config.files.watcherExclude[key] === true) {
 					excludes.push(key);

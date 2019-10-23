@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class NativeClipboardService implements IClipboardService {
 
-	private static FILE_FORMAT = 'code/file-list'; // Clipboard format for files
+	private static readonly FILE_FORMAT = 'code/file-list'; // Clipboard format for files
 
 	_serviceBrand: undefined;
 
