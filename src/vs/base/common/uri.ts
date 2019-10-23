@@ -375,7 +375,7 @@ export class URI implements UriComponents {
 	 * @param skipEncoding Do not encode the result, default is `false`
 	 */
 	toString(skipEncoding: boolean = false): string {
-		return _toString(skipEncoding ? minialEncode : normalEncode, this.scheme, this.authority, this.path, this.query, this.fragment);
+		return _toString(skipEncoding ? minimalEncode : normalEncode, this.scheme, this.authority, this.path, this.query, this.fragment);
 	}
 
 	toJSON(): UriComponents {
@@ -433,7 +433,7 @@ class _URI extends URI {
 	toString(skipEncoding: boolean = false): string {
 		if (skipEncoding) {
 			// we don't cache that
-			return _toString(minialEncode, this.scheme, this.authority, this.path, this.query, this.fragment);
+			return _toString(minimalEncode, this.scheme, this.authority, this.path, this.query, this.fragment);
 		}
 		if (!this._formatted) {
 			this._formatted = _toString(normalEncode, this.scheme, this.authority, this.path, this.query, this.fragment);
@@ -527,8 +527,8 @@ function percentDecode(str: string): string {
 //#region ---- encode
 
 // https://url.spec.whatwg.org/#percent-encoded-bytes
-// "The C0 control percent-encode set are the C0 controls and all code points greater than U+007E (~)."
 
+// "The C0 control percent-encode set are the C0 controls and all code points greater than U+007E (~)."
 function isC0ControlPercentEncodeSet(code: number): boolean {
 	return code <= 0x1F || code > 0x7E;
 }
@@ -566,28 +566,41 @@ function isLowerAsciiHex(code: number): boolean {
 		|| code >= CharCode.a && code <= CharCode.z;
 }
 
+const _encodeTable: string[] = (function () {
+	let table: string[] = [];
+	for (let code = 0; code < 128; code++) {
+		table[code] = `%${code.toString(16)}`;
+	}
+	return table;
+})();
+
 function percentEncode(str: string, mustEncode: (code: number) => boolean): string {
 	let lazyOutStr: string | undefined;
-	for (let i = 0; i < str.length; i++) {
-		const code = str.charCodeAt(i);
+	for (let pos = 0; pos < str.length; pos++) {
+		const code = str.charCodeAt(pos);
 
 		// invoke encodeURIComponent when needed
 		if (mustEncode(code)) {
 			if (!lazyOutStr) {
-				lazyOutStr = str.substr(0, i);
+				lazyOutStr = str.substr(0, pos);
 			}
-			//
 			if (isHighSurrogate(code)) {
-				if (i + 1 < str.length && isLowSurrogate(str.charCodeAt(i + 1))) {
-					lazyOutStr += encodeURIComponent(str.substr(i, 2));
-					i += 1;
+				// Append encoded version of this surrogate pair (2 characters)
+				if (pos + 1 < str.length && isLowSurrogate(str.charCodeAt(pos + 1))) {
+					lazyOutStr += encodeURIComponent(str.substr(pos, 2));
+					pos += 1;
 				} else {
 					// broken surrogate pair
-					lazyOutStr += str.charAt(i);
+					lazyOutStr += str.charAt(pos);
 				}
 			} else {
-				// todo@joh PERF, use lookup table
-				lazyOutStr += encodeURIComponent(str.charAt(i));
+				// Append encoded version of the current character, use lookup table
+				// to speed up repeated encoding of the same characters.
+				if (code < _encodeTable.length) {
+					lazyOutStr += _encodeTable[code];
+				} else {
+					lazyOutStr += encodeURIComponent(str.charAt(pos));
+				}
 			}
 			continue;
 		}
@@ -595,20 +608,20 @@ function percentEncode(str: string, mustEncode: (code: number) => boolean): stri
 		// normalize percent encoded sequences to upper case
 		// todo@joh also changes invalid sequences
 		if (code === CharCode.PercentSign
-			&& i + 2 < str.length
-			&& (isLowerAsciiHex(str.charCodeAt(i + 1)) || isLowerAsciiHex(str.charCodeAt(i + 2)))
+			&& pos + 2 < str.length
+			&& (isLowerAsciiHex(str.charCodeAt(pos + 1)) || isLowerAsciiHex(str.charCodeAt(pos + 2)))
 		) {
 			if (!lazyOutStr) {
-				lazyOutStr = str.substr(0, i);
+				lazyOutStr = str.substr(0, pos);
 			}
-			lazyOutStr += '%' + str.substr(i + 1, 2).toUpperCase();
-			i += 2;
+			lazyOutStr += '%' + str.substr(pos + 1, 2).toUpperCase();
+			pos += 2;
 			continue;
 		}
 
 		// once started, continue to build up lazy output
 		if (lazyOutStr) {
-			lazyOutStr += str.charAt(i);
+			lazyOutStr += str.charAt(pos);
 		}
 	}
 	return lazyOutStr || str;
@@ -618,7 +631,7 @@ const enum EncodePart {
 	user, authority, path, query, fragment
 }
 const normalEncode: { (code: number): boolean }[] = [isUserInfoPercentEncodeSet, isC0ControlPercentEncodeSet, isPathPercentEncodeSet, isFragmentPercentEncodeSet, isQueryPrecentEncodeSet];
-const minialEncode: { (code: number): boolean }[] = [isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, () => false];
+const minimalEncode: { (code: number): boolean }[] = [isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, () => false];
 
 /**
  * Create the external version of a uri
