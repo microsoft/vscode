@@ -431,19 +431,19 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
 
-		// Send to local console unless we run tests from cli
-		if (!this._isExtensionDevTestFromCli) {
-			log(entry, 'Extension Host');
-		}
-
-		// Log on main side if running tests from cli
 		if (this._isExtensionDevTestFromCli) {
-			logRemoteEntry(this._logService, entry);
-		}
 
-		// Broadcast to other windows if we are in development mode
-		else if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
-			this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
+			// Log on main side if running tests from cli
+			logRemoteEntry(this._logService, entry);
+		} else {
+
+			// Send to local console
+			log(entry, 'Extension Host');
+
+			// Broadcast to other windows if we are in development mode
+			if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
+				this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
+			}
 		}
 	}
 
