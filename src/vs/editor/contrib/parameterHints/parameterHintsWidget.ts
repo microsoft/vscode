@@ -8,7 +8,7 @@ import { domEvent, stop } from 'vs/base/browser/event';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -31,7 +31,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 
 	private readonly markdownRenderer: MarkdownRenderer;
 	private readonly renderDisposeables = this._register(new DisposableStore());
-	private readonly model = this._register(new MutableDisposable<ParameterHintsModel>());
+	private readonly model: ParameterHintsModel;
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
 
@@ -57,11 +57,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	) {
 		super();
 		this.markdownRenderer = this._register(new MarkdownRenderer(editor, modeService, openerService));
-		this.model.value = new ParameterHintsModel(editor);
+		this.model = this._register(new ParameterHintsModel(editor));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
 
-		this._register(this.model.value.onChangedHints(newParameterHints => {
+		this._register(this.model.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
 				this.show();
 				this.render(newParameterHints);
@@ -134,7 +134,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	private show(): void {
-		if (!this.model || this.visible) {
+		if (this.visible) {
 			return;
 		}
 
@@ -153,7 +153,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	private hide(): void {
-		if (!this.model || !this.visible) {
+		if (!this.visible) {
 			return;
 		}
 
@@ -189,7 +189,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		this.domNodes.docs.innerHTML = '';
 
 		const signature = hints.signatures[hints.activeSignature];
-
 		if (!signature) {
 			return;
 		}
@@ -204,7 +203,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		if (!hasParameters) {
 			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
-
 		} else {
 			this.renderParameters(code, signature, hints.activeParameter);
 		}
@@ -242,7 +240,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
 
 		let currentOverload = String(hints.activeSignature + 1);
-
 		if (hints.signatures.length < 10) {
 			currentOverload += `/${hints.signatures.length}`;
 		}
@@ -281,7 +278,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
-
 		const [start, end] = this.getParameterLabelOffsets(signature, currentParameter);
 
 		const beforeSpan = document.createElement('span');
@@ -321,23 +317,17 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	next(): void {
-		if (this.model.value) {
-			this.editor.focus();
-			this.model.value.next();
-		}
+		this.editor.focus();
+		this.model.next();
 	}
 
 	previous(): void {
-		if (this.model.value) {
-			this.editor.focus();
-			this.model.value.previous();
-		}
+		this.editor.focus();
+		this.model.previous();
 	}
 
 	cancel(): void {
-		if (this.model.value) {
-			this.model.value.cancel();
-		}
+		this.model.cancel();
 	}
 
 	getDomNode(): HTMLElement {
@@ -352,9 +342,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	trigger(context: TriggerContext): void {
-		if (this.model.value) {
-			this.model.value.trigger(context, 0);
-		}
+		this.model.trigger(context, 0);
 	}
 
 	private updateMaxHeight(): void {
