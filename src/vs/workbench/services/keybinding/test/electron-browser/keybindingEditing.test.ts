@@ -46,11 +46,11 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { URI } from 'vs/base/common/uri';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
-class TestEnvironmentService extends WorkbenchEnvironmentService {
+class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
 		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);

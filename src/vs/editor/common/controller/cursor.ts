@@ -38,6 +38,18 @@ export class CursorStateChangedEvent {
 	 */
 	readonly selections: Selection[];
 	/**
+	 * The new model version id that `selections` apply to.
+	 */
+	readonly modelVersionId: number;
+	/**
+	 * The old selections.
+	 */
+	readonly oldSelections: Selection[] | null;
+	/**
+	 * The model version id the that `oldSelections` apply to.
+	 */
+	readonly oldModelVersionId: number;
+	/**
 	 * Source of the call that caused the event.
 	 */
 	readonly source: string;
@@ -46,8 +58,11 @@ export class CursorStateChangedEvent {
 	 */
 	readonly reason: CursorChangeReason;
 
-	constructor(selections: Selection[], source: string, reason: CursorChangeReason) {
+	constructor(selections: Selection[], modelVersionId: number, oldSelections: Selection[] | null, oldModelVersionId: number, source: string, reason: CursorChangeReason) {
 		this.selections = selections;
+		this.modelVersionId = modelVersionId;
+		this.oldSelections = oldSelections;
+		this.oldModelVersionId = oldModelVersionId;
 		this.source = source;
 		this.reason = reason;
 	}
@@ -540,7 +555,9 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			|| oldState.cursorState.length !== newState.cursorState.length
 			|| newState.cursorState.some((newCursorState, i) => !newCursorState.modelState.equals(oldState.cursorState[i].modelState))
 		) {
-			this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
+			const oldSelections = oldState ? oldState.cursorState.map(s => s.modelState.selection) : null;
+			const oldModelVersionId = oldState ? oldState.modelVersionId : 0;
+			this._onDidChange.fire(new CursorStateChangedEvent(selections, newState.modelVersionId, oldSelections, oldModelVersionId, source || 'keyboard', reason));
 		}
 
 		return true;
