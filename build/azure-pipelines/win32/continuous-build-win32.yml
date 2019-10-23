@@ -16,6 +16,8 @@ steps:
     vstsFeed: '$(ArtifactFeed)'
 - powershell: |
     yarn --frozen-lockfile
+  env:
+    CHILD_CONCURRENCY: "1"
   displayName: Install Dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1

@@ -2397,6 +2397,18 @@ declare namespace monaco.editor {
 		 */
 		readonly secondarySelections: Selection[];
 		/**
+		 * The model version id.
+		 */
+		readonly modelVersionId: number;
+		/**
+		 * The old selections.
+		 */
+		readonly oldSelections: Selection[] | null;
+		/**
+		 * The model version id the that `oldSelections` refer to.
+		 */
+		readonly oldModelVersionId: number;
+		/**
 		 * Source of the call that caused the event.
 		 */
 		readonly source: string;

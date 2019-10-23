@@ -48,7 +48,6 @@ export class CursorUndoRedoController extends Disposable implements IEditorContr
 
 	private _undoStack: CursorState[];
 	private _redoStack: CursorState[];
-	private _prevState: CursorState | null;
 
 	constructor(editor: ICodeEditor) {
 		super();
@@ -57,35 +56,35 @@ export class CursorUndoRedoController extends Disposable implements IEditorContr
 
 		this._undoStack = [];
 		this._redoStack = [];
-		this._prevState = null;
 
 		this._register(editor.onDidChangeModel((e) => {
 			this._undoStack = [];
 			this._redoStack = [];
-			this._prevState = null;
 		}));
 		this._register(editor.onDidChangeModelContent((e) => {
 			this._undoStack = [];
 			this._redoStack = [];
-			this._prevState = null;
 		}));
 		this._register(editor.onDidChangeCursorSelection((e) => {
-
-			const newState = new CursorState(this._editor.getSelections()!);
-
-			if (!this._isCursorUndoRedo && this._prevState) {
-				const isEqualToLastUndoStack = (this._undoStack.length > 0 && this._undoStack[this._undoStack.length - 1].equals(this._prevState));
-				if (!isEqualToLastUndoStack) {
-					this._undoStack.push(this._prevState);
-					this._redoStack = [];
-					if (this._undoStack.length > 50) {
-						// keep the cursor undo stack bounded
-						this._undoStack.shift();
-					}
+			if (this._isCursorUndoRedo) {
+				return;
+			}
+			if (!e.oldSelections) {
+				return;
+			}
+			if (e.oldModelVersionId !== e.modelVersionId) {
+				return;
+			}
+			const prevState = new CursorState(e.oldSelections);
+			const isEqualToLastUndoStack = (this._undoStack.length > 0 && this._undoStack[this._undoStack.length - 1].equals(prevState));
+			if (!isEqualToLastUndoStack) {
+				this._undoStack.push(prevState);
+				this._redoStack = [];
+				if (this._undoStack.length > 50) {
+					// keep the cursor undo stack bounded
+					this._undoStack.shift();
 				}
 			}
-
-			this._prevState = newState;
 		}));
 	}
 
@@ -119,8 +118,8 @@ export class CursorUndo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorUndo',
-			label: nls.localize('cursor.undo', "Soft Undo"),
-			alias: 'Soft Undo',
+			label: nls.localize('cursor.undo', "Cursor Undo"),
+			alias: 'Cursor Undo',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -139,8 +138,8 @@ export class CursorRedo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorRedo',
-			label: nls.localize('cursor.redo', "Soft Redo"),
-			alias: 'Soft Redo',
+			label: nls.localize('cursor.redo', "Cursor Redo"),
+			alias: 'Cursor Redo',
 			precondition: undefined
 		});
 	}

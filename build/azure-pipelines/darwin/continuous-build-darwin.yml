@@ -11,7 +11,7 @@ steps:
   inputs:
     versionSpec: "1.x"
 - script: |
-    yarn --frozen-lockfile
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
   displayName: Install Dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1

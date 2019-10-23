@@ -88,7 +88,7 @@ export interface ITerminalConfiguration {
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
 	rendererType: 'auto' | 'canvas' | 'dom';
-	rightClickBehavior: 'default' | 'copyPaste' | 'selectWord';
+	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	drawBoldTextInBrightColors: boolean;
@@ -343,7 +343,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 export interface ISpawnExtHostProcessRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	shellLaunchConfig: IShellLaunchConfig;
-	activeWorkspaceRootUri: URI;
+	activeWorkspaceRootUri: URI | undefined;
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;

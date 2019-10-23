@@ -123,8 +123,7 @@
 			"request": "launch",
 			"name": "Launch VS Code",
 			"windows": {
-				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
-				"timeout": 20000
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
 			"osx": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
@@ -132,6 +131,7 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
+			"timeout": 20000,
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
 			},

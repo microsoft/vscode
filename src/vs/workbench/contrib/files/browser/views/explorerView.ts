@@ -523,7 +523,12 @@ export class ExplorerView extends ViewletPanel {
 		return withNullAsUndefined(toResource(input, { supportSideBySide: SideBySideEditor.MASTER }));
 	}
 
-	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal): Promise<void> {
+	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
+		// do no retry more than once to prevent inifinite loops in cases of inconsistent model
+		if (retry === 2) {
+			return;
+		}
+
 		if (!resource || !this.isBodyVisible()) {
 			return;
 		}
@@ -534,12 +539,18 @@ export class ExplorerView extends ViewletPanel {
 			.sort((first, second) => second.resource.path.length - first.resource.path.length)[0];
 
 		while (item && item.resource.toString() !== resource.toString()) {
+			if (item.isDisposed) {
+				return this.onSelectResource(resource, reveal, retry + 1);
+			}
 			await this.tree.expand(item);
 			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
 		}
 
 		if (item && item.parent) {
 			if (reveal) {
+				if (item.isDisposed) {
+					return this.onSelectResource(resource, reveal, retry + 1);
+				}
 				this.tree.reveal(item, 0.5);
 			}
 

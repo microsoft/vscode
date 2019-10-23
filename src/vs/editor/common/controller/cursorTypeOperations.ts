@@ -755,7 +755,12 @@ export class TypeOperations {
 	/**
 	 * This is very similar with typing, but the character is already in the text buffer!
 	 */
-	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[]): EditOperationResult | null {
+	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selectionsWhenCompositionStarted: Selection[] | null, selections: Selection[], autoClosedCharacters: Range[]): EditOperationResult | null {
+		if (!selectionsWhenCompositionStarted || Selection.selectionsArrEqual(selectionsWhenCompositionStarted, selections)) {
+			// no content was typed
+			return null;
+		}
+
 		let ch: string | null = null;
 		// extract last typed character
 		for (const selection of selections) {
