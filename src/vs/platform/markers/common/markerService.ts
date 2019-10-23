@@ -121,10 +121,10 @@ class MarkerStats implements MarkerStatistics {
 
 export class MarkerService implements IMarkerService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	private _onMarkerChanged = new Emitter<URI[]>();
-	private _onMarkerChangedEvent: Event<URI[]> = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
+	private readonly _onMarkerChanged = new Emitter<readonly URI[]>();
+	private _onMarkerChangedEvent: Event<readonly URI[]> = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
 	private _byResource: MapMap<IMarker[]> = Object.create(null);
 	private _byOwner: MapMap<IMarker[]> = Object.create(null);
 	private _stats: MarkerStats;
@@ -137,7 +137,7 @@ export class MarkerService implements IMarkerService {
 		this._stats.dispose();
 	}
 
-	get onMarkerChanged(): Event<URI[]> {
+	get onMarkerChanged(): Event<readonly URI[]> {
 		return this._onMarkerChangedEvent;
 	}
 
@@ -201,7 +201,7 @@ export class MarkerService implements IMarkerService {
 		return {
 			resource,
 			owner,
-			code: code || undefined,
+			code,
 			severity,
 			message,
 			source,
@@ -336,7 +336,7 @@ export class MarkerService implements IMarkerService {
 	}
 
 	private static _accept(marker: IMarker, severities?: number): boolean {
-		return severities === void 0 || (severities & marker.severity) === marker.severity;
+		return severities === undefined || (severities & marker.severity) === marker.severity;
 	}
 
 	// --- event debounce logic
@@ -349,7 +349,7 @@ export class MarkerService implements IMarkerService {
 			last = [];
 		}
 		for (const uri of event) {
-			if (MarkerService._dedupeMap[uri.toString()] === void 0) {
+			if (MarkerService._dedupeMap[uri.toString()] === undefined) {
 				MarkerService._dedupeMap[uri.toString()] = true;
 				last.push(uri);
 			}

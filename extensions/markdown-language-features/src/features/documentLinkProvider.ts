@@ -5,17 +5,20 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { getUriForLinkWithKnownExternalScheme } from '../util/links';
 
-function normalizeLink(
+const localize = nls.loadMessageBundle();
+
+function parseLink(
 	document: vscode.TextDocument,
 	link: string,
 	base: string
-): vscode.Uri {
+): { uri: vscode.Uri, tooltip?: string } {
 	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
 	if (externalSchemeUri) {
-		return externalSchemeUri;
+		return { uri: externalSchemeUri };
 	}
 
 	// Assume it must be an relative or absolute file path
@@ -34,7 +37,10 @@ function normalizeLink(
 		resourcePath = base ? path.join(base, tempUri.path) : tempUri.path;
 	}
 
-	return OpenDocumentLinkCommand.createCommandUri(resourcePath, tempUri.fragment);
+	return {
+		uri: OpenDocumentLinkCommand.createCommandUri(document.uri, resourcePath, tempUri.fragment),
+		tooltip: localize('documentLink.tooltip', 'Follow link')
+	};
 }
 
 function matchAll(
@@ -50,10 +56,32 @@ function matchAll(
 	return out;
 }
 
+function extractDocumentLink(
+	document: vscode.TextDocument,
+	base: string,
+	pre: number,
+	link: string,
+	matchIndex: number | undefined
+): vscode.DocumentLink | undefined {
+	const offset = (matchIndex || 0) + pre;
+	const linkStart = document.positionAt(offset);
+	const linkEnd = document.positionAt(offset + link.length);
+	try {
+		const { uri, tooltip } = parseLink(document, link, base);
+		const documentLink = new vscode.DocumentLink(
+			new vscode.Range(linkStart, linkEnd),
+			uri);
+		documentLink.tooltip = tooltip;
+		return documentLink;
+	} catch (e) {
+		return undefined;
+	}
+}
+
 export default class LinkProvider implements vscode.DocumentLinkProvider {
-	private readonly linkPattern = /(\[[^\]]*\]\(\s*)((([^\s\(\)]|\(\S*?\))+))\s*(".*?")?\)/g;
-	private readonly referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)([^\s\]]*?)\]/g;
-	private readonly definitionPattern = /^([\t ]*\[([^\]]+)\]:\s*)(\S+)/gm;
+	private readonly linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\(\S*?\))+)\s*(".*?")?\)/g;
+	private readonly referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
+	private readonly definitionPattern = /^([\t ]*\[((?:\\\]|[^\]])+)\]:\s*)(\S+)/gm;
 
 	public provideDocumentLinks(
 		document: vscode.TextDocument,
@@ -62,8 +90,10 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 		const base = document.uri.scheme === 'file' ? path.dirname(document.uri.fsPath) : '';
 		const text = document.getText();
 
-		return this.providerInlineLinks(text, document, base)
-			.concat(this.provideReferenceLinks(text, document, base));
+		return [
+			...this.providerInlineLinks(text, document, base),
+			...this.provideReferenceLinks(text, document, base)
+		];
 	}
 
 	private providerInlineLinks(
@@ -73,20 +103,15 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 	): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 		for (const match of matchAll(this.linkPattern, text)) {
-			const pre = match[1];
-			const link = match[2];
-			const offset = (match.index || 0) + pre.length;
-			const linkStart = document.positionAt(offset);
-			const linkEnd = document.positionAt(offset + link.length);
-			try {
-				results.push(new vscode.DocumentLink(
-					new vscode.Range(linkStart, linkEnd),
-					normalizeLink(document, link, base)));
-			} catch (e) {
-				// noop
+			const matchImage = match[4] && extractDocumentLink(document, base, match[3].length + 1, match[4], match.index);
+			if (matchImage) {
+				results.push(matchImage);
+			}
+			const matchLink = extractDocumentLink(document, base, match[1].length, match[5], match.index);
+			if (matchLink) {
+				results.push(matchLink);
 			}
 		}
-
 		return results;
 	}
 
@@ -128,11 +153,10 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 			}
 		}
 
-		for (const definition of Array.from(definitions.values())) {
+		for (const definition of definitions.values()) {
 			try {
-				results.push(new vscode.DocumentLink(
-					definition.linkRange,
-					normalizeLink(document, definition.link, base)));
+				const { uri } = parseLink(document, definition.link, base);
+				results.push(new vscode.DocumentLink(definition.linkRange, uri));
 			} catch (e) {
 				// noop
 			}

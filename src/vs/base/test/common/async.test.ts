@@ -53,7 +53,7 @@ suite('Async', () => {
 		order.push('afterCreate');
 
 		const promise = cancellablePromise
-			.then(void 0, err => null)
+			.then(undefined, err => null)
 			.then(() => order.push('finally'));
 
 		cancellablePromise.cancel();
@@ -75,7 +75,7 @@ suite('Async', () => {
 		order.push('afterCreate');
 
 		const promise = cancellablePromise
-			.then(void 0, err => null)
+			.then(undefined, err => null)
 			.then(() => order.push('finally'));
 
 		cancellablePromise.cancel();
@@ -208,13 +208,13 @@ suite('Async', () => {
 
 		assert(!delayer.isTriggered());
 
-		promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
+		promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
 		assert(delayer.isTriggered());
 
-		promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
+		promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
 		assert(delayer.isTriggered());
 
-		promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
+		promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
 		assert(delayer.isTriggered());
 
 		delayer.cancel();
@@ -239,10 +239,10 @@ suite('Async', () => {
 			assert.equal(result, 1);
 			assert(!delayer.isTriggered());
 
-			promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
+			promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
 			assert(delayer.isTriggered());
 
-			promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
+			promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
 			assert(delayer.isTriggered());
 
 			delayer.cancel();
@@ -444,7 +444,7 @@ suite('Async', () => {
 
 		queue.queue(f1);
 		queue.queue(f2);
-		queue.queue(f3).then(void 0, () => error = true);
+		queue.queue(f3).then(undefined, () => error = true);
 		queue.queue(f4);
 		return queue.queue(f5).then(() => {
 			assert.equal(res[0], 1);
@@ -530,5 +530,31 @@ suite('Async', () => {
 			const r1Queue2 = queue.queueFor(URI.file('/some/path'));
 			assert.notEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
 		});
+	});
+
+	test('retry - success case', async () => {
+		let counter = 0;
+
+		const res = await async.retry(() => {
+			counter++;
+			if (counter < 2) {
+				return Promise.reject(new Error('fail'));
+			}
+
+			return Promise.resolve(true);
+		}, 10, 3);
+
+		assert.equal(res, true);
+	});
+
+	test('retry - error case', async () => {
+		let expectedError = new Error('fail');
+		try {
+			await async.retry(() => {
+				return Promise.reject(expectedError);
+			}, 10, 3);
+		} catch (error) {
+			assert.equal(error, error);
+		}
 	});
 });

@@ -19,17 +19,17 @@ export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditor
 
 export interface IBreadcrumbsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
 
-	getWidget(group: GroupIdentifier): BreadcrumbsWidget;
+	getWidget(group: GroupIdentifier): BreadcrumbsWidget | undefined;
 }
 
 
 export class BreadcrumbsService implements IBreadcrumbsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
 
@@ -43,7 +43,7 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 		};
 	}
 
-	getWidget(group: number): BreadcrumbsWidget {
+	getWidget(group: number): BreadcrumbsWidget | undefined {
 		return this._map.get(group);
 	}
 }
@@ -55,8 +55,8 @@ registerSingleton(IBreadcrumbsService, BreadcrumbsService, true);
 
 export abstract class BreadcrumbsConfig<T> {
 
-	name: string;
-	onDidChange: Event<void>;
+	abstract get name(): string;
+	abstract get onDidChange(): Event<void>;
 
 	abstract getValue(overrides?: IConfigurationOverrides): T;
 	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Promise<void>;
@@ -66,14 +66,14 @@ export abstract class BreadcrumbsConfig<T> {
 		// internal
 	}
 
-	static IsEnabled = BreadcrumbsConfig._stub<boolean>('breadcrumbs.enabled');
-	static UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
-	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
-	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
-	static SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
-	static FilterOnType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.filterOnType');
+	static readonly IsEnabled = BreadcrumbsConfig._stub<boolean>('breadcrumbs.enabled');
+	static readonly UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
+	static readonly FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
+	static readonly SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
+	static readonly SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
+	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
 
-	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
+	static readonly FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
 	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
 		return {
@@ -90,10 +90,18 @@ export abstract class BreadcrumbsConfig<T> {
 					readonly name = name;
 					readonly onDidChange = onDidChange.event;
 					getValue(overrides?: IConfigurationOverrides): T {
-						return service.getValue(name, overrides);
+						if (overrides) {
+							return service.getValue(name, overrides);
+						} else {
+							return service.getValue(name);
+						}
 					}
 					updateValue(newValue: T, overrides?: IConfigurationOverrides): Promise<void> {
-						return service.updateValue(name, newValue, overrides);
+						if (overrides) {
+							return service.updateValue(name, newValue, overrides);
+						} else {
+							return service.updateValue(name, newValue);
+						}
 					}
 					dispose(): void {
 						listener.dispose();
@@ -112,9 +120,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	type: 'object',
 	properties: {
 		'breadcrumbs.enabled': {
-			description: localize('enabled', "Enable/disable navigation breadcrumbs"),
+			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
 			type: 'boolean',
-			default: false
+			default: true
 		},
 		// 'breadcrumbs.useQuickPick': {
 		// 	description: localize('useQuickPick', "Use quick pick instead of breadcrumb-pickers."),
@@ -154,11 +162,141 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
 			]
 		},
-		// 'breadcrumbs.filterOnType': {
-		// 	description: localize('filterOnType', "Controls whether the breadcrumb picker filters or highlights when typing."),
-		// 	type: 'boolean',
-		// 	default: false
-		// },
+		'breadcrumbs.icons': {
+			description: localize('icons', "Render breadcrumb items with icons."),
+			type: 'boolean',
+			default: true
+		},
+		'breadcrumbs.filteredTypes.file': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.file', "When set to `false` breadcrumbs never show `file`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.module': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.module', "When set to `false` breadcrumbs never show `module`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.namespace': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.namespace', "When set to `false` breadcrumbs never show `namespace`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.package': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.package', "When set to `false` breadcrumbs never show `package`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.class': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.class', "When set to `false` breadcrumbs never show `class`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.method': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.method', "When set to `false` breadcrumbs never show `method`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.property': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.property', "When set to `false` breadcrumbs never show `property`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.field': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.field', "When set to `false` breadcrumbs never show `field`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.constructor': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.constructor', "When set to `false` breadcrumbs never show `constructor`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.enum': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.enum', "When set to `false` breadcrumbs never show `enum`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.interface': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.interface', "When set to `false` breadcrumbs never show `interface`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.function': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.function', "When set to `false` breadcrumbs never show `function`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.variable': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.variable', "When set to `false` breadcrumbs never show `variable`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.constant': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.constant', "When set to `false` breadcrumbs never show `constant`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.string': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.string', "When set to `false` breadcrumbs never show `string`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.number': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.number', "When set to `false` breadcrumbs never show `number`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.boolean': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.boolean', "When set to `false` breadcrumbs never show `boolean`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.array': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.array', "When set to `false` breadcrumbs never show `array`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.object': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.object', "When set to `false` breadcrumbs never show `object`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.key': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.key', "When set to `false` breadcrumbs never show `key`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.null': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.null', "When set to `false` breadcrumbs never show `null`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.enumMember': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.enumMember', "When set to `false` breadcrumbs never show `enumMember`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.struct': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.struct', "When set to `false` breadcrumbs never show `struct`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.event': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.event', "When set to `false` breadcrumbs never show `event`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.operator': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.operator', "When set to `false` breadcrumbs never show `operator`-symbols.")
+		},
+		'breadcrumbs.filteredTypes.typeParameter': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('filteredTypes.typeParameter', "When set to `false` breadcrumbs never show `typeParameter`-symbols.")
+		}
 	}
 });
 

@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
-
-// --- Workbench Contribution Registry
 
 /**
  * A workbench contribution that will be loaded when the workbench starts and disposed when the workbench shuts down.
@@ -36,15 +34,14 @@ export interface IWorkbenchContributionsRegistry {
 	/**
 	 * Starts the registry by providing the required services.
 	 */
-	start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void;
+	start(accessor: ServicesAccessor): void;
 }
 
-
 class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
-	private instantiationService: IInstantiationService;
-	private lifecycleService: ILifecycleService;
+	private instantiationService: IInstantiationService | undefined;
+	private lifecycleService: ILifecycleService | undefined;
 
-	private toBeInstantiated: Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]> = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
+	private readonly toBeInstantiated: Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]> = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
 
 	registerWorkbenchContribution(ctor: IWorkbenchContributionSignature, phase: LifecyclePhase = LifecyclePhase.Starting): void {
 
@@ -65,9 +62,9 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 		}
 	}
 
-	start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void {
-		this.instantiationService = instantiationService;
-		this.lifecycleService = lifecycleService;
+	start(accessor: ServicesAccessor): void {
+		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
+		const lifecycleService = this.lifecycleService = accessor.get(ILifecycleService);
 
 		[LifecyclePhase.Starting, LifecyclePhase.Ready, LifecyclePhase.Restored, LifecyclePhase.Eventually].forEach(phase => {
 			this.instantiateByPhase(instantiationService, lifecycleService, phase);
@@ -83,9 +80,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 
 		// Otherwise wait for phase to be reached
 		else {
-			lifecycleService.when(phase).then(() => {
-				this.doInstantiateByPhase(instantiationService, phase);
-			});
+			lifecycleService.when(phase).then(() => this.doInstantiateByPhase(instantiationService, phase));
 		}
 	}
 
@@ -96,7 +91,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 			if (phase !== LifecyclePhase.Eventually) {
 				// instantiate everything synchronously and blocking
 				for (const ctor of toBeInstantiated) {
-					instantiationService.createInstance(ctor);
+					this.safeCreateInstance(instantiationService, ctor); // catch error so that other contributions are still considered
 				}
 			} else {
 				// for the Eventually-phase we instantiate contributions
@@ -107,7 +102,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 				let instantiateSome = (idle: IdleDeadline) => {
 					while (i < toBeInstantiated.length) {
 						const ctor = toBeInstantiated[i++];
-						instantiationService.createInstance(ctor);
+						this.safeCreateInstance(instantiationService, ctor); // catch error so that other contributions are still considered
 						if (idle.timeRemaining() < 1) {
 							// time is up -> reschedule
 							runWhenIdle(instantiateSome, forcedTimeout);
@@ -117,6 +112,14 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 				};
 				runWhenIdle(instantiateSome, forcedTimeout);
 			}
+		}
+	}
+
+	private safeCreateInstance(instantiationService: IInstantiationService, ctor: IConstructorSignature0<IWorkbenchContribution>): void {
+		try {
+			instantiationService.createInstance(ctor);
+		} catch (error) {
+			console.error(`Unable to instantiate workbench contribution ${(ctor as any).name}.`, error);
 		}
 	}
 }

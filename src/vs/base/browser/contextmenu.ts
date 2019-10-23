@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -24,10 +24,11 @@ export class ContextSubMenu extends SubmenuAction {
 
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
-	getActions(): Array<IAction | ContextSubMenu>;
-	getActionItem?(action: IAction): IActionItem | null;
+	getActions(): ReadonlyArray<IAction | ContextSubMenu>;
+	getCheckedActionsRepresentation?(action: IAction): 'radio' | 'checkbox';
+	getActionViewItem?(action: IAction): IActionViewItem | undefined;
 	getActionsContext?(event?: IContextMenuEvent): any;
-	getKeyBinding?(action: IAction): ResolvedKeybinding | null;
+	getKeyBinding?(action: IAction): ResolvedKeybinding | undefined;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
 	actionRunner?: IActionRunner;

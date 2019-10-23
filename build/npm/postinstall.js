@@ -17,7 +17,14 @@ function yarnInstall(location, opts) {
 	opts.cwd = location;
 	opts.stdio = 'inherit';
 
-	const result = cp.spawnSync(yarn, ['install'], opts);
+	const raw = process.env['npm_config_argv'] || '{}';
+	const argv = JSON.parse(raw);
+	const original = argv.original || [];
+	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
+
+	console.log(`Installing dependencies in ${location}...`);
+	console.log(`$ yarn ${args.join(' ')}`);
+	const result = cp.spawnSync(yarn, args, opts);
 
 	if (result.error || result.status !== 0) {
 		process.exit(1);
@@ -25,6 +32,10 @@ function yarnInstall(location, opts) {
 }
 
 yarnInstall('extensions'); // node modules shared by all extensions
+
+yarnInstall('remote'); // node modules used by vscode server
+
+yarnInstall('remote/web'); // node modules used by vscode web
 
 const allExtensionFolders = fs.readdirSync('extensions');
 const extensions = allExtensionFolders.filter(e => {
@@ -59,6 +70,7 @@ runtime "${runtime}"`;
 }
 
 yarnInstall(`build`); // node modules required for build
+yarnInstall('test/automation'); // node modules required for smoketest
 yarnInstall('test/smoke'); // node modules required for smoketest
 yarnInstallBuildDependencies(); // node modules for watching, specific to host node version, not electron
 
@@ -68,3 +80,41 @@ if (fs.existsSync(processTreeDts)) {
 	console.log('Removing windows-process-tree.d.ts');
 	fs.unlinkSync(processTreeDts);
 }
+
+function getInstalledVersion(packageName, cwd) {
+	const opts = {};
+	if (cwd) {
+		opts.cwd = cwd;
+	}
+
+	const result = cp.spawnSync(yarn, ['list', '--pattern', packageName], opts);
+	const stdout = result.stdout.toString();
+	const match = stdout.match(new RegExp(packageName + '@(\\S+)'));
+	if (!match || !match[1]) {
+		throw new Error('Unexpected output from yarn list: ' + stdout);
+	}
+
+	return match[1];
+}
+
+function assertSameVersionsBetweenFolders(packageName, otherFolder) {
+	const baseVersion = getInstalledVersion(packageName);
+	const otherVersion = getInstalledVersion(packageName, otherFolder);
+
+	if (baseVersion !== otherVersion) {
+		throw new Error(`Mismatched versions installed for ${packageName}: root has ${baseVersion}, ./${otherFolder} has ${otherVersion}. These should be the same!`);
+	}
+}
+
+// Check that modules in both the base package.json and remote/ have the same version installed
+const requireSameVersionsInRemote = [
+	'xterm',
+	'xterm-addon-search',
+	'xterm-addon-web-links',
+	'node-pty',
+	'vscode-ripgrep'
+];
+
+requireSameVersionsInRemote.forEach(packageName => {
+	assertSameVersionsBetweenFolders(packageName, 'remote');
+});

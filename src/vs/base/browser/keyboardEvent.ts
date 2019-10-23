@@ -179,6 +179,9 @@ export function getCodeForKeyCode(keyCode: KeyCode): number {
 }
 
 export interface IKeyboardEvent {
+
+	readonly _standardKeyboardEventBrand: true;
+
 	readonly browserEvent: KeyboardEvent;
 	readonly target: HTMLElement;
 
@@ -205,6 +208,8 @@ const shiftKeyMod = KeyMod.Shift;
 const metaKeyMod = (platform.isMacintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl);
 
 export class StandardKeyboardEvent implements IKeyboardEvent {
+
+	readonly _standardKeyboardEventBrand = true;
 
 	public readonly browserEvent: KeyboardEvent;
 	public readonly target: HTMLElement;

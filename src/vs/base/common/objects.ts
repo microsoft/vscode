@@ -14,11 +14,11 @@ export function deepClone<T>(obj: T): T {
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
-	Object.keys(obj).forEach((key: string) => {
-		if (obj[key] && typeof obj[key] === 'object') {
-			result[key] = deepClone(obj[key]);
+	Object.keys(<any>obj).forEach((key: string) => {
+		if ((<any>obj)[key] && typeof (<any>obj)[key] === 'object') {
+			result[key] = deepClone((<any>obj)[key]);
 		} else {
-			result[key] = obj[key];
+			result[key] = (<any>obj)[key];
 		}
 	});
 	return result;
@@ -30,11 +30,11 @@ export function deepFreeze<T>(obj: T): T {
 	}
 	const stack: any[] = [obj];
 	while (stack.length > 0) {
-		let obj = stack.shift();
+		const obj = stack.shift();
 		Object.freeze(obj);
 		for (const key in obj) {
 			if (_hasOwnProperty.call(obj, key)) {
-				let prop = obj[key];
+				const prop = obj[key];
 				if (typeof prop === 'object' && !Object.isFrozen(prop)) {
 					stack.push(prop);
 				}
@@ -62,8 +62,8 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 
 	if (isArray(obj)) {
 		const r1: any[] = [];
-		for (let i1 = 0; i1 < obj.length; i1++) {
-			r1.push(_cloneAndChange(obj[i1], changer, seen));
+		for (const e of obj) {
+			r1.push(_cloneAndChange(e, changer, seen));
 		}
 		return r1;
 	}
@@ -173,34 +173,6 @@ export function equals(one: any, other: any): boolean {
 		}
 	}
 	return true;
-}
-
-function arrayToHash(array: string[]): { [name: string]: true } {
-	const result: any = {};
-	for (let i = 0; i < array.length; ++i) {
-		result[array[i]] = true;
-	}
-	return result;
-}
-
-/**
- * Given an array of strings, returns a function which, given a string
- * returns true or false whether the string is in that array.
- */
-export function createKeywordMatcher(arr: string[], caseInsensitive: boolean = false): (str: string) => boolean {
-	if (caseInsensitive) {
-		arr = arr.map(function (x) { return x.toLowerCase(); });
-	}
-	const hash = arrayToHash(arr);
-	if (caseInsensitive) {
-		return function (word) {
-			return hash[word.toLowerCase()] !== undefined && hash.hasOwnProperty(word.toLowerCase());
-		};
-	} else {
-		return function (word) {
-			return hash[word] !== undefined && hash.hasOwnProperty(word);
-		};
-	}
 }
 
 /**

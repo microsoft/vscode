@@ -12,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -53,11 +53,11 @@ export class RichEditSupport {
 	public readonly characterPair: CharacterPairSupport;
 	public readonly wordDefinition: RegExp;
 	public readonly onEnter: OnEnterSupport | null;
-	public readonly indentRulesSupport: IndentRulesSupport;
+	public readonly indentRulesSupport: IndentRulesSupport | null;
 	public readonly indentationRules: IndentationRule | undefined;
 	public readonly foldingRules: FoldingRules;
 
-	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
+	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport | undefined, rawConf: LanguageConfiguration) {
 		this._languageIdentifier = languageIdentifier;
 
 		this._brackets = null;
@@ -81,6 +81,8 @@ export class RichEditSupport {
 		this.indentationRules = this._conf.indentationRules;
 		if (this._conf.indentationRules) {
 			this.indentRulesSupport = new IndentRulesSupport(this._conf.indentationRules);
+		} else {
+			this.indentRulesSupport = null;
 		}
 
 		this.foldingRules = this._conf.folding || {};
@@ -95,16 +97,7 @@ export class RichEditSupport {
 
 	public get electricCharacter(): BracketElectricCharacterSupport | null {
 		if (!this._electricCharacter) {
-			let autoClosingPairs: IAutoClosingPairConditional[] = [];
-			if (this._conf.autoClosingPairs) {
-				autoClosingPairs = this._conf.autoClosingPairs;
-			} else if (this._conf.brackets) {
-				autoClosingPairs = this._conf.brackets.map(b => {
-					return { open: b[0], close: b[1] };
-				});
-			}
-
-			this._electricCharacter = new BracketElectricCharacterSupport(this.brackets, autoClosingPairs, this._conf.__electricCharacterSupport);
+			this._electricCharacter = new BracketElectricCharacterSupport(this.brackets);
 		}
 		return this._electricCharacter;
 	}
@@ -170,39 +163,37 @@ export class RichEditSupport {
 }
 
 export class LanguageConfigurationChangeEvent {
-	languageIdentifier: LanguageIdentifier;
+	constructor(
+		public readonly languageIdentifier: LanguageIdentifier
+	) { }
 }
 
 export class LanguageConfigurationRegistryImpl {
 
-	private _entries: RichEditSupport[];
+	private readonly _entries = new Map<LanguageId, RichEditSupport>();
 
 	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
 	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
 
-	constructor() {
-		this._entries = [];
-	}
-
 	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration): IDisposable {
 		let previous = this._getRichEditSupport(languageIdentifier.id);
 		let current = new RichEditSupport(languageIdentifier, previous, configuration);
-		this._entries[languageIdentifier.id] = current;
-		this._onDidChange.fire({ languageIdentifier });
+		this._entries.set(languageIdentifier.id, current);
+		this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
 		return toDisposable(() => {
-			if (this._entries[languageIdentifier.id] === current) {
-				this._entries[languageIdentifier.id] = previous;
-				this._onDidChange.fire({ languageIdentifier });
+			if (this._entries.get(languageIdentifier.id) === current) {
+				this._entries.set(languageIdentifier.id, previous);
+				this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
 			}
 		});
 	}
 
-	private _getRichEditSupport(languageId: LanguageId): RichEditSupport {
-		return this._entries[languageId] || null;
+	private _getRichEditSupport(languageId: LanguageId): RichEditSupport | undefined {
+		return this._entries.get(languageId);
 	}
 
 	public getIndentationRules(languageId: LanguageId) {
-		let value = this._entries[languageId];
+		const value = this._entries.get(languageId);
 
 		if (!value) {
 			return null;
@@ -261,7 +252,7 @@ export class LanguageConfigurationRegistryImpl {
 		return value.characterPair || null;
 	}
 
-	public getAutoClosingPairs(languageId: LanguageId): IAutoClosingPair[] {
+	public getAutoClosingPairs(languageId: LanguageId): StandardAutoClosingPairConditional[] {
 		let characterPairSupport = this._getCharacterPairSupport(languageId);
 		if (!characterPairSupport) {
 			return [];
@@ -285,13 +276,9 @@ export class LanguageConfigurationRegistryImpl {
 		return characterPairSupport.getSurroundingPairs();
 	}
 
-	public shouldAutoClosePair(character: string, context: LineTokens, column: number): boolean {
-		let scopedLineTokens = createScopedLineTokens(context, column - 1);
-		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.languageId);
-		if (!characterPairSupport) {
-			return false;
-		}
-		return characterPairSupport.shouldAutoClosePair(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
+	public shouldAutoClosePair(autoClosingPair: StandardAutoClosingPairConditional, context: LineTokens, column: number): boolean {
+		const scopedLineTokens = createScopedLineTokens(context, column - 1);
+		return CharacterPairSupport.shouldAutoClosePair(autoClosingPair, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
 	}
 
 	// end characterPair
@@ -332,7 +319,7 @@ export class LanguageConfigurationRegistryImpl {
 	private getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
 		let languageID = model.getLanguageIdAtPosition(lineNumber, 0);
 		if (lineNumber > 1) {
-			let lastLineNumber = lineNumber - 1;
+			let lastLineNumber: number;
 			let resultLineNumber = -1;
 
 			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {

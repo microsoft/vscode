@@ -10,6 +10,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
 import { IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IDecorationsViewportData {
 	/**
@@ -42,7 +43,8 @@ export class ViewModelDecorations implements IDisposable {
 		this._linesCollection = linesCollection;
 		this._coordinatesConverter = coordinatesConverter;
 		this._decorationsCache = Object.create(null);
-		this._clearCachedModelDecorationsResolver();
+		this._cachedModelDecorationsResolver = null;
+		this._cachedModelDecorationsResolverViewRange = null;
 	}
 
 	private _clearCachedModelDecorationsResolver(): void {
@@ -92,8 +94,7 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
-		let cacheIsValid = true;
-		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolver !== null);
+		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
 			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(viewRange);
@@ -103,7 +104,7 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, this.configuration.editor.readOnly);
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, this.configuration.options.get(EditorOption.readOnly));
 		const startLineNumber = viewportRange.startLineNumber;
 		const endLineNumber = viewportRange.endLineNumber;
 

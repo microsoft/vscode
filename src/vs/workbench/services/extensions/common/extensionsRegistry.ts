@@ -10,10 +10,12 @@ import Severity from 'vs/base/common/severity';
 import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionDescription, IMessage } from 'vs/workbench/services/extensions/common/extensions';
+import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { values } from 'vs/base/common/map';
 
-const hasOwnProperty = Object.hasOwnProperty;
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
+export type ExtensionKind = 'workspace' | 'ui' | undefined;
 
 export class ExtensionMessageCollector {
 
@@ -59,30 +61,62 @@ export interface IExtensionPointUser<T> {
 	collector: ExtensionMessageCollector;
 }
 
-export interface IExtensionPointHandler<T> {
-	(extensions: IExtensionPointUser<T>[]): void;
-}
+export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;
 
 export interface IExtensionPoint<T> {
 	name: string;
 	setHandler(handler: IExtensionPointHandler<T>): void;
+	defaultExtensionKind: ExtensionKind;
+}
+
+export class ExtensionPointUserDelta<T> {
+
+	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): Set<string> {
+		const result = new Set<string>();
+		for (let i = 0, len = arr.length; i < len; i++) {
+			result.add(ExtensionIdentifier.toKey(arr[i].description.identifier));
+		}
+		return result;
+	}
+
+	public static compute<T>(previous: readonly IExtensionPointUser<T>[] | null, current: readonly IExtensionPointUser<T>[]): ExtensionPointUserDelta<T> {
+		if (!previous || !previous.length) {
+			return new ExtensionPointUserDelta<T>(current, []);
+		}
+		if (!current || !current.length) {
+			return new ExtensionPointUserDelta<T>([], previous);
+		}
+
+		const previousSet = this._toSet(previous);
+		const currentSet = this._toSet(current);
+
+		let added = current.filter(user => !previousSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
+		let removed = previous.filter(user => !currentSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
+
+		return new ExtensionPointUserDelta<T>(added, removed);
+	}
+
+	constructor(
+		public readonly added: readonly IExtensionPointUser<T>[],
+		public readonly removed: readonly IExtensionPointUser<T>[],
+	) { }
 }
 
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
-	public readonly isDynamic: boolean;
+	public readonly defaultExtensionKind: ExtensionKind;
 
 	private _handler: IExtensionPointHandler<T> | null;
-	private _handlerCalled: boolean;
 	private _users: IExtensionPointUser<T>[] | null;
+	private _delta: ExtensionPointUserDelta<T> | null;
 
-	constructor(name: string, isDynamic: boolean) {
+	constructor(name: string, defaultExtensionKind: ExtensionKind) {
 		this.name = name;
-		this.isDynamic = isDynamic;
+		this.defaultExtensionKind = defaultExtensionKind;
 		this._handler = null;
-		this._handlerCalled = false;
 		this._users = null;
+		this._delta = null;
 	}
 
 	setHandler(handler: IExtensionPointHandler<T>): void {
@@ -94,25 +128,18 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 	}
 
 	acceptUsers(users: IExtensionPointUser<T>[]): void {
+		this._delta = ExtensionPointUserDelta.compute(this._users, users);
 		this._users = users;
 		this._handle();
 	}
 
 	private _handle(): void {
-		if (this._handler === null || this._users === null) {
+		if (this._handler === null || this._users === null || this._delta === null) {
 			return;
 		}
 
-		let users = this._users;
-		this._users = null;
-
-		if (this._handlerCalled && !this.isDynamic) {
-			throw new Error('The extension point is not dynamic!');
-		}
-
 		try {
-			this._handlerCalled = true;
-			this._handler(users);
+			this._handler(this._users, this._delta);
 		} catch (err) {
 			onUnexpectedError(err);
 		}
@@ -177,7 +204,7 @@ export const schema = {
 			type: 'object',
 			properties: {
 				// extensions will fill in
-			},
+			} as { [key: string]: any },
 			default: {}
 		},
 		preview: {
@@ -239,6 +266,11 @@ export const schema = {
 						label: 'onView',
 						body: 'onView:${5:viewId}',
 						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
+					},
+					{
+						label: 'onIdentity',
+						body: 'onIdentity:${8:identity}',
+						description: nls.localize('vscode.extension.activationEvents.onIdentity', 'An activation event emitted whenever the specified user identity.'),
 					},
 					{
 						label: 'onUri',
@@ -312,6 +344,19 @@ export const schema = {
 				pattern: EXTENSION_IDENTIFIER_PATTERN
 			}
 		},
+		extensionKind: {
+			description: nls.localize('extensionKind', "Define the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote."),
+			type: 'string',
+			enum: [
+				'ui',
+				'workspace'
+			],
+			enumDescriptions: [
+				nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+				nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+			],
+			default: 'workspace'
+		},
 		scripts: {
 			type: 'object',
 			properties: {
@@ -333,26 +378,22 @@ export const schema = {
 };
 
 export interface IExtensionPointDescriptor {
-	isDynamic?: boolean;
 	extensionPoint: string;
 	deps?: IExtensionPoint<any>[];
 	jsonSchema: IJSONSchema;
+	defaultExtensionKind?: ExtensionKind;
 }
 
 export class ExtensionsRegistryImpl {
 
-	private _extensionPoints: { [extPoint: string]: ExtensionPoint<any>; };
-
-	constructor() {
-		this._extensionPoints = {};
-	}
+	private readonly _extensionPoints = new Map<string, ExtensionPoint<any>>();
 
 	public registerExtensionPoint<T>(desc: IExtensionPointDescriptor): IExtensionPoint<T> {
-		if (hasOwnProperty.call(this._extensionPoints, desc.extensionPoint)) {
+		if (this._extensionPoints.has(desc.extensionPoint)) {
 			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
 		}
-		let result = new ExtensionPoint<T>(desc.extensionPoint, desc.isDynamic || false);
-		this._extensionPoints[desc.extensionPoint] = result;
+		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
+		this._extensionPoints.set(desc.extensionPoint, result);
 
 		schema.properties['contributes'].properties[desc.extensionPoint] = desc.jsonSchema;
 		schemaRegistry.registerSchema(schemaId, schema);
@@ -361,11 +402,7 @@ export class ExtensionsRegistryImpl {
 	}
 
 	public getExtensionPoints(): ExtensionPoint<any>[] {
-		return Object.keys(this._extensionPoints).map(point => this._extensionPoints[point]);
-	}
-
-	public getExtensionPointsMap(): { [extPoint: string]: ExtensionPoint<any>; } {
-		return this._extensionPoints;
+		return values(this._extensionPoints);
 	}
 }
 

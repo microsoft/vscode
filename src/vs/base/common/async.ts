@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
 export function isThenable<T>(obj: any): obj is Promise<T> {
@@ -44,12 +44,21 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		catch<TResult = never>(reject?: ((reason: any) => TResult | Promise<TResult>) | undefined | null): Promise<T | TResult> {
 			return this.then(undefined, reject);
 		}
+		finally(onfinally?: (() => void) | undefined | null): Promise<T> {
+			return promise.finally(onfinally);
+		}
 	};
+}
+
+export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken): Promise<T | undefined>;
+export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue: T): Promise<T>;
+export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue?: T): Promise<T> {
+	return Promise.race([promise, new Promise<T>(resolve => token.onCancellationRequested(() => resolve(defaultValue)))]);
 }
 
 export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		let item = callback();
+		const item = callback();
 		if (isThenable<T>(item)) {
 			item.then(resolve, reject);
 		} else {
@@ -175,7 +184,7 @@ export class Delayer<T> implements IDisposable {
 	private timeout: any;
 	private completionPromise: Promise<any> | null;
 	private doResolve: ((value?: any | Promise<any>) => void) | null;
-	private doReject: (err: any) => void;
+	private doReject?: (err: any) => void;
 	private task: ITask<T | Promise<T>> | null;
 
 	constructor(public defaultDelay: number) {
@@ -219,7 +228,7 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
-			this.doReject(errors.canceled());
+			this.doReject!(errors.canceled());
 			this.completionPromise = null;
 		}
 	}
@@ -279,7 +288,7 @@ export class Barrier {
 
 	private _isOpen: boolean;
 	private _promise: Promise<boolean>;
-	private _completePromise: (v: boolean) => void;
+	private _completePromise!: (v: boolean) => void;
 
 	constructor() {
 		this._isOpen = false;
@@ -318,32 +327,9 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	});
 }
 
-export function disposableTimeout(handler: Function, timeout = 0): IDisposable {
+export function disposableTimeout(handler: () => void, timeout = 0): IDisposable {
 	const timer = setTimeout(handler, timeout);
-	return {
-		dispose() {
-			clearTimeout(timer);
-		}
-	};
-}
-
-/**
- * Returns a new promise that joins the provided promise. Upon completion of
- * the provided promise the provided function will always be called. This
- * method is comparable to a try-finally code block.
- * @param promise a promise
- * @param callback a function that will be call in the success and error case.
- */
-export function always<T>(promise: Promise<T>, callback: () => void): Promise<T> {
-	function safeCallback() {
-		try {
-			callback();
-		} catch (err) {
-			errors.onUnexpectedError(err);
-		}
-	}
-	promise.then(_ => safeCallback(), _ => safeCallback());
-	return Promise.resolve(promise);
+	return toDisposable(() => clearTimeout(timer));
 }
 
 export function ignoreErrors<T>(promise: Promise<T>): Promise<T | undefined> {
@@ -429,11 +415,11 @@ export class Limiter<T> {
 		this._onFinished = new Emitter<void>();
 	}
 
-	public get onFinished(): Event<void> {
+	get onFinished(): Event<void> {
 		return this._onFinished.event;
 	}
 
-	public get size(): number {
+	get size(): number {
 		return this._size;
 		// return this.runningPromises + this.outstandingPromises.length;
 	}
@@ -469,7 +455,7 @@ export class Limiter<T> {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._onFinished.dispose();
 	}
 }
@@ -489,35 +475,30 @@ export class Queue<T> extends Limiter<T> {
  * by disposing them once the queue is empty.
  */
 export class ResourceQueue {
-	private queues: { [path: string]: Queue<void> };
+	private queues: Map<string, Queue<void>> = new Map();
 
-	constructor() {
-		this.queues = Object.create(null);
-	}
-
-	public queueFor(resource: URI): Queue<void> {
+	queueFor(resource: URI): Queue<void> {
 		const key = resource.toString();
-		if (!this.queues[key]) {
+		if (!this.queues.has(key)) {
 			const queue = new Queue<void>();
 			queue.onFinished(() => {
 				queue.dispose();
-				delete this.queues[key];
+				this.queues.delete(key);
 			});
 
-			this.queues[key] = queue;
+			this.queues.set(key, queue);
 		}
 
-		return this.queues[key];
+		return this.queues.get(key)!;
 	}
 }
 
-export class TimeoutTimer extends Disposable {
+export class TimeoutTimer implements IDisposable {
 	private _token: any;
 
 	constructor();
 	constructor(runner: () => void, timeout: number);
 	constructor(runner?: () => void, timeout?: number) {
-		super();
 		this._token = -1;
 
 		if (typeof runner === 'function' && typeof timeout === 'number') {
@@ -527,7 +508,6 @@ export class TimeoutTimer extends Disposable {
 
 	dispose(): void {
 		this.cancel();
-		super.dispose();
 	}
 
 	cancel(): void {
@@ -557,18 +537,16 @@ export class TimeoutTimer extends Disposable {
 	}
 }
 
-export class IntervalTimer extends Disposable {
+export class IntervalTimer implements IDisposable {
 
 	private _token: any;
 
 	constructor() {
-		super();
 		this._token = -1;
 	}
 
 	dispose(): void {
 		this.cancel();
-		super.dispose();
 	}
 
 	cancel(): void {
@@ -679,19 +657,6 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 	}
 }
 
-export function nfcall(fn: Function, ...args: any[]): Promise<any>;
-export function nfcall<T>(fn: Function, ...args: any[]): Promise<T>;
-export function nfcall(fn: Function, ...args: any[]): any {
-	return new Promise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)));
-}
-
-export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise<any>;
-export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): Promise<T>;
-export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
-	return new Promise((resolve, reject) => fn.call(thisArg, ...args, (err: any, result: any) => err ? reject(err) : resolve(result)));
-}
-
-
 //#region -- run on idle tricks ------------
 
 export interface IdleDeadline {
@@ -708,12 +673,12 @@ declare function cancelIdleCallback(handle: number): void;
 
 (function () {
 	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
-		let dummyIdle: IdleDeadline = Object.freeze({
+		const dummyIdle: IdleDeadline = Object.freeze({
 			didTimeout: true,
 			timeRemaining() { return 15; }
 		});
-		runWhenIdle = (runner, timeout = 0) => {
-			let handle = setTimeout(() => runner(dummyIdle), timeout);
+		runWhenIdle = (runner) => {
+			const handle = setTimeout(() => runner(dummyIdle));
 			let disposed = false;
 			return {
 				dispose() {
@@ -727,7 +692,7 @@ declare function cancelIdleCallback(handle: number): void;
 		};
 	} else {
 		runWhenIdle = (runner, timeout?) => {
-			let handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			const handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
 			let disposed = false;
 			return {
 				dispose() {
@@ -751,8 +716,8 @@ export class IdleValue<T> {
 	private readonly _executor: () => void;
 	private readonly _handle: IDisposable;
 
-	private _didRun: boolean;
-	private _value: T;
+	private _didRun: boolean = false;
+	private _value?: T;
 	private _error: any;
 
 	constructor(executor: () => T) {
@@ -780,8 +745,24 @@ export class IdleValue<T> {
 		if (this._error) {
 			throw this._error;
 		}
-		return this._value;
+		return this._value!;
 	}
 }
 
 //#endregion
+
+export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: number): Promise<T> {
+	let lastError: Error | undefined;
+
+	for (let i = 0; i < retries; i++) {
+		try {
+			return await task();
+		} catch (error) {
+			lastError = error;
+
+			await timeout(delay);
+		}
+	}
+
+	return Promise.reject(lastError);
+}

@@ -5,29 +5,33 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import product from 'vs/platform/node/product';
+import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/configuration/common/configuration';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import product from 'vs/platform/product/common/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IRequestService } from 'vs/platform/request/node/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export function createUpdateURL(platform: string, quality: string): string {
 	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
 }
 
+export type UpdateNotAvailableClassification = {
+	explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
+
 export abstract class AbstractUpdateService implements IUpdateService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	protected readonly url: string | undefined;
 
 	private _state: State = State.Uninitialized;
 
-	private _onStateChange = new Emitter<State>();
-	get onStateChange(): Event<State> { return this._onStateChange.event; }
+	private readonly _onStateChange = new Emitter<State>();
+	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
 		return this._state;
@@ -40,44 +44,56 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 	) {
 		if (this.environmentService.disableUpdates) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled by the environment');
 			return;
 		}
 
 		if (!product.updateUrl || !product.commit) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled as there is no update URL');
 			return;
 		}
 
-		const quality = this.getProductQuality();
+		const updateMode = getMigratedSettingValue<string>(this.configurationService, 'update.mode', 'update.channel');
+		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled by user preference');
 			return;
 		}
 
 		this.url = this.buildUpdateFeedUrl(quality);
 		if (!this.url) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
 			return;
 		}
 
 		this.setState(State.Idle(this.getUpdateType()));
 
-		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		if (updateMode === 'manual') {
+			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
+			return;
+		}
+
+		if (updateMode === 'start') {
+			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
+
+			// Check for updates only once after 30 seconds
+			setTimeout(() => this.checkForUpdates(null), 30 * 1000);
+		} else {
+			// Start checking for updates after 30 seconds
+			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		}
 	}
 
-	private getProductQuality(): string | undefined {
-		const quality = this.configurationService.getValue<string>('update.channel');
-		return quality === 'none' ? undefined : product.quality;
+	private getProductQuality(updateMode: string): string | undefined {
+		return updateMode === 'none' ? undefined : product.quality;
 	}
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
@@ -131,12 +147,12 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
-		this.lifecycleService.quit(true /* from update */).then(vetod => {
+		this.lifecycleMainService.quit(true /* from update */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
@@ -146,7 +162,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.doQuitAndInstall();
 		});
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	isLatestVersion(): Promise<boolean | undefined> {

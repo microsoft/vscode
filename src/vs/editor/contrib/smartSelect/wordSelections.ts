@@ -12,12 +12,16 @@ import { isUpperAsciiLetter, isLowerAsciiLetter } from 'vs/base/common/strings';
 
 export class WordSelectionRangeProvider implements SelectionRangeProvider {
 
-	provideSelectionRanges(model: ITextModel, position: Position): SelectionRange[] {
-		let result: SelectionRange[] = [];
-		this._addInWordRanges(result, model, position);
-		this._addWordRanges(result, model, position);
-		this._addLineRanges(result, model, position);
-		result.push({ range: model.getFullModelRange(), kind: 'statement.all' });
+	provideSelectionRanges(model: ITextModel, positions: Position[]): SelectionRange[][] {
+		const result: SelectionRange[][] = [];
+		for (const position of positions) {
+			const bucket: SelectionRange[] = [];
+			result.push(bucket);
+			this._addInWordRanges(bucket, model, position);
+			this._addWordRanges(bucket, model, position);
+			this._addWhitespaceLine(bucket, model, position);
+			bucket.push({ range: model.getFullModelRange() });
+		}
 		return result;
 	}
 
@@ -26,40 +30,58 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 		if (!obj) {
 			return;
 		}
+
 		let { word, startColumn } = obj;
 		let offset = pos.column - startColumn;
+		let start = offset;
+		let end = offset;
 		let lastCh: number = 0;
-		for (; offset < word.length; offset++) {
-			let ch = word.charCodeAt(offset);
-			if (isUpperAsciiLetter(ch) && isLowerAsciiLetter(lastCh)) {
+
+		// LEFT anchor (start)
+		for (; start >= 0; start--) {
+			let ch = word.charCodeAt(start);
+			if (ch === CharCode.Underline || ch === CharCode.Dash) {
+				// foo-bar OR foo_bar
+				break;
+			} else if (isLowerAsciiLetter(ch) && isUpperAsciiLetter(lastCh)) {
 				// fooBar
-				// ^^^
-				// ^^^^^^
-				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
-			} else if (ch === CharCode.Underline && lastCh !== CharCode.Underline) {
-				// foo_bar
-				// ^^^
-				// ^^^^^^^
-				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
-				offset += 1;
+				break;
 			}
 			lastCh = ch;
+		}
+		start += 1;
+
+		// RIGHT anchor (end)
+		for (; end < word.length; end++) {
+			let ch = word.charCodeAt(end);
+			if (isUpperAsciiLetter(ch) && isLowerAsciiLetter(lastCh)) {
+				// fooBar
+				break;
+			} else if (ch === CharCode.Underline || ch === CharCode.Dash) {
+				// foo-bar OR foo_bar
+				break;
+			}
+			lastCh = ch;
+		}
+
+		if (start < end) {
+			bucket.push({ range: new Range(pos.lineNumber, startColumn + start, pos.lineNumber, startColumn + end) });
 		}
 	}
 
 	private _addWordRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
 		const word = model.getWordAtPosition(pos);
 		if (word) {
-			bucket.push({ range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn), kind: 'statement.word' });
+			bucket.push({ range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn) });
 		}
 	}
 
-	private _addLineRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
-
-		const nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(pos.lineNumber);
-		if (nonWhitespaceColumn > 0) {
-			bucket.push({ range: new Range(pos.lineNumber, nonWhitespaceColumn, pos.lineNumber, model.getLineLastNonWhitespaceColumn(pos.lineNumber)), kind: 'statement.line' });
+	private _addWhitespaceLine(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
+		if (model.getLineLength(pos.lineNumber) > 0
+			&& model.getLineFirstNonWhitespaceColumn(pos.lineNumber) === 0
+			&& model.getLineLastNonWhitespaceColumn(pos.lineNumber) === 0
+		) {
+			bucket.push({ range: new Range(pos.lineNumber, 1, pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)) });
 		}
-		bucket.push({ range: new Range(pos.lineNumber, model.getLineMinColumn(pos.lineNumber), pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)), kind: 'statement.line.full' });
 	}
 }

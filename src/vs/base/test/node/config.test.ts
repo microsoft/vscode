@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as os from 'os';
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as uuid from 'vs/base/common/uuid';
 import { ConfigWatcher } from 'vs/base/node/config';
@@ -20,7 +20,7 @@ suite('Config', () => {
 		const newDir = path.join(parentDir, 'config', id);
 		const testFile = path.join(newDir, 'config.json');
 
-		let watcher = new ConfigWatcher(testFile);
+		let watcher = new ConfigWatcher<{}>(testFile);
 
 		let config = watcher.getConfig();
 		assert.ok(config);

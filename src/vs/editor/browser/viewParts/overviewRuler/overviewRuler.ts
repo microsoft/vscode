@@ -5,7 +5,7 @@
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IOverviewRuler } from 'vs/editor/browser/editorBrowser';
-import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
+import { OverviewRulerPosition, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -13,13 +13,14 @@ import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
-	private _context: ViewContext;
-	private _domNode: FastDomNode<HTMLCanvasElement>;
-	private _zoneManager: OverviewZoneManager;
+	private readonly _context: ViewContext;
+	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
+	private readonly _zoneManager: OverviewZoneManager;
 
 	constructor(context: ViewContext, cssClassName: string) {
 		super();
 		this._context = context;
+		const options = this._context.configuration.options;
 
 		this._domNode = createFastDomNode(document.createElement('canvas'));
 		this._domNode.setClassName(cssClassName);
@@ -30,9 +31,9 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		this._zoneManager.setDOMWidth(0);
 		this._zoneManager.setDOMHeight(0);
 		this._zoneManager.setOuterHeight(this._context.viewLayout.getScrollHeight());
-		this._zoneManager.setLineHeight(this._context.configuration.editor.lineHeight);
+		this._zoneManager.setLineHeight(options.get(EditorOption.lineHeight));
 
-		this._zoneManager.setPixelRatio(this._context.configuration.editor.pixelRatio);
+		this._zoneManager.setPixelRatio(options.get(EditorOption.pixelRatio));
 
 		this._context.addEventHandler(this);
 	}
@@ -45,13 +46,15 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 	// ---- begin view event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._zoneManager.setLineHeight(this._context.configuration.editor.lineHeight);
+		const options = this._context.configuration.options;
+
+		if (e.hasChanged(EditorOption.lineHeight)) {
+			this._zoneManager.setLineHeight(options.get(EditorOption.lineHeight));
 			this._render();
 		}
 
-		if (e.pixelRatio) {
-			this._zoneManager.setPixelRatio(this._context.configuration.editor.pixelRatio);
+		if (e.hasChanged(EditorOption.pixelRatio)) {
+			this._zoneManager.setPixelRatio(options.get(EditorOption.pixelRatio));
 			this._domNode.setWidth(this._zoneManager.getDOMWidth());
 			this._domNode.setHeight(this._zoneManager.getDOMHeight());
 			this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
@@ -114,10 +117,10 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		const width = this._zoneManager.getCanvasWidth();
 		const height = this._zoneManager.getCanvasHeight();
 
-		let colorZones = this._zoneManager.resolveColorZones();
-		let id2Color = this._zoneManager.getId2Color();
+		const colorZones = this._zoneManager.resolveColorZones();
+		const id2Color = this._zoneManager.getId2Color();
 
-		let ctx = this._domNode.domNode.getContext('2d')!;
+		const ctx = this._domNode.domNode.getContext('2d')!;
 		ctx.clearRect(0, 0, width, height);
 		if (colorZones.length > 0) {
 			this._renderOneLane(ctx, colorZones, id2Color, width);
@@ -132,8 +135,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		let currentFrom = 0;
 		let currentTo = 0;
 
-		for (let i = 0, len = colorZones.length; i < len; i++) {
-			const zone = colorZones[i];
+		for (const zone of colorZones) {
 
 			const zoneColorId = zone.colorId;
 			const zoneFrom = zone.from;

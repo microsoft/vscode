@@ -49,7 +49,7 @@ export function isStringArray(value: any): value is string[] {
  * @returns whether the provided parameter is of type `object` but **not**
  *	`null`, an `array`, a `regexp`, nor a `date`.
  */
-export function isObject(obj: any): boolean {
+export function isObject(obj: any): obj is Object {
 	// The method can't do a type cast since there are type (like strings) which
 	// are subclasses of any put not positvely matched by the function. Hence type
 	// narrowing results in wrong results.
@@ -93,6 +93,38 @@ export function isUndefinedOrNull(obj: any): obj is undefined | null {
 	return isUndefined(obj) || obj === null;
 }
 
+/**
+ * Asserts that the argument passed in is neither undefined nor null.
+ */
+export function assertIsDefined<T>(arg: T | null | undefined): T {
+	if (isUndefinedOrNull(arg)) {
+		throw new Error('Assertion Failed: argument is undefined or null');
+	}
+
+	return arg;
+}
+
+/**
+ * Asserts that each argument passed in is neither undefined nor null.
+ */
+export function assertAllDefined<T1, T2>(t1: T1 | null | undefined, t2: T2 | null | undefined): [T1, T2];
+export function assertAllDefined<T1, T2, T3>(t1: T1 | null | undefined, t2: T2 | null | undefined, t3: T3 | null | undefined): [T1, T2, T3];
+export function assertAllDefined<T1, T2, T3, T4>(t1: T1 | null | undefined, t2: T2 | null | undefined, t3: T3 | null | undefined, t4: T4 | null | undefined): [T1, T2, T3, T4];
+export function assertAllDefined(...args: (unknown | null | undefined)[]): unknown[] {
+	const result = [];
+
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+
+		if (isUndefinedOrNull(arg)) {
+			throw new Error(`Assertion Failed: argument at index ${i} is undefined or null`);
+		}
+
+		result.push(arg);
+	}
+
+	return result;
+}
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -124,7 +156,7 @@ export function isFunction(obj: any): obj is Function {
  * @returns whether the provided parameters is are JavaScript Function or not.
  */
 export function areFunctions(...objects: any[]): boolean {
-	return objects && objects.length > 0 && objects.every(isFunction);
+	return objects.length > 0 && objects.every(isFunction);
 }
 
 export type TypeConstraint = string | Function;
@@ -143,8 +175,12 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 			throw new Error(`argument does not match constraint: typeof ${constraint}`);
 		}
 	} else if (isFunction(constraint)) {
-		if (arg instanceof constraint) {
-			return;
+		try {
+			if (arg instanceof constraint) {
+				return;
+			}
+		} catch{
+			// ignore
 		}
 		if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {
 			return;
@@ -156,13 +192,66 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 	}
 }
 
-/**
- * Creates a new object of the provided class and will call the constructor with
- * any additional argument supplied.
- */
-export function create(ctor: Function, ...args: any[]): any {
-	let obj = Object.create(ctor.prototype);
-	ctor.apply(obj, args);
-
-	return obj;
+export function getAllPropertyNames(obj: object): string[] {
+	let res: string[] = [];
+	let proto = Object.getPrototypeOf(obj);
+	while (Object.prototype !== proto) {
+		res = res.concat(Object.getOwnPropertyNames(proto));
+		proto = Object.getPrototypeOf(proto);
+	}
+	return res;
 }
+
+export function getAllMethodNames(obj: object): string[] {
+	const methods: string[] = [];
+	for (const prop of getAllPropertyNames(obj)) {
+		if (typeof (obj as any)[prop] === 'function') {
+			methods.push(prop);
+		}
+	}
+	return methods;
+}
+
+export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: any[]) => any): T {
+	const createProxyMethod = (method: string): () => any => {
+		return function () {
+			const args = Array.prototype.slice.call(arguments, 0);
+			return invoke(method, args);
+		};
+	};
+
+	let result = {} as T;
+	for (const methodName of methodNames) {
+		(<any>result)[methodName] = createProxyMethod(methodName);
+	}
+	return result;
+}
+
+/**
+ * Converts null to undefined, passes all other values through.
+ */
+export function withNullAsUndefined<T>(x: T | null): T | undefined {
+	return x === null ? undefined : x;
+}
+
+/**
+ * Converts undefined to null, passes all other values through.
+ */
+export function withUndefinedAsNull<T>(x: T | undefined): T | null {
+	return typeof x === 'undefined' ? null : x;
+}
+
+/**
+ * Allows to add a first parameter to functions of a type.
+ */
+export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, FirstParameter> = {
+
+	//  For every property
+	[K in keyof Target]:
+
+	// Function: add param to function
+	Target[K] extends (...args: any) => TargetFunctionsReturnType ? (firstArg: FirstParameter, ...args: Parameters<Target[K]>) => ReturnType<Target[K]> :
+
+	// Else: just leave as is
+	Target[K]
+};

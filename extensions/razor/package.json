@@ -4,6 +4,7 @@
 	"description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
@@ -25,7 +26,7 @@
 			"embeddedLanguages": {
 				"section.embedded.source.cshtml": "csharp",
           "source.css": "css",
-          "source.js": "javascript"				
+          "source.js": "javascript"
 			}
 		}]
   }

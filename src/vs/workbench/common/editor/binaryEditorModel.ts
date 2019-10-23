@@ -7,27 +7,27 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { DataUri } from 'vs/base/common/resources';
+import { DataUri, basename } from 'vs/base/common/resources';
+import { MIME_BINARY } from 'vs/base/common/mime';
 
 /**
  * An editor model that just represents a resource that can be loaded.
  */
 export class BinaryEditorModel extends EditorModel {
-	private name: string;
-	private resource: URI;
-	private size: number;
-	private etag: string;
-	private mime: string;
+	private size: number | undefined;
+	private etag: string | undefined;
+	private readonly mime: string;
 
 	constructor(
-		resource: URI,
-		name: string,
-		@IFileService private fileService: IFileService
+		private readonly resource: URI,
+		private readonly name: string | undefined,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
 		this.resource = resource;
 		this.name = name;
+		this.mime = MIME_BINARY;
 
 		if (resource.scheme === Schemas.data) {
 			const metadata = DataUri.parseMetaData(resource);
@@ -35,7 +35,10 @@ export class BinaryEditorModel extends EditorModel {
 				this.size = Number(metadata.get(DataUri.META_DATA_SIZE));
 			}
 
-			this.mime = metadata.get(DataUri.META_DATA_MIME);
+			const metadataMime = metadata.get(DataUri.META_DATA_MIME);
+			if (metadataMime) {
+				this.mime = metadataMime;
+			}
 		}
 	}
 
@@ -43,7 +46,7 @@ export class BinaryEditorModel extends EditorModel {
 	 * The name of the binary resource.
 	 */
 	getName(): string {
-		return this.name;
+		return this.name || basename(this.resource);
 	}
 
 	/**
@@ -56,7 +59,7 @@ export class BinaryEditorModel extends EditorModel {
 	/**
 	 * The size of the binary resource if known.
 	 */
-	getSize(): number {
+	getSize(): number | undefined {
 		return this.size;
 	}
 
@@ -70,24 +73,21 @@ export class BinaryEditorModel extends EditorModel {
 	/**
 	 * The etag of the binary resource if known.
 	 */
-	getETag(): string {
+	getETag(): string | undefined {
 		return this.etag;
 	}
 
-	load(): Promise<EditorModel> {
+	async load(): Promise<BinaryEditorModel> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {
-			return this.fileService.resolveFile(this.resource).then(stat => {
-				this.etag = stat.etag;
-				if (typeof stat.size === 'number') {
-					this.size = stat.size;
-				}
-
-				return this;
-			});
+			const stat = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			this.etag = stat.etag;
+			if (typeof stat.size === 'number') {
+				this.size = stat.size;
+			}
 		}
 
-		return Promise.resolve(this);
+		return this;
 	}
 }

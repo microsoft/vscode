@@ -4,26 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { always } from 'vs/base/common/async';
 import { illegalArgument } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConstructorSignature1, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature1, ServicesAccessor as InstantiationServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
-export type ServicesAccessor = ServicesAccessor;
+export type ServicesAccessor = InstantiationServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
+export type IDiffEditorContributionCtor = IConstructorSignature1<IDiffEditor, IDiffEditorContribution>;
+
+export interface IEditorContributionDescription {
+	id: string;
+	ctor: IEditorContributionCtor;
+}
+
+export interface IDiffEditorContributionDescription {
+	id: string;
+	ctor: IDiffEditorContributionCtor;
+}
 
 //#region Command
 
@@ -40,17 +51,17 @@ export interface ICommandMenubarOptions {
 }
 export interface ICommandOptions {
 	id: string;
-	precondition: ContextKeyExpr | null;
-	kbOpts?: ICommandKeybindingsOptions | null;
+	precondition: ContextKeyExpr | undefined;
+	kbOpts?: ICommandKeybindingsOptions;
 	description?: ICommandHandlerDescription;
 	menubarOpts?: ICommandMenubarOptions;
 }
 export abstract class Command {
 	public readonly id: string;
-	public readonly precondition: ContextKeyExpr | null;
-	private readonly _kbOpts: ICommandKeybindingsOptions | null | undefined;
-	private readonly _menubarOpts: ICommandMenubarOptions | null | undefined;
-	private readonly _description: ICommandHandlerDescription | null | undefined;
+	public readonly precondition: ContextKeyExpr | undefined;
+	private readonly _kbOpts: ICommandKeybindingsOptions | undefined;
+	private readonly _menubarOpts: ICommandMenubarOptions | undefined;
+	private readonly _description: ICommandHandlerDescription | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
@@ -89,7 +100,7 @@ export abstract class Command {
 				id: this.id,
 				handler: (accessor, args) => this.runCommand(accessor, args),
 				weight: this._kbOpts.weight,
-				when: kbWhen || null,
+				when: kbWhen,
 				primary: this._kbOpts.primary,
 				secondary: this._kbOpts.secondary,
 				win: this._kbOpts.win,
@@ -116,7 +127,7 @@ export abstract class Command {
 //#region EditorCommand
 
 export interface IContributionCommandOptions<T> extends ICommandOptions {
-	handler: (controller: T) => void;
+	handler: (controller: T, args: any) => void;
 }
 export interface EditorControllerCommand<T extends IEditorContribution> {
 	new(opts: IContributionCommandOptions<T>): EditorCommand;
@@ -128,7 +139,7 @@ export abstract class EditorCommand extends Command {
 	 */
 	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
 		return class EditorControllerCommandImpl extends EditorCommand {
-			private _callback: (controller: T) => void;
+			private readonly _callback: (controller: T, args: any) => void;
 
 			constructor(opts: IContributionCommandOptions<T>) {
 				super(opts);
@@ -137,9 +148,9 @@ export abstract class EditorCommand extends Command {
 			}
 
 			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-				let controller = controllerGetter(editor);
+				const controller = controllerGetter(editor);
 				if (controller) {
-					this._callback(controllerGetter(editor));
+					this._callback(controllerGetter(editor), args);
 				}
 			}
 		};
@@ -149,7 +160,7 @@ export abstract class EditorCommand extends Command {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
 		// Find the editor with text focus or active
-		let editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
 		if (!editor) {
 			// well, at least we tried...
 			return;
@@ -157,7 +168,7 @@ export abstract class EditorCommand extends Command {
 
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
-			if (!kbService.contextMatchesRules(this.precondition)) {
+			if (!kbService.contextMatchesRules(withNullAsUndefined(this.precondition))) {
 				// precondition does not hold
 				return;
 			}
@@ -185,9 +196,9 @@ export interface IActionOptions extends ICommandOptions {
 }
 export abstract class EditorAction extends EditorCommand {
 
-	public label: string;
-	public alias: string;
-	private menuOpts: IEditorCommandMenuOptions | undefined;
+	public readonly label: string;
+	public readonly alias: string;
+	private readonly menuOpts: IEditorCommandMenuOptions | undefined;
 
 	constructor(opts: IActionOptions) {
 		super(opts);
@@ -219,16 +230,15 @@ export abstract class EditorAction extends EditorCommand {
 	}
 
 	protected reportTelemetry(accessor: ServicesAccessor, editor: ICodeEditor) {
-		/* __GDPR__
-			"editorActionInvoked" : {
-				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"${include}": [
-					"${EditorTelemetryData}"
-				]
-			}
-		*/
-		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id, ...editor.getTelemetryData() });
+		type EditorActionInvokedClassification = {
+			name: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
+			id: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
+		};
+		type EditorActionInvokedEvent = {
+			name: string;
+			id: string;
+		};
+		accessor.get(ITelemetryService).publicLog2<EditorActionInvokedEvent, EditorActionInvokedClassification>('editorActionInvoked', { name: this.label, id: this.id });
 	}
 
 	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
@@ -238,7 +248,7 @@ export abstract class EditorAction extends EditorCommand {
 
 // --- Registration of commands and actions
 
-export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
+export function registerLanguageCommand<Args extends { [n: string]: any; }>(id: string, handler: (accessor: ServicesAccessor, args: Args) => any) {
 	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
 }
 
@@ -266,14 +276,14 @@ export function registerDefaultLanguageCommand(id: string, handler: (model: ITex
 		}
 
 		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
-			return always(new Promise((resolve, reject) => {
+			return new Promise((resolve, reject) => {
 				try {
-					let result = handler(reference.object.textEditorModel, Position.lift(position), args);
+					const result = handler(reference.object.textEditorModel, Position.lift(position), args);
 					resolve(result);
 				} catch (err) {
 					reject(err);
 				}
-			}), () => {
+			}).finally(() => {
 				reference.dispose();
 			});
 		});
@@ -293,8 +303,12 @@ export function registerInstantiatedEditorAction(editorAction: EditorAction): vo
 	EditorContributionRegistry.INSTANCE.registerEditorAction(editorAction);
 }
 
-export function registerEditorContribution(ctor: IEditorContributionCtor): void {
-	EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
+export function registerEditorContribution(id: string, ctor: IEditorContributionCtor): void {
+	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor);
+}
+
+export function registerDiffEditorContribution(id: string, ctor: IDiffEditorContributionCtor): void {
+	EditorContributionRegistry.INSTANCE.registerDiffEditorContribution(id, ctor);
 }
 
 export namespace EditorExtensionsRegistry {
@@ -307,8 +321,16 @@ export namespace EditorExtensionsRegistry {
 		return EditorContributionRegistry.INSTANCE.getEditorActions();
 	}
 
-	export function getEditorContributions(): IEditorContributionCtor[] {
+	export function getEditorContributions(): IEditorContributionDescription[] {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
+	}
+
+	export function getSomeEditorContributions(ids: string[]): IEditorContributionDescription[] {
+		return EditorContributionRegistry.INSTANCE.getEditorContributions().filter(c => ids.indexOf(c.id) >= 0);
+	}
+
+	export function getDiffEditorContributions(): IDiffEditorContributionDescription[] {
+		return EditorContributionRegistry.INSTANCE.getDiffEditorContributions();
 	}
 }
 
@@ -321,27 +343,37 @@ class EditorContributionRegistry {
 
 	public static readonly INSTANCE = new EditorContributionRegistry();
 
-	private editorContributions: IEditorContributionCtor[];
-	private editorActions: EditorAction[];
-	private editorCommands: { [commandId: string]: EditorCommand; };
+	private readonly editorContributions: IEditorContributionDescription[];
+	private readonly diffEditorContributions: IDiffEditorContributionDescription[];
+	private readonly editorActions: EditorAction[];
+	private readonly editorCommands: { [commandId: string]: EditorCommand; };
 
 	constructor() {
 		this.editorContributions = [];
+		this.diffEditorContributions = [];
 		this.editorActions = [];
 		this.editorCommands = Object.create(null);
 	}
 
-	public registerEditorContribution(ctor: IEditorContributionCtor): void {
-		this.editorContributions.push(ctor);
+	public registerEditorContribution(id: string, ctor: IEditorContributionCtor): void {
+		this.editorContributions.push({ id, ctor });
+	}
+
+	public getEditorContributions(): IEditorContributionDescription[] {
+		return this.editorContributions.slice(0);
+	}
+
+	public registerDiffEditorContribution(id: string, ctor: IDiffEditorContributionCtor): void {
+		this.diffEditorContributions.push({ id, ctor });
+	}
+
+	public getDiffEditorContributions(): IDiffEditorContributionDescription[] {
+		return this.diffEditorContributions.slice(0);
 	}
 
 	public registerEditorAction(action: EditorAction) {
 		action.register();
 		this.editorActions.push(action);
-	}
-
-	public getEditorContributions(): IEditorContributionCtor[] {
-		return this.editorContributions.slice(0);
 	}
 
 	public getEditorActions(): EditorAction[] {

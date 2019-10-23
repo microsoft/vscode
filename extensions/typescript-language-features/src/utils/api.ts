@@ -5,6 +5,7 @@
 
 import * as semver from 'semver';
 import * as nls from 'vscode-nls';
+
 const localize = nls.loadMessageBundle();
 
 export default class API {
@@ -13,10 +14,6 @@ export default class API {
 	}
 
 	public static readonly defaultVersion = API.fromSimpleString('1.0.0');
-	public static readonly v203 = API.fromSimpleString('2.0.3');
-	public static readonly v206 = API.fromSimpleString('2.0.6');
-	public static readonly v208 = API.fromSimpleString('2.0.8');
-	public static readonly v213 = API.fromSimpleString('2.1.3');
 	public static readonly v220 = API.fromSimpleString('2.2.0');
 	public static readonly v222 = API.fromSimpleString('2.2.2');
 	public static readonly v230 = API.fromSimpleString('2.3.0');
@@ -34,7 +31,10 @@ export default class API {
 	public static readonly v314 = API.fromSimpleString('3.1.4');
 	public static readonly v320 = API.fromSimpleString('3.2.0');
 	public static readonly v330 = API.fromSimpleString('3.3.0');
-
+	public static readonly v333 = API.fromSimpleString('3.3.3');
+	public static readonly v340 = API.fromSimpleString('3.4.0');
+	public static readonly v345 = API.fromSimpleString('3.4.5');
+	public static readonly v350 = API.fromSimpleString('3.5.0');
 
 	public static fromVersionString(versionString: string): API {
 		let version = semver.valid(versionString);
@@ -51,8 +51,8 @@ export default class API {
 	}
 
 	private constructor(
-		public readonly versionString: string,
-		private readonly version: string
+		public readonly displayName: string,
+		public readonly version: string
 	) { }
 
 	public gte(other: API): boolean {

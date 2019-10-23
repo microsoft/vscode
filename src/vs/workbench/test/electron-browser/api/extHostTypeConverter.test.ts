@@ -5,11 +5,12 @@
 
 
 import * as assert from 'assert';
-import { MarkdownString, LogLevel } from 'vs/workbench/api/node/extHostTypeConverters';
+import { MarkdownString, LogLevel } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
-import { size } from 'vs/base/common/collections';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import { size, forEach } from 'vs/base/common/collections';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
+import { URI } from 'vs/base/common/uri';
 
 suite('ExtHostTypeConverter', function () {
 
@@ -21,42 +22,58 @@ suite('ExtHostTypeConverter', function () {
 
 		data = MarkdownString.from('Hello [link](foo)');
 		assert.equal(data.value, 'Hello [link](foo)');
-		assert.equal(isEmptyObject(data.uris), true); // no scheme, no uri
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['foo']);
 
 		data = MarkdownString.from('Hello [link](www.noscheme.bad)');
 		assert.equal(data.value, 'Hello [link](www.noscheme.bad)');
-		assert.equal(isEmptyObject(data.uris), true); // no scheme, no uri
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['www.noscheme.bad']);
 
 		data = MarkdownString.from('Hello [link](foo:path)');
 		assert.equal(data.value, 'Hello [link](foo:path)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['foo:path']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['foo:path']);
 
 		data = MarkdownString.from('hello@foo.bar');
 		assert.equal(data.value, 'hello@foo.bar');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['mailto:hello@foo.bar']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['mailto:hello@foo.bar']);
 
 		data = MarkdownString.from('*hello* [click](command:me)');
 		assert.equal(data.value, '*hello* [click](command:me)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['command:me']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['command:me']);
 
 		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
 		assert.equal(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['file:///somepath/here']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['file:///somepath/here']);
 
 		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
 		assert.equal(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['file:///somepath/here']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['file:///somepath/here']);
 
 		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here2)');
 		assert.equal(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here2)');
-		assert.equal(size(data.uris), 2);
-		assert.ok(!!data.uris['file:///somepath/here']);
-		assert.ok(!!data.uris['file:///somepath/here2']);
+		assert.equal(size(data.uris!), 2);
+		assert.ok(!!data.uris!['file:///somepath/here']);
+		assert.ok(!!data.uris!['file:///somepath/here2']);
+	});
+
+	test('NPM script explorer running a script from the hover does not work #65561', function () {
+
+		let data = MarkdownString.from('*hello* [click](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2Ffoo%2Fbaz.ex%22%2C%22path%22%3A%22%2Fc%3A%2Ffoo%2Fbaz.ex%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22dev%22%7D)');
+		// assert that both uri get extracted but that the latter is only decoded once...
+		assert.equal(size(data.uris!), 2);
+		forEach(data.uris!, entry => {
+			if (entry.value.scheme === 'file') {
+				assert.ok(URI.revive(entry.value).toString().indexOf('file:///c%3A') === 0);
+			} else {
+				assert.equal(entry.value.scheme, 'command');
+			}
+		});
 	});
 
 	test('LogLevel', () => {

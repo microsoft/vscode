@@ -117,7 +117,6 @@
 /* Context Menu */
 
 .context-view.monaco-menu-container {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	outline: 0;
 	border: none;
 	-webkit-animation: fadeIn 0.083s linear;
@@ -134,7 +133,7 @@
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-item {
-	border: 1px solid transparent; /* prevents jumping behaviour on hover or focus */
+	border: thin solid transparent; /* prevents jumping behaviour on hover or focus */
 }
 
 
@@ -158,7 +157,7 @@
 	flex-wrap: wrap;
 }
 
-.fullscreen .menubar {
+.fullscreen .menubar:not(.compact) {
 	margin: 0px;
 	padding: 0px 5px;
 }
@@ -174,6 +173,12 @@
 	outline: 0;
 }
 
+.menubar.compact > .menubar-menu-button {
+	width: 100%;
+	height: 100%;
+	padding: 0px;
+}
+
 .menubar .menubar-menu-items-holder {
 	position: absolute;
 	left: 0px;
@@ -182,7 +187,6 @@
 }
 
 .menubar .menubar-menu-items-holder.monaco-menu-container {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	outline: 0;
 	border: none;
 }
@@ -199,9 +203,23 @@
 	height: 100%;
 }
 
+.menubar.compact .toolbar-toggle-more {
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: 16px;
+	cursor: pointer;
+	width: 100%;
+	height: 100%;
+}
+
 .menubar .toolbar-toggle-more {
 	display: inline-block;
 	padding: 0;
 	-webkit-mask: url('ellipsis.svg') no-repeat 50% 55%/14px 14px;
 	mask: url('ellipsis.svg') no-repeat 50% 55%/14px 14px;
+}
+
+.menubar.compact .toolbar-toggle-more {
+	-webkit-mask: url('menu.svg') no-repeat 50% 55%/16px 16px;
+	mask: url('menu.svg') no-repeat 50% 55%/16px 16px;
 }

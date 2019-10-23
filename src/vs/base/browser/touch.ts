@@ -67,9 +67,9 @@ export class Gesture extends Disposable {
 
 	private static readonly SCROLL_FRICTION = -0.005;
 	private static INSTANCE: Gesture;
-	private static HOLD_DELAY = 700;
+	private static readonly HOLD_DELAY = 700;
 
-	private dispatched: boolean;
+	private dispatched = false;
 	private targets: HTMLElement[];
 	private handle: IDisposable | null;
 
@@ -86,15 +86,21 @@ export class Gesture extends Disposable {
 		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e)));
 	}
 
-	public static addTarget(element: HTMLElement): void {
+	public static addTarget(element: HTMLElement): IDisposable {
 		if (!Gesture.isTouchDevice()) {
-			return;
+			return Disposable.None;
 		}
 		if (!Gesture.INSTANCE) {
 			Gesture.INSTANCE = new Gesture();
 		}
 
 		Gesture.INSTANCE.targets.push(element);
+
+		return {
+			dispose: () => {
+				Gesture.INSTANCE.targets = Gesture.INSTANCE.targets.filter(t => t !== element);
+			}
+		};
 	}
 
 	@memoize
@@ -214,10 +220,10 @@ export class Gesture extends Disposable {
 		}
 	}
 
-	private newGestureEvent(type: string, intialTarget?: EventTarget): GestureEvent {
+	private newGestureEvent(type: string, initialTarget?: EventTarget): GestureEvent {
 		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
 		event.initEvent(type, false, true);
-		event.initialTarget = intialTarget;
+		event.initialTarget = initialTarget;
 		return event;
 	}
 

@@ -5,11 +5,14 @@
 
 import { $ } from 'vs/base/browser/dom';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { asArray } from 'vs/base/common/arrays';
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -17,13 +20,14 @@ export interface IHoverMessage {
 
 class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _lineNumber: number;
 	private _result: IHoverMessage[];
 
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._lineNumber = -1;
+		this._result = [];
 	}
 
 	public setLineNumber(lineNumber: number): void {
@@ -43,31 +47,24 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 			};
 		};
 
-		let lineDecorations = this._editor.getLineDecorations(this._lineNumber);
+		const lineDecorations = this._editor.getLineDecorations(this._lineNumber);
 
-		let result: IHoverMessage[] = [];
+		const result: IHoverMessage[] = [];
 		if (!lineDecorations) {
 			return result;
 		}
 
-		for (let i = 0, len = lineDecorations.length; i < len; i++) {
-			let d = lineDecorations[i];
-
+		for (const d of lineDecorations) {
 			if (!d.options.glyphMarginClassName) {
 				continue;
 			}
 
 			const hoverMessage = d.options.glyphMarginHoverMessage;
-
 			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
 				continue;
 			}
 
-			if (Array.isArray(hoverMessage)) {
-				result = result.concat(hoverMessage.map(toHoverMessage));
-			} else {
-				result.push(toHoverMessage(hoverMessage));
-			}
+			result.push(...asArray(hoverMessage).map(toHoverMessage));
 		}
 
 		return result;
@@ -92,17 +89,22 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	private _messages: IHoverMessage[];
 	private _lastLineNumber: number;
 
-	private _markdownRenderer: MarkdownRenderer;
-	private _computer: MarginComputer;
-	private _hoverOperation: HoverOperation<IHoverMessage[]>;
-	private _renderDisposeables: IDisposable[];
+	private readonly _markdownRenderer: MarkdownRenderer;
+	private readonly _computer: MarginComputer;
+	private readonly _hoverOperation: HoverOperation<IHoverMessage[]>;
+	private readonly _renderDisposeables = this._register(new DisposableStore());
 
-	constructor(editor: ICodeEditor, markdownRenderer: MarkdownRenderer) {
+	constructor(
+		editor: ICodeEditor,
+		modeService: IModeService,
+		openerService: IOpenerService | null = NullOpenerService,
+	) {
 		super(ModesGlyphHoverWidget.ID, editor);
 
+		this._messages = [];
 		this._lastLineNumber = -1;
 
-		this._markdownRenderer = markdownRenderer;
+		this._markdownRenderer = this._register(new MarkdownRenderer(this._editor, modeService, openerService));
 		this._computer = new MarginComputer(this._editor);
 
 		this._hoverOperation = new HoverOperation(
@@ -116,7 +118,6 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	}
 
 	public dispose(): void {
-		this._renderDisposeables = dispose(this._renderDisposeables);
 		this._hoverOperation.cancel();
 		super.dispose();
 	}
@@ -163,16 +164,15 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	}
 
 	private _renderMessages(lineNumber: number, messages: IHoverMessage[]): void {
-		dispose(this._renderDisposeables);
-		this._renderDisposeables = [];
+		this._renderDisposeables.clear();
 
 		const fragment = document.createDocumentFragment();
 
-		messages.forEach((msg) => {
+		for (const msg of messages) {
 			const renderedContents = this._markdownRenderer.render(msg.value);
-			this._renderDisposeables.push(renderedContents);
+			this._renderDisposeables.add(renderedContents);
 			fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
-		});
+		}
 
 		this.updateContents(fragment);
 		this.showAt(lineNumber);

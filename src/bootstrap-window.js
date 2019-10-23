@@ -21,7 +21,7 @@ exports.assign = function assign(destination, source) {
  *
  * @param {string[]} modulePaths
  * @param {(result, configuration: object) => any} resultCallback
- * @param {{ forceEnableDeveloperKeybindings?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
+ * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
  */
 exports.load = function (modulePaths, resultCallback, options) {
 
@@ -30,7 +30,23 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const path = require('path');
 
 	const args = parseURLQueryArgs();
+	/**
+	 * // configuration: IWindowConfiguration
+	 * @type {{
+	 * zoomLevel?: number,
+	 * extensionDevelopmentPath?: string[],
+	 * extensionTestsPath?: string,
+	 * userEnv?: { [key: string]: string | undefined },
+	 * appRoot?: string,
+	 * nodeCachedDataDir?: string
+	 * }} */
 	const configuration = JSON.parse(args['config'] || '{}') || {};
+
+	// Apply zoom level early to avoid glitches
+	const zoomLevel = configuration.zoomLevel;
+	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
+		webFrame.setZoomLevel(zoomLevel);
+	}
 
 	// Error handler
 	// @ts-ignore
@@ -42,7 +58,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
 	let developerToolsUnbind;
 	if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
-		developerToolsUnbind = registerDeveloperKeybindings();
+		developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
 	}
 
 	// Correctly inherit the parent's environment
@@ -50,12 +66,6 @@ exports.load = function (modulePaths, resultCallback, options) {
 
 	// Enable ASAR support
 	bootstrap.enableASARSupport(path.join(configuration.appRoot, 'node_modules'));
-
-	// Apply zoom level early to avoid glitches
-	const zoomLevel = configuration.zoomLevel;
-	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-		webFrame.setZoomLevel(zoomLevel);
-	}
 
 	if (options && typeof options.canModifyDOM === 'function') {
 		options.canModifyDOM(configuration);
@@ -149,9 +159,10 @@ function parseURLQueryArgs() {
 }
 
 /**
+ * @param {boolean} disallowReloadKeybinding
  * @returns {() => void}
  */
-function registerDeveloperKeybindings() {
+function registerDeveloperKeybindings(disallowReloadKeybinding) {
 
 	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
@@ -175,7 +186,7 @@ function registerDeveloperKeybindings() {
 		const key = extractKey(e);
 		if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
 			ipc.send('vscode:toggleDevTools');
-		} else if (key === RELOAD_KB) {
+		} else if (key === RELOAD_KB && !disallowReloadKeybinding) {
 			ipc.send('vscode:reloadWindow');
 		}
 	};
@@ -185,7 +196,7 @@ function registerDeveloperKeybindings() {
 	return function () {
 		if (listener) {
 			window.removeEventListener('keydown', listener);
-			listener = void 0;
+			listener = undefined;
 		}
 	};
 }

@@ -3,37 +3,64 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { formatOptions } from 'vs/platform/environment/node/argv';
+import { formatOptions, Option, addArg } from 'vs/platform/environment/node/argv';
 
 suite('formatOptions', () => {
+
+	function o(description: string): Option<any> {
+		return {
+			description, type: 'string'
+		};
+	}
+
 	test('Text should display small columns correctly', () => {
-		assert.equal(formatOptions({ 'foo': 'bar' }, 80), '  foo bar');
-		assert.equal(
+		assert.deepEqual(
 			formatOptions({
-				'f': 'bar',
-				'fo': 'ba',
-				'foo': 'b'
+				'add': o('bar')
 			}, 80),
-			'  f   bar\n' +
-			'  fo  ba\n' +
-			'  foo b');
+			['  --add bar']
+		);
+		assert.deepEqual(
+			formatOptions({
+				'add': o('bar'),
+				'wait': o('ba'),
+				'trace': o('b')
+			}, 80),
+			[
+				'  --add   bar',
+				'  --wait  ba',
+				'  --trace b'
+			]);
 	});
 
 	test('Text should wrap', () => {
-		assert.equal(
+		assert.deepEqual(
 			formatOptions({
-				'foo': (<any>'bar ').repeat(9)
+				'add': o((<any>'bar ').repeat(9))
 			}, 40),
-			'  foo bar bar bar bar bar bar bar bar\n' +
-			'      bar');
+			[
+				'  --add bar bar bar bar bar bar bar bar',
+				'        bar'
+			]);
 	});
 
 	test('Text should revert to the condensed view when the terminal is too narrow', () => {
-		assert.equal(
+		assert.deepEqual(
 			formatOptions({
-				'foo': (<any>'bar ').repeat(9)
+				'add': o((<any>'bar ').repeat(9))
 			}, 30),
-			'  foo\n' +
-			'      bar bar bar bar bar bar bar bar bar ');
+			[
+				'  --add',
+				'      bar bar bar bar bar bar bar bar bar '
+			]);
+	});
+
+	test('addArg', () => {
+		assert.deepEqual(addArg([], 'foo'), ['foo']);
+		assert.deepEqual(addArg([], 'foo', 'bar'), ['foo', 'bar']);
+		assert.deepEqual(addArg(['foo'], 'bar'), ['foo', 'bar']);
+		assert.deepEqual(addArg(['--wait'], 'bar'), ['--wait', 'bar']);
+		assert.deepEqual(addArg(['--wait', '--', '--foo'], 'bar'), ['--wait', 'bar', '--', '--foo']);
+		assert.deepEqual(addArg(['--', '--foo'], 'bar'), ['bar', '--', '--foo']);
 	});
 });

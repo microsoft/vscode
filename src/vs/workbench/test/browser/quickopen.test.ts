@@ -11,11 +11,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 
 export class TestQuickOpenService implements IQuickOpenService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
-	private callback: (prefix: string) => void;
+	private callback?: (prefix?: string) => void;
 
-	constructor(callback?: (prefix: string) => void) {
+	constructor(callback?: (prefix?: string) => void) {
 		this.callback = callback;
 	}
 
@@ -37,11 +37,11 @@ export class TestQuickOpenService implements IQuickOpenService {
 	}
 
 	get onShow(): Event<void> {
-		return null;
+		return null!;
 	}
 
 	get onHide(): Event<void> {
-		return null;
+		return null!;
 	}
 
 	public dispose() { }
@@ -59,7 +59,7 @@ suite('QuickOpen', () => {
 			'testhandler',
 			',',
 			'Handler',
-			null
+			null!
 		);
 
 		registry.registerQuickOpenHandler(handler);
@@ -71,7 +71,7 @@ suite('QuickOpen', () => {
 	});
 
 	test('QuickOpen Action', () => {
-		let defaultAction = new QuickOpenAction('id', 'label', void 0, new TestQuickOpenService((prefix: string) => assert(!prefix)));
+		let defaultAction = new QuickOpenAction('id', 'label', (undefined)!, new TestQuickOpenService((prefix: string) => assert(!prefix)));
 		let prefixAction = new QuickOpenAction('id', 'label', ',', new TestQuickOpenService((prefix: string) => assert(!!prefix)));
 
 		defaultAction.run();

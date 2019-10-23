@@ -20,6 +20,37 @@ process.on('SIGPIPE', () => {
 
 //#endregion
 
+//#region Add support for redirecting the loading of node modules
+
+exports.injectNodeModuleLookupPath = function (injectPath) {
+	if (!injectPath) {
+		throw new Error('Missing injectPath');
+	}
+
+	// @ts-ignore
+	const Module = require('module');
+	const path = require('path');
+
+	const nodeModulesPath = path.join(__dirname, '../node_modules');
+
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+
+	// @ts-ignore
+	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
+		for (let i = 0, len = paths.length; i < len; i++) {
+			if (paths[i] === nodeModulesPath) {
+				paths.splice(i, 0, injectPath);
+				break;
+			}
+		}
+
+		return paths;
+	};
+};
+//#endregion
+
 //#region Add support for using node_modules.asar
 /**
  * @param {string=} nodeModulesPath
@@ -39,11 +70,10 @@ exports.enableASARSupport = function (nodeModulesPath) {
 
 	// @ts-ignore
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
-	// @ts-ignore
-	Module._resolveLookupPaths = function (request, parent, newReturn) {
-		const result = originalResolveLookupPaths(request, parent, newReturn);
 
-		const paths = newReturn ? result : result[1];
+	// @ts-ignore
+	Module._resolveLookupPaths = function (request, parent) {
+		const paths = originalResolveLookupPaths(request, parent);
 		for (let i = 0, len = paths.length; i < len; i++) {
 			if (paths[i] === NODE_MODULES_PATH) {
 				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
@@ -51,7 +81,7 @@ exports.enableASARSupport = function (nodeModulesPath) {
 			}
 		}
 
-		return result;
+		return paths;
 	};
 };
 //#endregion
@@ -69,7 +99,15 @@ exports.uriFromPath = function (_path) {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName).replace(/#/g, '%23');
+	/** @type {string} */
+	let uri;
+	if (process.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
+		uri = encodeURI('file:' + pathName);
+	} else {
+		uri = encodeURI('file://' + pathName);
+	}
+
+	return uri.replace(/#/g, '%23');
 };
 //#endregion
 
@@ -110,6 +148,36 @@ exports.writeFile = function (file, content) {
 		});
 	});
 };
+
+/**
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
+function mkdir(dir) {
+	const fs = require('fs');
+
+	return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
+}
+
+/**
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
+exports.mkdirp = function mkdirp(dir) {
+	const path = require('path');
+
+	return mkdir(dir).then(null, err => {
+		if (err && err.code === 'ENOENT') {
+			const parent = path.dirname(dir);
+
+			if (parent !== dir) { // if not arrived at root
+				return mkdirp(parent).then(() => mkdir(dir));
+			}
+		}
+
+		throw err;
+	});
+};
 //#endregion
 
 //#region NLS helpers
@@ -133,7 +201,7 @@ exports.setupNLS = function () {
 		const bundles = Object.create(null);
 
 		nlsConfig.loadBundle = function (bundle, language, cb) {
-			let result = bundles[bundle];
+			const result = bundles[bundle];
 			if (result) {
 				cb(undefined, result);
 
@@ -142,7 +210,7 @@ exports.setupNLS = function () {
 
 			const bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
 			exports.readFile(bundleFile).then(function (content) {
-				let json = JSON.parse(content);
+				const json = JSON.parse(content);
 				bundles[bundle] = json;
 
 				cb(undefined, json);

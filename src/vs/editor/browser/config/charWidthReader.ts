@@ -62,39 +62,41 @@ class DomCharWidthReader {
 	}
 
 	private _createDomElements(): void {
-		let container = document.createElement('div');
+		const container = document.createElement('div');
 		container.style.position = 'absolute';
 		container.style.top = '-50000px';
 		container.style.width = '50000px';
 
-		let regularDomNode = document.createElement('div');
+		const regularDomNode = document.createElement('div');
 		regularDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
 		regularDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		regularDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
+		regularDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
 		regularDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
 		regularDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		container.appendChild(regularDomNode);
 
-		let boldDomNode = document.createElement('div');
+		const boldDomNode = document.createElement('div');
 		boldDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
 		boldDomNode.style.fontWeight = 'bold';
 		boldDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
+		boldDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
 		boldDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
 		boldDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		container.appendChild(boldDomNode);
 
-		let italicDomNode = document.createElement('div');
+		const italicDomNode = document.createElement('div');
 		italicDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
 		italicDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		italicDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
+		italicDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
 		italicDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
 		italicDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		italicDomNode.style.fontStyle = 'italic';
 		container.appendChild(italicDomNode);
 
-		let testElements: HTMLSpanElement[] = [];
-		for (let i = 0, len = this._requests.length; i < len; i++) {
-			const request = this._requests[i];
+		const testElements: HTMLSpanElement[] = [];
+		for (const request of this._requests) {
 
 			let parent: HTMLElement;
 			if (request.type === CharWidthRequestType.Regular) {
@@ -109,11 +111,11 @@ class DomCharWidthReader {
 
 			parent!.appendChild(document.createElement('br'));
 
-			let testElement = document.createElement('span');
+			const testElement = document.createElement('span');
 			DomCharWidthReader._render(testElement, request);
 			parent!.appendChild(testElement);
 
-			testElements[i] = testElement;
+			testElements.push(testElement);
 		}
 
 		this._container = container;
@@ -149,6 +151,6 @@ class DomCharWidthReader {
 }
 
 export function readCharWidths(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
-	let reader = new DomCharWidthReader(bareFontInfo, requests);
+	const reader = new DomCharWidthReader(bareFontInfo, requests);
 	reader.read();
 }

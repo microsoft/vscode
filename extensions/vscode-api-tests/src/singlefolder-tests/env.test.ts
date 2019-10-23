@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { env } from 'vscode';
+import { env, extensions, ExtensionKind, UIKind } from 'vscode';
 
 suite('env-namespace', () => {
 
@@ -14,14 +14,39 @@ suite('env-namespace', () => {
 		assert.equal(typeof env.appName, 'string');
 		assert.equal(typeof env.machineId, 'string');
 		assert.equal(typeof env.sessionId, 'string');
+		assert.equal(typeof env.shell, 'string');
 	});
 
 	test('env is readonly', function () {
-		assert.throws(() => env.language = '234');
-		assert.throws(() => env.appRoot = '234');
-		assert.throws(() => env.appName = '234');
-		assert.throws(() => env.machineId = '234');
-		assert.throws(() => env.sessionId = '234');
+		assert.throws(() => (env as any).language = '234');
+		assert.throws(() => (env as any).appRoot = '234');
+		assert.throws(() => (env as any).appName = '234');
+		assert.throws(() => (env as any).machineId = '234');
+		assert.throws(() => (env as any).sessionId = '234');
+		assert.throws(() => (env as any).shell = '234');
 	});
 
+	test('env.remoteName', function () {
+		const remoteName = env.remoteName;
+		const knownWorkspaceExtension = extensions.getExtension('vscode.git');
+		const knownUiExtension = extensions.getExtension('vscode.git-ui');
+		if (typeof remoteName === 'undefined') {
+			// not running in remote, so we expect both extensions
+			assert.ok(knownWorkspaceExtension);
+			assert.ok(knownUiExtension);
+			assert.equal(ExtensionKind.UI, knownUiExtension!.extensionKind);
+		} else if (typeof remoteName === 'string') {
+			// running in remote, so we only expect workspace extensions
+			assert.ok(knownWorkspaceExtension);
+			assert.ok(!knownUiExtension); // we currently can only access extensions that run on same host
+			assert.equal(ExtensionKind.Workspace, knownWorkspaceExtension!.extensionKind);
+		} else {
+			assert.fail();
+		}
+	});
+
+	test('env.uiKind', function () {
+		const kind = env.uiKind;
+		assert.equal(kind, UIKind.Desktop);
+	});
 });

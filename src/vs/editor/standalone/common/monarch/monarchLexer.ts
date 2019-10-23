@@ -228,8 +228,6 @@ class MonarchLineState implements modes.IState {
 	}
 }
 
-const hasOwnProperty = Object.hasOwnProperty;
-
 interface IMonarchTokensCollector {
 	enterMode(startOffset: number, modeId: string): void;
 	emit(startOffset: number, type: string): void;
@@ -289,8 +287,8 @@ class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 
 class MonarchModernTokensCollector implements IMonarchTokensCollector {
 
-	private _modeService: IModeService;
-	private _theme: TokenTheme;
+	private readonly _modeService: IModeService;
+	private readonly _theme: TokenTheme;
 	private _prependTokens: Uint32Array | null;
 	private _tokens: number[];
 	private _currentLanguageId: modes.LanguageId;
@@ -374,14 +372,17 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 }
 
-class MonarchTokenizer implements modes.ITokenizationSupport {
+export type ILoadStatus = { loaded: true; } | { loaded: false; promise: Promise<void>; };
+
+export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 	private readonly _modeService: IModeService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private readonly _modeId: string;
 	private readonly _lexer: monarchCommon.ILexer;
-	private _embeddedModes: { [modeId: string]: boolean; };
-	private _tokenizationRegistryListener: IDisposable;
+	private readonly _embeddedModes: { [modeId: string]: boolean; };
+	public embeddedLoaded: Promise<void>;
+	private readonly _tokenizationRegistryListener: IDisposable;
 
 	constructor(modeService: IModeService, standaloneThemeService: IStandaloneThemeService, modeId: string, lexer: monarchCommon.ILexer) {
 		this._modeService = modeService;
@@ -389,6 +390,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 		this._modeId = modeId;
 		this._lexer = lexer;
 		this._embeddedModes = Object.create(null);
+		this.embeddedLoaded = Promise.resolve(undefined);
 
 		// Set up listening for embedded modes
 		let emitting = false;
@@ -414,6 +416,41 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 
 	public dispose(): void {
 		this._tokenizationRegistryListener.dispose();
+	}
+
+	public getLoadStatus(): ILoadStatus {
+		let promises: Thenable<any>[] = [];
+		for (let nestedModeId in this._embeddedModes) {
+			if (this._embeddedModes.hasOwnProperty(nestedModeId)) {
+				const tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
+				if (tokenizationSupport) {
+					// The nested mode is already loaded
+					if (tokenizationSupport instanceof MonarchTokenizer) {
+						const nestedModeStatus = tokenizationSupport.getLoadStatus();
+						if (nestedModeStatus.loaded === false) {
+							promises.push(nestedModeStatus.promise);
+						}
+					}
+					continue;
+				}
+
+				const tokenizationSupportPromise = modes.TokenizationRegistry.getPromise(nestedModeId);
+				if (tokenizationSupportPromise) {
+					// The nested mode is in the process of being loaded
+					promises.push(tokenizationSupportPromise);
+				}
+			}
+		}
+
+		if (promises.length === 0) {
+			return {
+				loaded: true
+			};
+		}
+		return {
+			loaded: false,
+			promise: Promise.all(promises).then(_ => undefined)
+		};
 	}
 
 	public getInitialState(): modes.IState {
@@ -453,11 +490,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 		let popOffset = -1;
 		let hasEmbeddedPopRule = false;
 
-		for (let idx in rules) {
-			if (!hasOwnProperty.call(rules, idx)) {
-				continue;
-			}
-			let rule: monarchCommon.IRule = rules[idx];
+		for (const rule of rules) {
 			if (!monarchCommon.isIAction(rule.action) || rule.action.nextEmbedded !== '@pop') {
 				continue;
 			}
@@ -531,7 +564,12 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 		}
 		let groupMatching: GroupMatching | null = null;
 
-		while (pos < lineLength) {
+		// See https://github.com/Microsoft/monaco-editor/issues/1235:
+		// Evaluate rules at least once for an empty line
+		let forceEvaluation = true;
+
+		while (forceEvaluation || pos < lineLength) {
+
 			const pos0 = pos;
 			const stackLen0 = stack.depth;
 			const groupLen0 = groupMatching ? groupMatching.groups.length : 0;
@@ -559,10 +597,12 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 			} else {
 				// otherwise we match on the token stream
 
-				if (pos >= lineLength) {
+				if (!forceEvaluation && pos >= lineLength) {
 					// nothing to do
 					break;
 				}
+
+				forceEvaluation = false;
 
 				// get the rules for this state
 				let rules: monarchCommon.IRule[] | null = this._lexer.tokenizer[state];
@@ -575,16 +615,13 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 
 				// try each rule until we match
 				let restOfLine = line.substr(pos);
-				for (let idx in rules) {
-					if (hasOwnProperty.call(rules, idx)) {
-						let rule: monarchCommon.IRule = rules[idx];
-						if (pos === 0 || !rule.matchOnlyAtLineStart) {
-							matches = restOfLine.match(rule.regex);
-							if (matches) {
-								matched = matches[0];
-								action = rule.action;
-								break;
-							}
+				for (const rule of rules) {
+					if (pos === 0 || !rule.matchOnlyAtLineStart) {
+						matches = restOfLine.match(rule.regex);
+						if (matches) {
+							matched = matches[0];
+							action = rule.action;
+							break;
 						}
 					}
 				}
@@ -606,7 +643,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 				action = this._lexer.defaultToken;
 			}
 
-			if (!matched) {
+			if (matched === null) {
 				// should never happen, needed for strict null checking
 				break;
 			}
@@ -749,11 +786,10 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 
 				// check progress
 				if (matched.length === 0) {
-					if (stackLen0 !== stack.depth || state !== stack.state || (!groupMatching ? 0 : groupMatching.groups.length) !== groupLen0) {
+					if (lineLength === 0 || stackLen0 !== stack.depth || state !== stack.state || (!groupMatching ? 0 : groupMatching.groups.length) !== groupLen0) {
 						continue;
 					} else {
 						throw monarchCommon.createError(this._lexer, 'no progress in tokenizer in rule: ' + this._safeRuleName(rule));
-						pos = lineLength; // must make progress or editor loops
 					}
 				}
 
@@ -765,7 +801,6 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 					let bracket = findBracket(this._lexer, matched);
 					if (!bracket) {
 						throw monarchCommon.createError(this._lexer, '@brackets token returned but no bracket defined as: ' + matched);
-						bracket = { token: '', bracketType: monarchCommon.MonarchBracket.None };
 					}
 					tokenType = monarchCommon.sanitize(bracket.token + rest);
 				} else {
@@ -815,6 +850,11 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 			return null;
 		}
 
+		if (mimetypeOrModeId === this._modeId) {
+			// embedding myself...
+			return mimetypeOrModeId;
+		}
+
 		let modeId = this._modeService.getModeId(mimetypeOrModeId);
 
 		if (modeId) {
@@ -838,8 +878,7 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	matched = monarchCommon.fixCase(lexer, matched);
 
 	let brackets = lexer.brackets;
-	for (let i = 0; i < brackets.length; i++) {
-		let bracket = brackets[i];
+	for (const bracket of brackets) {
 		if (bracket.open === matched) {
 			return { token: bracket.token, bracketType: monarchCommon.MonarchBracket.Open };
 		}

@@ -81,13 +81,13 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		// or could be the opening of a comment
 		const line = document.lineAt(position.line).text;
 		const prefix = line.slice(0, position.character);
-		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/) === null) {
+		if (!/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/.test(prefix)) {
 			return false;
 		}
 
 		// And everything after is possibly a closing comment or more whitespace
 		const suffix = line.slice(position.character);
-		return suffix.match(/^\s*\*+\//) !== null;
+		return /^\s*(\*+\/)?\s*$/.test(suffix);
 	}
 }
 
@@ -112,9 +112,10 @@ export function templateToSnippet(template: string): vscode.SnippetString {
 
 export function register(
 	selector: vscode.DocumentSelector,
+	modeId: string,
 	client: ITypeScriptServiceClient,
 ): vscode.Disposable {
-	return new ConfigurationDependentRegistration('jsDocCompletion', 'enabled', () => {
+	return new ConfigurationDependentRegistration(modeId, 'suggest.completeJSDocs', () => {
 		return vscode.languages.registerCompletionItemProvider(selector,
 			new JsDocCompletionProvider(client),
 			'*');

@@ -5,10 +5,10 @@
 
 
 import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
-import { CompletionItemKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
+import { CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -22,10 +22,10 @@ export abstract class Memory {
 		if (items.length === 0) {
 			return 0;
 		}
-		let topScore = items[0].score;
+		let topScore = items[0].score[0];
 		for (let i = 1; i < items.length; i++) {
 			const { score, completion: suggestion } = items[i];
-			if (score !== topScore) {
+			if (score[0] !== topScore) {
 				// stop when leaving the group of top matches
 				break;
 			}
@@ -67,7 +67,7 @@ export interface MemItem {
 
 export class LRUMemory extends Memory {
 
-	private _cache = new LRUCache<string, MemItem>(300, .66);
+	private _cache = new LRUCache<string, MemItem>(300, 0.66);
 	private _seq = 0;
 
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
@@ -81,33 +81,42 @@ export class LRUMemory extends Memory {
 	}
 
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number {
-		// in order of completions, select the first
-		// that has been used in the past
-		let { word } = model.getWordUntilPosition(pos);
-		if (word.length !== 0) {
-			return super.select(model, pos, items);
+
+		if (items.length === 0) {
+			return 0;
 		}
 
-		let lineSuffix = model.getLineContent(pos.lineNumber).substr(pos.column - 10, pos.column - 1);
+		const lineSuffix = model.getLineContent(pos.lineNumber).substr(pos.column - 10, pos.column - 1);
 		if (/\s$/.test(lineSuffix)) {
 			return super.select(model, pos, items);
 		}
 
-		let res = -1;
+		let topScore = items[0].score[0];
+		let indexPreselect = -1;
+		let indexRecency = -1;
 		let seq = -1;
 		for (let i = 0; i < items.length; i++) {
-			const { completion: suggestion } = items[i];
-			const key = `${model.getLanguageIdentifier().language}/${suggestion.label}`;
-			const item = this._cache.get(key);
-			if (item && item.touch > seq && item.type === suggestion.kind && item.insertText === suggestion.insertText) {
+			if (items[i].score[0] !== topScore) {
+				// consider only top items
+				break;
+			}
+			const key = `${model.getLanguageIdentifier().language}/${items[i].completion.label}`;
+			const item = this._cache.peek(key);
+			if (item && item.touch > seq && item.type === items[i].completion.kind && item.insertText === items[i].completion.insertText) {
 				seq = item.touch;
-				res = i;
+				indexRecency = i;
+			}
+			if (items[i].completion.preselect && indexPreselect === -1) {
+				// stop when seeing an auto-select-item
+				return indexPreselect = i;
 			}
 		}
-		if (res === -1) {
-			return super.select(model, pos, items);
+		if (indexRecency !== -1) {
+			return indexRecency;
+		} else if (indexPreselect !== -1) {
+			return indexPreselect;
 		} else {
-			return res;
+			return 0;
 		}
 	}
 
@@ -124,7 +133,7 @@ export class LRUMemory extends Memory {
 		let seq = 0;
 		for (const [key, value] of data) {
 			value.touch = seq;
-			value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
+			value.type = typeof value.type === 'number' ? value.type : completionKindFromString(value.type);
 			this._cache.set(key, value);
 		}
 		this._seq = this._cache.size;
@@ -188,7 +197,7 @@ export class PrefixMemory extends Memory {
 		if (data.length > 0) {
 			this._seq = data[0][1].touch + 1;
 			for (const [key, value] of data) {
-				value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
+				value.type = typeof value.type === 'number' ? value.type : completionKindFromString(value.type);
 				this._trie.set(key, value);
 			}
 		}
@@ -197,16 +206,16 @@ export class PrefixMemory extends Memory {
 
 export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
-class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
+export class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private readonly _storagePrefix = 'suggest/memories';
 
 	private readonly _persistSoon: RunOnceScheduler;
-	private _mode: MemMode;
-	private _shareMem: boolean;
-	private _strategy: Memory;
+	private _mode!: MemMode;
+	private _shareMem!: boolean;
+	private _strategy!: Memory;
 
 	constructor(
 		@IStorageService private readonly _storageService: IStorageService,
@@ -221,7 +230,11 @@ class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
 		};
 
 		this._persistSoon = this._register(new RunOnceScheduler(() => this._saveState(), 500));
-		this._register(_storageService.onWillSaveState(() => this._saveState()));
+		this._register(_storageService.onWillSaveState(e => {
+			if (e.reason === WillSaveStateReason.SHUTDOWN) {
+				this._saveState();
+			}
+		}));
 
 		this._register(this._configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.suggestSelection') || e.affectsConfiguration('editor.suggest.shareSuggestSelections')) {
@@ -279,7 +292,7 @@ class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
 export const ISuggestMemoryService = createDecorator<ISuggestMemoryService>('ISuggestMemories');
 
 export interface ISuggestMemoryService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void;
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number;
 }

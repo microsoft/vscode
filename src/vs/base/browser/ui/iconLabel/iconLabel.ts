@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
 	supportDescriptionHighlights?: boolean;
-	donotSupportOcticons?: boolean;
+	supportCodicons?: boolean;
 }
 
 export interface IIconLabelValueOptions {
@@ -27,11 +27,11 @@ export interface IIconLabelValueOptions {
 }
 
 class FastLabelNode {
-	private disposed: boolean;
-	private _textContent: string;
-	private _className: string;
-	private _title: string;
-	private _empty: boolean;
+	private disposed: boolean | undefined;
+	private _textContent: string | undefined;
+	private _className: string | undefined;
+	private _title: string | undefined;
+	private _empty: boolean | undefined;
 
 	constructor(private _element: HTMLElement) {
 	}
@@ -77,7 +77,7 @@ class FastLabelNode {
 		}
 
 		this._empty = empty;
-		this._element.style.marginLeft = empty ? '0' : null;
+		this._element.style.marginLeft = empty ? '0' : '';
 	}
 
 	dispose(): void {
@@ -89,7 +89,7 @@ export class IconLabel extends Disposable {
 	private domNode: FastLabelNode;
 	private labelDescriptionContainer: FastLabelNode;
 	private labelNode: FastLabelNode | HighlightedLabel;
-	private descriptionNode: FastLabelNode | HighlightedLabel;
+	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
@@ -99,14 +99,14 @@ export class IconLabel extends Disposable {
 
 		this.labelDescriptionContainer = this._register(new FastLabelNode(dom.append(this.domNode.element, dom.$('.monaco-icon-label-description-container'))));
 
-		if (options && options.supportHighlights) {
-			this.labelNode = this._register(new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name')), !options.donotSupportOcticons));
+		if (options?.supportHighlights) {
+			this.labelNode = new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name')), !!options.supportCodicons);
 		} else {
 			this.labelNode = this._register(new FastLabelNode(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name'))));
 		}
 
-		if (options && options.supportDescriptionHighlights) {
-			this.descriptionNodeFactory = () => this._register(new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description')), !options.donotSupportOcticons));
+		if (options?.supportDescriptionHighlights) {
+			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description')), !!options.supportCodicons);
 		} else {
 			this.descriptionNodeFactory = () => this._register(new FastLabelNode(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description'))));
 		}
@@ -129,10 +129,10 @@ export class IconLabel extends Disposable {
 		}
 
 		this.domNode.className = classes.join(' ');
-		this.domNode.title = options && options.title ? options.title : '';
+		this.domNode.title = options?.title || '';
 
 		if (this.labelNode instanceof HighlightedLabel) {
-			this.labelNode.set(label || '', options ? options.matches : void 0, options && options.title ? options.title : void 0, options && options.labelEscapeNewLines);
+			this.labelNode.set(label || '', options?.matches, options?.title, options?.labelEscapeNewLines);
 		} else {
 			this.labelNode.textContent = label || '';
 		}
@@ -143,18 +143,17 @@ export class IconLabel extends Disposable {
 			}
 
 			if (this.descriptionNode instanceof HighlightedLabel) {
-				this.descriptionNode.set(description || '', options ? options.descriptionMatches : void 0);
-				if (options && options.descriptionTitle) {
+				this.descriptionNode.set(description || '', options ? options.descriptionMatches : undefined);
+				if (options?.descriptionTitle) {
 					this.descriptionNode.element.title = options.descriptionTitle;
 				} else {
 					this.descriptionNode.element.removeAttribute('title');
 				}
 			} else {
 				this.descriptionNode.textContent = description || '';
-				this.descriptionNode.title = options && options.descriptionTitle ? options.descriptionTitle : '';
+				this.descriptionNode.title = options?.descriptionTitle || '';
 				this.descriptionNode.empty = !description;
 			}
 		}
 	}
 }
-

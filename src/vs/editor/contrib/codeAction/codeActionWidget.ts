@@ -5,68 +5,75 @@
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
-import { always } from 'vs/base/common/async';
 import { canceled } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 
-export class CodeActionContextMenu {
+interface CodeActionWidgetDelegate {
+	onSelectCodeAction: (action: CodeAction) => Promise<any>;
+}
 
-	private _visible: boolean;
-	private _onDidExecuteCodeAction = new Emitter<void>();
+export class CodeActionWidget extends Disposable {
 
-	readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
+	private _visible: boolean = false;
+	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextMenuService: IContextMenuService,
-		private readonly _onApplyCodeAction: (action: CodeAction) => Promise<any>
-	) { }
+		private readonly _delegate: CodeActionWidgetDelegate,
+	) {
+		super();
+	}
 
-	show(fixes: Promise<CodeAction[]>, at?: { x: number; y: number } | Position) {
-		const actionsPromise = fixes.then(value => {
-			return value.map(action => {
-				return new Action(action.command ? action.command.id : action.title, action.title, undefined, true, () => {
-					return always(
-						this._onApplyCodeAction(action),
-						() => this._onDidExecuteCodeAction.fire(undefined));
-				});
-			});
-		}).then(actions => {
-			if (!this._editor.getDomNode()) {
-				// cancel when editor went off-dom
-				return Promise.reject(canceled());
-			}
-			return actions;
-		});
+	public async show(codeActions: CodeActionSet, at?: IAnchor | IPosition): Promise<void> {
+		if (!codeActions.actions.length) {
+			this._visible = false;
+			return;
+		}
+		if (!this._editor.getDomNode()) {
+			// cancel when editor went off-dom
+			this._visible = false;
+			return Promise.reject(canceled());
+		}
 
-		actionsPromise.then(actions => {
-			this._contextMenuService.showContextMenu({
-				getAnchor: () => {
-					if (Position.isIPosition(at)) {
-						at = this._toCoords(at);
-					}
-					return at || { x: 0, y: 0 };
-				},
-				getActions: () => actions,
-				onHide: () => {
-					this._visible = false;
-					this._editor.focus();
-				},
-				autoSelectFirstItem: true
-			});
+		this._visible = true;
+		const actions = codeActions.actions.map(action => this.codeActionToAction(action));
+
+		this._showingActions.value = codeActions;
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => {
+				if (Position.isIPosition(at)) {
+					at = this._toCoords(at);
+				}
+				return at || { x: 0, y: 0 };
+			},
+			getActions: () => actions,
+			onHide: () => {
+				this._visible = false;
+				this._editor.focus();
+			},
+			autoSelectFirstItem: true
 		});
+	}
+
+	private codeActionToAction(action: CodeAction): Action {
+		const id = action.command ? action.command.id : action.title;
+		const title = action.title;
+		return new Action(id, title, undefined, true, () => this._delegate.onSelectCodeAction(action));
 	}
 
 	get isVisible(): boolean {
 		return this._visible;
 	}
 
-	private _toCoords(position: Position): { x: number, y: number } {
+	private _toCoords(position: IPosition): { x: number, y: number } {
 		if (!this._editor.hasModel()) {
 			return { x: 0, y: 0 };
 		}
@@ -74,7 +81,7 @@ export class CodeActionContextMenu {
 		this._editor.render();
 
 		// Translate to absolute editor position
-		const cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
+		const cursorCoords = this._editor.getScrolledVisiblePosition(position);
 		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
 		const x = editorCoords.left + cursorCoords.left;
 		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;

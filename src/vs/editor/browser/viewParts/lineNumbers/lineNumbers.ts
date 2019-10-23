@@ -6,7 +6,7 @@
 import 'vs/css!./lineNumbers';
 import * as platform from 'vs/base/common/platform';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { editorActiveLineNumber, editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -18,13 +18,14 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	public static readonly CLASS_NAME = 'line-numbers';
 
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 
-	private _lineHeight: number;
-	private _renderLineNumbers: RenderLineNumbersType;
-	private _renderCustomLineNumbers: ((lineNumber: number) => string) | null;
-	private _lineNumbersLeft: number;
-	private _lineNumbersWidth: number;
+	private _lineHeight!: number;
+	private _renderLineNumbers!: RenderLineNumbersType;
+	private _renderCustomLineNumbers!: ((lineNumber: number) => string) | null;
+	private _renderFinalNewline!: boolean;
+	private _lineNumbersLeft!: number;
+	private _lineNumbersWidth!: number;
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[] | null;
 
@@ -40,12 +41,15 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	}
 
 	private _readConfig(): void {
-		const config = this._context.configuration.editor;
-		this._lineHeight = config.lineHeight;
-		this._renderLineNumbers = config.viewInfo.renderLineNumbers;
-		this._renderCustomLineNumbers = config.viewInfo.renderCustomLineNumbers;
-		this._lineNumbersLeft = config.layoutInfo.lineNumbersLeft;
-		this._lineNumbersWidth = config.layoutInfo.lineNumbersWidth;
+		const options = this._context.configuration.options;
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		const lineNumbers = options.get(EditorOption.lineNumbers);
+		this._renderLineNumbers = lineNumbers.renderType;
+		this._renderCustomLineNumbers = lineNumbers.renderFn;
+		this._renderFinalNewline = options.get(EditorOption.renderFinalNewline);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._lineNumbersLeft = layoutInfo.lineNumbersLeft;
+		this._lineNumbersWidth = layoutInfo.lineNumbersWidth;
 	}
 
 	public dispose(): void {
@@ -95,14 +99,14 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		if (modelPosition.column !== 1) {
 			return '';
 		}
-		let modelLineNumber = modelPosition.lineNumber;
+		const modelLineNumber = modelPosition.lineNumber;
 
 		if (this._renderCustomLineNumbers) {
 			return this._renderCustomLineNumbers(modelLineNumber);
 		}
 
 		if (this._renderLineNumbers === RenderLineNumbersType.Relative) {
-			let diff = Math.abs(this._lastCursorModelPosition.lineNumber - modelLineNumber);
+			const diff = Math.abs(this._lastCursorModelPosition.lineNumber - modelLineNumber);
 			if (diff === 0) {
 				return '<span class="relative-current-line-number">' + modelLineNumber + '</span>';
 			}
@@ -128,16 +132,25 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			return;
 		}
 
-		let lineHeightClassName = (platform.isLinux ? (this._lineHeight % 2 === 0 ? ' lh-even' : ' lh-odd') : '');
-		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		let common = '<div class="' + LineNumbersOverlay.CLASS_NAME + lineHeightClassName + '" style="left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;">';
+		const lineHeightClassName = (platform.isLinux ? (this._lineHeight % 2 === 0 ? ' lh-even' : ' lh-odd') : '');
+		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+		const common = '<div class="' + LineNumbersOverlay.CLASS_NAME + lineHeightClassName + '" style="left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;">';
 
-		let output: string[] = [];
+		const lineCount = this._context.model.getLineCount();
+		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - visibleStartLineNumber;
+			const lineIndex = lineNumber - visibleStartLineNumber;
 
-			let renderLineNumber = this._getLineRenderLineNumber(lineNumber);
+			if (!this._renderFinalNewline) {
+				if (lineNumber === lineCount && this._context.model.getLineLength(lineNumber) === 0) {
+					// Do not render last (empty) line
+					output[lineIndex] = '';
+					continue;
+				}
+			}
+
+			const renderLineNumber = this._getLineRenderLineNumber(lineNumber);
 
 			if (renderLineNumber) {
 				output[lineIndex] = (
@@ -157,7 +170,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		if (!this._renderResult) {
 			return '';
 		}
-		let lineIndex = lineNumber - startLineNumber;
+		const lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
 			return '';
 		}

@@ -63,7 +63,8 @@ export class DeleteOperations {
 			const lineText = model.getLineContent(position.lineNumber);
 			const character = lineText[position.column - 2];
 
-			if (!config.autoClosingPairsOpen.hasOwnProperty(character)) {
+			const autoClosingPairCandidates = config.autoClosingPairsOpen2.get(character);
+			if (!autoClosingPairCandidates) {
 				return false;
 			}
 
@@ -78,9 +79,14 @@ export class DeleteOperations {
 			}
 
 			const afterCharacter = lineText[position.column - 1];
-			const closeCharacter = config.autoClosingPairsOpen[character];
 
-			if (afterCharacter !== closeCharacter) {
+			let foundAutoClosingPair = false;
+			for (const autoClosingPairCandidate of autoClosingPairCandidates) {
+				if (autoClosingPairCandidate.open === character && autoClosingPairCandidate.close === afterCharacter) {
+					foundAutoClosingPair = true;
+				}
+			}
+			if (!foundAutoClosingPair) {
 				return false;
 			}
 		}
@@ -131,7 +137,7 @@ export class DeleteOperations {
 
 					if (position.column <= lastIndentationColumn) {
 						let fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
-						let toVisibleColumn = CursorColumns.prevTabStop(fromVisibleColumn, config.tabSize);
+						let toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
 						let toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
 						deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
 					} else {

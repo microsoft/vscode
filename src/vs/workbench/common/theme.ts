@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -29,6 +29,12 @@ export const TAB_ACTIVE_BACKGROUND = registerColor('tab.activeBackground', {
 	light: editorBackground,
 	hc: editorBackground
 }, nls.localize('tabActiveBackground', "Active tab background color. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_ACTIVE_BACKGROUND = registerColor('tab.unfocusedActiveBackground', {
+	dark: TAB_ACTIVE_BACKGROUND,
+	light: TAB_ACTIVE_BACKGROUND,
+	hc: TAB_ACTIVE_BACKGROUND
+}, nls.localize('tabUnfocusedActiveBackground', "Active tab background color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_INACTIVE_BACKGROUND = registerColor('tab.inactiveBackground', {
 	dark: '#2D2D2D',
@@ -138,7 +144,6 @@ export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedIna
 	hc: Color.white
 }, nls.localize('tabUnfocusedInactiveForeground', "Inactive tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-
 // < --- Editors --- >
 
 export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
@@ -195,7 +200,13 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
 
+// < --- Resource Viewer --- >
 
+export const IMAGE_PREVIEW_BORDER = registerColor('imagePreview.border', {
+	dark: Color.fromHex('#808080').transparent(0.35),
+	light: Color.fromHex('#808080').transparent(0.35),
+	hc: contrastBorder
+}, nls.localize('imagePreviewBorder', "Border color for image in image preview."));
 
 // < --- Panels --- >
 
@@ -224,8 +235,8 @@ export const PANEL_INACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.inactiv
 }, nls.localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder', {
-	dark: PANEL_BORDER,
-	light: PANEL_BORDER,
+	dark: PANEL_ACTIVE_TITLE_FOREGROUND,
+	light: PANEL_ACTIVE_TITLE_FOREGROUND,
 	hc: contrastBorder
 }, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
@@ -235,6 +246,11 @@ export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackgroun
 	hc: Color.white.transparent(0.12)
 }, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel title items. The color should have transparency so that the panel entries can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
+	dark: null,
+	light: Color.fromHex('#ddd'),
+	hc: null
+}, nls.localize('panelInputBorder', "Input box border for inputs in the panel."));
 
 // < --- Status --- >
 
@@ -286,19 +302,23 @@ export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hov
 	hc: Color.white.transparent(0.12)
 }, nls.localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_PROMINENT_ITEM_FOREGROUND = registerColor('statusBarItem.prominentForeground', {
+	dark: STATUS_BAR_FOREGROUND,
+	light: STATUS_BAR_FOREGROUND,
+	hc: STATUS_BAR_FOREGROUND
+}, nls.localize('statusBarProminentItemForeground', "Status bar prominent items foreground color. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
+
 export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarItem.prominentBackground', {
-	dark: '#388A34',
-	light: '#388A34',
-	hc: '#3883A4'
+	dark: Color.black.transparent(0.5),
+	light: Color.black.transparent(0.5),
+	hc: Color.black.transparent(0.5),
 }, nls.localize('statusBarProminentItemBackground', "Status bar prominent items background color. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.prominentHoverBackground', {
-	dark: '#369432',
-	light: '#369432',
-	hc: '#369432'
+	dark: Color.black.transparent(0.3),
+	light: Color.black.transparent(0.3),
+	hc: Color.black.transparent(0.3),
 }, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
-
-
 
 // < --- Activity Bar --- >
 
@@ -315,8 +335,8 @@ export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
 }, nls.localize('activityBarForeground', "Activity bar item foreground color when it is active. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_INACTIVE_FOREGROUND = registerColor('activityBar.inactiveForeground', {
-	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.6),
-	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.6),
+	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
+	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
 	hc: Color.white
 }, nls.localize('activityBarInActiveForeground', "Activity bar item foreground color when it is inactive. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
@@ -325,6 +345,18 @@ export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
 	light: null,
 	hc: contrastBorder
 }, nls.localize('activityBarBorder', "Activity bar border color separating to the side bar. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_ACTIVE_BORDER = registerColor('activityBar.activeBorder', {
+	dark: ACTIVITY_BAR_FOREGROUND,
+	light: ACTIVITY_BAR_FOREGROUND,
+	hc: null
+}, nls.localize('activityBarActiveBorder', "Activity bar border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('activityBar.activeBackground', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('activityBarActiveBackground', "Activity bar background color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', {
 	dark: Color.white.transparent(0.12),
@@ -343,6 +375,33 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	light: Color.white,
 	hc: Color.white
 }, nls.localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+
+// < --- Remote --- >
+
+export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.remoteBackground', {
+	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hc: ACTIVITY_BAR_BADGE_BACKGROUND
+}, nls.localize('statusBarItemHostBackground', "Background color for the remote indicator on the status bar."));
+
+export const STATUS_BAR_HOST_NAME_FOREGROUND = registerColor('statusBarItem.remoteForeground', {
+	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
+	light: ACTIVITY_BAR_BADGE_FOREGROUND,
+	hc: ACTIVITY_BAR_BADGE_FOREGROUND
+}, nls.localize('statusBarItemHostForeground', "Foreground color for the remote indicator on the status bar."));
+
+export const EXTENSION_BADGE_REMOTE_BACKGROUND = registerColor('extensionBadge.remoteBackground', {
+	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hc: ACTIVITY_BAR_BADGE_BACKGROUND
+}, nls.localize('extensionBadge.remoteBackground', "Background color for the remote badge in the extensions view."));
+
+export const EXTENSION_BADGE_REMOTE_FOREGROUND = registerColor('extensionBadge.remoteForeground', {
+	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
+	light: ACTIVITY_BAR_BADGE_FOREGROUND,
+	hc: ACTIVITY_BAR_BADGE_FOREGROUND
+}, nls.localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view."));
 
 
 // < --- Side Bar --- >
@@ -373,8 +432,8 @@ export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground'
 
 export const SIDE_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('sideBar.dropBackground', {
 	dark: Color.white.transparent(0.12),
-	light: Color.white.transparent(0.12),
-	hc: Color.white.transparent(0.12),
+	light: Color.black.transparent(0.1),
+	hc: Color.white.transparent(0.3),
 }, nls.localize('sideBarDragAndDropBackground', "Drag and drop feedback color for the side bar sections. The color should have transparency so that the side bar sections can still shine through. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionHeader.background', {
@@ -395,6 +454,20 @@ export const SIDE_BAR_SECTION_HEADER_BORDER = registerColor('sideBarSectionHeade
 	hc: contrastBorder
 }, nls.localize('sideBarSectionHeaderBorder', "Side bar section header border color. The side bar is the container for views like explorer and search."));
 
+
+// < --- Quick Input -- >
+
+export const QUICK_INPUT_BACKGROUND = registerColor('quickInput.background', {
+	dark: SIDE_BAR_BACKGROUND,
+	light: SIDE_BAR_BACKGROUND,
+	hc: SIDE_BAR_BACKGROUND
+}, nls.localize('quickInputBackground', "Quick Input background color. The Quick Input widget is the container for views like the color theme picker."));
+
+export const QUICK_INPUT_FOREGROUND = registerColor('quickInput.foreground', {
+	dark: SIDE_BAR_FOREGROUND,
+	light: SIDE_BAR_FOREGROUND,
+	hc: SIDE_BAR_FOREGROUND
+}, nls.localize('quickInputForeground', "Quick Input foreground color. The Quick Input widget is the container for views like the color theme picker."));
 
 // < --- Title Bar --- >
 
@@ -463,9 +536,9 @@ export const NOTIFICATIONS_TOAST_BORDER = registerColor('notificationToast.borde
 }, nls.localize('notificationToastBorder', "Notification toast border color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_FOREGROUND = registerColor('notifications.foreground', {
-	dark: null,
-	light: null,
-	hc: null
+	dark: editorWidgetForeground,
+	light: editorWidgetForeground,
+	hc: editorWidgetForeground
 }, nls.localize('notificationsForeground', "Notifications foreground color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_BACKGROUND = registerColor('notifications.background', {
@@ -497,6 +570,36 @@ export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
 	light: NOTIFICATIONS_CENTER_HEADER_BACKGROUND,
 	hc: NOTIFICATIONS_CENTER_HEADER_BACKGROUND
 }, nls.localize('notificationsBorder', "Notifications border color separating from other notifications in the notifications center. Notifications slide in from the bottom right of the window."));
+
+export const NOTIFICATIONS_ERROR_ICON_FOREGROUND = registerColor('notificationsErrorIcon.foreground', {
+	dark: editorErrorForeground,
+	light: editorErrorForeground,
+	hc: editorErrorForeground
+}, nls.localize('notificationsErrorIconForeground', "The color used for the notification error icon."));
+
+export const NOTIFICATIONS_WARNING_ICON_FOREGROUND = registerColor('notificationsWarningIcon.foreground', {
+	dark: editorWarningForeground,
+	light: editorWarningForeground,
+	hc: editorWarningForeground
+}, nls.localize('notificationsWarningIconForeground', "The color used for the notification warning icon."));
+
+export const NOTIFICATIONS_INFO_ICON_FOREGROUND = registerColor('notificationsInfoIcon.foreground', {
+	dark: editorInfoForeground,
+	light: editorInfoForeground,
+	hc: editorInfoForeground
+}, nls.localize('notificationsInfoIconForeground', "The color used for the notification info icon."));
+
+export const WINDOW_ACTIVE_BORDER = registerColor('window.activeBorder', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the desktop client."));
+
+export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the desktop client."));
 
 /**
  * Base class for all themable workbench components.

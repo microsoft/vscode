@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { basename, dirname } from 'vs/base/common/paths';
+import * as path from 'vs/base/common/path';
+import { dirname } from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad } from 'vs/base/common/strings';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { URI } from 'vs/base/common/uri';
 
-export const KnownSnippetVariableNames = Object.freeze({
+export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
 	'CURRENT_YEAR_SHORT': true,
 	'CURRENT_MONTH': true,
@@ -24,6 +29,7 @@ export const KnownSnippetVariableNames = Object.freeze({
 	'CURRENT_DAY_NAME_SHORT': true,
 	'CURRENT_MONTH_NAME': true,
 	'CURRENT_MONTH_NAME_SHORT': true,
+	'CURRENT_SECONDS_UNIX': true,
 	'SELECTION': true,
 	'CLIPBOARD': true,
 	'TM_SELECTED_TEXT': true,
@@ -38,6 +44,10 @@ export const KnownSnippetVariableNames = Object.freeze({
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
+	'WORKSPACE_NAME': true,
+	'WORKSPACE_FOLDER': true,
+	'RANDOM': true,
+	'RANDOM_HEX': true,
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -49,7 +59,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 	resolve(variable: Variable): string | undefined {
 		for (const delegate of this._delegates) {
 			let value = delegate.resolve(variable);
-			if (value !== void 0) {
+			if (value !== undefined) {
 				return value;
 			}
 		}
@@ -123,6 +133,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 export class ModelBasedVariableResolver implements VariableResolver {
 
 	constructor(
+		private readonly _labelService: ILabelService | undefined,
 		private readonly _model: ITextModel
 	) {
 		//
@@ -133,10 +144,10 @@ export class ModelBasedVariableResolver implements VariableResolver {
 		const { name } = variable;
 
 		if (name === 'TM_FILENAME') {
-			return basename(this._model.uri.fsPath);
+			return path.basename(this._model.uri.fsPath);
 
 		} else if (name === 'TM_FILENAME_BASE') {
-			const name = basename(this._model.uri.fsPath);
+			const name = path.basename(this._model.uri.fsPath);
 			const idx = name.lastIndexOf('.');
 			if (idx <= 0) {
 				return name;
@@ -144,44 +155,55 @@ export class ModelBasedVariableResolver implements VariableResolver {
 				return name.slice(0, idx);
 			}
 
-		} else if (name === 'TM_DIRECTORY') {
-			const dir = dirname(this._model.uri.fsPath);
-			return dir !== '.' ? dir : '';
+		} else if (name === 'TM_DIRECTORY' && this._labelService) {
+			if (path.dirname(this._model.uri.fsPath) === '.') {
+				return '';
+			}
+			return this._labelService.getUriLabel(dirname(this._model.uri));
 
-		} else if (name === 'TM_FILEPATH') {
-			return this._model.uri.fsPath;
+		} else if (name === 'TM_FILEPATH' && this._labelService) {
+			return this._labelService.getUriLabel(this._model.uri);
 		}
 
 		return undefined;
 	}
 }
 
+export interface IReadClipboardText {
+	(): string | undefined;
+}
+
 export class ClipboardBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _clipboardService: IClipboardService,
+		private readonly _readClipboardText: IReadClipboardText,
 		private readonly _selectionIdx: number,
-		private readonly _selectionCount: number
+		private readonly _selectionCount: number,
+		private readonly _spread: boolean
 	) {
 		//
 	}
 
 	resolve(variable: Variable): string | undefined {
-		if (variable.name !== 'CLIPBOARD' || !this._clipboardService) {
+		if (variable.name !== 'CLIPBOARD') {
 			return undefined;
 		}
 
-		const text = this._clipboardService.readText();
-		if (!text) {
+		const clipboardText = this._readClipboardText();
+		if (!clipboardText) {
 			return undefined;
 		}
 
-		const lines = text.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
-		if (lines.length === this._selectionCount) {
-			return lines[this._selectionIdx];
-		} else {
-			return text;
+		// `spread` is assigning each cursor a line of the clipboard
+		// text whenever there the line count equals the cursor count
+		// and when enabled
+		if (this._spread) {
+			const lines = clipboardText.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
+			if (lines.length === this._selectionCount) {
+				return lines[this._selectionIdx];
+			}
 		}
+		return clipboardText;
 	}
 }
 export class CommentBasedVariableResolver implements VariableResolver {
@@ -239,6 +261,73 @@ export class TimeBasedVariableResolver implements VariableResolver {
 			return TimeBasedVariableResolver.monthNames[new Date().getMonth()];
 		} else if (name === 'CURRENT_MONTH_NAME_SHORT') {
 			return TimeBasedVariableResolver.monthNamesShort[new Date().getMonth()];
+		} else if (name === 'CURRENT_SECONDS_UNIX') {
+			return String(Math.floor(Date.now() / 1000));
+		}
+
+		return undefined;
+	}
+}
+
+export class WorkspaceBasedVariableResolver implements VariableResolver {
+	constructor(
+		private readonly _workspaceService: IWorkspaceContextService | undefined,
+	) {
+		//
+	}
+
+	resolve(variable: Variable): string | undefined {
+		if (!this._workspaceService) {
+			return undefined;
+		}
+
+		const workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
+		if (!workspaceIdentifier) {
+			return undefined;
+		}
+
+		if (variable.name === 'WORKSPACE_NAME') {
+			return this._resolveWorkspaceName(workspaceIdentifier);
+		} else if (variable.name === 'WORKSPACE_FOLDER') {
+			return this._resoveWorkspacePath(workspaceIdentifier);
+		}
+
+		return undefined;
+	}
+	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return path.basename(workspaceIdentifier.path);
+		}
+
+		let filename = path.basename(workspaceIdentifier.configPath.path);
+		if (endsWith(filename, WORKSPACE_EXTENSION)) {
+			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		}
+		return filename;
+	}
+	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return normalizeDriveLetter(workspaceIdentifier.fsPath);
+		}
+
+		let filename = path.basename(workspaceIdentifier.configPath.path);
+		let folderpath = workspaceIdentifier.configPath.fsPath;
+		if (endsWith(folderpath, filename)) {
+			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
+		}
+		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
+	}
+}
+
+export class RandomBasedVariableResolver implements VariableResolver {
+	resolve(variable: Variable): string | undefined {
+		const { name } = variable;
+
+		if (name === 'RANDOM') {
+			return Math.random().toString().slice(-6);
+		}
+		else if (name === 'RANDOM_HEX') {
+			return Math.random().toString(16).slice(-6);
 		}
 
 		return undefined;

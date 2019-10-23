@@ -11,15 +11,15 @@ import { ISelectedSuggestion } from './suggestWidget';
 
 export class SuggestAlternatives {
 
-	static OtherSuggestions = new RawContextKey<boolean>('hasOtherSuggestions', false);
+	static readonly OtherSuggestions = new RawContextKey<boolean>('hasOtherSuggestions', false);
 
 	private readonly _ckOtherSuggestions: IContextKey<boolean>;
 
-	private _index: number;
+	private _index: number = 0;
 	private _model: CompletionModel | undefined;
 	private _acceptNext: ((selected: ISelectedSuggestion) => any) | undefined;
-	private _listener: IDisposable;
-	private _ignore: boolean;
+	private _listener: IDisposable | undefined;
+	private _ignore: boolean | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,

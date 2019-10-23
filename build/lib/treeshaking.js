@@ -14,9 +14,19 @@ var ShakeLevel;
     ShakeLevel[ShakeLevel["InnerFile"] = 1] = "InnerFile";
     ShakeLevel[ShakeLevel["ClassMembers"] = 2] = "ClassMembers";
 })(ShakeLevel = exports.ShakeLevel || (exports.ShakeLevel = {}));
+function toStringShakeLevel(shakeLevel) {
+    switch (shakeLevel) {
+        case 0 /* Files */:
+            return 'Files (0)';
+        case 1 /* InnerFile */:
+            return 'InnerFile (1)';
+        case 2 /* ClassMembers */:
+            return 'ClassMembers (2)';
+    }
+}
+exports.toStringShakeLevel = toStringShakeLevel;
 function printDiagnostics(diagnostics) {
-    for (let i = 0; i < diagnostics.length; i++) {
-        const diag = diagnostics[i];
+    for (const diag of diagnostics) {
         let result = '';
         if (diag.file) {
             result += `${diag.file.fileName}: `;
@@ -395,6 +405,7 @@ function markNodes(languageService, options) {
                                 || memberName === 'toJSON'
                                 || memberName === 'toString'
                                 || memberName === 'dispose' // TODO: keeping all `dispose` methods
+                                || /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
                             ) {
                                 enqueue_black(member);
                             }
@@ -480,8 +491,7 @@ function generateResult(languageService, shakeLevel) {
                     }
                     else {
                         let survivingImports = [];
-                        for (let i = 0; i < node.importClause.namedBindings.elements.length; i++) {
-                            const importNode = node.importClause.namedBindings.elements[i];
+                        for (const importNode of node.importClause.namedBindings.elements) {
                             if (getColor(importNode) === 2 /* Black */) {
                                 survivingImports.push(importNode.getFullText(sourceFile));
                             }
@@ -513,10 +523,6 @@ function generateResult(languageService, shakeLevel) {
                     const member = node.members[i];
                     if (getColor(member) === 2 /* Black */ || !member.name) {
                         // keep method
-                        continue;
-                    }
-                    if (/^_(.*)Brand$/.test(member.name.getText())) {
-                        // TODO: keep all members ending with `Brand`...
                         continue;
                     }
                     let pos = member.pos - node.pos;

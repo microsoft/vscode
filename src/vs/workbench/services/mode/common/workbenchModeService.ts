@@ -8,13 +8,14 @@ import * as mime from 'vs/base/common/mime';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { ILanguageExtensionPoint, IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;
@@ -28,7 +29,6 @@ export interface IRawLanguageExtensionPoint {
 }
 
 export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<IRawLanguageExtensionPoint[]>({
-	isDynamic: true,
 	extensionPoint: 'languages',
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
@@ -94,7 +94,7 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 	private _configurationService: IConfigurationService;
 	private _extensionService: IExtensionService;
-	private _onReadyPromise: Promise<boolean>;
+	private _onReadyPromise: Promise<boolean> | undefined;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -173,7 +173,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		mime.clearTextMimes(true /* user configured */);
 
 		// Register based on settings
-		if (configuration.files && configuration.files.associations) {
+		if (configuration.files?.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
 				const langId = configuration.files.associations[pattern];
 				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
@@ -231,3 +231,5 @@ function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, collec
 	}
 	return true;
 }
+
+registerSingleton(IModeService, WorkbenchModeServiceImpl);

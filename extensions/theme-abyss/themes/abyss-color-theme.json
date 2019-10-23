@@ -3,14 +3,12 @@
 	"tokenColors": [
 		{
 			"settings": {
-				"background": "#000c18",
 				"foreground": "#6688cc"
 			}
 		},
 		{
 			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
-				"background": "#000c18",
 				"foreground": "#6688cc"
 			}
 		},
@@ -86,7 +84,9 @@
 			"name": "Class name",
 			"scope": [
 				"entity.name.class",
-				"entity.name.type"
+				"entity.name.type",
+				"entity.name.namespace",
+				"entity.name.scope-resolution"
 			],
 			"settings": {
 				"fontStyle": "underline",
@@ -171,7 +171,6 @@
 			"name": "Invalid",
 			"scope": "invalid",
 			"settings": {
-				"background": "#F92672",
 				"fontStyle": "",
 				"foreground": "#F8F8F0"
 			}
@@ -180,7 +179,6 @@
 			"name": "Invalid deprecated",
 			"scope": "invalid.deprecated",
 			"settings": {
-				"background": "#AE81FF",
 				"foreground": "#F8F8F0"
 			}
 		},
@@ -191,7 +189,6 @@
 				"meta.diff.header"
 			],
 			"settings": {
-				"background": "#b58900",
 				"fontStyle": "italic",
 				"foreground": "#E0EDDD"
 			}
@@ -200,7 +197,6 @@
 			"name": "diff: deleted",
 			"scope": "markup.deleted",
 			"settings": {
-				"background": "#eee8d5",
 				"fontStyle": "",
 				"foreground": "#dc322f"
 			}
@@ -209,7 +205,6 @@
 			"name": "diff: changed",
 			"scope": "markup.changed",
 			"settings": {
-				"background": "#eee8d5",
 				"fontStyle": "",
 				"foreground": "#cb4b16"
 			}
@@ -218,7 +213,6 @@
 			"name": "diff: inserted",
 			"scope": "markup.inserted",
 			"settings": {
-				"background": "#eee8d5",
 				"foreground": "#219186"
 			}
 		},
@@ -356,6 +350,10 @@
 		"diffEditor.removedTextBackground": "#892F4688",
 		// "diffEditor.removedTextBorder": "",
 
+
+		// Editor: Minimap
+		"minimap.selectionHighlight": "#750000",
+
 		// Workbench: Title
 		"titleBar.activeBackground": "#10192c",
 		// "titleBar.activeForeground": "",
@@ -372,7 +370,6 @@
 		"tab.border": "#2b2b4a",
 		// "tab.activeBackground": "",
 		"tab.inactiveBackground": "#10192c",
-		"tab.modifiedBorder": "#0072bf",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
 
@@ -400,6 +397,7 @@
 		"statusBar.noFolderBackground": "#10192c",
 		"statusBar.debuggingBackground": "#10192c",
 		// "statusBar.foreground": "",
+		"statusBarItem.remoteBackground": "#0063a5",
 		"statusBarItem.prominentBackground": "#0063a5",
 		"statusBarItem.prominentHoverBackground": "#0063a5dd",
 		// "statusBarItem.activeBackground": "",

@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
+import { basename } from 'path';
 import * as languageModeIds from './languageModeIds';
 
 export const enum DiagnosticLanguage {
@@ -9,7 +11,7 @@ export const enum DiagnosticLanguage {
 	TypeScript
 }
 
-export const allDiagnosticLangauges = [DiagnosticLanguage.JavaScript, DiagnosticLanguage.TypeScript];
+export const allDiagnosticLanguages = [DiagnosticLanguage.JavaScript, DiagnosticLanguage.TypeScript];
 
 export interface LanguageDescription {
 	readonly id: string;
@@ -17,7 +19,7 @@ export interface LanguageDescription {
 	readonly diagnosticSource: string;
 	readonly diagnosticLanguage: DiagnosticLanguage;
 	readonly modeIds: string[];
-	readonly configFile?: string;
+	readonly configFilePattern?: RegExp;
 	readonly isExternal?: boolean;
 }
 
@@ -28,13 +30,21 @@ export const standardLanguageDescriptions: LanguageDescription[] = [
 		diagnosticSource: 'ts',
 		diagnosticLanguage: DiagnosticLanguage.TypeScript,
 		modeIds: [languageModeIds.typescript, languageModeIds.typescriptreact],
-		configFile: 'tsconfig.json'
+		configFilePattern: /^tsconfig(\..*)?\.json$/gi
 	}, {
 		id: 'javascript',
 		diagnosticOwner: 'typescript',
 		diagnosticSource: 'ts',
 		diagnosticLanguage: DiagnosticLanguage.JavaScript,
 		modeIds: [languageModeIds.javascript, languageModeIds.javascriptreact],
-		configFile: 'jsconfig.json'
+		configFilePattern: /^jsconfig(\..*)?\.json$/gi
 	}
 ];
+
+export function isTsConfigFileName(fileName: string): boolean {
+	return /^tsconfig\.(.+\.)?json$/i.test(basename(fileName));
+}
+
+export function isJsConfigOrTsConfigFileName(fileName: string): boolean {
+	return /^[jt]sconfig\.(.+\.)?json$/i.test(basename(fileName));
+}

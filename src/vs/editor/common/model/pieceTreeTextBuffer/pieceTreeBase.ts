@@ -6,10 +6,9 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch } from 'vs/editor/common/model';
+import { FindMatch, ITextSnapshot } from 'vs/editor/common/model';
 import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest, updateTreeMetadata } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 import { SearchData, Searcher, createFindMatch, isValidMatch } from 'vs/editor/common/model/textModelSearch';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
 export const AverageBufferSize = 65535;
@@ -157,10 +156,10 @@ export class StringBuffer {
  * 2. TreeNode/Buffers normalization should not happen during snapshot reading.
  */
 class PieceTreeSnapshot implements ITextSnapshot {
-	private _pieces: Piece[];
+	private readonly _pieces: Piece[];
 	private _index: number;
-	private _tree: PieceTreeBase;
-	private _BOM: string;
+	private readonly _tree: PieceTreeBase;
+	private readonly _BOM: string;
 
 	constructor(tree: PieceTreeBase, BOM: string) {
 		this._pieces = [];
@@ -205,7 +204,7 @@ interface CacheEntry {
 }
 
 class PieceTreeSearchCache {
-	private _limit: number;
+	private readonly _limit: number;
 	private _cache: CacheEntry[];
 
 	constructor(limit: number) {
@@ -254,8 +253,7 @@ class PieceTreeSearchCache {
 
 		if (hasInvalidVal) {
 			let newArr: CacheEntry[] = [];
-			for (let i = 0; i < tmp.length; i++) {
-				const entry = tmp[i];
+			for (const entry of tmp) {
 				if (entry !== null) {
 					newArr.push(entry);
 				}
@@ -267,16 +265,16 @@ class PieceTreeSearchCache {
 }
 
 export class PieceTreeBase {
-	root: TreeNode;
-	protected _buffers: StringBuffer[]; // 0 is change buffer, others are readonly original buffer.
-	protected _lineCnt: number;
-	protected _length: number;
-	protected _EOL: string;
-	protected _EOLLength: number;
-	protected _EOLNormalized: boolean;
-	private _lastChangeBufferPos: BufferCursor;
-	private _searchCache: PieceTreeSearchCache;
-	private _lastVisitedLine: { lineNumber: number; value: string; };
+	root!: TreeNode;
+	protected _buffers!: StringBuffer[]; // 0 is change buffer, others are readonly original buffer.
+	protected _lineCnt!: number;
+	protected _length!: number;
+	protected _EOL!: string;
+	protected _EOLLength!: number;
+	protected _EOLNormalized!: boolean;
+	private _lastChangeBufferPos!: BufferCursor;
+	private _searchCache!: PieceTreeSearchCache;
+	private _lastVisitedLine!: { lineNumber: number; value: string; };
 
 	constructor(chunks: StringBuffer[], eol: '\r\n' | '\n', eolNormalized: boolean) {
 		this.create(chunks, eol, eolNormalized);
@@ -613,25 +611,25 @@ export class PieceTreeBase {
 		let resultLen = 0;
 		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
 
-		let startPostion = this.nodeAt2(searchRange.startLineNumber, searchRange.startColumn);
-		if (startPostion === null) {
+		let startPosition = this.nodeAt2(searchRange.startLineNumber, searchRange.startColumn);
+		if (startPosition === null) {
 			return [];
 		}
 		let endPosition = this.nodeAt2(searchRange.endLineNumber, searchRange.endColumn);
 		if (endPosition === null) {
 			return [];
 		}
-		let start = this.positionInBuffer(startPostion.node, startPostion.remainder);
+		let start = this.positionInBuffer(startPosition.node, startPosition.remainder);
 		let end = this.positionInBuffer(endPosition.node, endPosition.remainder);
 
-		if (startPostion.node === endPosition.node) {
-			this.findMatchesInNode(startPostion.node, searcher, searchRange.startLineNumber, searchRange.startColumn, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
+		if (startPosition.node === endPosition.node) {
+			this.findMatchesInNode(startPosition.node, searcher, searchRange.startLineNumber, searchRange.startColumn, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
 			return result;
 		}
 
 		let startLineNumber = searchRange.startLineNumber;
 
-		let currentNode = startPostion.node;
+		let currentNode = startPosition.node;
 		while (currentNode !== endPosition.node) {
 			let lineBreakCnt = this.getLineFeedCnt(currentNode.piece.bufferIndex, start, currentNode.piece.end);
 
@@ -665,9 +663,9 @@ export class PieceTreeBase {
 			}
 
 			startLineNumber++;
-			startPostion = this.nodeAt2(startLineNumber, 1);
-			currentNode = startPostion.node;
-			start = this.positionInBuffer(startPostion.node, startPostion.remainder);
+			startPosition = this.nodeAt2(startLineNumber, 1);
+			currentNode = startPosition.node;
+			start = this.positionInBuffer(startPosition.node, startPosition.remainder);
 		}
 
 		if (startLineNumber === searchRange.endLineNumber) {
@@ -1042,7 +1040,7 @@ export class PieceTreeBase {
 			while (text.length > AverageBufferSize) {
 				const lastChar = text.charCodeAt(AverageBufferSize - 1);
 				let splitText;
-				if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xd800 && lastChar <= 0xdbff)) {
+				if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xD800 && lastChar <= 0xDBFF)) {
 					// last character is \r or a high surrogate => keep it back
 					splitText = text.substring(0, AverageBufferSize - 1);
 					text = text.substring(AverageBufferSize - 1);

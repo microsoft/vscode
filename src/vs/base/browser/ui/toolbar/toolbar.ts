@@ -6,19 +6,20 @@
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
 import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextMenuProvider, DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
+import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextMenuProvider, DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export const CONTEXT = 'context.toolbar';
 
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
-	actionItemProvider?: IActionItemProvider;
+	actionViewItemProvider?: IActionViewItemProvider;
 	ariaLabel?: string;
-	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	actionRunner?: IActionRunner;
 	toggleMenuTitle?: string;
 	anchorAlignmentProvider?: () => AnchorAlignment;
@@ -31,8 +32,8 @@ export class ToolBar extends Disposable {
 	private options: IToolBarOptions;
 	private actionBar: ActionBar;
 	private toggleMenuAction: ToggleMenuAction;
-	private toggleMenuActionItem?: DropdownMenuActionItem;
-	private hasSecondaryActions: boolean;
+	private toggleMenuActionViewItem = this._register(new MutableDisposable<DropdownMenuActionViewItem>());
+	private hasSecondaryActions: boolean = false;
 	private lookupKeybindings: boolean;
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
@@ -41,7 +42,7 @@ export class ToolBar extends Disposable {
 		this.options = options;
 		this.lookupKeybindings = typeof this.options.getKeyBinding === 'function';
 
-		this.toggleMenuAction = this._register(new ToggleMenuAction(() => this.toggleMenuActionItem && this.toggleMenuActionItem.show(), options.toggleMenuTitle));
+		this.toggleMenuAction = this._register(new ToggleMenuAction(() => this.toggleMenuActionViewItem.value && this.toggleMenuActionViewItem.value.show(), options.toggleMenuTitle));
 
 		let element = document.createElement('div');
 		element.className = 'monaco-toolbar';
@@ -51,33 +52,28 @@ export class ToolBar extends Disposable {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
-			actionItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: Action) => {
 
 				// Return special action item for the toggle menu action
 				if (action.id === ToggleMenuAction.ID) {
 
-					// Dispose old
-					if (this.toggleMenuActionItem) {
-						this.toggleMenuActionItem.dispose();
-					}
-
 					// Create new
-					this.toggleMenuActionItem = new DropdownMenuActionItem(
+					this.toggleMenuActionViewItem.value = new DropdownMenuActionViewItem(
 						action,
 						(<ToggleMenuAction>action).menuActions,
 						contextMenuProvider,
-						this.options.actionItemProvider,
+						this.options.actionViewItemProvider,
 						this.actionRunner,
 						this.options.getKeyBinding,
-						'toolbar-toggle-more',
+						'codicon-more',
 						this.options.anchorAlignmentProvider
 					);
-					this.toggleMenuActionItem!.setActionContext(this.actionBar.context);
+					this.toggleMenuActionViewItem.value.setActionContext(this.actionBar.context);
 
-					return this.toggleMenuActionItem || null;
+					return this.toggleMenuActionViewItem.value;
 				}
 
-				return options.actionItemProvider ? options.actionItemProvider(action) : null;
+				return options.actionViewItemProvider ? options.actionViewItemProvider(action) : undefined;
 			}
 		}));
 	}
@@ -92,8 +88,8 @@ export class ToolBar extends Disposable {
 
 	set context(context: any) {
 		this.actionBar.context = context;
-		if (this.toggleMenuActionItem) {
-			this.toggleMenuActionItem.setActionContext(context);
+		if (this.toggleMenuActionViewItem.value) {
+			this.toggleMenuActionViewItem.value.setActionContext(context);
 		}
 	}
 
@@ -113,7 +109,7 @@ export class ToolBar extends Disposable {
 		this.actionBar.setAriaLabel(label);
 	}
 
-	setActions(primaryActions: IAction[], secondaryActions?: IAction[]): () => void {
+	setActions(primaryActions: ReadonlyArray<IAction>, secondaryActions?: ReadonlyArray<IAction>): () => void {
 		return () => {
 			let primaryActionsToSet = primaryActions ? primaryActions.slice(0) : [];
 
@@ -133,9 +129,9 @@ export class ToolBar extends Disposable {
 	}
 
 	private getKeybindingLabel(action: IAction): string | undefined {
-		const key = this.lookupKeybindings && this.options.getKeyBinding ? this.options.getKeyBinding(action) : void 0;
+		const key = this.lookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
 
-		return (key && key.getLabel()) || void 0;
+		return withNullAsUndefined(key?.getLabel());
 	}
 
 	addPrimaryAction(primaryAction: IAction): () => void {
@@ -153,28 +149,20 @@ export class ToolBar extends Disposable {
 			}
 		};
 	}
-
-	dispose(): void {
-		if (this.toggleMenuActionItem) {
-			this.toggleMenuActionItem.dispose();
-			this.toggleMenuActionItem = void 0;
-		}
-
-		super.dispose();
-	}
 }
 
 class ToggleMenuAction extends Action {
 
 	static readonly ID = 'toolbar.toggle.more';
 
-	private _menuActions: IAction[];
+	private _menuActions: ReadonlyArray<IAction>;
 	private toggleDropdownMenu: () => void;
 
 	constructor(toggleDropdownMenu: () => void, title?: string) {
 		title = title || nls.localize('moreActions', "More Actions...");
-		super(ToggleMenuAction.ID, title, void 0, true);
+		super(ToggleMenuAction.ID, title, undefined, true);
 
+		this._menuActions = [];
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
 
@@ -184,11 +172,11 @@ class ToggleMenuAction extends Action {
 		return Promise.resolve(true);
 	}
 
-	get menuActions() {
+	get menuActions(): ReadonlyArray<IAction> {
 		return this._menuActions;
 	}
 
-	set menuActions(actions: IAction[]) {
+	set menuActions(actions: ReadonlyArray<IAction>) {
 		this._menuActions = actions;
 	}
 }

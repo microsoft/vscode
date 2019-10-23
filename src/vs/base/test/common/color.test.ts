@@ -186,7 +186,7 @@ suite('Color', () => {
 		});
 
 		test('bug#36240', () => {
-			assert.deepEqual(HSVA.fromRGBA(new RGBA(92, 106, 196, 1)), new HSVA(232, .531, .769, 1));
+			assert.deepEqual(HSVA.fromRGBA(new RGBA(92, 106, 196, 1)), new HSVA(232, 0.531, 0.769, 1));
 			assert.deepEqual(HSVA.toRGBA(HSVA.fromRGBA(new RGBA(92, 106, 196, 1))), new RGBA(92, 106, 196, 1));
 		});
 	});
@@ -196,7 +196,6 @@ suite('Color', () => {
 			test('parseHex', () => {
 
 				// invalid
-				assert.deepEqual(Color.Format.CSS.parseHex(null!), null);
 				assert.deepEqual(Color.Format.CSS.parseHex(''), null);
 				assert.deepEqual(Color.Format.CSS.parseHex('#'), null);
 				assert.deepEqual(Color.Format.CSS.parseHex('#0102030'), null);

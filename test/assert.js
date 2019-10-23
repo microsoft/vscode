@@ -79,7 +79,7 @@ var util = {
     return typeof arg === 'symbol';
   },
   isUndefined: function(arg) {
-    return arg === void 0;
+    return arg === undefined;
   },
   isRegExp: function(re) {
     return util.isObject(re) && util.objectToString(re) === '[object RegExp]';

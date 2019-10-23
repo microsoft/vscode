@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { join, normalize } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IFolderQuery, QueryType } from 'vs/platform/search/common/search';
+import { IFolderQuery, QueryType, IRawFileMatch } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { IRawFileMatch } from 'vs/workbench/services/search/node/search';
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const EXAMPLES_FIXTURES = URI.file(path.join(TEST_FIXTURES, 'examples'));
@@ -37,7 +35,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: *.js', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: '*.js'
@@ -57,7 +55,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: maxResults', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			maxResults: 1
@@ -77,11 +75,10 @@ suite('FileSearchEngine', () => {
 
 	test('Files: maxResults without Ripgrep', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			maxResults: 1,
-			useRipgrep: false
 		});
 
 		let count = 0;
@@ -98,7 +95,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: exists', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			includePattern: { '**/file.txt': true },
@@ -120,7 +117,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: not exists', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			includePattern: { '**/nofile.txt': true },
@@ -142,12 +139,11 @@ suite('FileSearchEngine', () => {
 
 	test('Files: exists without Ripgrep', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			includePattern: { '**/file.txt': true },
 			exists: true,
-			useRipgrep: false
 		});
 
 		let count = 0;
@@ -165,12 +161,11 @@ suite('FileSearchEngine', () => {
 
 	test('Files: not exists without Ripgrep', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			includePattern: { '**/nofile.txt': true },
 			exists: true,
-			useRipgrep: false
 		});
 
 		let count = 0;
@@ -188,10 +183,10 @@ suite('FileSearchEngine', () => {
 
 	test('Files: examples/com*', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: normalize(join('examples', 'com*'), true)
+			filePattern: path.join('examples', 'com*')
 		});
 
 		let count = 0;
@@ -208,7 +203,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: examples (fuzzy)', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: 'xl'
@@ -228,7 +223,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: multiroot', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: MULTIROOT_QUERIES,
 			filePattern: 'file'
@@ -248,7 +243,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: multiroot with includePattern and maxResults', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: MULTIROOT_QUERIES,
 			maxResults: 1,
@@ -256,7 +251,6 @@ suite('FileSearchEngine', () => {
 				'*.txt': true,
 				'*.js': true
 			},
-			useRipgrep: true
 		});
 
 		let count = 0;
@@ -273,7 +267,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: multiroot with includePattern and exists', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: MULTIROOT_QUERIES,
 			exists: true,
@@ -281,7 +275,6 @@ suite('FileSearchEngine', () => {
 				'*.txt': true,
 				'*.js': true
 			},
-			useRipgrep: true
 		});
 
 		let count = 0;
@@ -299,7 +292,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: NPE (CamelCase)', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: 'NullPE'
@@ -319,7 +312,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: *.*', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: '*.*'
@@ -339,7 +332,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: *.as', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: '*.as'
@@ -359,7 +352,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: *.* without derived', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: 'site.*',
@@ -383,7 +376,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: *.* exclude folder without wildcard', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: '*.*',
@@ -404,7 +397,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: exclude folder without wildcard #36438', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY_36438,
 			excludePattern: { 'modules': true }
@@ -424,7 +417,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: include folder without wildcard #36438', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY_36438,
 			includePattern: { 'modules/**': true }
@@ -444,7 +437,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: *.* exclude folder with leading wildcard', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: '*.*',
@@ -465,7 +458,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: *.* exclude folder with trailing wildcard', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: '*.*',
@@ -486,7 +479,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: *.* exclude with unicode', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: '*.*',
@@ -507,7 +500,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: *.* include with unicode', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: '*.*',
@@ -563,7 +556,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: Unicode and Spaces', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: '汉语'
@@ -586,7 +579,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: no results', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: 'nofilematch'
@@ -606,7 +599,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: relative path matched once', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: path.normalize(path.join('examples', 'company.js'))
@@ -629,7 +622,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: Include pattern, single files', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			includePattern: {
@@ -639,7 +632,7 @@ suite('FileSearchEngine', () => {
 			}
 		});
 
-		let res: IRawFileMatch[] = [];
+		const res: IRawFileMatch[] = [];
 		engine.search((result) => {
 			res.push(result);
 		}, () => { }, (error) => {
@@ -654,7 +647,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: extraFiles only', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: [],
 			extraFileResources: [
@@ -682,7 +675,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: extraFiles only (with include)', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: [],
 			extraFileResources: [
@@ -711,7 +704,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: extraFiles only (with exclude)', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: [],
 			extraFileResources: [
@@ -737,7 +730,7 @@ suite('FileSearchEngine', () => {
 
 	test('Files: no dupes in nested folders', function (done: () => void) {
 		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
+		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: [
 				{ folder: EXAMPLES_FIXTURES },
@@ -777,10 +770,10 @@ suite('FileWalker', () => {
 			excludePattern: { '**/something': true }
 		});
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({
 				type: QueryType.File,
@@ -788,10 +781,10 @@ suite('FileWalker', () => {
 				excludePattern: { '**/subfolder': true }
 			});
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
-				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
 				done();
 			});
 		});
@@ -816,10 +809,10 @@ suite('FileWalker', () => {
 
 		const walker = new FileWalker({ type: QueryType.File, folderQueries });
 		const cmd1 = walker.spawnFindCmd(folderQueries[0]);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert(outputContains(stdout1, file0), stdout1);
-			assert(!outputContains(stdout1, file1), stdout1);
+			assert(outputContains(stdout1!, file0), stdout1);
+			assert(!outputContains(stdout1!, file1), stdout1);
 			done();
 		});
 	});
@@ -837,19 +830,19 @@ suite('FileWalker', () => {
 
 		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/something': true } });
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file2), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file2), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '{**/examples,**/more}': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
-				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
-				assert.strictEqual(stdout2.split('\n').indexOf(file2), -1, stdout2);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file2), -1, stdout2);
 				done();
 			});
 		});
@@ -867,17 +860,17 @@ suite('FileWalker', () => {
 
 		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/examples/something': true } });
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/examples/subfolder': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
-				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
 				done();
 			});
 		});
@@ -895,17 +888,17 @@ suite('FileWalker', () => {
 
 		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/subfolder/something': true } });
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/subfolder/anotherfolder': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
-				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
 				done();
 			});
 		});
@@ -923,17 +916,17 @@ suite('FileWalker', () => {
 
 		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { 'examples/something': true } });
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { 'examples/subfolder': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
-				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
 				done();
 			});
 		});
@@ -967,13 +960,13 @@ suite('FileWalker', () => {
 			}
 		});
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			for (const fileIn of filesIn) {
-				assert.notStrictEqual(stdout1.split('\n').indexOf(fileIn), -1, stdout1);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(fileIn), -1, stdout1);
 			}
 			for (const fileOut of filesOut) {
-				assert.strictEqual(stdout1.split('\n').indexOf(fileOut), -1, stdout1);
+				assert.strictEqual(stdout1!.split('\n').indexOf(fileOut), -1, stdout1);
 			}
 			done();
 		});

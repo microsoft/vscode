@@ -36,6 +36,8 @@ const directives: Directive[] = [
 ];
 
 class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvider {
+	public static readonly minVersion = API.v230;
+
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 	) { }
@@ -69,7 +71,7 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return new VersionDependentRegistration(client, API.v230, () => {
+	return new VersionDependentRegistration(client, DirectiveCommentCompletionProvider.minVersion, () => {
 		return vscode.languages.registerCompletionItemProvider(selector,
 			new DirectiveCommentCompletionProvider(client),
 			'@');

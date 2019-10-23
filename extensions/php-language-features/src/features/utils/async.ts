@@ -44,10 +44,10 @@ export class Throttler<T> {
 			this.queuedPromiseFactory = promiseFactory;
 
 			if (!this.queuedPromise) {
-				var onComplete = () => {
+				let onComplete = () => {
 					this.queuedPromise = null;
 
-					var result = this.queue(this.queuedPromiseFactory!);
+					let result = this.queue(this.queuedPromiseFactory!);
 					this.queuedPromiseFactory = null;
 
 					return result;
@@ -127,7 +127,7 @@ export class Delayer<T> {
 				this.completionPromise = null;
 				this.onResolve = null;
 
-				var result = this.task!();
+				let result = this.task!();
 				this.task = null;
 
 				return result;

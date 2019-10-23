@@ -7,37 +7,36 @@ import { assign } from 'vs/base/common/objects';
 import { memoize } from 'vs/base/common/decorators';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { BrowserWindow, ipcMain } from 'electron';
-import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
+import { ISharedProcess } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { IStateService } from 'vs/platform/state/common/state';
-import { getBackgroundColor } from 'vs/code/electron-main/theme';
-import { dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 export class SharedProcess implements ISharedProcess {
 
 	private barrier = new Barrier();
 
-	private window: Electron.BrowserWindow | null;
+	private window: BrowserWindow | null = null;
 
 	constructor(
 		private readonly machineId: string,
 		private userEnv: NodeJS.ProcessEnv,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IStateService private readonly stateService: IStateService,
-		@ILogService private readonly logService: ILogService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@ILogService private readonly logService: ILogService,
+		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) { }
 
 	@memoize
 	private get _whenReady(): Promise<void> {
 		this.window = new BrowserWindow({
 			show: false,
-			backgroundColor: getBackgroundColor(this.stateService),
+			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
 				images: false,
-				webaudio: false,
+				nodeIntegration: true,
 				webgl: false,
 				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
@@ -46,7 +45,8 @@ export class SharedProcess implements ISharedProcess {
 			appRoot: this.environmentService.appRoot,
 			machineId: this.machineId,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
-			userEnv: this.userEnv
+			userEnv: this.userEnv,
+			windowId: this.window.id
 		});
 
 		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
@@ -67,10 +67,10 @@ export class SharedProcess implements ISharedProcess {
 
 		this.window.on('close', onClose);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
-		this.lifecycleService.onWillShutdown(() => {
-			dispose(disposables);
+		this.lifecycleMainService.onWillShutdown(() => {
+			disposables.dispose();
 
 			// Shut the shared process down when we are quitting
 			//
@@ -104,8 +104,8 @@ export class SharedProcess implements ISharedProcess {
 					logLevel: this.logService.getLevel()
 				});
 
-				disposables.push(toDisposable(() => sender.send('handshake:goodbye')));
-				ipcMain.once('handshake:im ready', () => c(void 0));
+				disposables.add(toDisposable(() => sender.send('handshake:goodbye')));
+				ipcMain.once('handshake:im ready', () => c(undefined));
 			});
 		});
 	}

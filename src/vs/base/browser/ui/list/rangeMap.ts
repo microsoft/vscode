@@ -84,7 +84,7 @@ export function consolidate(groups: IRangedGroup[]): IRangedGroup[] {
  * collection.
  */
 function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
-	return consolidate(groups.reduce((r, g) => r.concat(g), [] as IRangedGroup[]));
+	return consolidate(groups.reduce((r, g) => r.concat(g), []));
 }
 
 export class RangeMap {
@@ -185,9 +185,5 @@ export class RangeMap {
 		}
 
 		return -1;
-	}
-
-	dispose() {
-		this.groups = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 }

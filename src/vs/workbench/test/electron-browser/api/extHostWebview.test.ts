@@ -4,20 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MainThreadWebviews } from 'vs/workbench/api/electron-browser/mainThreadWebview';
-import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
+import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebview';
+import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
+import { URI } from 'vs/base/common/uri';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
-suite('ExtHostWebview', function () {
+suite('ExtHostWebview', () => {
 
 	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
 		const shape = createNoopMainThreadWebviews();
-		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape));
+		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
+			webviewCspSource: '',
+			webviewResourceRoot: '',
+			isExtensionDevelopmentDebug: false,
+		}, undefined);
 
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
@@ -27,30 +33,118 @@ suite('ExtHostWebview', function () {
 			}
 		}
 
+		const extension = {} as IExtensionDescription;
+
 		const serializerA = new NoopSerializer();
 		const serializerB = new NoopSerializer();
 
-		const serializerARegistration = extHostWebviews.registerWebviewPanelSerializer(viewType, serializerA);
+		const serializerARegistration = extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializerA);
 
 		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
 		assert.throws(
-			() => extHostWebviews.registerWebviewPanelSerializer(viewType, serializerB),
+			() => extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializerB),
 			'Should throw when registering two serializers for the same view');
 
 		serializerARegistration.dispose();
 
-		extHostWebviews.registerWebviewPanelSerializer(viewType, serializerB);
+		extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializerB);
 
 		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
+	});
+
+	test('asWebviewUri for desktop vscode-resource scheme', () => {
+		const shape = createNoopMainThreadWebviews();
+		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
+			webviewCspSource: '',
+			webviewResourceRoot: 'vscode-resource://{{resource}}',
+			isExtensionDevelopmentDebug: false,
+		}, undefined);
+		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
+
+		assert.strictEqual(
+			webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString(),
+			'vscode-resource://file///Users/codey/file.html',
+			'Unix basic'
+		);
+
+		assert.strictEqual(
+			webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString(),
+			'vscode-resource://file///Users/codey/file.html#frag',
+			'Unix should preserve fragment'
+		);
+
+		assert.strictEqual(
+			webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString(),
+			'vscode-resource://file///Users/codey/f%20ile.html',
+			'Unix with encoding'
+		);
+
+		assert.strictEqual(
+			webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString(),
+			'vscode-resource://file//localhost/Users/codey/file.html',
+			'Unix should preserve authority'
+		);
+
+		assert.strictEqual(
+			webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString(),
+			'vscode-resource://file///c%3A/codey/file.txt',
+			'Windows C drive'
+		);
+	});
+
+	test('asWebviewUri for web endpoint', () => {
+		const shape = createNoopMainThreadWebviews();
+
+		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
+			webviewCspSource: '',
+			webviewResourceRoot: `https://{{uuid}}.webview.contoso.com/commit/{{resource}}`,
+			isExtensionDevelopmentDebug: false,
+		}, undefined);
+		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
+
+		function stripEndpointUuid(input: string) {
+			return input.replace(/^https:\/\/[^\.]+?\./, '');
+		}
+
+		assert.strictEqual(
+			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
+			'webview.contoso.com/commit/file///Users/codey/file.html',
+			'Unix basic'
+		);
+
+		assert.strictEqual(
+			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString()),
+			'webview.contoso.com/commit/file///Users/codey/file.html#frag',
+			'Unix should preserve fragment'
+		);
+
+		assert.strictEqual(
+			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString()),
+			'webview.contoso.com/commit/file///Users/codey/f%20ile.html',
+			'Unix with encoding'
+		);
+
+		assert.strictEqual(
+			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString()),
+			'webview.contoso.com/commit/file//localhost/Users/codey/file.html',
+			'Unix should preserve authority'
+		);
+
+		assert.strictEqual(
+			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString()),
+			'webview.contoso.com/commit/file///c%3A/codey/file.txt',
+			'Windows C drive'
+		);
 	});
 });
 
 
 function createNoopMainThreadWebviews() {
 	return new class extends mock<MainThreadWebviews>() {
+		$createWebviewPanel() { /* noop */ }
 		$registerSerializer() { /* noop */ }
 		$unregisterSerializer() { /* noop */ }
 	};

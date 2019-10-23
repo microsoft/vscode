@@ -15,23 +15,33 @@ export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeO
 
 export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterData, number[]> {
 
-	protected model: IndexTreeModel<T, TFilterData>;
+	protected model!: IndexTreeModel<T, TFilterData>;
 
 	constructor(
+		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private rootElement: T,
 		options: IIndexTreeOptions<T, TFilterData> = {}
 	) {
-		super(container, delegate, renderers, options);
+		super(user, container, delegate, renderers, options);
 	}
 
-	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): Iterator<ITreeElement<T>> {
-		return this.model.splice(location, deleteCount, toInsert);
+	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): void {
+		this.model.splice(location, deleteCount, toInsert);
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
-		return new IndexTreeModel(view, this.rootElement, options);
+	rerender(location?: number[]): void {
+		if (location === undefined) {
+			this.view.rerender();
+			return;
+		}
+
+		this.model.rerender(location);
+	}
+
+	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
+		return new IndexTreeModel(user, view, this.rootElement, options);
 	}
 }

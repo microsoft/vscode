@@ -13,20 +13,21 @@ export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
 
 export interface IDiffComputationResult {
+	quitEarly: boolean;
 	identical: boolean;
 	changes: ILineChange[];
 }
 
 export interface IEditorWorkerService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	canComputeDiff(original: URI, modified: URI): boolean;
-	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IDiffComputationResult | null>;
+	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;
 
-	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | null | undefined>;
+	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined>;
 
 	canComputeWordRanges(resource: URI): boolean;
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;
