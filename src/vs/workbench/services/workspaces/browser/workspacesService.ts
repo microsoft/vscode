@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, WORKSPACE_EXTENSION, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, WORKSPACE_EXTENSION, IStoredWorkspace, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -57,7 +57,9 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 				this.addRecentlyOpened([{ folderUri: workspace.folders[0].uri }]);
 				break;
 			case WorkbenchState.WORKSPACE:
-				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! } }]);
+				if (!isUntitledWorkspace(workspace.configuration!, this.environmentService)) {
+					this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! } }]);
+				}
 				break;
 		}
 	}
@@ -125,7 +127,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
 
 		// Open workspace in same window
-		await this.hostService.openWindow([{ workspaceUri: path }], { forceReuseWindow: true });
+		await this.hostService.openWindow([{ workspaceUri: path }], { forceReuseWindow: true, noRecentEntry: isUntitledWorkspace(path, this.environmentService) });
 
 		return {
 			workspace: await this.getWorkspaceIdentifier(path)
@@ -134,7 +136,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
 		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
-		const newUntitledWorkspacePath = joinPath(this.environmentService.untitledWorkspacesHome, `${randomId}.${WORKSPACE_EXTENSION}`);
+		const newUntitledWorkspacePath = joinPath(this.environmentService.untitledWorkspacesHome, `Untitled-${randomId}.${WORKSPACE_EXTENSION}`);
 
 		// Build array of workspace folders to store
 		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
