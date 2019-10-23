@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
@@ -22,15 +21,12 @@ const localize = nls.loadMessageBundle();
 
 const updateImportsOnFileMoveName = 'updateImportsOnFileMove.enabled';
 
-function isDirectory(path: string): Promise<boolean> {
-	return new Promise<boolean>((resolve, reject) => {
-		fs.stat(path, (err, stat) => {
-			if (err) {
-				return reject(err);
-			}
-			return resolve(stat.isDirectory());
-		});
-	});
+async function isDirectory(resource: vscode.Uri): Promise<boolean> {
+	try {
+		return (await vscode.workspace.fs.stat(resource)).type === vscode.FileType.Directory;
+	} catch {
+		return false;
+	}
 }
 
 const enum UpdateImportsOnFileMoveSetting {
@@ -198,7 +194,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return undefined;
 		}
 
-		if (await isDirectory(resource.fsPath)) {
+		if (await isDirectory(resource)) {
 			const files = await vscode.workspace.findFiles({
 				base: resource.fsPath,
 				pattern: '**/*.{ts,tsx,js,jsx}',
