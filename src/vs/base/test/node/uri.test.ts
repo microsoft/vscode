@@ -546,7 +546,7 @@ suite('URI', () => {
 			actual = actual.replace(/(\/[a-z])%3A/, '$1:');
 		}
 		let expected = pathToFileURL(path).href;
-		assert.equal(actual, expected);
+		assert.equal(actual, expected, path);
 		if (recurse) {
 			assertFsPathFromUri(expected, false);
 		}
@@ -555,80 +555,72 @@ suite('URI', () => {
 	function assertFsPathFromUri(uri: string, recurse = true): void {
 		let actual = URI.parse(uri).fsPath;
 		let expected = fileURLToPath(uri);
-		assert.equal(actual, expected);
+		assert.equal(actual, expected, uri);
 		if (recurse) {
 			assertUriFromFsPath(actual, false);
 		}
 	}
 
 	test('URI.file and pathToFileURL', function () {
-		const posixPaths = [
-			'/foo/bar',
-			'/foo/%2e.txt',
-			'/foo/%A0.txt',
-			'/foo/ü.txt',
-			'/foo/ß.txt',
-			'/my/c#project/d.cs',
-			'/c\\win\\path'
-		];
-		const windowsPaths = [
-			'd:/foo/bar',
-			'd:/foo/%2e.txt',
-			'd:/foo/%A0.txt',
-			'd:/foo/ü.txt',
-			'd:/foo/ß.txt',
-			'd:/my/c#project/d.cs',
-			'c:\\win\\path',
-			'c:\\test\\drive',
-			'c:\\test with %\\path',
-			'c:\\test with %25\\path',
-			'c:\\test with %25\\c#code',
-			'\\\\shäres\\path\\c#\\plugin.json',
-			'\\\\localhost\\c$\\GitDevelopment\\express',
-			'\\\\shares',
-			'\\\\shares\\',
-		];
-
 		// nodejs is strict to the platform on which it runs
-		(isWindows ? windowsPaths : posixPaths).forEach(p => assertUriFromFsPath(p));
+		if (isWindows) {
+			assertUriFromFsPath('d:/foo/bar');
+			assertUriFromFsPath('d:/foo/%2e.txt');
+			assertUriFromFsPath('d:/foo/%A0.txt');
+			assertUriFromFsPath('d:/foo/ü.txt');
+			assertUriFromFsPath('d:/foo/ß.txt');
+			assertUriFromFsPath('d:/my/c#project/d.cs');
+			assertUriFromFsPath('c:\\win\\path');
+			assertUriFromFsPath('c:\\test\\drive');
+			assertUriFromFsPath('c:\\test with %\\path');
+			assertUriFromFsPath('c:\\test with %25\\path');
+			assertUriFromFsPath('c:\\test with %25\\c#code');
+			assertUriFromFsPath('\\\\shäres\\path\\c#\\plugin.json');
+			assertUriFromFsPath('\\\\localhost\\c$\\GitDevelopment\\express');
+			assertUriFromFsPath('\\\\shares');
+			assertUriFromFsPath('\\\\shares\\');
+		} else {
+			assertUriFromFsPath('/foo/bar');
+			assertUriFromFsPath('/foo/%2e.txt');
+			assertUriFromFsPath('/foo/%A0.txt');
+			assertUriFromFsPath('/foo/ü.txt');
+			assertUriFromFsPath('/foo/ß.txt');
+			assertUriFromFsPath('/my/c#project/d.cs');
+			assertUriFromFsPath('/c\\win\\path');
+		}
 	});
 
 
 	test('URI.fsPath and fileURLToPath', function () {
-		const posixUris = [
-			'file:///foo/bar',
-			'file:///fo%25/bar',
-			'file:///foo/b ar/text.cs',
-			'file:///foö/bar',
-			'file:///fo%C3%B6/bar',
-			'file:///',
-			'file:///my/c%23project/c.cs',
-			'file:///foo%5cbar',
-			'file:///foo%5Cbar',
-			'file:///foo%5C%5cbar',
-			'file:///Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins',
-			'file:///monacotools/folder/isi.txt',
-			'file:///monacotools1/certificates/SSL/',
-		];
-		const windowsUris = [
-			'file:///f:/foo/bar',
-			'file:///f:/fo%25/bar',
-			'file:///f:/foo/b ar/text.cs',
-			'file:///f:/foö/bar',
-			'file:///f:/fo%C3%B6/bar',
-			'file:///f:/',
-			'file:///f:/my/c%23project/c.cs',
-			'file:///c:/bar/foo',
-			'file:///c:/alex.txt',
-			'file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins',
-			'file://unc-host/foö/bar',
-			'file://unc-host/',
-			'file://monacotools/folder/isi.txt',
-			'file://monacotools1/certificates/SSL/',
-		];
-
 		// nodejs is strict to the platform on which it runs
-		(isWindows ? windowsUris : posixUris).forEach(u => assertFsPathFromUri(u));
+		if (isWindows) {
+			assertFsPathFromUri('file:///f:/foo/bar');
+			assertFsPathFromUri('file:///f:/fo%25/bar');
+			assertFsPathFromUri('file:///f:/foo/b ar/text.cs');
+			assertFsPathFromUri('file:///f:/foö/bar');
+			assertFsPathFromUri('file:///f:/fo%C3%B6/bar');
+			assertFsPathFromUri('file:///f:/');
+			assertFsPathFromUri('file:///f:/my/c%23project/c.cs');
+			assertFsPathFromUri('file:///c:/bar/foo');
+			assertFsPathFromUri('file:///c:/alex.txt');
+			assertFsPathFromUri('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins');
+			assertFsPathFromUri('file://unc-host/foö/bar');
+			assertFsPathFromUri('file://unc-host/');
+			assertFsPathFromUri('file://monacotools/folder/isi.txt');
+			assertFsPathFromUri('file://monacotools1/certificates/SSL/');
+		} else {
+			assertFsPathFromUri('file:///foo/bar');
+			assertFsPathFromUri('file:///fo%25/bar');
+			assertFsPathFromUri('file:///foo/b ar/text.cs');
+			assertFsPathFromUri('file:///foö/bar');
+			assertFsPathFromUri('file:///fo%C3%B6/bar');
+			assertFsPathFromUri('file:///');
+			assertFsPathFromUri('file:///my/c%23project/c.cs');
+			assertFsPathFromUri('file:///foo%5cbar');
+			assertFsPathFromUri('file:///foo%5Cbar');
+			assertFsPathFromUri('file:///foo%5C%5cbar');
+			assertFsPathFromUri('file:///Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins');
+		}
 	});
 
 	// ---- check against standard url
