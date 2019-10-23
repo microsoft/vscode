@@ -14,17 +14,37 @@ import { join } from 'vs/base/common/path';
 import { IDebugParams } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/common/product';
 
-export class WorkbenchEnvironmentService extends EnvironmentService implements IWorkbenchEnvironmentService {
+export class NativeWorkbenchEnvironmentService extends EnvironmentService implements IWorkbenchEnvironmentService {
 
 	_serviceBrand: undefined;
 
+	@memoize
 	get webviewExternalEndpoint(): string {
 		const baseEndpoint = 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
+
 		return baseEndpoint.replace('{{commit}}', product.commit || 'c58aaab8a1cc22a7139b761166a0d4f37d41e998');
 	}
 
-	readonly webviewResourceRoot = 'vscode-resource://{{resource}}';
-	readonly webviewCspSource = 'vscode-resource:';
+	@memoize
+	get webviewResourceRoot(): string { return 'vscode-resource://{{resource}}'; }
+
+	@memoize
+	get webviewCspSource(): string { return 'vscode-resource:'; }
+
+	@memoize
+	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
+
+	@memoize
+	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+
+	@memoize
+	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.windowId}.log`)); }
+
+	@memoize
+	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
+
+	@memoize
+	get debugSearch(): IDebugParams { return parseSearchPort(this.args, this.isBuilt); }
 
 	constructor(
 		readonly configuration: IWindowConfiguration,
@@ -35,17 +55,4 @@ export class WorkbenchEnvironmentService extends EnvironmentService implements I
 
 		this.configuration.backupWorkspaceResource = this.configuration.backupPath ? toBackupWorkspaceResource(this.configuration.backupPath, this) : undefined;
 	}
-
-	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
-
-	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
-
-	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.windowId}.log`)); }
-
-	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
-
-	@memoize
-	get debugSearch(): IDebugParams { return parseSearchPort(this.args, this.isBuilt); }
 }

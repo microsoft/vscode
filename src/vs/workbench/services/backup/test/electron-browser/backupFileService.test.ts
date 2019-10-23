@@ -20,7 +20,7 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -46,7 +46,7 @@ const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
 const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
 
-class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
+class TestBackupEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(backupPath: string) {
 		super({ ...parseArgs(process.argv, OPTIONS), ...{ backupPath, 'user-data-dir': userdataDir } } as IWindowConfiguration, process.execPath, 0);

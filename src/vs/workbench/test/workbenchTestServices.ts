@@ -79,7 +79,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { NativeTextFileService } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import { Schemas } from 'vs/base/common/network';
@@ -97,7 +97,7 @@ export function createFileInput(instantiationService: IInstantiationService, res
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
 }
 
-export const TestEnvironmentService = new WorkbenchEnvironmentService(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
 
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: undefined;
