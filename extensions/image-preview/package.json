@@ -17,7 +17,9 @@
     "Other"
   ],
   "activationEvents": [
-    "onWebviewEditor:imagePreview.previewEditor"
+    "onWebviewEditor:imagePreview.previewEditor",
+    "onCommand:imagePreview.zoomIn",
+    "onCommand:imagePreview.zoomOut"
   ],
   "contributes": {
     "webviewEditors": [
@@ -32,7 +34,33 @@
           }
         ]
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "imagePreview.zoomIn",
+        "title": "%command.zoomIn%",
+        "category": "Image Preview"
+      },
+      {
+        "command": "imagePreview.zoomOut",
+        "title": "%command.zoomOut%",
+        "category": "Image Preview"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "imagePreview.zoomIn",
+          "when": "imagePreviewFocus",
+          "group": "1_imagePreview"
+        },
+        {
+          "command": "imagePreview.zoomOut",
+          "when": "imagePreviewFocus",
+          "group": "1_imagePreview"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "gulp compile-extension:image-preview",

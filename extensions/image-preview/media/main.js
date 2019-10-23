@@ -138,6 +138,34 @@
 		updateScale(scale);
 	}
 
+	function zoomIn() {
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		let i = 0;
+		for (; i < zoomLevels.length; ++i) {
+			if (zoomLevels[i] > scale) {
+				break;
+			}
+		}
+		updateScale(zoomLevels[i] || MAX_SCALE);
+	}
+
+	function zoomOut() {
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		let i = zoomLevels.length - 1;
+		for (; i >= 0; --i) {
+			if (zoomLevels[i] < scale) {
+				break;
+			}
+		}
+		updateScale(zoomLevels[i] || MIN_SCALE);
+	}
+
 	window.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
 		if (!image || !hasLoadedImage) {
 			return;
@@ -204,21 +232,9 @@
 		}
 
 		if (!(isMac ? altPressed : ctrlPressed)) { // zoom in
-			let i = 0;
-			for (; i < zoomLevels.length; ++i) {
-				if (zoomLevels[i] > scale) {
-					break;
-				}
-			}
-			updateScale(zoomLevels[i] || MAX_SCALE);
+			zoomIn();
 		} else {
-			let i = zoomLevels.length - 1;
-			for (; i >= 0; --i) {
-				if (zoomLevels[i] < scale) {
-					break;
-				}
-			}
-			updateScale(zoomLevels[i] || MIN_SCALE);
+			zoomOut();
 		}
 	});
 
@@ -287,8 +303,17 @@
 			case 'setScale':
 				updateScale(e.data.scale);
 				break;
+
 			case 'setActive':
 				changeActive(e.data.value);
+				break;
+
+			case 'zoomIn':
+				zoomIn();
+				break;
+
+			case 'zoomOut':
+				zoomOut();
 				break;
 		}
 	});
