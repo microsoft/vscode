@@ -8,7 +8,7 @@ import { domEvent, stop } from 'vs/base/browser/event';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -25,7 +25,7 @@ import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameter
 
 const $ = dom.$;
 
-export class ParameterHintsWidget extends Disposable implements IContentWidget, IDisposable {
+export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
