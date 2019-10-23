@@ -173,6 +173,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	private _isHandling: boolean;
 	private _isDoingComposition: boolean;
+	private _selectionsWhenCompositionStarted: Selection[] | null;
 	private _columnSelectData: IColumnSelectData | null;
 	private _autoClosedActions: AutoClosedAction[];
 	private _prevEditOperationType: EditOperationType;
@@ -188,6 +189,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		this._isHandling = false;
 		this._isDoingComposition = false;
+		this._selectionsWhenCompositionStarted = null;
 		this._columnSelectData = null;
 		this._autoClosedActions = [];
 		this._prevEditOperationType = EditOperationType.Other;
@@ -667,6 +669,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		if (handlerId === H.CompositionStart) {
 			this._isDoingComposition = true;
+			this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
 			return;
 		}
 
@@ -757,7 +760,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (!this._isDoingComposition && source === 'keyboard') {
 			// composition finishes, let's check if we need to auto complete if necessary.
 			const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters));
+			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
+			this._selectionsWhenCompositionStarted = null;
 		}
 	}
 
@@ -765,19 +769,17 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (!this._isDoingComposition && source === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
-			for (let i = 0, len = text.length; i < len; i++) {
-				let charCode = text.charCodeAt(i);
-				let chr: string;
-				if (strings.isHighSurrogate(charCode) && i + 1 < len) {
-					chr = text.charAt(i) + text.charAt(i + 1);
-					i++;
-				} else {
-					chr = text.charAt(i);
-				}
+			const len = text.length;
+			let offset = 0;
+			while (offset < len) {
+				const charLength = strings.nextCharLength(text, offset);
+				const chr = text.substr(offset, charLength);
 
 				// Here we must interpret each typed character individually
 				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
 				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
+
+				offset += charLength;
 			}
 
 		} else {

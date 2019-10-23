@@ -37,7 +37,7 @@ import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
-import { isEqualOrParent } from 'vs/base/common/resources';
+import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
@@ -410,7 +410,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						configuration: withNullAsUndefined(workspace.configuration),
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace),
-						isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false
+						isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
 					},
 					remote: {
 						authority: this._environmentService.configuration.remoteAuthority,

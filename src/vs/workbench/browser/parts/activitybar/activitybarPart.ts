@@ -260,8 +260,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		this.createGlobalActivityActionBar(globalActivities);
 
-		this.element.style.display = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? '' : 'none';
-
 		return this.content;
 	}
 

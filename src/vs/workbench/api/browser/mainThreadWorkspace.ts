@@ -19,7 +19,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData, ITextSearchComplete } from '../common/extHost.protocol';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { isEqualOrParent } from 'vs/base/common/resources';
+import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -121,7 +121,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		}
 		return {
 			configuration: workspace.configuration || undefined,
-			isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false,
+			isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
 			folders: workspace.folders,
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace)

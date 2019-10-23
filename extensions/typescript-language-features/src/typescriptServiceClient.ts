@@ -159,7 +159,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					return this.serverState.tsserverVersion;
 				}
 			}
-			return this.apiVersion.versionString;
+			return this.apiVersion.version;
 		}));
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
@@ -299,11 +299,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				],
-				"localTypeScriptVersion":  { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"localTypeScriptVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.logTelemetry('tsserver.spawned', {
-			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.versionString : '',
+			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
+			typeScriptVersionSource: currentVersion.source,
 		});
 
 		handle.onError((err: Error) => {
@@ -619,7 +621,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			isAsync: false,
 			token,
 			expectsResult: true,
-			lowPriority: config ? config.lowPriority : undefined
+			lowPriority: config?.lowPriority
 		});
 
 		if (config?.nonRecoverable) {

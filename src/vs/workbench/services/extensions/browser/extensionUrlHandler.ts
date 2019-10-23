@@ -142,7 +142,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		if (showConfirm) {
-			let uriString = uri.toString();
+			let uriString = uri.toString(false);
 
 			if (uriString.length > 40) {
 				uriString = `${uriString.substring(0, 30)}...${uriString.substring(uriString.length - 5)}`;

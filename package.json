@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.40.0",
-  "distro": "c4406f67d23097ea3ddc5e388290c06ad37021eb",
+  "distro": "30a01ef35cdd2a2cd799a2ec6a3372c83891d59c",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -41,7 +41,7 @@
     "native-is-elevated": "0.3.0",
     "native-keymap": "2.0.0",
     "native-watchdog": "1.2.0",
-    "node-pty": "0.9.0-beta19",
+    "node-pty": "0.9.0",
     "nsfw": "1.2.5",
     "onigasm-umd": "^2.2.2",
     "semver-umd": "^5.5.3",
