@@ -209,7 +209,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 		this.renderDisposeables.clear();
 
-		const activeParameter = signature.parameters[hints.activeParameter];
+		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[hints.activeParameter];
 
 		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
