@@ -539,8 +539,13 @@ suite('URI', () => {
 	// ------ check against standard URL and nodejs-file-url utils
 
 	function assertUriFromFsPath(path: string, recurse = true): void {
-		const actual = URI.file(path).toString();
-		const expected = pathToFileURL(path).href;
+		let actual = URI.file(path).toString();
+		if (isWindows) {
+			// we always encode windows drive letters and since nodejs
+			// never does. to compare we need to undo our encoding...
+			actual = actual.replace(/(\/[a-z])%3A/, '$1:');
+		}
+		let expected = pathToFileURL(path).href;
 		assert.equal(actual, expected);
 		if (recurse) {
 			assertFsPathFromUri(expected, false);
@@ -548,8 +553,8 @@ suite('URI', () => {
 	}
 
 	function assertFsPathFromUri(uri: string, recurse = true): void {
-		const actual = URI.parse(uri).fsPath;
-		const expected = fileURLToPath(uri);
+		let actual = URI.parse(uri).fsPath;
+		let expected = fileURLToPath(uri);
 		assert.equal(actual, expected);
 		if (recurse) {
 			assertUriFromFsPath(actual, false);
