@@ -402,7 +402,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				() => this.model.activeItem ? this.model.activeItem.id : undefined,
 				(compositeId: string) => {
 					const item = this.model.findItem(compositeId);
-					return item?.activity?.[0].badge;
+					return item?.activity[0]?.badge;
 				},
 				this.options.getOnCompositeClickAction,
 				this.options.colors
