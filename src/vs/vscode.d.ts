@@ -4080,11 +4080,11 @@ declare module 'vscode' {
 	 * - Workspace configuration (if available)
 	 * - Workspace folder configuration of the requested resource (if available)
 	 *
-	 * *Global configuration* comes from User Settings and shadows Defaults.
+	 * *Global configuration* comes from User Settings and overrides Defaults.
 	 *
-	 * *Workspace configuration* comes from Workspace Settings and shadows Global configuration.
+	 * *Workspace configuration* comes from Workspace Settings and overrides Global configuration.
 	 *
-	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders).
+	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders) and overrides Workspace configuration.
 	 *
 	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
@@ -4133,9 +4133,9 @@ declare module 'vscode' {
 		 * a workspace-specific value and a folder-specific value.
 		 *
 		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
-		 * is computed like this: `defaultValue` overwritten by `globalValue`,
-		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `workspaceFolderValue`.
-		 * Refer to [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings)
+		 * is computed like this: `defaultValue` overridden by `globalValue`,
+		 * `globalValue` overridden by `workspaceValue`. `workspaceValue` overwridden by `workspaceFolderValue`.
+		 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings)
 		 * for more information.
 		 *
 		 * *Note:* The configuration name must denote a leaf in the configuration tree
