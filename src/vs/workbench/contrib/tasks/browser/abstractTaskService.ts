@@ -1355,7 +1355,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						this.notificationService.prompt(Severity.Warning, nls.localize('TaskSystem.slowProvider', "The {0} task provider is slow. The extension that provides {0} tasks may provide a setting to disable it, or you can disable all tasks providers", type),
 							[settings, disableAll, dontShow]);
 					}
-				}, 2000);
+				}, 4000);
 			}
 		});
 	}
