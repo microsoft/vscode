@@ -21,11 +21,18 @@ import { memoize } from 'vs/base/common/decorators';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
-	constructor(private readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) { }
+	constructor(private readonly options: IBrowserWorkbenchEnvironemntConstructionOptions, private readonly environment: IWorkbenchEnvironmentService) { }
 
 	//#region PROPERLY CONFIGURED
 
+	@memoize
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
+
+	@memoize
+	get connectionToken(): string | undefined { return this.options.connectionToken || this.getCookieValue('vscode-tkn'); }
+
+	@memoize
+	get backupWorkspaceResource(): URI { return joinPath(this.environment.backupHome, this.options.workspaceId); }
 
 	//#endregion
 
@@ -48,12 +55,9 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
-	backupWorkspaceResource?: URI;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
-
-	connectionToken?: string;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
@@ -74,11 +78,23 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	termProgram?: string;
 
 	//#endregion
+
+	private getCookieValue(name: string): string | undefined {
+		const m = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
+
+		return m ? m.pop() : undefined;
+	}
 }
 
 interface IBrowserWorkbenchEnvironemntConstructionOptions extends IWorkbenchConstructionOptions {
 	workspaceId: string;
 	logsPath: URI;
+}
+
+interface IExtensionHostDebugEnvironment {
+	params: IExtensionHostDebugParams;
+	isExtensionDevelopment: boolean;
+	extensionDevelopmentLocationURI: URI[];
 }
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
@@ -108,7 +124,55 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
+	@memoize
 	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
+
+	@memoize
+	get backupHome(): URI { return joinPath(this.userRoamingDataHome, BACKUPS); }
+
+	@memoize
+	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
+
+	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
+	get debugExtensionHost(): IExtensionHostDebugParams {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.params;
+	}
+
+	get isExtensionDevelopment(): boolean {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.isExtensionDevelopment;
+	}
+
+	get extensionDevelopmentLocationURI(): URI[] {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.extensionDevelopmentLocationURI;
+	}
+
+	@memoize
+	get webviewExternalEndpoint(): string {
+		// TODO: get fallback from product.json
+		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}').replace('{{commit}}', product.commit || 'c58aaab8a1cc22a7139b761166a0d4f37d41e998');
+	}
+
+	@memoize
+	get webviewResourceRoot(): string {
+		return `${this.webviewExternalEndpoint}/vscode-resource/{{resource}}`;
+	}
+
+	@memoize
+	get webviewCspSource(): string {
+		return this.webviewExternalEndpoint.replace('{{uuid}}', '*');
+	}
 
 	//#endregion
 
@@ -118,7 +182,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	private _configuration: IWindowConfiguration | undefined = undefined;
 	get configuration(): IWindowConfiguration {
 		if (!this._configuration) {
-			this._configuration = new BrowserWindowConfiguration(this.options);
+			this._configuration = new BrowserWindowConfiguration(this.options, this);
 		}
 
 		return this._configuration;
@@ -127,10 +191,13 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	readonly args = { _: [] };
 	readonly appRoot = '/web/';
 
+	argvResource!: URI;
+
 	// TODO@Ben get out of product.json?!
 	readonly appNameLong = 'Visual Studio Code - Web';
 
-	untitledWorkspacesHome: URI;
+	//#endregion
+
 	extensionTestsLocationURI?: URI;
 
 	execPath!: string;
@@ -139,21 +206,18 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	userDataPath!: string;
 	appQuality?: string;
 	appSettingsHome!: URI;
-	argvResource: URI;
+
 	machineSettingsHome!: URI;
 	machineSettingsResource!: URI;
 	globalStorageHome!: string;
 	workspaceStorageHome!: string;
-	backupHome: URI;
 	backupWorkspacesPath!: string;
 	workspacesHome!: string;
-	isExtensionDevelopment!: boolean;
+
 	disableExtensions!: boolean | string[];
 	builtinExtensionsPath!: string;
 	extensionsPath?: string;
-	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsPath?: string;
-	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch!: IDebugParams;
 	logExtensionHostCommunication!: boolean;
 	isBuilt!: boolean;
@@ -173,50 +237,33 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	driverVerbose!: boolean;
 	galleryMachineIdResource?: URI;
 
-	get webviewExternalEndpoint(): string {
-		// TODO: get fallback from product.json
-		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}')
-			.replace('{{commit}}', product.commit || 'c58aaab8a1cc22a7139b761166a0d4f37d41e998');
-	}
+	constructor(readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) { }
 
-	get webviewResourceRoot(): string {
-		return `${this.webviewExternalEndpoint}/vscode-resource/{{resource}}`;
-	}
-
-	get webviewCspSource(): string {
-		return this.webviewExternalEndpoint
-			.replace('{{uuid}}', '*');
-	}
-
-	//#endregion
-
-	constructor(readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) {
-		this.argvResource = joinPath(this.userRoamingDataHome, 'argv.json');
-		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
-		this.untitledWorkspacesHome = joinPath(this.userRoamingDataHome, 'Workspaces');
-		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, options.workspaceId);
-		this.configuration.connectionToken = options.connectionToken || getCookieValue('vscode-tkn');
-
-		this.debugExtensionHost = {
-			port: null,
-			break: false
+	private resolveExtensionHostDebugEnvironment(): IExtensionHostDebugEnvironment {
+		const extensionHostDebugEnvironment: IExtensionHostDebugEnvironment = {
+			params: {
+				port: null,
+				break: false
+			},
+			isExtensionDevelopment: false,
+			extensionDevelopmentLocationURI: []
 		};
 
 		// Fill in selected extra environmental properties
-		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
-			const environment = serializableToMap(options.workspaceProvider.payload);
+		if (this.options.workspaceProvider && Array.isArray(this.options.workspaceProvider.payload)) {
+			const environment = serializableToMap(this.options.workspaceProvider.payload);
 			for (const [key, value] of environment) {
 				switch (key) {
 					case 'extensionDevelopmentPath':
-						this.extensionDevelopmentLocationURI = [URI.parse(value)];
-						this.isExtensionDevelopment = true;
+						extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(value)];
+						extensionHostDebugEnvironment.isExtensionDevelopment = true;
 						break;
 					case 'debugId':
-						this.debugExtensionHost.debugId = value;
+						extensionHostDebugEnvironment.params.debugId = value;
 						break;
 					case 'inspect-brk-extensions':
-						this.debugExtensionHost.port = parseInt(value);
-						this.debugExtensionHost.break = false;
+						extensionHostDebugEnvironment.params.port = parseInt(value);
+						extensionHostDebugEnvironment.params.break = false;
 						break;
 				}
 			}
@@ -235,29 +282,23 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 				const edp = map.get('extensionDevelopmentPath');
 				if (edp) {
-					this.extensionDevelopmentLocationURI = [URI.parse(edp)];
-					this.isExtensionDevelopment = true;
+					extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(edp)];
+					extensionHostDebugEnvironment.isExtensionDevelopment = true;
 				}
 
 				const di = map.get('debugId');
 				if (di) {
-					this.debugExtensionHost.debugId = di;
+					extensionHostDebugEnvironment.params.debugId = di;
 				}
 
 				const ibe = map.get('inspect-brk-extensions');
 				if (ibe) {
-					this.debugExtensionHost.port = parseInt(ibe);
-					this.debugExtensionHost.break = false;
+					extensionHostDebugEnvironment.params.port = parseInt(ibe);
+					extensionHostDebugEnvironment.params.break = false;
 				}
 			}
 		}
-	}
-}
 
-/**
- * See https://stackoverflow.com/a/25490531
- */
-function getCookieValue(name: string): string | undefined {
-	const m = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)');
-	return m ? m.pop() : undefined;
+		return extensionHostDebugEnvironment;
+	}
 }
