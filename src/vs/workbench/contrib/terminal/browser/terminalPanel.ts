@@ -243,7 +243,7 @@ export class TerminalPanel extends Panel {
 			}
 		}));
 		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
-			if (!this._cancelContextMenu) {
+			if (!this._cancelContextMenu && !dom.hasClass(event.target as HTMLElement, 'monaco-sash')) {
 				const standardEvent = new StandardMouseEvent(event);
 				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 				this._contextMenuService.showContextMenu({
