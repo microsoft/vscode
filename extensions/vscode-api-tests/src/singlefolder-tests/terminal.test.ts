@@ -189,8 +189,7 @@ suite('window namespace tests', () => {
 						deepEqual(openEvents, ['test1']);
 						deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }]);
 						deepEqual(closeEvents, ['test1']);
-					}
-					else if (closeEvents.length === 2) {
+					} else if (closeEvents.length === 2) {
 						deepEqual(openEvents, ['test1', 'test2']);
 						deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
 						deepEqual(closeEvents, ['test1', 'test2']);
@@ -204,38 +203,36 @@ suite('window namespace tests', () => {
 
 				const term1Write = new EventEmitter<string>();
 				const term1Close = new EventEmitter<void>();
-				window.createTerminal({
-					name: 'test1', pty: {
-						onDidWrite: term1Write.event,
-						onDidClose: term1Close.event,
-						open: async () => {
-							term1Write.fire('write1');
+				window.createTerminal({name: 'test1', pty: {
+					onDidWrite: term1Write.event,
+					onDidClose: term1Close.event,
+					open: async () => {
+						term1Write.fire('write1');
 
-							// Wait until the data is written
-							await new Promise(resolve => { resolveOnceDataWritten = resolve; });
-							term1Close.fire();
+						// Wait until the data is written
+						await new Promise(resolve => { resolveOnceDataWritten = resolve; });
+						term1Close.fire();
 
-							const term2Write = new EventEmitter<string>();
-							const term2Close = new EventEmitter<void>();
-							window.createTerminal({
-								name: 'test2', pty: {
-									onDidWrite: term2Write.event,
-									onDidClose: term2Close.event,
-									open: async () => {
-										term2Write.fire('write2');
+						const term2Write = new EventEmitter<string>();
+						const term2Close = new EventEmitter<void>();
+						window.createTerminal({
+							name: 'test2', pty: {
+								onDidWrite: term2Write.event,
+								onDidClose: term2Close.event,
+								open: async () => {
+									term2Write.fire('write2');
 
-										// Wait until the data is written
-										await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
+									// Wait until the data is written
+									await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
 
-										term2Close.fire();
-									},
-									close: () => { }
-								}
-							});
-						},
-						close: () => { }
-					}
-				});
+									term2Close.fire();
+								},
+								close: () => { }
+							}
+						});
+					},
+					close: () => { }
+				}});
 			});
 		});
 
