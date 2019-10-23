@@ -75,7 +75,7 @@ suite('Workbench - TerminalDataBufferer', () => {
 		assert.equal(terminal2Counter, 0);
 		assert.equal(terminal2Data, undefined);
 
-		await wait(5);
+		await wait(0);
 
 		assert.equal(terminal1Counter, 1);
 		assert.equal(terminal1Data, '123');
@@ -99,7 +99,7 @@ suite('Workbench - TerminalDataBufferer', () => {
 
 		bufferer.stopBuffering(1);
 
-		await wait(5);
+		await wait(0);
 
 		assert.equal(counter, 0);
 		assert.equal(data, undefined);
@@ -113,7 +113,7 @@ suite('Workbench - TerminalDataBufferer', () => {
 		bufferer.startBuffering(1, terminal1OnData.event, (id, e) => {
 			terminal1Counter++;
 			terminal1Data = e;
-		}, 5);
+		}, 0);
 
 		let terminal2OnData = new Emitter<string>();
 		let terminal2Counter = 0;
@@ -122,7 +122,7 @@ suite('Workbench - TerminalDataBufferer', () => {
 		bufferer.startBuffering(2, terminal2OnData.event, (id, e) => {
 			terminal2Counter++;
 			terminal2Data = e;
-		}, 5);
+		}, 0);
 
 
 		terminal1OnData.fire('1');
@@ -139,7 +139,7 @@ suite('Workbench - TerminalDataBufferer', () => {
 		assert.equal(terminal2Data, undefined);
 
 		bufferer.stopBuffering(1);
-		await wait(10);
+		await wait(0);
 
 		assert.equal(terminal1Counter, 0);
 		assert.equal(terminal1Data, undefined);
@@ -155,7 +155,7 @@ suite('Workbench - TerminalDataBufferer', () => {
 		bufferer.startBuffering(1, terminal1OnData.event, (id, e) => {
 			terminal1Counter++;
 			terminal1Data = e;
-		}, 5);
+		}, 0);
 
 		let terminal2OnData = new Emitter<string>();
 		let terminal2Counter = 0;
@@ -164,7 +164,7 @@ suite('Workbench - TerminalDataBufferer', () => {
 		bufferer.startBuffering(2, terminal2OnData.event, (id, e) => {
 			terminal2Counter++;
 			terminal2Data = e;
-		}, 5);
+		}, 0);
 
 
 		terminal1OnData.fire('1');
@@ -181,7 +181,7 @@ suite('Workbench - TerminalDataBufferer', () => {
 		assert.equal(terminal2Data, undefined);
 
 		bufferer.dispose();
-		await wait(10);
+		await wait(0);
 
 		assert.equal(terminal1Counter, 0);
 		assert.equal(terminal1Data, undefined);
