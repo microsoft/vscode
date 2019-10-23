@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -38,8 +38,8 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
 import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
 
 enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -266,7 +266,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Theme changes
-		this._register(this.themeService.onThemeChange(theme => this.onThemeChanged(theme)));
+		this._register(this.themeService.onThemeChange(theme => this.updateStyles()));
 
 		// Window focus changes
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
@@ -310,17 +310,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onFullscreenChange.fire(this.state.fullscreen);
 	}
 
-	private onThemeChanged(theme: ITheme) {
-		this.updateStyles();
-	}
-
 	private onWindowFocusChanged(hasFocus: boolean): void {
 		if (this.state.hasFocus === hasFocus) {
 			return;
 		}
 
 		this.state.hasFocus = hasFocus;
-		this.setWindowBorder();
+		this.updateWindowBorder();
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
@@ -392,7 +388,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.layout();
 	}
 
-	private setWindowBorder(skipLayout: boolean = false) {
+	private updateWindowBorder(skipLayout: boolean = false) {
 		if (isWeb || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
 			return;
 		}
@@ -406,10 +402,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (activeBorder || inactiveBorder) {
 			windowBorder = true;
 
-			let borderColor = this.state.hasFocus ? activeBorder : inactiveBorder;
-			if (!borderColor) {
-				borderColor = theme.getColor(this.state.hasFocus ? TITLE_BAR_ACTIVE_BACKGROUND : TITLE_BAR_INACTIVE_BACKGROUND);
-			}
+			// If one color is missing, just fallback to the other one
+			const borderColor = this.state.hasFocus
+				? activeBorder ?? inactiveBorder
+				: inactiveBorder ?? activeBorder;
 			this.container.style.setProperty('--window-border-color', borderColor ? borderColor.toString() : 'transparent');
 		}
 
@@ -419,12 +415,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.state.windowBorder = windowBorder;
 
-		if (windowBorder) {
-			addClass(this.container, Classes.WINDOW_BORDER);
-		}
-		else {
-			removeClass(this.container, Classes.WINDOW_BORDER);
-		}
+		toggleClass(this.container, Classes.WINDOW_BORDER, windowBorder);
 
 		if (!skipLayout) {
 			this.layout();
@@ -432,7 +423,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateStyles() {
-		this.setWindowBorder();
+		this.updateWindowBorder();
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
@@ -514,7 +505,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.hasFocus = this.hostService.hasFocus;
 
 		// Window border
-		this.setWindowBorder(true);
+		this.updateWindowBorder(true);
 
 	}
 
