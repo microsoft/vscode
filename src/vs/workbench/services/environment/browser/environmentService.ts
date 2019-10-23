@@ -24,6 +24,7 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 
 	machineId!: string;
 	windowId!: number;
+	sessionId!: string;
 	logLevel!: LogLevel;
 
 	mainPid!: number;
