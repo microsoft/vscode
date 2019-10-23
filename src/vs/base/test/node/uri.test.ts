@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
-import { pathToFileURL, fileURLToPath, URL } from 'url';
+import { pathToFileURL, fileURLToPath } from 'url';
 
 suite('URI', () => {
 	test('file#toString', () => {
@@ -254,7 +254,7 @@ suite('URI', () => {
 			assert.equal(value.fsPath, '\\\\localhost\\c$\\GitDevelopment\\express');
 			assert.equal(value.query, '');
 			assert.equal(value.fragment, '');
-			assert.equal(value.toString(), 'file://localhost/c%24/GitDevelopment/express');
+			assert.equal(value.toString(), 'file://localhost/c$/GitDevelopment/express');
 
 			value = URI.file('c:\\test with %\\path');
 			assert.equal(value.path, '/c:/test with %/path');
@@ -435,7 +435,7 @@ suite('URI', () => {
 		assert.equal(uriFromStr.toString(), 'file:///foo/%25A0.txt');
 	});
 
-	test('Valid percent-encoded character in filename', function () {
+	test('Unable to open \'%2e.txt\'', function () {
 		let uriFromPath = URI.file('/foo/%2e.txt');
 		let uriFromStr = URI.parse(uriFromPath.toString());
 		assert.equal(uriFromPath.scheme, uriFromStr.scheme);
@@ -472,6 +472,17 @@ suite('URI', () => {
 		assert.equal(strIn, strOut);
 	});
 
+	test('Uri#parse can break path-component #45515, part 2', function () {
+		let strIn = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
+		let uri1 = URI.parse(strIn);
+		assert.equal(uri1.toString(), strIn);
+		assert.equal(uri1.scheme, 'https');
+		assert.equal(uri1.authority, 'firebasestorage.googleapis.com');
+		assert.equal(uri1.path, '/v0/b/brewlangerie.appspot.com/o/products/zVNZkudXJyq8bPGTXUxx/Betterave-Sesame.jpg'); // INCORRECT: %2F got decoded but for compat reasons we cannot change this anymore...
+		assert.equal(uri1.query, 'alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437');
+		assert.equal(uri1.fragment, '');
+	});
+
 	test('URI - (de)serialize', function () {
 
 		const values = [
@@ -504,64 +515,88 @@ suite('URI', () => {
 
 	// ------ check against standard URL and nodejs-file-url utils
 
-	function assertFileUri(path: string, recurse = true): void {
+	function assertUriFromFsPath(path: string, recurse = true): void {
 		const actual = URI.file(path).toString();
 		const expected = pathToFileURL(path).href;
 		assert.equal(actual, expected);
 		if (recurse) {
-			assertFsPath(expected, false);
+			assertFsPathFromUri(expected, false);
 		}
 	}
 
-	function assertFsPath(uri: string, recurse = true): void {
+	function assertFsPathFromUri(uri: string, recurse = true): void {
 		const actual = URI.parse(uri).fsPath;
 		const expected = fileURLToPath(uri);
 		assert.equal(actual, expected);
 		if (recurse) {
-			assertFileUri(actual, false);
+			assertUriFromFsPath(actual, false);
 		}
 	}
 
 	test('URI.file and pathToFileURL', function () {
-		assertFileUri('/foo/bar');
-		assertFileUri('/foo/%2e.txt'); // %2e -> .
-		assertFileUri('/foo/%A0.txt'); // %A0 -> invalid
-		assertFileUri('/foo/ü.txt');
-		assertFileUri('/foo/ß.txt');
-		assertFileUri('/my/c#project/d.cs');
-		// assertFileUri('foo'); nodejs resolves the path first
-		if (!isWindows) {
-			assertFileUri('/c\\win\\path');
-		}
+		const posixPaths = [
+			'/foo/bar',
+			'/foo/%2e.txt',
+			'/foo/%A0.txt',
+			'/foo/ü.txt',
+			'/foo/ß.txt',
+			'/my/c#project/d.cs',
+			'/c\\win\\path'
+		];
+		const windowsPaths = [
+			'd:/foo/bar',
+			'd:/foo/%2e.txt',
+			'd:/foo/%A0.txt',
+			'd:/foo/ü.txt',
+			'd:/foo/ß.txt',
+			'd:/my/c#project/d.cs',
+			'c:\\win\\path',
+			'c:\\test\\drive',
+			'\\\\shäres\\path\\c#\\plugin.json',
+			'\\\\localhost\\c$\\GitDevelopment\\express',
+			'c:\\test with %\\path',
+			'c:\\test with %25\\path',
+			'c:\\test with %25\\c#code',
+			'\\\\shares',
+			'\\\\shares\\',
+		];
+
+		// nodejs is strict to the platform on which it runs
+		(isWindows ? windowsPaths : posixPaths).forEach(p => assertUriFromFsPath(p));
 	});
+
 
 	test('URI.fsPath and fileURLToPath', function () {
-		assertFsPath('file:///foo/bar');
-		assertFsPath('file:///fo%25/bar');
-		assertFsPath('file:///foo/b ar/text.cs');
-		assertFsPath('file:///foö/bar');
-		assertFsPath('file:///fo%C3%B6/bar');
-		assertFsPath('file:///');
-		assertFsPath('file:///my/c%23project/c.cs');
+		const posixUris = [
+			'file:///foo/bar',
+			'file:///fo%25/bar',
+			'file:///foo/b ar/text.cs',
+			'file:///foö/bar',
+			'file:///fo%C3%B6/bar',
+			'file:///',
+			'file:///my/c%23project/c.cs',
+			'file:///foo%5cbar',
+			'file:///foo%5Cbar',
+			'file:///foo%5C%5cbar',
+		];
+		const windowsUris = [
+			'file:///f:/foo/bar',
+			'file:///f:/fo%25/bar',
+			'file:///f:/foo/b ar/text.cs',
+			'file:///f:/foö/bar',
+			'file:///f:/fo%C3%B6/bar',
+			'file:///f:/',
+			'file:///f:/my/c%23project/c.cs',
+			'file://unc-host/foö/bar',
+			'file://unc-host/',
+			'file:///c:/bar/foo',
+		];
 
-		// assertFsPath('file:///fo%2f/bar'); not allowed in nodejs
-
-		if (isWindows) {
-			// nodejs doesn't create UNC-paths on non-windows
-			assertFsPath('file://unc-host/foö/bar');
-			assertFsPath('file://unc-host/');
-
-			// nodejs prepends c: with / on non-windows
-			assertFsPath('file:///c:/bar/foo');
-		}
-
-		if (!isWindows) {
-			//
-			assertFsPath('file:///foo%5cbar');
-			assertFsPath('file:///foo%5Cbar');
-			assertFsPath('file:///foo%5C%5cbar');
-		}
+		// nodejs is strict to the platform on which it runs
+		(isWindows ? windowsUris : posixUris).forEach(u => assertFsPathFromUri(u));
 	});
+
+	// ---- check against standard url
 
 	function assertToString(uri: string): void {
 		const actual = URI.parse(uri).toString();
