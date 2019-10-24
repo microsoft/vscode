@@ -507,6 +507,51 @@ suite('URI', () => {
 		assertToString(uri, 'http://localhost:60371/signin?nonce=iiK1zRI%2BHyDCKb2zatvrYA%3D%3D');
 	});
 
+	test('URI.parse() failes with `Cannot read property \'toLowerCase\' of undefined` #75344', function () {
+		try {
+			URI.parse('abc');
+			assert.ok(false);
+		} catch (e) {
+			assert.ok(e instanceof Error && e.message.indexOf('[UriError]:'));
+		}
+	});
+
+	test('vscode.Uri.parse is double encoding certain characters', function () {
+		const inStr = 'https://github.com/PowerShell/vscode-powershell#reporting-problems';
+		assertToString(inStr, inStr);
+		assertComponents(inStr, 'https', 'github.com', '/PowerShell/vscode-powershell', '', 'reporting-problems');
+	});
+
+	test('Symbols in URL fragment should not be encoded #76635', function () {
+		const inStr = 'http://source.roslyn.io/#Microsoft.CodeAnalysis.CSharp/CSharpCompilationOptions.cs,20';
+		assertToString(inStr, inStr);
+		assertComponents(inStr, 'http', 'source.roslyn.io', '/', '', 'Microsoft.CodeAnalysis.CSharp/CSharpCompilationOptions.cs,20');
+	});
+
+	test('vscode.env.openExternal is not working correctly because of unnecessary escape processing. #76606', function () {
+		const inStr = 'x-github-client://openRepo/https://github.com/wraith13/open-in-github-desktop-vscode.git';
+		assertToString(inStr, 'x-github-client://openrepo/https://github.com/wraith13/open-in-github-desktop-vscode.git'); // lower-cased authory
+		assertComponents(inStr, 'x-github-client', 'openRepo', '/https://github.com/wraith13/open-in-github-desktop-vscode.git', '', '');
+	});
+
+	test('When I click on a link in the terminal, browser opens with a URL which seems to be the link, but run through decodeURIComponent #52211', function () {
+		const inStr = 'http://localhost:8448/#/repository?path=%2Fhome%2Fcapaj%2Fgit_projects%2Fartillery';
+		assertToString(inStr, inStr);
+		assertComponents(inStr, 'http', 'localhost:8448', '/', '', '/repository?path=/home/capaj/git_projects/artillery'); // INCORRECT %2F lost
+	});
+
+	test('Terminal breaks weblink for fish shell #44278', function () {
+		const inStr = 'https://eu-west-1.console.aws.amazon.com/cloudformation/home\\?region=eu-west-1#/stacks\\?filter=active';
+		assertToString(inStr, inStr);
+		assertComponents(inStr, 'https', 'eu-west-1.console.aws.amazon.com', '/cloudformation/home\\', 'region=eu-west-1', '/stacks\\?filter=active');
+	});
+
+	test('Markdown mode cannot open links that contains some codes by percent-encoding. #32026', function () {
+		const inStr = 'https://www.google.co.jp/search?q=%91%E5';
+		assertToString(inStr, inStr);
+		assertComponents(inStr, 'https', 'www.google.co.jp', '/search', 'q=%91%E5', '');
+	});
+
 	test('URI#parse creates normalized output', function () {
 		function assertToString(input: string, output: string = input): void {
 			const uri = URI.parse(input);
@@ -686,5 +731,14 @@ suite('URI', () => {
 		assertToString('http://foo:bAr@localhost:8080/far');
 		assertToString('http://foo@localhost:8080/far');
 		assertToString('http://localhost:60371/signin?nonce=iiK1zRI%2BHyDCKb2zatvrYA%3D%3D');
+		assertToString('https://github.com/PowerShell/vscode-powershell#reporting-problems');
+		assertToString('http://source.roslyn.io/#Microsoft.CodeAnalysis.CSharp/CSharpCompilationOptions.cs,20');
+		// assertToString('x-github-client://openRepo/https://github.com/wraith13/open-in-github-desktop-vscode.git'); we lower-case
+		assertToString('x-github-client://openrepo/https://github.com/wraith13/open-in-github-desktop-vscode.git');
+		assertToString('http://www.google.com/?parameter1=\'http://imageserver.domain.com/?parameter2=1\'');
+		assertToString('http://some.ws/page?id=123&select=%22quoted_string%22');
+		// assertToString('https://eu-west-1.console.aws.amazon.com/cloudformation/home\\?region=eu-west-1#/stacks\\?filter=active'); URL makes slash out of backslash
+		assertToString('http://localhost/?user=test%2B1@example.com');
+		assertToString('https://www.google.co.jp/search?q=%91%E5');
 	});
 });

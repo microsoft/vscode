@@ -623,7 +623,7 @@ function percentEncode(str: string, mustEncode: (code: number) => boolean): stri
 const enum EncodePart {
 	user, authority, path, query, fragment
 }
-const _normalEncoder: { (code: number): boolean }[] = [isUserInfoPercentEncodeSet, isC0ControlPercentEncodeSet, isPathPercentEncodeSet, isFragmentPercentEncodeSet, isQueryPrecentEncodeSet];
+const _normalEncoder: { (code: number): boolean }[] = [isUserInfoPercentEncodeSet, isC0ControlPercentEncodeSet, isPathPercentEncodeSet, isQueryPrecentEncodeSet, isFragmentPercentEncodeSet];
 const _minimalEncoder: { (code: number): boolean }[] = [isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, () => false];
 
 const _driveLetterRegExp = /^(\/?[a-z])(:|%3a)/i;
