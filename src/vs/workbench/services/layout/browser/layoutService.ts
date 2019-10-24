@@ -115,6 +115,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleMaximizedPanel(): void;
 
 	/**
+	 * Returns true if the window has a border.
+	 */
+	hasWindowBorder(): boolean;
+
+	/**
+	 * Returns the window border radius if any.
+	 */
+	getWindowBorderRadius(): string | undefined;
+
+	/**
 	 * Returns true if the panel is maximized.
 	 */
 	isPanelMaximized(): boolean;

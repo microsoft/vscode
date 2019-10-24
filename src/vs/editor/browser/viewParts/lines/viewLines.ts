@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { HorizontalRange, IViewLines, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
+import { IViewLines, LineVisibleRanges, VisibleRanges, HorizontalPosition } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -390,7 +390,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			const endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.model.getLineMaxColumn(lineNumber);
 			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(startColumn, endColumn, domReadingContext);
 
-			if (!visibleRangesForLine || visibleRangesForLine.length === 0) {
+			if (!visibleRangesForLine) {
 				continue;
 			}
 
@@ -399,11 +399,11 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				nextLineModelLineNumber = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber + 1, 1)).lineNumber;
 
 				if (currentLineModelLineNumber !== nextLineModelLineNumber) {
-					visibleRangesForLine[visibleRangesForLine.length - 1].width += this._typicalHalfwidthCharacterWidth;
+					visibleRangesForLine.ranges[visibleRangesForLine.ranges.length - 1].width += this._typicalHalfwidthCharacterWidth;
 				}
 			}
 
-			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(lineNumber, visibleRangesForLine);
+			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(visibleRangesForLine.outsideRenderedLine, lineNumber, visibleRangesForLine.ranges);
 		}
 
 		if (visibleRangesLen === 0) {
@@ -413,54 +413,26 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return visibleRanges;
 	}
 
-	private visibleRangesForRange2(_range: Range): HorizontalRange[] | null {
-
+	private _visibleRangesForLineRange(lineNumber: number, startColumn: number, endColumn: number): VisibleRanges | null {
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
 			return null;
 		}
 
-		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
-		if (!range) {
+		if (lineNumber < this._visibleLines.getStartLineNumber() || lineNumber > this._visibleLines.getEndLineNumber()) {
 			return null;
 		}
 
-		let result: HorizontalRange[] = [];
-		const domReadingContext = new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot);
-
-		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-
-			if (lineNumber < rendStartLineNumber || lineNumber > rendEndLineNumber) {
-				continue;
-			}
-
-			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
-			const endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.model.getLineMaxColumn(lineNumber);
-			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(startColumn, endColumn, domReadingContext);
-
-			if (!visibleRangesForLine || visibleRangesForLine.length === 0) {
-				continue;
-			}
-
-			result = result.concat(visibleRangesForLine);
-		}
-
-		if (result.length === 0) {
-			return null;
-		}
-
-		return result;
+		return this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(startColumn, endColumn, new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot));
 	}
 
-	public visibleRangeForPosition(position: Position): HorizontalRange | null {
-		const visibleRanges = this.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column));
+	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
+		const visibleRanges = this._visibleRangesForLineRange(position.lineNumber, position.column, position.column);
 		if (!visibleRanges) {
 			return null;
 		}
-		return visibleRanges[0];
+		return new HorizontalPosition(visibleRanges.outsideRenderedLine, visibleRanges.ranges[0].left);
 	}
 
 	// --- implementation
@@ -641,7 +613,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		const viewportStartX = viewport.left;
 		const viewportEndX = viewportStartX + viewport.width;
 
-		const visibleRanges = this.visibleRangesForRange2(new Range(lineNumber, startColumn, lineNumber, endColumn));
+		const visibleRanges = this._visibleRangesForLineRange(lineNumber, startColumn, endColumn);
 		let boxStartX = Constants.MAX_SAFE_SMALL_INTEGER;
 		let boxEndX = 0;
 
@@ -653,7 +625,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			};
 		}
 
-		for (const visibleRange of visibleRanges) {
+		for (const visibleRange of visibleRanges.ranges) {
 			if (visibleRange.left < boxStartX) {
 				boxStartX = visibleRange.left;
 			}

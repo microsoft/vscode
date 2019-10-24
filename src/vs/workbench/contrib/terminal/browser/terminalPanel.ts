@@ -253,6 +253,7 @@ export class TerminalPanel extends Panel {
 					getActionsContext: () => this._parentDomElement
 				});
 			} else {
+				event.preventDefault();
 				event.stopImmediatePropagation();
 			}
 			this._cancelContextMenu = false;

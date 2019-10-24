@@ -261,7 +261,7 @@ export class View extends ViewEventHandler {
 				return this.viewLines.getPositionFromDOMInfo(spanNode, offset);
 			},
 
-			visibleRangeForPosition2: (lineNumber: number, column: number) => {
+			visibleRangeForPosition: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
 				return this.viewLines.visibleRangeForPosition(new Position(lineNumber, column));
 			},

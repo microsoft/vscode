@@ -860,7 +860,7 @@ declare module 'xterm' {
 	/**
 	 * An object representing a range within the viewport of the terminal.
 	 */
-	interface IViewportRange {
+	export interface IViewportRange {
 		/**
 		 * The start cell of the range.
 		 */

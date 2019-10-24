@@ -36,7 +36,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
-import { IDialogService, IConfirmationResult, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult, getConfirmMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/base/common/uint';
@@ -1044,12 +1044,18 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 		return;
 	}
 	const explorerContext = getContext(listService.lastFocusedList);
-	const textFileService = accessor.get(ITextFileService);
+	const fileService = accessor.get(IFileService);
+	const fileDialogService = accessor.get(IFileDialogService);
 
 	if (explorerContext.stat) {
 		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 		stats.forEach(async s => {
-			await textFileService.saveAs(s.resource, undefined, { availableFileSystems: [Schemas.file] });
+			const destination = await fileDialogService.showSaveDialog({
+				availableFileSystems: [Schemas.file]
+			});
+			if (destination) {
+				await fileService.copy(s.resource, destination);
+			}
 		});
 	}
 };

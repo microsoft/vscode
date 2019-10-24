@@ -33,17 +33,17 @@ bootstrapWindow.load([
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		});
 	}, {
-		removeDeveloperKeybindingsAfterLoad: true,
-		canModifyDOM: function (windowConfig) {
-			showPartsSplash(windowConfig);
-		},
-		beforeLoaderConfig: function (windowConfig, loaderConfig) {
-			loaderConfig.recordStats = true;
-		},
-		beforeRequire: function () {
-			perf.mark('willLoadWorkbenchMain');
-		}
-	});
+	removeDeveloperKeybindingsAfterLoad: true,
+	canModifyDOM: function (windowConfig) {
+		showPartsSplash(windowConfig);
+	},
+	beforeLoaderConfig: function (windowConfig, loaderConfig) {
+		loaderConfig.recordStats = true;
+	},
+	beforeRequire: function () {
+		perf.mark('willLoadWorkbenchMain');
+	}
+});
 
 /**
  * @param {{
@@ -84,13 +84,25 @@ function showPartsSplash(configuration) {
 	style.className = 'initialShellColors';
 	document.head.appendChild(style);
 	document.body.className = baseTheme;
-	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; }`;
+	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
 	if (data && data.layoutInfo) {
 		// restore parts if possible (we might not always store layout info)
 		const { id, layoutInfo, colorInfo } = data;
 		const splash = document.createElement('div');
 		splash.id = id;
+
+		if (layoutInfo.windowBorder) {
+			splash.style.position = 'relative';
+			splash.style.height = 'calc(100vh - 2px)';
+			splash.style.width = 'calc(100vw - 2px)';
+			splash.style.border = '1px solid var(--window-border-color)';
+			splash.style.setProperty('--window-border-color', colorInfo.windowBorder);
+
+			if (layoutInfo.windowBorderRadius) {
+				splash.style.borderRadius = layoutInfo.windowBorderRadius;
+			}
+		}
 
 		// ensure there is enough space
 		layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));

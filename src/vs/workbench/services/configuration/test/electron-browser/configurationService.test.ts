@@ -45,10 +45,10 @@ import { IConfigurationCache } from 'vs/workbench/services/configuration/common/
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-class TestEnvironmentService extends WorkbenchEnvironmentService {
+class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
 		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);

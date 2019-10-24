@@ -42,7 +42,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	SCMViewlet,
 	VIEWLET_ID,
 	localize('source control', "Source Control"),
-	'scm',
+	'codicon-source-control',
 	2
 ));
 
