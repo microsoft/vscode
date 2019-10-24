@@ -364,7 +364,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private onDidClickLink(handle: extHostProtocol.WebviewPanelHandle, link: URI): void {
 		const webview = this.getWebviewInput(handle);
 		if (this.isSupportedLink(webview, link)) {
-			this._openerService.open(link);
+			this._openerService.open(link, { fromUserGesture: true });
 		}
 	}
 

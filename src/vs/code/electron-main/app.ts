@@ -663,7 +663,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// mac: open-file event received on startup
-		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
+		if (macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 			return windowsMainService.open({
 				context: OpenContext.DOCK,
 				cli: args,

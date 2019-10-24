@@ -12,9 +12,7 @@ import { Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/d
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { startDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -91,11 +89,9 @@ export class ConfigureAction extends AbstractDebugAction {
 
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		const configurationManager = this.debugService.getConfigurationManager();
-		if (!configurationManager.selectedConfiguration.launch) {
-			configurationManager.selectConfiguration(configurationManager.getLaunches()[0]);
+		if (configurationManager.selectedConfiguration.launch) {
+			return configurationManager.selectedConfiguration.launch.openConfigFile(sideBySide, false);
 		}
-
-		return configurationManager.selectedConfiguration.launch!.openConfigFile(sideBySide, false);
 	}
 }
 
@@ -107,7 +103,6 @@ export class StartAction extends AbstractDebugAction {
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IHistoryService private readonly historyService: IHistoryService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 
@@ -118,7 +113,8 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	run(): Promise<boolean> {
-		return startDebugging(this.debugService, this.historyService, this.isNoDebug());
+		const { launch, name } = this.debugService.getConfigurationManager().selectedConfiguration;
+		return this.debugService.startDebugging(launch, name, { noDebug: this.isNoDebug() });
 	}
 
 	protected isNoDebug(): boolean {
@@ -369,7 +365,7 @@ export class CopyValueAction extends Action {
 	static readonly LABEL = nls.localize('copyValue', "Copy Value");
 
 	constructor(
-		id: string, label: string, private value: any, private context: string,
+		id: string, label: string, private value: Variable | string, private context: string,
 		@IDebugService private readonly debugService: IDebugService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
@@ -381,15 +377,19 @@ export class CopyValueAction extends Action {
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const session = this.debugService.getViewModel().focusedSession;
 
-		if (this.value instanceof Variable && stackFrame && session && this.value.evaluateName) {
+		if (typeof this.value === 'string') {
+			return this.clipboardService.writeText(this.value);
+		}
+
+		if (stackFrame && session && this.value.evaluateName) {
 			try {
 				const evaluation = await session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context);
 				this.clipboardService.writeText(evaluation.body.result);
 			} catch (e) {
 				this.clipboardService.writeText(this.value.value);
 			}
+		} else {
+			this.clipboardService.writeText(this.value.value);
 		}
-
-		return this.clipboardService.writeText(this.value);
 	}
 }

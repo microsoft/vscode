@@ -9,7 +9,7 @@ import { Action } from 'vs/base/common/actions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -17,6 +17,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver-umd';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
@@ -28,10 +29,6 @@ import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
-
-// TODO@Joao layer breaker
-// tslint:disable-next-line: layering
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 
@@ -137,7 +134,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 		// was there an update? if so, open release notes
 		const releaseNotesUrl = productService.releaseNotesUrl;
-		if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && productService.version !== lastVersion) {
+		if (shouldShowReleaseNotes && !environmentService.args['skip-release-notes'] && releaseNotesUrl && lastVersion && productService.version !== lastVersion) {
 			showReleaseNotes(instantiationService, productService.version)
 				.then(undefined, () => {
 					notificationService.prompt(
@@ -170,17 +167,16 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private updateStateContextKey: IContextKey<string>;
 
-	private windowId: number | undefined = this.electronEnvironmentService ? this.electronEnvironmentService.windowId : undefined;
-
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
-		@optional(IElectronEnvironmentService) private readonly electronEnvironmentService: IElectronEnvironmentService
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 		this.state = updateService.state;
@@ -216,7 +212,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			case StateType.Idle:
 				if (state.error) {
 					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowId) {
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context === this.workbenchEnvironmentService.configuration.sessionId) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -268,11 +264,11 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private onUpdateNotAvailable(): void {
-		this.notificationService.notify({
-			severity: Severity.Info,
-			message: nls.localize('noUpdatesAvailable', "There are currently no updates available."),
-			source: nls.localize('update service', "Update Service"),
-		});
+		this.dialogService.show(
+			severity.Info,
+			nls.localize('noUpdatesAvailable', "There are currently no updates available."),
+			[nls.localize('ok', "OK")]
+		);
 	}
 
 	// linux
@@ -399,7 +395,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerGlobalActivityActions(): void {
-		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates({ windowId: this.windowId }));
+		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '6_update',
 			command: {

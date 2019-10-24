@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, TERMINAL_COMMAND_ID, LEGACY_CONSOLE_MODE_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
@@ -54,11 +54,11 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
 	TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
 	TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
-	TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS,
-	TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS,
-	TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS,
-	TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS,
-	TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS,
+	TERMINAL_COMMAND_ID.FIND_NEXT,
+	TERMINAL_COMMAND_ID.FIND_PREVIOUS,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE,
 	TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
 	TERMINAL_COMMAND_ID.FOCUS_NEXT,
 	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
@@ -524,9 +524,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('The terminal instance has not been attached to a container yet');
 		}
 
-		if (this._wrapperElement.parentNode) {
-			this._wrapperElement.parentNode.removeChild(this._wrapperElement);
-		}
+		this._wrapperElement.parentNode?.removeChild(this._wrapperElement);
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
 	}
@@ -544,9 +542,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// The container changed, reattach
-		if (this._container) {
-			this._container.removeChild(this._wrapperElement);
-		}
+		this._container?.removeChild(this._wrapperElement);
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
 	}
@@ -652,11 +648,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			const widgetManager = new TerminalWidgetManager(this._wrapperElement);
 			this._widgetManager = widgetManager;
-			this._processManager.onProcessReady(() => {
-				if (this._linkHandler) {
-					this._linkHandler.setWidgetManager(widgetManager);
-				}
-			});
+			this._processManager.onProcessReady(() => this._linkHandler?.setWidgetManager(widgetManager));
 
 			const computedStyle = window.getComputedStyle(this._container);
 			const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
@@ -751,19 +743,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public clearSelection(): void {
-		if (!this._xterm) {
-			return;
-		}
-		this._xterm.clearSelection();
+		this._xterm?.clearSelection();
 	}
 
 	public selectAll(): void {
-		if (!this._xterm) {
-			return;
-		}
 		// Focus here to ensure the terminal context key is set
-		this._xterm.focus();
-		this._xterm.selectAll();
+		this._xterm?.focus();
+		this._xterm?.selectAll();
 	}
 
 	public findNext(term: string, searchOptions: ISearchOptions): boolean {
@@ -924,45 +910,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public scrollDownLine(): void {
-		if (this._xterm) {
-			this._xterm.scrollLines(1);
-		}
+		this._xterm?.scrollLines(1);
 	}
 
 	public scrollDownPage(): void {
-		if (this._xterm) {
-			this._xterm.scrollPages(1);
-		}
+		this._xterm?.scrollPages(1);
 	}
 
 	public scrollToBottom(): void {
-		if (this._xterm) {
-			this._xterm.scrollToBottom();
-		}
+		this._xterm?.scrollToBottom();
 	}
 
 	public scrollUpLine(): void {
-		if (this._xterm) {
-			this._xterm.scrollLines(-1);
-		}
+		this._xterm?.scrollLines(-1);
 	}
 
 	public scrollUpPage(): void {
-		if (this._xterm) {
-			this._xterm.scrollPages(-1);
-		}
+		this._xterm?.scrollPages(-1);
 	}
 
 	public scrollToTop(): void {
-		if (this._xterm) {
-			this._xterm.scrollToTop();
-		}
+		this._xterm?.scrollToTop();
 	}
 
 	public clear(): void {
-		if (this._xterm) {
-			this._xterm.clear();
-		}
+		this._xterm?.clear();
 	}
 
 	private _refreshSelectionContextKey() {
@@ -1019,12 +991,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(data: string): void {
-		if (this._widgetManager) {
-			this._widgetManager.closeMessage();
-		}
-		if (this._xterm) {
-			this._xterm.write(data);
-		}
+		this._widgetManager?.closeMessage();
+		this._xterm?.write(data);
 	}
 
 	/**
@@ -1052,6 +1020,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPathDirectory', 'The terminal shell path "{0}" is a directory', this._shellLaunchConfig.executable);
 			} else if (exitCode === SHELL_CWD_INVALID_EXIT_CODE && this._shellLaunchConfig.cwd) {
 				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidCWD', 'The terminal shell CWD "{0}" does not exist', this._shellLaunchConfig.cwd.toString());
+			} else if (exitCode === LEGACY_CONSOLE_MODE_EXIT_CODE) {
+				exitCodeMessage = nls.localize('terminal.integrated.legacyConsoleModeError', 'The terminal failed to launch properly because your system has legacy console mode enabled, uncheck "Use legacy console" cmd.exe\'s properties to fix this.');
 			} else if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
 				let args = '';
 				if (typeof this._shellLaunchConfig.args === 'string') {
@@ -1128,10 +1098,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public reuseTerminal(shell: IShellLaunchConfig): void {
 		// Unsubscribe any key listener we may have.
-		if (this._pressAnyKeyToCloseListener) {
-			this._pressAnyKeyToCloseListener.dispose();
-			this._pressAnyKeyToCloseListener = undefined;
-		}
+		this._pressAnyKeyToCloseListener?.dispose();
+		this._pressAnyKeyToCloseListener = undefined;
 
 		// Kill and clear up the process, making the process manager ready for a new process
 		this._processManager.dispose();
@@ -1254,10 +1222,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey);
 			this._xterm!.loadAddon(this._navigationModeAddon);
 		} else {
-			if (this._navigationModeAddon) {
-				this._navigationModeAddon.dispose();
-				this._navigationModeAddon = undefined;
-			}
+			this._navigationModeAddon?.dispose();
+			this._navigationModeAddon = undefined;
 		}
 		this._xterm!.setOption('screenReaderMode', isEnabled);
 	}

@@ -15,7 +15,6 @@ import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
 import TypeScriptServiceClient from './typescriptServiceClient';
-import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
@@ -105,10 +104,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		this.client.ensureServiceStarted();
 		this.client.onReady(() => {
-			if (this.client.apiVersion.lt(API.v230)) {
-				return;
-			}
-
 			const languages = new Set<string>();
 			for (const plugin of pluginManager.plugins) {
 				for (const language of plugin.languages) {

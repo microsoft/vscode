@@ -49,11 +49,12 @@ export class URLHandlerRouter implements IClientRouter<string> {
 			const uri = URI.revive(arg);
 
 			if (uri && uri.query) {
-				const match = /\bwindowId=([^&]+)/.exec(uri.query);
+				const match = /\bwindowId=(\d+)/.exec(uri.query);
 
 				if (match) {
 					const windowId = match[1];
-					const connection = first(hub.connections, c => c.ctx === windowId);
+					const regex = new RegExp(`window:${windowId}`);
+					const connection = first(hub.connections, c => regex.test(c.ctx));
 
 					if (connection) {
 						return connection;

@@ -218,12 +218,13 @@ export class TerminalPanel extends Panel {
 					terminal.focus();
 				}
 			} else if (event.which === 3) {
-				if (this._terminalService.configHelper.config.rightClickBehavior === 'copyPaste') {
+				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					const terminal = this._terminalService.getActiveInstance();
 					if (!terminal) {
 						return;
 					}
-					if (terminal.hasSelection()) {
+					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
 						await terminal.copySelection();
 						terminal.clearSelection();
 					} else {
@@ -252,6 +253,7 @@ export class TerminalPanel extends Panel {
 					getActionsContext: () => this._parentDomElement
 				});
 			} else {
+				event.preventDefault();
 				event.stopImmediatePropagation();
 			}
 			this._cancelContextMenu = false;

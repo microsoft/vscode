@@ -158,7 +158,16 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			if (this.options.icon) {
 				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
-				this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+				// TODO @misolori find a cleaner way to do this
+				const isExtension = this.activity.cssClass?.indexOf('extensionViewlet') === 0;
+				if (!isExtension) {
+					// Apply foreground color to activity bar items (codicons)
+					this.label.style.color = foreground ? foreground.toString() : '';
+				} else {
+					// Apply background color to extensions + remote explorer (svgs)
+
+					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+				}
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
@@ -293,7 +302,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		// Title
 		let title: string;
-		if (badge && badge.getDescription()) {
+		if (badge?.getDescription()) {
 			if (this.activity.name) {
 				title = nls.localize('badgeTitle', "{0} - {1}", this.activity.name, badge.getDescription());
 			} else {
@@ -310,6 +319,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
+			// TODO @misolori find a cleaner way to do this
+			const isExtension = this.activity.cssClass?.indexOf('extensionViewlet') === 0;
+			if (this.options.icon && !isExtension) {
+				// Only apply icon class to activity bar items (exclude extensions + remote explorer)
+				dom.addClass(this.label, 'codicon');
+			}
 			dom.addClass(this.label, this.activity.cssClass);
 		}
 
@@ -346,7 +361,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: nls.localize('additionalViews', "Additional Views"),
-			cssClass: 'toggle-more'
+			cssClass: 'codicon-more'
 		});
 	}
 

@@ -8,6 +8,7 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Delayer } from '../utils/async';
+import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 import { ResourceMap } from '../utils/resourceMap';
@@ -142,7 +143,7 @@ class BufferSynchronizer {
 					case 'close': closedFiles.push(change.args); break;
 				}
 			}
-			this.client.executeWithoutWaitingForResponse('updateOpen', { changedFiles, closedFiles, openFiles });
+			this.client.execute('updateOpen', { changedFiles, closedFiles, openFiles }, nulToken, { nonRecoverable: true });
 			this._pending.clear();
 		}
 	}
@@ -175,15 +176,12 @@ class SyncedBuffer {
 		const args: Proto.OpenRequestArgs = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
+			projectRootPath: this.client.getWorkspaceRootForResource(this.document.uri),
 		};
 
 		const scriptKind = mode2ScriptKind(this.document.languageId);
 		if (scriptKind) {
 			args.scriptKindName = scriptKind;
-		}
-
-		if (this.client.apiVersion.gte(API.v230)) {
-			args.projectRootPath = this.client.getWorkspaceRootForResource(this.document.uri);
 		}
 
 		if (this.client.apiVersion.gte(API.v240)) {
@@ -348,11 +346,29 @@ export default class BufferSyncSupport extends Disposable {
 		vscode.workspace.onDidOpenTextDocument(this.openTextDocument, this, this._disposables);
 		vscode.workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this._disposables);
 		vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this._disposables);
+		vscode.window.onDidChangeVisibleTextEditors(e => {
+			for (const { document } of e) {
+				const syncedBuffer = this.syncedBuffers.get(document.uri);
+				if (syncedBuffer) {
+					this.requestDiagnostic(syncedBuffer);
+				}
+			}
+		}, this, this._disposables);
 		vscode.workspace.textDocuments.forEach(this.openTextDocument, this);
 	}
 
 	public handles(resource: vscode.Uri): boolean {
 		return this.syncedBuffers.has(resource);
+	}
+
+	public toVsCodeResource(resource: vscode.Uri): vscode.Uri {
+		const filepath = this.client.normalizedPath(resource);
+		for (const buffer of this.syncedBuffers.allBuffers) {
+			if (buffer.filepath === filepath) {
+				return buffer.resource;
+			}
+		}
+		return resource;
 	}
 
 	public toResource(filePath: string): vscode.Uri {

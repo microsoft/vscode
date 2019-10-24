@@ -128,7 +128,7 @@ export class LaunchMainService implements ILaunchMainService {
 			// Otherwise check for settings
 			else {
 				const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-				const openWithoutArgumentsInNewWindowConfig = (windowConfig && windowConfig.openWithoutArgumentsInNewWindow) || 'default' /* default */;
+				const openWithoutArgumentsInNewWindowConfig = windowConfig?.openWithoutArgumentsInNewWindow || 'default' /* default */;
 				switch (openWithoutArgumentsInNewWindowConfig) {
 					case 'on':
 						openNewWindow = true;

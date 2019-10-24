@@ -1533,7 +1533,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			const viewItemBottom = elementTop + elementHeight;
 			const wrapperBottom = scrollTop + this.view.renderHeight;
 
-			if (elementTop < scrollTop) {
+			if (elementTop < scrollTop && viewItemBottom >= wrapperBottom) {
+				// The element is already overflowing the viewport, no-op
+			} else if (elementTop < scrollTop) {
 				this.view.setScrollTop(elementTop);
 			} else if (viewItemBottom >= wrapperBottom) {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);

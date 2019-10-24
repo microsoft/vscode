@@ -4080,11 +4080,11 @@ declare module 'vscode' {
 	 * - Workspace configuration (if available)
 	 * - Workspace folder configuration of the requested resource (if available)
 	 *
-	 * *Global configuration* comes from User Settings and shadows Defaults.
+	 * *Global configuration* comes from User Settings and overrides Defaults.
 	 *
-	 * *Workspace configuration* comes from Workspace Settings and shadows Global configuration.
+	 * *Workspace configuration* comes from Workspace Settings and overrides Global configuration.
 	 *
-	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders).
+	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders) and overrides Workspace configuration.
 	 *
 	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
@@ -4133,9 +4133,9 @@ declare module 'vscode' {
 		 * a workspace-specific value and a folder-specific value.
 		 *
 		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
-		 * is computed like this: `defaultValue` overwritten by `globalValue`,
-		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `workspaceFolderValue`.
-		 * Refer to [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings)
+		 * is computed like this: `defaultValue` overridden by `globalValue`,
+		 * `globalValue` overridden by `workspaceValue`. `workspaceValue` overwridden by `workspaceFolderValue`.
+		 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings)
 		 * for more information.
 		 *
 		 * *Note:* The configuration name must denote a leaf in the configuration tree
@@ -5242,6 +5242,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Class used to execute an extension callback as a task.
+	 */
+	export class CustomExecution {
+		/**
+		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
+		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
+		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
+		 * @param callback The callback that will be called when the task is started by a user.
+		 */
+		constructor(callback: () => Thenable<Pseudoterminal>);
+	}
+
+	/**
 	 * The scope of a task.
 	 */
 	export enum TaskScope {
@@ -5283,7 +5299,7 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * ~~Creates a new task.~~
@@ -5318,7 +5334,7 @@ declare module 'vscode' {
 		/**
 		 * The task's execution engine
 		 */
-		execution?: ProcessExecution | ShellExecution;
+		execution?: ProcessExecution | ShellExecution | CustomExecution;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -6178,6 +6194,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Possible kinds of UI that can use extensions.
+	 */
+	export enum UIKind {
+
+		/**
+		 * Extensions are accessed from a desktop application.
+		 */
+		Desktop = 1,
+
+		/**
+		 * Extensions are accessed from a web browser.
+		 */
+		Web = 2
+	}
+
+	/**
 	 * Namespace describing the environment the editor runs in.
 	 */
 	export namespace env {
@@ -6236,8 +6268,18 @@ declare module 'vscode' {
 		export const shell: string;
 
 		/**
-		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
-		 * default application.
+		 * The UI kind property indicates from which UI extensions
+		 * are accessed from. For example, extensions could be accessed
+		 * from a desktop application or a web browser.
+		 */
+		export const uiKind: UIKind;
+
+		/**
+		 * Opens a link externally using the default application. Depending on the
+		 * used scheme this can be:
+		 * * a browser (`http:`, `https:`)
+		 * * a mail client (`mailto:`)
+		 * * VSCode itself (`vscode:` from `vscode.env.uriScheme`)
 		 *
 		 * *Note* that [`showTextDocument`](#window.showTextDocument) is the right
 		 * way to open a text document inside the editor, not this function.
@@ -6246,6 +6288,28 @@ declare module 'vscode' {
 		 * @returns A promise indicating if open was successful.
 		 */
 		export function openExternal(target: Uri): Thenable<boolean>;
+
+		/**
+		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
+		 * uri to the same resource on the client machine.
+		 *
+		 * This is a no-op if the extension is running on the client machine. Currently only supports
+		 * `https:` and `http:` uris.
+		 *
+		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
+		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
+		 * the port fowarding tunnel is managed by VS Code and the tunnel can be closed by the user.
+		 *
+		 * Extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
+		 * a system or user action — for example, in remote cases, a user may close a port forwardng tunnel
+		 * that was opened by `asExternalUri`.
+		 *
+		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri`
+		 * on them.
+		 *
+		 * @return A uri that can be used on the client machine.
+		 */
+		export function asExternalUri(target: Uri): Thenable<Uri>;
 	}
 
 	/**
@@ -9216,6 +9280,41 @@ declare module 'vscode' {
 		 * Create a new function breakpoint.
 		 */
 		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
+	}
+
+	/**
+	 * Debug console mode used by debug session, see [options](#DebugSessionOptions).
+	 */
+	export enum DebugConsoleMode {
+		/**
+		 * Debug session should have a separate debug console.
+		 */
+		Separate = 0,
+
+		/**
+		 * Debug session should share debug console with its parent session.
+		 * This value has no effect for sessions which do not have a parent session.
+		 */
+		MergeWithParent = 1
+	}
+
+	/**
+	 * Options for [starting a debug session](#debug.startDebugging).
+	 */
+	export interface DebugSessionOptions {
+
+		/**
+		 * When specified the newly created debug session is registered as a "child" session of this
+		 * "parent" debug session.
+		 */
+		parentSession?: DebugSession;
+
+		/**
+		 * Controls whether this session should have a separate debug console or share it
+		 * with the parent session. Has no effect for sessions which do not have a parent session.
+		 * Defaults to Separate.
+		 */
+		consoleMode?: DebugConsoleMode;
 	}
 
 	/**

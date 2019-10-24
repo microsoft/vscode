@@ -55,7 +55,6 @@ declare namespace monaco {
 		 */
 		readonly onCancellationRequested: IEvent<any>;
 	}
-
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
 	 * This class is a simple parser which creates the basic component parts
@@ -132,7 +131,7 @@ declare namespace monaco {
 		 *
 		 * @param value A string which represents an Uri (see `Uri#toString`).
 		 */
-		static parse(value: string, _strict?: boolean): Uri;
+		static parse(value: string): Uri;
 		/**
 		 * Creates a new Uri from a file system path, e.g. `c:\my\files`,
 		 * `/usr/home`, or `\\server\share\some\path`.
@@ -727,10 +726,6 @@ declare namespace monaco {
 		 */
 		readonly positionColumn: number;
 		constructor(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number);
-		/**
-		 * Clone this selection.
-		 */
-		clone(): Selection;
 		/**
 		 * Transform to a human-readable representation.
 		 */
@@ -1556,6 +1551,11 @@ declare namespace monaco.editor {
 		 * @return The text length.
 		 */
 		getValueLengthInRange(range: IRange): number;
+		/**
+		 * Get the character count of text in a certain range.
+		 * @param range The range describing what text length to get.
+		 */
+		getCharacterCountInRange(range: IRange): number;
 		/**
 		 * Get the number of lines in the model.
 		 */
@@ -2397,6 +2397,18 @@ declare namespace monaco.editor {
 		 */
 		readonly secondarySelections: Selection[];
 		/**
+		 * The model version id.
+		 */
+		readonly modelVersionId: number;
+		/**
+		 * The old selections.
+		 */
+		readonly oldSelections: Selection[] | null;
+		/**
+		 * The model version id the that `oldSelections` refer to.
+		 */
+		readonly oldModelVersionId: number;
+		/**
 		 * Source of the call that caused the event.
 		 */
 		readonly source: string;
@@ -2536,7 +2548,7 @@ declare namespace monaco.editor {
 		fixedOverflowWidgets?: boolean;
 		/**
 		 * The number of vertical lanes the overview ruler should render.
-		 * Defaults to 2.
+		 * Defaults to 3.
 		 */
 		overviewRulerLanes?: number;
 		/**

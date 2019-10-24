@@ -616,41 +616,6 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	/**
-	 * Debug console mode used by debug session, see [options](#DebugSessionOptions).
-	 */
-	export enum DebugConsoleMode {
-		/**
-		 * Debug session should have a separate debug console.
-		 */
-		Separate = 0,
-
-		/**
-		 * Debug session should share debug console with its parent session.
-		 * This value has no effect for sessions which do not have a parent session.
-		 */
-		MergeWithParent = 1
-	}
-
-	/**
-	 * Options for [starting a debug session](#debug.startDebugging).
-	 */
-	export interface DebugSessionOptions {
-
-		/**
-		 * When specified the newly created debug session is registered as a "child" session of this
-		 * "parent" debug session.
-		 */
-		parentSession?: DebugSession;
-
-		/**
-		 * Controls whether this session should have a separate debug console or share it
-		 * with the parent session. Has no effect for sessions which do not have a parent session.
-		 * Defaults to Separate.
-		 */
-		consoleMode?: DebugConsoleMode;
-	}
-
 	//#endregion
 
 	//#region Rob, Matt: logging
@@ -895,48 +860,15 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region CustomExecution
-	/**
-	 * Class used to execute an extension callback as a task.
-	 */
-	export class CustomExecution {
-		/**
-		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
-		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
-		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
-		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
-		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
-		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
-		 * @param callback The callback that will be called when the task is started by a user.
-		 */
-		constructor(callback: () => Thenable<Pseudoterminal>);
-	}
+
 
 	/**
 	 * A task to execute
 	 */
 	export class Task2 extends Task {
-		/**
-		 * Creates a new task.
-		 *
-		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 * @param execution The process or shell execution.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
-
-		/**
-		 * The task's execution engine
-		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution;
+		detail?: string;
 	}
-	//#endregion
 
-	//#region Tasks
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
@@ -1039,36 +971,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// #region Ben - UIKind
-
-	/**
-	 * Possible kinds of UI that can use extensions.
-	 */
-	export enum UIKind {
-
-		/**
-		 * Extensions are accessed from a desktop application.
-		 */
-		Desktop = 1,
-
-		/**
-		 * Extensions are accessed from a web browser.
-		 */
-		Web = 2
-	}
-
-	export namespace env {
-
-		/**
-		 * The UI kind property indicates from which UI extensions
-		 * are accessed from. For example, extensions could be accessed
-		 * from a desktop application or a web browser.
-		 */
-		export const uiKind: UIKind;
-	}
-
-	//#endregion
-
 	//#region Custom editors, mjbvz
 
 	export interface WebviewEditor extends WebviewPanel {
@@ -1092,34 +994,6 @@ declare module 'vscode' {
 			provider: WebviewEditorProvider,
 			options?: WebviewPanelOptions
 		): Disposable;
-	}
-
-	//#endregion
-
-	// #region asExternalUri — mjbvz
-
-	namespace env {
-		/**
-		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
-		 * uri to the same resource on the client machine.
-		 *
-		 * This is a no-op if the extension is running on the client machine. Currently only supports
-		 * `https:` and `http:` uris.
-		 *
-		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
-		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
-		 * the port fowarding tunnel is managed by VS Code and the tunnel can be closed by the user.
-		 *
-		 * Extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
-		 * a system or user action — for example, in remote cases, a user may close a port forwardng tunnel
-		 * that was opened by `asExternalUri`.
-		 *
-		 * Note: uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri`
-		 * on them.
-		 *
-		 * @return A uri that can be used on the client machine.
-		 */
-		export function asExternalUri(target: Uri): Thenable<Uri>;
 	}
 
 	//#endregion

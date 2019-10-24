@@ -14,7 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, encodeStream, UTF8_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer, isUTFEncoding } from 'vs/base/node/encoding';
@@ -41,6 +41,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ConfirmResult } from 'vs/workbench/common/editor';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -62,7 +63,8 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IElectronService private readonly electronService: IElectronService
+		@IElectronService private readonly electronService: IElectronService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(contextService, fileService, untitledEditorService, lifecycleService, instantiationService, configurationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, contextKeyService, dialogService, fileDialogService, editorService, textResourceConfigurationService);
 	}
@@ -106,12 +108,12 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		// read through encoding library
 		const decoder = await toDecodeStream(streamToNodeReadable(bufferStream.value), {
-			guessEncoding: (options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
 			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
 		});
 
 		// validate binary
-		if (options && options.acceptTextOnly && decoder.detected.seemsBinary) {
+		if (options?.acceptTextOnly && decoder.detected.seemsBinary) {
 			throw new TextFileOperationError(localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
 		}
 
@@ -163,7 +165,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		// check for overwriteReadonly property (only supported for local file://)
 		try {
-			if (options && options.overwriteReadonly && resource.scheme === Schemas.file && await exists(resource.fsPath)) {
+			if (options?.overwriteReadonly && resource.scheme === Schemas.file && await exists(resource.fsPath)) {
 				const fileStat = await stat(resource.fsPath);
 
 				// try to change mode to writeable
@@ -174,7 +176,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		// check for writeElevated property (only supported for local file://)
-		if (options && options.writeElevated && resource.scheme === Schemas.file) {
+		if (options?.writeElevated && resource.scheme === Schemas.file) {
 			return this.writeElevated(resource, value, options);
 		}
 
@@ -272,12 +274,12 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		return new Promise<void>((resolve, reject) => {
 			const promptOptions = {
-				name: this.environmentService.appNameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentService.isBuilt) ? join(dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : undefined
+				name: this.productService.nameLong.replace('-', ''),
+				icns: (isMacintosh && this.environmentService.isBuilt) ? join(dirname(this.environmentService.appRoot), `${this.productService.nameShort}.icns`) : undefined
 			};
 
 			const sudoCommand: string[] = [`"${this.environmentService.cliPath}"`];
-			if (options && options.overwriteReadonly) {
+			if (options?.overwriteReadonly) {
 				sudoCommand.push('--file-chmod');
 			}
 
@@ -295,6 +297,16 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 	protected getWindowCount(): Promise<number> {
 		return this.electronService.getWindowCount();
+	}
+
+	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
+		if (this.environmentService.isExtensionDevelopment) {
+			if (!this.environmentService.args['extension-development-confirm-save']) { //
+				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
+			}
+		}
+
+		return super.confirmSave(resources);
 	}
 }
 
@@ -353,7 +365,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 
 		// Ensure that we preserve an existing BOM if found for UTF8
 		// unless we are instructed to overwrite the encoding
-		const overwriteEncoding = options && options.overwriteEncoding;
+		const overwriteEncoding = options?.overwriteEncoding;
 		if (!overwriteEncoding && encoding === UTF8) {
 			try {
 				const buffer = (await this.fileService.readFile(resource, { length: UTF8_BOM.length })).value;
@@ -381,7 +393,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
-		if (options && options.encoding) {
+		if (options?.encoding) {
 			if (detectedEncoding === UTF8 && options.encoding === UTF8) {
 				preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
 			} else {

@@ -27,6 +27,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class InsertCursorAbove extends EditorAction {
 
@@ -602,6 +603,17 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			matches = this._session.selectAll();
 		}
 
+		if (findState.searchScope) {
+			const state = findState.searchScope;
+			let inSelection: FindMatch[] | null = [];
+			for (let i = 0; i < matches.length; i++) {
+				if (matches[i].range.endLineNumber <= state.endLineNumber && matches[i].range.startLineNumber >= state.startLineNumber) {
+					inSelection.push(matches[i]);
+				}
+			}
+			matches = inSelection;
+		}
+
 		if (matches.length > 0) {
 			const editorSelection = this._editor.getSelection();
 			// Have the primary cursor remain the one where the action was invoked
@@ -747,7 +759,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 			id: 'editor.action.changeAll',
 			label: nls.localize('changeAll.label', "Change All Occurrences"),
 			alias: 'Change All Occurrences',
-			precondition: EditorContextKeys.writable,
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2,

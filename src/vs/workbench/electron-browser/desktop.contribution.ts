@@ -13,12 +13,11 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ToggleSharedProcessAction, ToggleDevToolsAction, ConfigureRuntimeArgumentsAction } from 'vs/workbench/electron-browser/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, QuickSwitchWindow, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
-import { SaveWorkspaceAsAction, DuplicateWorkspaceInNewWindowAction } from 'vs/workbench/electron-browser/actions/workspaceActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext } from 'vs/workbench/browser/contextkeys';
+import { IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -66,14 +65,6 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 		});
 	})();
 
-	// Actions: Workspaces
-	(function registerWorkspaceActions(): void {
-		const workspacesCategory = nls.localize('workspaces', "Workspaces");
-
-		registry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace As...', workspacesCategory, SupportsWorkspacesContext);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(DuplicateWorkspaceInNewWindowAction, DuplicateWorkspaceInNewWindowAction.ID, DuplicateWorkspaceInNewWindowAction.LABEL), 'Workspaces: Duplicate Workspace in New Window', workspacesCategory, SupportsWorkspacesContext);
-	})();
-
 	// Actions: macOS Native Tabs
 	(function registerMacOSNativeTabsActions(): void {
 		if (isMacintosh) {
@@ -115,16 +106,6 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 
 // Menu
 (function registerMenu(): void {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '3_workspace',
-		command: {
-			id: SaveWorkspaceAsAction.ID,
-			title: nls.localize('miSaveWorkspaceAs', "Save Workspace As...")
-		},
-		order: 2,
-		when: SupportsWorkspacesContext
-	});
-
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		group: '6_close',
 		command: {

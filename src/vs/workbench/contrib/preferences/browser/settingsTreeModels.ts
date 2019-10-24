@@ -536,10 +536,16 @@ export class SearchResultModel extends SettingsTreeModel {
 
 	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
 		this.cachedUniqueSearchResults = null;
+		this.newExtensionSearchResults = null;
+
 		this.rawSearchResults = this.rawSearchResults || [];
 		if (!result) {
 			delete this.rawSearchResults[order];
 			return;
+		}
+
+		if (result.exactMatch) {
+			this.rawSearchResults = [];
 		}
 
 		this.rawSearchResults[order] = result;

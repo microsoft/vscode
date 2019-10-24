@@ -18,7 +18,7 @@ import { PluginManager } from '../utils/plugins';
 import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
-import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess } from './server';
+import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess, TsServerDelegate } from './server';
 
 type ServerKind = 'main' | 'syntax' | 'semantic';
 
@@ -35,12 +35,13 @@ export class TypeScriptServerSpawner {
 	public spawn(
 		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
-		pluginManager: PluginManager
+		pluginManager: PluginManager,
+		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		if (this.shouldUseSeparateSyntaxServer(version, configuration)) {
 			const syntaxServer = this.spawnTsServer('syntax', version, configuration, pluginManager);
 			const semanticServer = this.spawnTsServer('semantic', version, configuration, pluginManager);
-			return new SyntaxRoutingTsServer(syntaxServer, semanticServer);
+			return new SyntaxRoutingTsServer(syntaxServer, semanticServer, delegate);
 		}
 
 		return this.spawnTsServer('main', version, configuration, pluginManager);
@@ -63,9 +64,9 @@ export class TypeScriptServerSpawner {
 
 		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(kind, configuration, version, apiVersion, pluginManager);
 
-		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
+		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
 			if (tsServerLogFile) {
-				this._logger.info(`<${kind}>  Log file: ${tsServerLogFile}`);
+				this._logger.info(`<${kind}> Log file: ${tsServerLogFile}`);
 			} else {
 				this._logger.error(`<${kind}> Could not create log directory`);
 			}
@@ -102,9 +103,8 @@ export class TypeScriptServerSpawner {
 		currentVersion: TypeScriptVersion,
 		apiVersion: API,
 		pluginManager: PluginManager,
-	): { args: string[], cancellationPipeName: string | undefined, tsServerLogFile: string | undefined } {
+	): { args: string[], cancellationPipeName: string, tsServerLogFile: string | undefined } {
 		const args: string[] = [];
-		let cancellationPipeName: string | undefined;
 		let tsServerLogFile: string | undefined;
 
 		if (kind === 'syntax') {
@@ -125,12 +125,10 @@ export class TypeScriptServerSpawner {
 			args.push('--enableTelemetry');
 		}
 
-		if (apiVersion.gte(API.v222)) {
-			cancellationPipeName = electron.getTempFile('tscancellation');
-			args.push('--cancellationPipeName', cancellationPipeName + '*');
-		}
+		const cancellationPipeName = electron.getTempFile('tscancellation');
+		args.push('--cancellationPipeName', cancellationPipeName + '*');
 
-		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
+		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
 			const logDir = this._logDirectoryProvider.getNewLogDirectory();
 			if (logDir) {
 				tsServerLogFile = path.join(logDir, `tsserver.log`);
@@ -139,29 +137,25 @@ export class TypeScriptServerSpawner {
 			}
 		}
 
-		if (apiVersion.gte(API.v230)) {
-			const pluginPaths = this._pluginPathsProvider.getPluginPaths();
+		const pluginPaths = this._pluginPathsProvider.getPluginPaths();
 
-			if (pluginManager.plugins.length) {
-				args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
+		if (pluginManager.plugins.length) {
+			args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
 
-				const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
-				for (const plugin of pluginManager.plugins) {
-					if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
-						pluginPaths.push(plugin.path);
-					}
+			const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
+			for (const plugin of pluginManager.plugins) {
+				if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
+					pluginPaths.push(plugin.path);
 				}
-			}
-
-			if (pluginPaths.length !== 0) {
-				args.push('--pluginProbeLocations', pluginPaths.join(','));
 			}
 		}
 
-		if (apiVersion.gte(API.v234)) {
-			if (configuration.npmLocation) {
-				args.push('--npmLocation', `"${configuration.npmLocation}"`);
-			}
+		if (pluginPaths.length !== 0) {
+			args.push('--pluginProbeLocations', pluginPaths.join(','));
+		}
+
+		if (configuration.npmLocation) {
+			args.push('--npmLocation', `"${configuration.npmLocation}"`);
 		}
 
 		if (apiVersion.gte(API.v260)) {
@@ -194,9 +188,8 @@ export class TypeScriptServerSpawner {
 		return undefined;
 	}
 
-	private static isLoggingEnabled(apiVersion: API, configuration: TypeScriptServiceConfiguration) {
-		return apiVersion.gte(API.v222) &&
-			configuration.tsServerLogLevel !== TsServerLogLevel.Off;
+	private static isLoggingEnabled(configuration: TypeScriptServiceConfiguration) {
+		return configuration.tsServerLogLevel !== TsServerLogLevel.Off;
 	}
 
 	private static getTsLocale(configuration: TypeScriptServiceConfiguration): string {

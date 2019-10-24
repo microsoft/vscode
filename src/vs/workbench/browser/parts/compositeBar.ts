@@ -263,7 +263,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	isPinned(compositeId: string): boolean {
 		const item = this.model.findItem(compositeId);
-		return item && item.pinned;
+		return item?.pinned;
 	}
 
 	move(compositeId: string, toCompositeId: string): void {
@@ -275,7 +275,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	getAction(compositeId: string): ActivityAction {
 		const item = this.model.findItem(compositeId);
-		return item && item.activityAction;
+		return item?.activityAction;
 	}
 
 	private computeSizes(items: ICompositeBarModelItem[]): void {
@@ -402,7 +402,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				() => this.model.activeItem ? this.model.activeItem.id : undefined,
 				(compositeId: string) => {
 					const item = this.model.findItem(compositeId);
-					return item && item.activity[0] && item.activity[0].badge;
+					return item?.activity[0]?.badge;
 				},
 				this.options.getOnCompositeClickAction,
 				this.options.colors
