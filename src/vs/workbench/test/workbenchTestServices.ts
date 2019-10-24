@@ -481,6 +481,14 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 		return false;
 	}
 
+	public hasWindowBorder(): boolean {
+		return false;
+	}
+
+	public getWindowBorderRadius(): string | undefined {
+		return undefined;
+	}
+
 	public isVisible(_part: Parts): boolean {
 		return true;
 	}
