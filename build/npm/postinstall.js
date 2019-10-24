@@ -35,6 +35,8 @@ yarnInstall('extensions'); // node modules shared by all extensions
 
 yarnInstall('remote'); // node modules used by vscode server
 
+yarnInstall('remote/web'); // node modules used by vscode web
+
 const allExtensionFolders = fs.readdirSync('extensions');
 const extensions = allExtensionFolders.filter(e => {
 	try {
@@ -68,6 +70,7 @@ runtime "${runtime}"`;
 }
 
 yarnInstall(`build`); // node modules required for build
+yarnInstall('test/automation'); // node modules required for smoketest
 yarnInstall('test/smoke'); // node modules required for smoketest
 yarnInstallBuildDependencies(); // node modules for watching, specific to host node version, not electron
 
@@ -77,3 +80,36 @@ if (fs.existsSync(processTreeDts)) {
 	console.log('Removing windows-process-tree.d.ts');
 	fs.unlinkSync(processTreeDts);
 }
+
+function getInstalledVersion(packageName, cwd) {
+	const { stdout } = cp.spawnSync(yarn, ['list', packageName], { encoding: 'utf8', cwd });
+	const match = stdout.match(new RegExp(packageName + '@(\\S+)'));
+
+	if (!match || !match[1]) {
+		throw new Error(`Missing ${packageName} in ${cwd}: \n${stdout}`);
+	}
+
+	return match[1];
+}
+
+function assertSameVersionsBetweenFolders(packageName, otherFolder) {
+	const baseVersion = getInstalledVersion(packageName);
+	const otherVersion = getInstalledVersion(packageName, otherFolder);
+
+	if (baseVersion !== otherVersion) {
+		throw new Error(`Mismatched versions installed for ${packageName}: root has ${baseVersion}, ./${otherFolder} has ${otherVersion}. These should be the same!`);
+	}
+}
+
+// Check that modules in both the base package.json and remote/ have the same version installed
+const requireSameVersionsInRemote = [
+	// 'xterm',
+	'xterm-addon-search',
+	'xterm-addon-web-links',
+	'node-pty',
+	'vscode-ripgrep'
+];
+
+requireSameVersionsInRemote.forEach(packageName => {
+	assertSameVersionsBetweenFolders(packageName, 'remote');
+});

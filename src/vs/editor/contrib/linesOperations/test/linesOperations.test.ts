@@ -268,7 +268,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 					editor.setSelections([new Selection(2, 2, 2, 2), new Selection(2, 4, 2, 5)]);
 					deleteAllLeftAction.run(null!, editor);
-					assert.equal(model.getLineContent(2), 'ord', '002');
+					assert.equal(model.getLineContent(2), 'd', '002');
 
 					editor.setSelections([new Selection(3, 2, 3, 5), new Selection(3, 7, 3, 7)]);
 					deleteAllLeftAction.run(null!, editor);
@@ -276,11 +276,11 @@ suite('Editor Contrib - Line Operations', () => {
 
 					editor.setSelections([new Selection(4, 3, 4, 3), new Selection(4, 5, 5, 4)]);
 					deleteAllLeftAction.run(null!, editor);
-					assert.equal(model.getLineContent(4), 'lljour', '004');
+					assert.equal(model.getLineContent(4), 'jour', '004');
 
 					editor.setSelections([new Selection(5, 3, 6, 3), new Selection(6, 5, 7, 5), new Selection(7, 7, 7, 7)]);
 					deleteAllLeftAction.run(null!, editor);
-					assert.equal(model.getLineContent(5), 'horlworld', '005');
+					assert.equal(model.getLineContent(5), 'world', '005');
 				});
 		});
 
@@ -923,6 +923,28 @@ suite('Editor Contrib - Line Operations', () => {
 
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '\tf\tunction baz() {');
+		});
+
+		model.dispose();
+	});
+
+	test('issue #80736: Indenting while the cursor is at the start of a line of text causes the added spaces or tab to be selected', () => {
+		const model = createTextModel(
+			[
+				'Some text'
+			].join('\n'),
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor) => {
+			const indentLinesAction = new IndentLinesAction();
+			editor.setPosition(new Position(1, 1));
+
+			indentLinesAction.run(null!, editor);
+			assert.equal(model.getLineContent(1), '\tSome text');
+			assert.deepEqual(editor.getSelection(), new Selection(1, 2, 1, 2));
 		});
 
 		model.dispose();

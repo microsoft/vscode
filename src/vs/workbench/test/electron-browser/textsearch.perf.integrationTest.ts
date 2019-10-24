@@ -13,7 +13,7 @@ import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import * as minimist from 'minimist';
+import * as minimist from 'vscode-minimist';
 import * as path from 'vs/base/common/path';
 import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -145,12 +145,12 @@ suite.skip('TextSearch performance (integration)', () => {
 });
 
 class TestTelemetryService implements ITelemetryService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public isOptedIn = true;
 
 	public events: any[] = [];
 
-	private emitter = new Emitter<any>();
+	private readonly emitter = new Emitter<any>();
 
 	public get eventLogged(): Event<any> {
 		return this.emitter.event;

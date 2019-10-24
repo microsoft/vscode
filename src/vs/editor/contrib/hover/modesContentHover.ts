@@ -13,7 +13,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor, CodeAction } from 'vs/editor/common/modes';
+import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
@@ -37,6 +37,8 @@ import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Constants } from 'vs/base/common/uint';
 
 const $ = dom.$;
 
@@ -70,6 +72,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 		private readonly _markerDecorationsService: IMarkerDecorationsService
 	) {
 		this._editor = editor;
+		this._result = [];
 	}
 
 	setRange(range: Range): void {
@@ -213,13 +216,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._computer = new ModesContentComputer(this._editor, markerDecorationsService);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
+		this._shouldFocus = false;
+		this._colorPicker = null;
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
 			result => this._withResult(result, true),
 			null,
 			result => this._withResult(result, false),
-			this._editor.getConfiguration().contribInfo.hover.delay
+			this._editor.getOption(EditorOption.hover).delay
 		);
 
 		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
@@ -231,7 +236,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			dom.removeClass(this.getDomNode(), 'colorpicker-hover');
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
-			this._hoverOperation.setHoverTime(this._editor.getConfiguration().contribInfo.hover.delay);
+			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
 		}));
 	}
 
@@ -329,7 +334,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._colorPicker = null;
 
 		// update column from which to show
-		let renderColumn = Number.MAX_VALUE;
+		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 		let highlightRange: Range | null = messages[0].range ? Range.lift(messages[0].range) : null;
 		let fragment = document.createDocumentFragment();
 		let isEmptyHoverContent = true;
@@ -349,7 +354,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				containColorPicker = true;
 
 				const { red, green, blue, alpha } = msg.color;
-				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha);
+				const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 				const color = new Color(rgba);
 
 				if (!this._editor.hasModel()) {
@@ -362,7 +367,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 				// create blank olor picker model and widget first to ensure it's positioned correctly.
 				const model = new ColorPickerModel(color, [], 0);
-				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio, this._themeService);
+				const widget = new ColorPickerWidget(fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService);
 
 				getColorPresentations(editorModel, colorInfo, msg.provider, CancellationToken.None).then(colorPresentations => {
 					model.colorPresentations = colorPresentations || [];
@@ -501,7 +506,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					e.stopPropagation();
 					e.preventDefault();
 					if (this._openerService) {
-						this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` })).catch(onUnexpectedError);
+						this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` }), { fromUserGesture: true }).catch(onUnexpectedError);
 					}
 				};
 				const messageElement = dom.append<HTMLAnchorElement>(relatedInfoContainer, $('span'));
@@ -517,21 +522,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const hoverElement = $('div.hover-row.status-bar');
 		const disposables = new DisposableStore();
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
-		disposables.add(this.renderAction(actionsElement, {
-			label: nls.localize('quick fixes', "Quick Fix..."),
-			commandId: QuickFixAction.Id,
-			run: async (target) => {
-				const codeActionsPromise = this.getCodeActions(markerHover.marker);
-				disposables.add(toDisposable(() => codeActionsPromise.cancel()));
-
-				const controller = QuickFixController.get(this._editor);
-				const elementPosition = dom.getDomNodePagePosition(target);
-				controller.showCodeActions(codeActionsPromise, {
-					x: elementPosition.left + 6,
-					y: elementPosition.top + elementPosition.height + 6
-				});
-			}
-		}));
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
 			disposables.add(this.renderAction(actionsElement, {
 				label: nls.localize('peek problem', "Peek Problem"),
@@ -543,27 +533,61 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}));
 		}
+
+		const quickfixPlaceholderElement = dom.append(actionsElement, $('div'));
+		quickfixPlaceholderElement.style.opacity = '0';
+		quickfixPlaceholderElement.style.transition = 'opacity 0.2s';
+		setTimeout(() => quickfixPlaceholderElement.style.opacity = '1', 200);
+		quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes...");
+		disposables.add(toDisposable(() => quickfixPlaceholderElement.remove()));
+
+
+		const codeActionsPromise = this.getCodeActions(markerHover.marker);
+		disposables.add(toDisposable(() => codeActionsPromise.cancel()));
+		codeActionsPromise.then(actions => {
+			quickfixPlaceholderElement.style.transition = '';
+			quickfixPlaceholderElement.style.opacity = '1';
+
+			if (!actions.actions.length) {
+				actions.dispose();
+				quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+				return;
+			}
+			quickfixPlaceholderElement.remove();
+
+			let showing = false;
+			disposables.add(toDisposable(() => {
+				if (!showing) {
+					actions.dispose();
+				}
+			}));
+
+			disposables.add(this.renderAction(actionsElement, {
+				label: nls.localize('quick fixes', "Quick Fix..."),
+				commandId: QuickFixAction.Id,
+				run: (target) => {
+					showing = true;
+					const controller = QuickFixController.get(this._editor);
+					const elementPosition = dom.getDomNodePagePosition(target);
+					controller.showCodeActions(actions, {
+						x: elementPosition.left + 6,
+						y: elementPosition.top + elementPosition.height + 6
+					});
+				}
+			}));
+		});
+
 		this.renderDisposable.value = disposables;
 		return hoverElement;
 	}
 
 	private getCodeActions(marker: IMarker): CancelablePromise<CodeActionSet> {
-		const noAction: CodeAction = {
-			title: nls.localize('editor.action.quickFix.noneMessage', "No code actions available"),
-			kind: CodeActionKind.QuickFix.value,
-		};
-		return createCancelablePromise(async (cancellationToken): Promise<CodeActionSet> => {
-			const result = await getCodeActions(
+		return createCancelablePromise(cancellationToken => {
+			return getCodeActions(
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
 				{ type: 'manual', filter: { kind: CodeActionKind.QuickFix } },
 				cancellationToken);
-
-			return {
-				actions: result.actions.length ? result.actions : [noAction],
-				hasAutoFix: result.hasAutoFix,
-				dispose: () => result.dispose(),
-			};
 		});
 	}
 

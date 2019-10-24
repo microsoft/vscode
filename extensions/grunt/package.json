@@ -55,6 +55,10 @@
             "type": "string",
             "description": "%grunt.taskDefinition.type.description%"
           },
+          "args": {
+            "type": "array",
+            "description": "%grunt.taskDefinition.args.description%"
+          },
           "file": {
             "type": "string",
             "description": "%grunt.taskDefinition.file.description%"

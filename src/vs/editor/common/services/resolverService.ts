@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ITextModelService = createDecorator<ITextModelService>('textModelService');
 
 export interface ITextModelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Provided a resource URI, it will return a model reference

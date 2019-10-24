@@ -51,7 +51,7 @@ export interface IFileIconTheme extends IIconTheme {
 }
 
 export interface IWorkbenchThemeService extends IThemeService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IColorTheme | null>;
 	getColorTheme(): IColorTheme;
 	getColorThemes(): Promise<IColorTheme[]>;

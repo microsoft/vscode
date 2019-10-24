@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickopen/browser/commandsHandler';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
@@ -153,7 +153,7 @@ export class HideWelcomeOverlayAction extends Action {
 class WelcomeOverlay extends Disposable {
 
 	private _overlayVisible: IContextKey<boolean>;
-	private _overlay: HTMLElement;
+	private _overlay!: HTMLElement;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -168,10 +168,8 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private create(): void {
-		const container = this.layoutService.getContainer(Parts.EDITOR_PART)!;
-
 		const offset = this.layoutService.getTitleBarOffset();
-		this._overlay = dom.append(container.parentElement!, $('.welcomeOverlay'));
+		this._overlay = dom.append(this.layoutService.getWorkbenchElement(), $('.welcomeOverlay'));
 		this._overlay.style.top = `${offset}px`;
 		this._overlay.style.height = `calc(100% - ${offset}px)`;
 		this._overlay.style.display = 'none';
@@ -214,7 +212,7 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private updateProblemsKey() {
-		const problems = document.querySelector('div[id="workbench.parts.statusbar"] .statusbar-item.left .octicon.octicon-warning');
+		const problems = document.querySelector('div[id="workbench.parts.statusbar"] .statusbar-item.left .codicon.codicon-warning');
 		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
 		if (problems instanceof HTMLElement) {
 			const target = problems.getBoundingClientRect();
@@ -224,8 +222,8 @@ class WelcomeOverlay extends Disposable {
 			key.style.bottom = bottom + 'px';
 			key.style.left = left + 'px';
 		} else {
-			key.style.bottom = null;
-			key.style.left = null;
+			key.style.bottom = '';
+			key.style.left = '';
 		}
 	}
 

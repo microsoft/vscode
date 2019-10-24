@@ -14,6 +14,7 @@ import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChange
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { MultilineTokens } from 'vs/editor/common/model/tokensStore';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -458,8 +459,8 @@ export class FindMatch {
  */
 export interface IFoundBracket {
 	range: Range;
-	open: string;
-	close: string;
+	open: string[];
+	close: string[];
 	isOpen: boolean;
 }
 
@@ -606,6 +607,12 @@ export interface ITextModel {
 	 * @return The text length.
 	 */
 	getValueLengthInRange(range: IRange): number;
+
+	/**
+	 * Get the character count of text in a certain range.
+	 * @param range The range describing what text length to get.
+	 */
+	getCharacterCountInRange(range: IRange): number;
 
 	/**
 	 * Splits characters in two buckets. First bucket (A) is of characters that
@@ -780,6 +787,11 @@ export interface ITextModel {
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
 
 	/**
+	 * @internal
+	 */
+	setTokens(tokens: MultilineTokens[]): void;
+
+	/**
 	 * Flush all tokenization state.
 	 * @internal
 	 */
@@ -874,6 +886,13 @@ export interface ITextModel {
 	 * @internal
 	 */
 	findNextBracket(position: IPosition): IFoundBracket | null;
+
+	/**
+	 * Find the enclosing brackets that contain `position`.
+	 * @param position The position at which to start the search.
+	 * @internal
+	 */
+	findEnclosingBrackets(position: IPosition): [Range, Range] | null;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,
@@ -1190,6 +1209,7 @@ export interface ITextBuffer {
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	createSnapshot(preserveBOM: boolean): ITextSnapshot;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getCharacterCountInRange(range: Range, eol: EndOfLinePreference): number;
 	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];

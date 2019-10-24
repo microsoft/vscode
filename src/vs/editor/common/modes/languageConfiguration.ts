@@ -78,7 +78,9 @@ export interface LanguageConfiguration {
 	 *
 	 * @deprecated Will be replaced by a better API soon.
 	 */
-	__electricCharacterSupport?: IBracketElectricCharacterContribution;
+	__electricCharacterSupport?: {
+		docComment?: IDocComment;
+	};
 }
 
 /**
@@ -153,10 +155,6 @@ export interface OnEnterRule {
 	 * The action to execute.
 	 */
 	action: EnterAction;
-}
-
-export interface IBracketElectricCharacterContribution {
-	docComment?: IDocComment;
 }
 
 /**
@@ -249,7 +247,7 @@ export class StandardAutoClosingPairConditional {
 
 		if (Array.isArray(source.notIn)) {
 			for (let i = 0, len = source.notIn.length; i < len; i++) {
-				let notIn = source.notIn[i];
+				const notIn: string = source.notIn[i];
 				switch (notIn) {
 					case 'string':
 						this._standardTokenMask |= StandardTokenType.String;

@@ -91,7 +91,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private lastStart: number;
 	private numberRestarts: number;
 	private isRestarting: boolean = false;
-	private loadingIndicator = new ServerInitializingIndicator();
+	private readonly loadingIndicator = new ServerInitializingIndicator();
 
 	public readonly telemetryReporter: TelemetryReporter;
 
@@ -159,7 +159,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					return this.serverState.tsserverVersion;
 				}
 			}
-			return this.apiVersion.versionString;
+			return this.apiVersion.version;
 		}));
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
@@ -245,7 +245,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.logger.error(message, data);
 	}
 
-	private logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
+	private logTelemetry(eventName: string, properties?: { readonly [prop: string]: string }) {
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
@@ -287,12 +287,26 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		const apiVersion = this.versionPicker.currentVersion.apiVersion || API.defaultVersion;
 		this.onDidChangeTypeScriptVersion(currentVersion);
-
 		let mytoken = ++this.token;
-
-		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager);
+		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager, {
+			onFatalError: (command) => this.fatalError(command),
+		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
+
+		/* __GDPR__
+			"tsserver.spawned" : {
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				],
+				"localTypeScriptVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.logTelemetry('tsserver.spawned', {
+			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
+			typeScriptVersionSource: currentVersion.source,
+		});
 
 		handle.onError((err: Error) => {
 			if (this.token !== mytoken) {
@@ -378,14 +392,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public async openTsServerLogFile(): Promise<boolean> {
-		if (this.apiVersion.lt(API.v222)) {
-			vscode.window.showErrorMessage(
-				localize(
-					'typescript.openTsServerLog.notSupported',
-					'TS Server logging requires TS 2.2.2+'));
-			return false;
-		}
-
 		if (this._configuration.tsServerLogLevel === TsServerLogLevel.Off) {
 			vscode.window.showErrorMessage<vscode.MessageItem>(
 				localize(
@@ -454,10 +460,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
-		if (this.apiVersion.lt(API.v206)) {
-			return;
-		}
-
 		const args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
 			options: this.getCompilerOptionsForInferredProjects(configuration)
 		};
@@ -509,7 +511,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						}
 					*/
 					this.logTelemetry('serviceExited');
-				} else if (diff < 60 * 1000 /* 1 Minutes */) {
+				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
 					this.lastStart = Date.now();
 					prompt = vscode.window.showWarningMessage<MyMessageItem>(
 						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
@@ -534,12 +536,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public normalizedPath(resource: vscode.Uri): string | undefined {
-		if (this.apiVersion.gte(API.v213)) {
-			if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
-				const dirName = path.dirname(resource.path);
-				const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
-				return resource.with({ path: path.posix.join(dirName, fileName) }).toString(true);
-			}
+		if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
+			const dirName = path.dirname(resource.path);
+			const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
+			return resource.with({ path: path.posix.join(dirName, fileName), query: '' }).toString(true);
 		}
 
 		if (resource.scheme !== fileSchemes.file) {
@@ -572,20 +572,21 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public toResource(filepath: string): vscode.Uri {
-		if (this.apiVersion.gte(API.v213)) {
-			if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
-			) {
-				let resource = vscode.Uri.parse(filepath);
-				if (this.inMemoryResourcePrefix) {
-					const dirName = path.dirname(resource.path);
-					const fileName = path.basename(resource.path);
-					if (fileName.startsWith(this.inMemoryResourcePrefix)) {
-						resource = resource.with({ path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
-					}
+		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
+		) {
+			let resource = vscode.Uri.parse(filepath);
+			if (this.inMemoryResourcePrefix) {
+				const dirName = path.dirname(resource.path);
+				const fileName = path.basename(resource.path);
+				if (fileName.startsWith(this.inMemoryResourcePrefix)) {
+					resource = resource.with({
+						path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length))
+					});
 				}
-				return resource;
 			}
+			return this.bufferSyncSupport.toVsCodeResource(resource);
 		}
+
 		return this.bufferSyncSupport.toResource(filepath);
 	}
 
@@ -608,12 +609,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
-		return this.executeImpl(command, args, {
+		const execution = this.executeImpl(command, args, {
 			isAsync: false,
 			token,
 			expectsResult: true,
-			lowPriority: config ? config.lowPriority : undefined
+			lowPriority: config?.lowPriority
 		});
+
+		if (config?.nonRecoverable) {
+			execution.catch(() => this.fatalError(command));
+		}
+
+		return execution;
 	}
 
 	public executeWithoutWaitingForResponse(command: keyof TypeScriptRequests, args: any): void {
@@ -642,6 +649,24 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	public interruptGetErr<R>(f: () => R): R {
 		return this.bufferSyncSupport.interuptGetErr(f);
+	}
+
+	private fatalError(command: string): void {
+		/* __GDPR__
+			"fatalError" : {
+				"${include}": [
+					"${TypeScriptCommonProperties}",
+					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				]
+			}
+		*/
+		this.logTelemetry('fatalError', { command });
+		console.error(`A non-recoverable error occured while executing tsserver command: ${command}`);
+
+		if (this.serverState.type === ServerState.Type.Running) {
+			this.info('Killing TS Server');
+			this.serverState.server.kill();
+		}
 	}
 
 	private dispatchEvent(event: Proto.Event) {
@@ -686,7 +711,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			case 'projectsUpdatedInBackground':
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
-				const resources = body.openFiles.map(vscode.Uri.file);
+				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);
 				break;
 

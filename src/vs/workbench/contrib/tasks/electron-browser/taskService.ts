@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as Objects from 'vs/base/common/objects';
-import * as semver from 'semver';
+import * as semver from 'semver-umd';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';
@@ -13,7 +13,8 @@ import * as TaskConfig from '../common/taskConfiguration';
 import { ProcessTaskSystem } from 'vs/workbench/contrib/tasks/node/processTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/contrib/tasks/node/processRunnerDetector';
 import { AbstractTaskService } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { TaskFilter } from 'vs/workbench/contrib/tasks/common/taskService';
+import { TaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface WorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -133,3 +134,5 @@ export class TaskService extends AbstractTaskService {
 		return result;
 	}
 }
+
+registerSingleton(ITaskService, TaskService, true);

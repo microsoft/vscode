@@ -176,7 +176,11 @@ export interface Repository {
 	log(options?: LogOptions): Promise<Commit[]>;
 }
 
+export type APIState = 'uninitialized' | 'initialized';
+
 export interface API {
+	readonly state: APIState;
+	readonly onDidChangeState: Event<APIState>;
 	readonly git: Git;
 	readonly repositories: Repository[];
 	readonly onDidOpenRepository: Event<Repository>;
@@ -234,5 +238,6 @@ export const enum GitErrorCodes {
 	CantLockRef = 'CantLockRef',
 	CantRebaseMultipleBranches = 'CantRebaseMultipleBranches',
 	PatchDoesNotApply = 'PatchDoesNotApply',
-	NoPathFound = 'NoPathFound'
+	NoPathFound = 'NoPathFound',
+	UnknownPath = 'UnknownPath',
 }

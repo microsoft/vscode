@@ -9,6 +9,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 
 export interface IRemoteAgentEnvironment {
 	pid: number;
+	connectionToken: string;
 	appRoot: URI;
 	appSettingsHome: URI;
 	settingsPath: URI;

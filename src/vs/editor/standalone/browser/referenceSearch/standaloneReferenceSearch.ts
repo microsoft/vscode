@@ -37,4 +37,4 @@ export class StandaloneReferencesController extends ReferencesController {
 	}
 }
 
-registerEditorContribution(StandaloneReferencesController);
+registerEditorContribution(ReferencesController.ID, StandaloneReferencesController);

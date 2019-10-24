@@ -23,7 +23,7 @@ const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
 
 export class WindowsExternalTerminalService implements IExternalTerminalService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private static readonly CMD = 'cmd.exe';
 
@@ -118,7 +118,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 }
 
 export class MacExternalTerminalService implements IExternalTerminalService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
@@ -214,7 +214,7 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 }
 
 export class LinuxExternalTerminalService implements IExternalTerminalService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
@@ -305,7 +305,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 		if (!LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY) {
 			LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(c => {
 				if (env.isLinux) {
-					Promise.all([pfs.exists('/etc/debian_version'), process.lazyEnv || Promise.resolve(undefined)]).then(([isDebian]) => {
+					Promise.all([pfs.exists('/etc/debian_version'), Promise.resolve(process.lazyEnv) || Promise.resolve(undefined)]).then(([isDebian]) => {
 						if (isDebian) {
 							c('x-terminal-emulator');
 						} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {

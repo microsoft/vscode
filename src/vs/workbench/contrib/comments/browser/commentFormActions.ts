@@ -14,7 +14,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 export class CommentFormActions implements IDisposable {
 	private _buttonElements: HTMLElement[] = [];
 	private readonly _toDispose = new DisposableStore();
-	private _actions: IAction[];
+	private _actions: IAction[] = [];
 
 	constructor(
 		private container: HTMLElement,

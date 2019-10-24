@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, TextDocument, tasks
+	TaskDefinition, Task2 as Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
+	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -18,6 +18,11 @@ const localize = nls.loadMessageBundle();
 export interface NpmTaskDefinition extends TaskDefinition {
 	script: string;
 	path?: string;
+}
+
+export interface FolderTaskItem extends QuickPickItem {
+	label: string;
+	task: Task;
 }
 
 type AutoDetect = 'on' | 'off';
@@ -34,6 +39,21 @@ export class NpmTaskProvider implements TaskProvider {
 	}
 
 	public resolveTask(_task: Task): Task | undefined {
+		const npmTask = (<any>_task.definition).script;
+		if (npmTask) {
+			const kind: NpmTaskDefinition = (<any>_task.definition);
+			let packageJsonUri: Uri;
+			if (_task.scope === undefined || _task.scope === TaskScope.Global || _task.scope === TaskScope.Workspace) {
+				// scope is required to be a WorkspaceFolder for resolveTask
+				return undefined;
+			}
+			if (kind.path) {
+				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.path + 'package.json' });
+			} else {
+				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
+			}
+			return createTask(kind, `run ${kind.script}`, _task.scope, packageJsonUri);
+		}
 		return undefined;
 	}
 }
@@ -140,6 +160,29 @@ async function detectNpmScripts(): Promise<Task[]> {
 	}
 }
 
+
+export async function detectNpmScriptsForFolder(folder: Uri): Promise<FolderTaskItem[]> {
+
+	let folderTasks: FolderTaskItem[] = [];
+
+	try {
+		let relativePattern = new RelativePattern(folder.fsPath, '**/package.json');
+		let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
+
+		let visitedPackageJsonFiles: Set<string> = new Set();
+		for (const path of paths) {
+			if (!visitedPackageJsonFiles.has(path.fsPath)) {
+				let tasks = await provideNpmScriptsForFolder(path);
+				visitedPackageJsonFiles.add(path.fsPath);
+				folderTasks.push(...tasks.map(t => ({ label: t.name, task: t })));
+			}
+		}
+		return folderTasks;
+	} catch (error) {
+		return Promise.reject(error);
+	}
+}
+
 export async function provideNpmScripts(): Promise<Task[]> {
 	if (!cachedTasks) {
 		cachedTasks = await detectNpmScripts();
@@ -194,7 +237,7 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 
 	const prePostScripts = getPrePostScripts(scripts);
 	Object.keys(scripts).forEach(each => {
-		const task = createTask(each, `run ${each}`, folder!, packageJsonUri);
+		const task = createTask(each, `run ${each}`, folder!, packageJsonUri, scripts![each]);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Build;
@@ -210,7 +253,7 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 		result.push(task);
 	});
 	// always add npm install (without a problem matcher)
-	result.push(createTask('install', 'install', folder, packageJsonUri, []));
+	result.push(createTask('install', 'install', folder, packageJsonUri, undefined, []));
 	return result;
 }
 
@@ -221,7 +264,13 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
+export function createTask(script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, detail?: string, matcher?: any): Task {
+	let kind: NpmTaskDefinition;
+	if (typeof script === 'string') {
+		kind = { type: 'npm', script: script };
+	} else {
+		kind = script;
+	}
 
 	function getCommandLine(folder: WorkspaceFolder, cmd: string): string {
 		let packageManager = getPackageManager(folder);
@@ -237,17 +286,15 @@ export function createTask(script: string, cmd: string, folder: WorkspaceFolder,
 		return absolutePath.substring(rootUri.path.length + 1);
 	}
 
-	let kind: NpmTaskDefinition = {
-		type: 'npm',
-		script: script
-	};
 	let relativePackageJson = getRelativePath(folder, packageJsonUri);
 	if (relativePackageJson.length) {
 		kind.path = getRelativePath(folder, packageJsonUri);
 	}
-	let taskName = getTaskName(script, relativePackageJson);
+	let taskName = getTaskName(kind.script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);
-	return new Task(kind, folder, taskName, 'npm', new ShellExecution(getCommandLine(folder, cmd), { cwd: cwd }), matcher);
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(getCommandLine(folder, cmd), { cwd: cwd }), matcher);
+	task.detail = detail;
+	return task;
 }
 
 
@@ -260,6 +307,22 @@ export function getPackageJsonUriFromTask(task: Task): Uri | null {
 		}
 	}
 	return null;
+}
+
+export async function hasPackageJson(): Promise<boolean> {
+	let folders = workspace.workspaceFolders;
+	if (!folders) {
+		return false;
+	}
+	for (const folder of folders) {
+		if (folder.uri.scheme === 'file') {
+			let packageJson = path.join(folder.uri.fsPath, 'package.json');
+			if (await exists(packageJson)) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 async function exists(file: string): Promise<boolean> {

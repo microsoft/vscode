@@ -9,16 +9,16 @@ import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, ResourceFileEditDto, ResourceTextEditDto, MainThreadTextEditorsShape } from './extHost.protocol';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, IResourceFileEditDto, IResourceTextEditDto, MainThreadTextEditorsShape } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
-	private _onDidCreate = new Emitter<vscode.Uri>();
-	private _onDidChange = new Emitter<vscode.Uri>();
-	private _onDidDelete = new Emitter<vscode.Uri>();
+	private readonly _onDidCreate = new Emitter<vscode.Uri>();
+	private readonly _onDidChange = new Emitter<vscode.Uri>();
+	private readonly _onDidDelete = new Emitter<vscode.Uri>();
 	private _disposable: Disposable;
 	private _config: number;
 
@@ -169,7 +169,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 			}
 			// flatten all WorkspaceEdits collected via waitUntil-call
 			// and apply them in one go.
-			const allEdits = new Array<Array<ResourceFileEditDto | ResourceTextEditDto>>();
+			const allEdits = new Array<Array<IResourceFileEditDto | IResourceTextEditDto>>();
 			for (let edit of edits) {
 				if (edit) { // sparse array
 					let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);

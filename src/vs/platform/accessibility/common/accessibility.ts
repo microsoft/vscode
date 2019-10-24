@@ -5,11 +5,12 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const IAccessibilityService = createDecorator<IAccessibilityService>('accessibilityService');
 
 export interface IAccessibilityService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChangeAccessibilitySupport: Event<void>;
 
@@ -28,3 +29,5 @@ export const enum AccessibilitySupport {
 
 	Enabled = 2
 }
+
+export const CONTEXT_ACCESSIBILITY_MODE_ENABLED = new RawContextKey<boolean>('accessibilityModeEnabled', false);

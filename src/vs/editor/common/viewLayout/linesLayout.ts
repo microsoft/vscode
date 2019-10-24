@@ -63,14 +63,14 @@ export class LinesLayout {
 	 * @param heightInPx The height of the whitespace, in pixels.
 	 * @return An id that can be used later to mutate or delete the whitespace
 	 */
-	public insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): number {
+	public insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string {
 		return this._whitespaces.insertWhitespace(afterLineNumber, ordinal, heightInPx, minWidth);
 	}
 
 	/**
 	 * Change properties associated with a certain whitespace.
 	 */
-	public changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean {
+	public changeWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean {
 		return this._whitespaces.changeWhitespace(id, newAfterLineNumber, newHeight);
 	}
 
@@ -80,7 +80,7 @@ export class LinesLayout {
 	 * @param id The whitespace to remove
 	 * @return Returns true if the whitespace is found and it is removed.
 	 */
-	public removeWhitespace(id: number): boolean {
+	public removeWhitespace(id: string): boolean {
 		return this._whitespaces.removeWhitespace(id);
 	}
 

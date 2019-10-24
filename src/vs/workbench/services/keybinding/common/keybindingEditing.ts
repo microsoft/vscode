@@ -20,7 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -30,7 +30,7 @@ export const IKeybindingEditingService = createDecorator<IKeybindingEditingServi
 
 export interface IKeybindingEditingService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	editKeybinding(keybindingItem: ResolvedKeybindingItem, key: string, when: string | undefined): Promise<void>;
 
@@ -41,7 +41,7 @@ export interface IKeybindingEditingService {
 
 export class KeybindingsEditingService extends Disposable implements IKeybindingEditingService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	private queue: Queue<void>;
 
 	private resource: URI = this.environmentService.keybindingsResource;

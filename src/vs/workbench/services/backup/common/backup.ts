@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { joinPath, relativePath } from 'vs/base/common/resources';
 
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
@@ -21,7 +19,7 @@ export interface IResolvedBackup<T extends object> {
  */
 export interface IBackupFileService {
 
-	_serviceBrand: ServiceIdentifier<IBackupFileService>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Finds out if there are any backups stored.
@@ -87,8 +85,4 @@ export interface IBackupFileService {
 	 * being made.
 	 */
 	discardAllWorkspaceBackups(): Promise<void>;
-}
-
-export function toBackupWorkspaceResource(backupWorkspacePath: string, environmentService: IEnvironmentService): URI {
-	return joinPath(environmentService.userRoamingDataHome, relativePath(URI.file(environmentService.userDataPath), URI.file(backupWorkspacePath))!);
 }

@@ -195,4 +195,27 @@ suite('editor tests', () => {
 			);
 		});
 	});
+
+	test('throw when using invalid edit', async function () {
+
+		await withRandomFileEditor('foo', editor => {
+
+			return new Promise((resolve, reject) => {
+
+				editor.edit(edit => {
+					edit.insert(new Position(0, 0), 'bar');
+					setTimeout(() => {
+						try {
+							edit.insert(new Position(0, 0), 'bar');
+							reject(new Error('expected error'));
+						} catch (err) {
+							assert.ok(true);
+							resolve();
+						}
+					}, 0);
+				});
+			});
+		});
+
+	});
 });

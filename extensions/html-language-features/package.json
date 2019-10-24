@@ -32,6 +32,15 @@
       "type": "object",
       "title": "HTML",
       "properties": {
+        "html.customData": {
+          "type": "array",
+          "markdownDescription": "%html.customData.desc%",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource"
+        },
         "html.experimental.customData": {
           "type": "array",
           "description": "A list of JSON file paths that define custom tags, properties and other HTML syntax constructs. Only workspace folder setting will be read.",
@@ -39,7 +48,8 @@
           "items": {
             "type": "string"
           },
-          "scope": "resource"
+          "scope": "resource",
+          "deprecationMessage": "This setting is no longe experimental. Use `html.customData` instead."
         },
         "html.format.enable": {
           "type": "boolean",
@@ -173,11 +183,21 @@
           "description": "%html.trace.server.desc%"
         }
       }
-    }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "*.html-data.json",
+        "url": "https://raw.githubusercontent.com/Microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
+      },
+      {
+        "fileMatch": "package.json",
+        "url": "./schemas/package.schema.json"
+      }
+    ]
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^5.3.0-next.6",
+    "vscode-languageclient": "^6.0.0-next.1",
     "vscode-nls": "^4.1.1"
   },
   "devDependencies": {

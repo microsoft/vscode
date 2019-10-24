@@ -7,7 +7,6 @@ import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from 
 import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { isAbsolutePath, dirname, basename, joinPath, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -21,7 +20,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export class FileService extends Disposable implements IFileService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly BUFFER_SIZE = 64 * 1024;
 
@@ -32,10 +31,10 @@ export class FileService extends Disposable implements IFileService {
 	//#region File System Provider
 
 	private _onDidChangeFileSystemProviderRegistrations: Emitter<IFileSystemProviderRegistrationEvent> = this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
-	get onDidChangeFileSystemProviderRegistrations(): Event<IFileSystemProviderRegistrationEvent> { return this._onDidChangeFileSystemProviderRegistrations.event; }
+	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent> = this._onDidChangeFileSystemProviderRegistrations.event;
 
 	private _onWillActivateFileSystemProvider: Emitter<IFileSystemProviderActivationEvent> = this._register(new Emitter<IFileSystemProviderActivationEvent>());
-	get onWillActivateFileSystemProvider(): Event<IFileSystemProviderActivationEvent> { return this._onWillActivateFileSystemProvider.event; }
+	readonly onWillActivateFileSystemProvider: Event<IFileSystemProviderActivationEvent> = this._onWillActivateFileSystemProvider.event;
 
 	private readonly provider = new Map<string, IFileSystemProvider>();
 
@@ -132,10 +131,10 @@ export class FileService extends Disposable implements IFileService {
 	//#endregion
 
 	private _onAfterOperation: Emitter<FileOperationEvent> = this._register(new Emitter<FileOperationEvent>());
-	get onAfterOperation(): Event<FileOperationEvent> { return this._onAfterOperation.event; }
+	readonly onAfterOperation: Event<FileOperationEvent> = this._onAfterOperation.event;
 
 	private _onError: Emitter<Error> = this._register(new Emitter<Error>());
-	get onError(): Event<Error> { return this._onError.event; }
+	readonly onError: Event<Error> = this._onError.event;
 
 	//#region File Metadata Resolving
 
@@ -164,20 +163,24 @@ export class FileService extends Disposable implements IFileService {
 	private async doResolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		const provider = await this.withProvider(resource);
 
-		// leverage a trie to check for recursive resolving
-		const resolveTo = options && options.resolveTo;
-		const trie = TernarySearchTree.forPaths<true>();
-		trie.set(resource.toString(), true);
-		if (isNonEmptyArray(resolveTo)) {
-			resolveTo.forEach(uri => trie.set(uri.toString(), true));
-		}
-
-		const resolveSingleChildDescendants = !!(options && options.resolveSingleChildDescendants);
-		const resolveMetadata = !!(options && options.resolveMetadata);
+		const resolveTo = options?.resolveTo;
+		const resolveSingleChildDescendants = options?.resolveSingleChildDescendants;
+		const resolveMetadata = options?.resolveMetadata;
 
 		const stat = await provider.stat(resource);
 
-		return this.toFileStat(provider, resource, stat, undefined, resolveMetadata, (stat, siblings) => {
+		let trie: TernarySearchTree<boolean> | undefined;
+
+		return this.toFileStat(provider, resource, stat, undefined, !!resolveMetadata, (stat, siblings) => {
+
+			// lazy trie to check for recursive resolving
+			if (!trie) {
+				trie = TernarySearchTree.forPaths<true>();
+				trie.set(resource.toString(), true);
+				if (isNonEmptyArray(resolveTo)) {
+					resolveTo.forEach(uri => trie!.set(uri.toString(), true));
+				}
+			}
 
 			// check for recursive resolving
 			if (Boolean(trie.findSuperstr(stat.resource.toString()) || trie.get(stat.resource.toString()))) {
@@ -253,8 +256,12 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	async exists(resource: URI): Promise<boolean> {
+		const provider = await this.withProvider(resource);
+
 		try {
-			return !!(await this.resolve(resource));
+			const stat = await provider.stat(resource);
+
+			return !!stat;
 		} catch (error) {
 			return false;
 		}
@@ -267,8 +274,7 @@ export class FileService extends Disposable implements IFileService {
 	async createFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream = VSBuffer.fromString(''), options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// validate overwrite
-		const overwrite = !!(options && options.overwrite);
-		if (!overwrite && await this.exists(resource)) {
+		if (!options?.overwrite && await this.exists(resource)) {
 			throw new FileOperationError(localize('fileExists', "File to create already exists ({0})", this.resourceForError(resource)), FileOperationResult.FILE_MODIFIED_SINCE, options);
 		}
 
@@ -500,7 +506,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Return early if file is too large to load
-		if (options && options.limits) {
+		if (options?.limits) {
 			if (typeof options.limits.memory === 'number' && stat.size > options.limits.memory) {
 				throw new FileOperationError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), FileOperationResult.FILE_EXCEED_MEMORY_LIMIT);
 			}
@@ -522,7 +528,7 @@ export class FileService extends Disposable implements IFileService {
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withReadWriteProvider(target));
 
 		// move
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', overwrite);
+		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite);
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
@@ -536,7 +542,7 @@ export class FileService extends Disposable implements IFileService {
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withReadWriteProvider(target));
 
 		// copy
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
+		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', !!overwrite);
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
@@ -545,7 +551,7 @@ export class FileService extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	private async doMoveCopy(sourceProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<'move' | 'copy'> {
+	private async doMoveCopy(sourceProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI, mode: 'move' | 'copy', overwrite: boolean): Promise<'move' | 'copy'> {
 		if (source.toString() === target.toString()) {
 			return mode; // simulate node.js behaviour here and do a no-op if paths match
 		}
@@ -566,7 +572,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// same provider with fast copy: leverage copy() functionality
 			if (sourceProvider === targetProvider && hasFileFolderCopyCapability(sourceProvider)) {
-				await sourceProvider.copy(source, target, { overwrite: !!overwrite });
+				await sourceProvider.copy(source, target, { overwrite });
 			}
 
 			// when copying via buffer/unbuffered, we have to manually
@@ -588,7 +594,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// same provider: leverage rename() functionality
 			if (sourceProvider === targetProvider) {
-				await sourceProvider.rename(source, target, { overwrite: !!overwrite });
+				await sourceProvider.rename(source, target, { overwrite });
 
 				return mode;
 			}
@@ -737,13 +743,13 @@ export class FileService extends Disposable implements IFileService {
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
 
 		// Validate trash support
-		const useTrash = !!(options && options.useTrash);
+		const useTrash = !!options?.useTrash;
 		if (useTrash && !(provider.capabilities & FileSystemProviderCapabilities.Trash)) {
 			throw new Error(localize('err.trash', "Provider does not support trash."));
 		}
 
 		// Validate recursive
-		const recursive = !!(options && options.recursive);
+		const recursive = !!options?.recursive;
 		if (!recursive && await this.exists(resource)) {
 			const stat = await this.resolve(resource);
 			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
@@ -763,7 +769,7 @@ export class FileService extends Disposable implements IFileService {
 	//#region File Watching
 
 	private _onFileChanges: Emitter<FileChangesEvent> = this._register(new Emitter<FileChangesEvent>());
-	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
+	readonly onFileChanges: Event<FileChangesEvent> = this._onFileChanges.event;
 
 	private activeWatchers = new Map<string, { disposable: IDisposable, count: number }>();
 
@@ -1055,7 +1061,7 @@ export class FileService extends Disposable implements IFileService {
 	private throwIfTooLarge(totalBytesRead: number, options?: IReadFileOptions): boolean {
 
 		// Return early if file is too large to load
-		if (options && options.limits) {
+		if (options?.limits) {
 			if (typeof options.limits.memory === 'number' && totalBytesRead > options.limits.memory) {
 				throw new FileOperationError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), FileOperationResult.FILE_EXCEED_MEMORY_LIMIT);
 			}

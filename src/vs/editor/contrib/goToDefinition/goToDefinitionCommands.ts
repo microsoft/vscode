@@ -7,7 +7,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/base/common/platform';
+import { isWeb } from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -30,6 +30,9 @@ import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefiniti
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { ISymbolNavigationService } from 'vs/editor/contrib/goToDefinition/goToDefinitionResultsNavigation';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { isEqual } from 'vs/base/common/resources';
+import { isStandalone } from 'vs/base/browser/browser';
 
 export class DefinitionActionConfig {
 
@@ -83,7 +86,7 @@ export class DefinitionAction extends EditorAction {
 				}
 				const newLen = result.push(reference);
 				if (this._configuration.filterCurrent
-					&& reference.uri.toString() === model.uri.toString()
+					&& isEqual(reference.uri, model.uri)
 					&& Range.containsPosition(reference.range, pos)
 					&& idxOfCurrent === -1
 				) {
@@ -137,7 +140,7 @@ export class DefinitionAction extends EditorAction {
 		const msg = model.getAriaMessage();
 		alert(msg);
 
-		const { gotoLocation } = editor.getConfiguration().contribInfo;
+		const gotoLocation = editor.getOption(EditorOption.gotoLocation);
 		if (this._configuration.openInPeek || (gotoLocation.multiple === 'peek' && model.references.length > 1)) {
 			this._openInPeek(editorService, editor, model);
 
@@ -199,7 +202,7 @@ export class DefinitionAction extends EditorAction {
 	}
 }
 
-const goToDefinitionKb = platform.isWeb
+const goToDefinitionKb = isWeb && !isStandalone
 	? KeyMod.CtrlCmd | KeyCode.F12
 	: KeyCode.F12;
 

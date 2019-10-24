@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -22,24 +22,30 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	constructor(
 		extHostContext: IExtHostContext,
 		@IViewsService private readonly viewsService: IViewsService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean }): void {
-		const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
-		this._dataProviders.set(treeViewId, dataProvider);
-		const viewer = this.getTreeView(treeViewId);
-		if (viewer) {
-			viewer.dataProvider = dataProvider;
-			viewer.showCollapseAllAction = !!options.showCollapseAll;
-			this.registerListeners(treeViewId, viewer);
-			this._proxy.$setVisible(treeViewId, viewer.visible);
-		} else {
-			this.notificationService.error('No view is registered with id: ' + treeViewId);
-		}
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean }): void {
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
+			this._dataProviders.set(treeViewId, dataProvider);
+			const viewer = this.getTreeView(treeViewId);
+			if (viewer) {
+				// Order is important here. The internal tree isn't created until the dataProvider is set.
+				// Set all other properties first!
+				viewer.showCollapseAllAction = !!options.showCollapseAll;
+				viewer.canSelectMany = !!options.canSelectMany;
+				viewer.dataProvider = dataProvider;
+				this.registerListeners(treeViewId, viewer);
+				this._proxy.$setVisible(treeViewId, viewer.visible);
+			} else {
+				this.notificationService.error('No view is registered with id: ' + treeViewId);
+			}
+		});
 	}
 
 	$reveal(treeViewId: string, item: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
@@ -63,10 +69,17 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return Promise.resolve();
 	}
 
-	$setMessage(treeViewId: string, message: string | IMarkdownString): void {
+	$setMessage(treeViewId: string, message: string): void {
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
 			viewer.message = message;
+		}
+	}
+
+	$setTitle(treeViewId: string, title: string): void {
+		const viewer = this.getTreeView(treeViewId);
+		if (viewer) {
+			viewer.title = title;
 		}
 	}
 
@@ -125,7 +138,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._dataProviders.forEach((dataProvider, treeViewId) => {
 			const treeView = this.getTreeView(treeViewId);
 			if (treeView) {
-				treeView.dataProvider = null;
+				treeView.dataProvider = undefined;
 			}
 		});
 		this._dataProviders.clear();

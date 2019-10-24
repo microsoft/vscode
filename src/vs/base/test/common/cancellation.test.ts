@@ -95,6 +95,20 @@ suite('CancellationToken', function () {
 		assert.equal(count, 0);
 	});
 
+	test('dispose calls no listeners (unless told to cancel)', function () {
+
+		let count = 0;
+
+		let source = new CancellationTokenSource();
+		source.token.onCancellationRequested(function () {
+			count += 1;
+		});
+
+		source.dispose(true);
+		// source.cancel();
+		assert.equal(count, 1);
+	});
+
 	test('parent cancels child', function () {
 
 		let parent = new CancellationTokenSource();

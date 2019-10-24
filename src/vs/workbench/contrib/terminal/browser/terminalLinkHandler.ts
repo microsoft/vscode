@@ -5,15 +5,15 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalService, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILinkMatcherOptions } from 'xterm';
+import { Terminal, ILinkMatcherOptions } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -38,6 +38,7 @@ const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharacte
 replacing space with nonBreakningSpace or space ASCII code - 32. */
 const lineAndColumnClause = [
 	'((\\S*)", line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
+	'((\\S*)",((\\d+)(:(\\d+))?))', // "(file path)",45 [see #78205]
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
@@ -66,21 +67,20 @@ interface IPath {
 
 export class TerminalLinkHandler {
 	private readonly _hoverDisposables = new DisposableStore();
-	private _mouseMoveDisposable: IDisposable;
-	private _widgetManager: TerminalWidgetManager;
-	private _processCwd: string;
+	private _widgetManager: TerminalWidgetManager | undefined;
+	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string) => boolean | void;
 	private readonly _leaveCallback: () => void;
 
 	constructor(
-		private _xterm: any,
+		private _xterm: Terminal,
 		private readonly _processManager: ITerminalProcessManager | undefined,
+		private readonly _configHelper: ITerminalConfigHelper,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IFileService private readonly _fileService: IFileService
 	) {
@@ -93,7 +93,7 @@ export class TerminalLinkHandler {
 			if (!this._widgetManager) {
 				return;
 			}
-			if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
+			if (this._configHelper.config.rendererType === 'dom') {
 				const target = (e.target as HTMLElement);
 				this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
 			} else {
@@ -108,7 +108,9 @@ export class TerminalLinkHandler {
 
 		this.registerWebLinkHandler();
 		if (this._processManager) {
-			this.registerLocalLinkHandler();
+			if (this._configHelper.config.enableFileLinks) {
+				this.registerLocalLinkHandler();
+			}
 			this.registerGitDiffLinkHandlers();
 		}
 	}
@@ -182,10 +184,7 @@ export class TerminalLinkHandler {
 	}
 
 	public dispose(): void {
-		this._xterm = null;
-
 		this._hoverDisposables.dispose();
-		this._mouseMoveDisposable = dispose(this._mouseMoveDisposable);
 	}
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
@@ -194,9 +193,6 @@ export class TerminalLinkHandler {
 			event.preventDefault();
 			// Require correct modifier on click
 			if (!this._isLinkActivationModifierDown(event)) {
-				// If the modifier is not pressed, the terminal should be
-				// focused if it's not already
-				this._terminalService.getActiveInstance()!.focus(true);
 				return false;
 			}
 			return handler(uri);
@@ -244,7 +240,7 @@ export class TerminalLinkHandler {
 
 	private _handleHypertextLink(url: string): void {
 		const uri = URI.parse(url);
-		this._openerService.open(uri);
+		this._openerService.open(uri, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
 	}
 
 	private _isLinkActivationModifierDown(event: MouseEvent): boolean {

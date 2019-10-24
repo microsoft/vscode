@@ -65,6 +65,10 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		return this._activePreview && this._activePreview.resource;
 	}
 
+	public get activePreviewResourceColumn() {
+		return this._activePreview && this._activePreview.resourceColumn;
+	}
+
 	public toggleLock() {
 		const preview = this._activePreview;
 		if (preview) {
@@ -110,6 +114,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		const preview = MarkdownPreview.create(
 			resource,
 			previewSettings.previewColumn,
+			previewSettings.resourceColumn,
 			previewSettings.locked,
 			this._contentProvider,
 			this._previewConfigurations,

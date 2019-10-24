@@ -9,9 +9,9 @@ steps:
     vstsFeed: '$(ArtifactFeed)'
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
 - script: |
-    yarn --frozen-lockfile
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
   displayName: Install Dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
@@ -21,11 +21,14 @@ steps:
     vstsFeed: '$(ArtifactFeed)'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - script: |
-    yarn gulp electron-x64
+    yarn electron x64
   displayName: Download Electron
 - script: |
-    yarn gulp hygiene
+    yarn gulp hygiene --skip-tslint
   displayName: Run Hygiene Checks
+- script: |
+    yarn gulp tslint
+  displayName: Run TSLint Checks
 - script: |
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks

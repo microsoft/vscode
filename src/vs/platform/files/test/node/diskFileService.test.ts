@@ -21,19 +21,13 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { VSBuffer, VSBufferReadable, toVSBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream } from 'vs/base/common/buffer';
+import { find } from 'vs/base/common/arrays';
 
-function getByName(root: IFileStat, name: string): IFileStat | null {
+function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	if (root.children === undefined) {
-		return null;
+		return undefined;
 	}
-
-	for (const child of root.children) {
-		if (child.name === name) {
-			return child;
-		}
-	}
-
-	return null;
+	return find(root.children, child => child.name === name);
 }
 
 function toLineByLineReadable(content: string): VSBufferReadable {
@@ -62,9 +56,9 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	totalBytesRead: number = 0;
 
-	private invalidStatSize: boolean;
+	private invalidStatSize: boolean = false;
 
-	private _testCapabilities: FileSystemProviderCapabilities;
+	private _testCapabilities!: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._testCapabilities) {
 			this._testCapabilities =
@@ -115,7 +109,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 	}
 }
 
-suite('Disk File Service', () => {
+suite('Disk File Service', function () {
 
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
 	const testSchema = 'test';
@@ -126,6 +120,12 @@ suite('Disk File Service', () => {
 	let testDir: string;
 
 	const disposables = new DisposableStore();
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/78602
+	// we see random test failures when accessing the native file system. To
+	// diagnose further, we retry node.js file access tests up to 3 times to
+	// rule out any random disk issue.
+	this.retries(3);
 
 	setup(async () => {
 		const logService = new NullLogService();
@@ -613,7 +613,7 @@ suite('Disk File Service', () => {
 		await testMoveFolderAcrossProviders();
 	});
 
-	test('move - directory - across providers (unbuffered => buffered)', async () => {
+	test('move - directory - across providers (unbuffered => buffered)', async function () {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
@@ -1696,7 +1696,9 @@ suite('Disk File Service', () => {
 		assert.ok(!error);
 	});
 
-	test('watch - file', done => {
+	const runWatchTests = isLinux;
+
+	(runWatchTests ? test : test.skip)('watch - file', done => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
@@ -1705,11 +1707,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
 	});
 
-	test('watch - file symbolic link', async done => {
-		if (isWindows) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - file symbolic link', async done => {
 		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(join(testDir, 'lorem.txt'), toWatch.fsPath);
 
@@ -1718,11 +1716,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
 	});
 
-	test('watch - file - multiple writes', done => {
-		if (isWindows) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests ? test : test.skip)('watch - file - multiple writes', done => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
@@ -1733,7 +1727,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 3'), 20);
 	});
 
-	test('watch - file - delete file', done => {
+	(runWatchTests ? test : test.skip)('watch - file - delete file', done => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
@@ -1742,11 +1736,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => unlinkSync(toWatch.fsPath), 50);
 	});
 
-	test('watch - file - rename file', done => {
-		if (isWindows) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests ? test : test.skip)('watch - file - rename file', done => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		const toWatchRenamed = URI.file(join(testDir, 'index-watch1-renamed.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
@@ -1756,7 +1746,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => renameSync(toWatch.fsPath, toWatchRenamed.fsPath), 50);
 	});
 
-	test('watch - file - rename file (different case)', done => {
+	(runWatchTests ? test : test.skip)('watch - file - rename file (different case)', done => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		const toWatchRenamed = URI.file(join(testDir, 'INDEX-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
@@ -1770,7 +1760,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => renameSync(toWatch.fsPath, toWatchRenamed.fsPath), 50);
 	});
 
-	test('watch - file (atomic save)', function (done) {
+	(runWatchTests ? test : test.skip)('watch - file (atomic save)', function (done) {
 		const toWatch = URI.file(join(testDir, 'index-watch2.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
@@ -1786,11 +1776,7 @@ suite('Disk File Service', () => {
 		}, 50);
 	});
 
-	test('watch - folder (non recursive) - change file', done => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - change file', done => {
 		const watchDir = URI.file(join(testDir, 'watch3'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1802,11 +1788,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
 	});
 
-	test('watch - folder (non recursive) - add file', done => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - add file', done => {
 		const watchDir = URI.file(join(testDir, 'watch4'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1817,11 +1799,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
 	});
 
-	test('watch - folder (non recursive) - delete file', done => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - delete file', done => {
 		const watchDir = URI.file(join(testDir, 'watch5'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1833,11 +1811,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => unlinkSync(file.fsPath), 50);
 	});
 
-	test('watch - folder (non recursive) - add folder', done => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - add folder', done => {
 		const watchDir = URI.file(join(testDir, 'watch6'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1848,11 +1822,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => mkdirSync(folder.fsPath), 50);
 	});
 
-	test('watch - folder (non recursive) - delete folder', done => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - delete folder', done => {
 		const watchDir = URI.file(join(testDir, 'watch7'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1864,11 +1834,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => rimrafSync(folder.fsPath), 50);
 	});
 
-	test('watch - folder (non recursive) - symbolic link - change file', async done => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - folder (non recursive) - symbolic link - change file', async done => {
 		const watchDir = URI.file(join(testDir, 'deep-link'));
 		await symlink(join(testDir, 'deep'), watchDir.fsPath);
 
@@ -1880,11 +1846,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
 	});
 
-	test('watch - folder (non recursive) - rename file', done => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - rename file', done => {
 		const watchDir = URI.file(join(testDir, 'watch8'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1898,11 +1860,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => renameSync(file.fsPath, fileRenamed.fsPath), 50);
 	});
 
-	test('watch - folder (non recursive) - rename file (different case)', done => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-
+	(runWatchTests && isLinux /* this test requires a case sensitive file system */ ? test : test.skip)('watch - folder (non recursive) - rename file (different case)', done => {
 		const watchDir = URI.file(join(testDir, 'watch8'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1954,7 +1912,97 @@ suite('Disk File Service', () => {
 		});
 	}
 
-	function hasChange(changes: IFileChange[], type: FileChangeType, resource: URI): boolean {
+	function hasChange(changes: readonly IFileChange[], type: FileChangeType, resource: URI): boolean {
 		return changes.some(change => change.type === type && isEqual(change.resource, resource));
 	}
+
+	test('read - mixed positions', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		// read multiple times from position 0
+		let buffer = VSBuffer.alloc(1024);
+		let fd = await fileProvider.open(resource, { create: false });
+		for (let i = 0; i < 3; i++) {
+			await fileProvider.read(fd, 0, buffer.buffer, 0, 26);
+			assert.equal(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
+		}
+		await fileProvider.close(fd);
+
+		// read multiple times at various locations
+		buffer = VSBuffer.alloc(1024);
+		fd = await fileProvider.open(resource, { create: false });
+
+		let posInFile = 0;
+
+		await fileProvider.read(fd, posInFile, buffer.buffer, 0, 26);
+		assert.equal(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
+		posInFile += 26;
+
+		await fileProvider.read(fd, posInFile, buffer.buffer, 0, 1);
+		assert.equal(buffer.slice(0, 1).toString(), ',');
+		posInFile += 1;
+
+		await fileProvider.read(fd, posInFile, buffer.buffer, 0, 12);
+		assert.equal(buffer.slice(0, 12).toString(), ' consectetur');
+		posInFile += 12;
+
+		await fileProvider.read(fd, 98 /* no longer in sequence of posInFile */, buffer.buffer, 0, 9);
+		assert.equal(buffer.slice(0, 9).toString(), 'fermentum');
+
+		await fileProvider.read(fd, 27, buffer.buffer, 0, 12);
+		assert.equal(buffer.slice(0, 12).toString(), ' consectetur');
+
+		await fileProvider.read(fd, 26, buffer.buffer, 0, 1);
+		assert.equal(buffer.slice(0, 1).toString(), ',');
+
+		await fileProvider.read(fd, 0, buffer.buffer, 0, 26);
+		assert.equal(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
+
+		await fileProvider.read(fd, posInFile /* back in sequence */, buffer.buffer, 0, 11);
+		assert.equal(buffer.slice(0, 11).toString(), ' adipiscing');
+
+		await fileProvider.close(fd);
+	});
+
+	test('write - mixed positions', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const buffer = VSBuffer.alloc(1024);
+		const fdWrite = await fileProvider.open(resource, { create: true });
+		const fdRead = await fileProvider.open(resource, { create: false });
+
+		let posInFileWrite = 0;
+		let posInFileRead = 0;
+
+		const initialContents = VSBuffer.fromString('Lorem ipsum dolor sit amet');
+		await fileProvider.write(fdWrite, posInFileWrite, initialContents.buffer, 0, initialContents.byteLength);
+		posInFileWrite += initialContents.byteLength;
+
+		await fileProvider.read(fdRead, posInFileRead, buffer.buffer, 0, 26);
+		assert.equal(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
+		posInFileRead += 26;
+
+		const contents = VSBuffer.fromString('Hello World');
+
+		await fileProvider.write(fdWrite, posInFileWrite, contents.buffer, 0, contents.byteLength);
+		posInFileWrite += contents.byteLength;
+
+		await fileProvider.read(fdRead, posInFileRead, buffer.buffer, 0, contents.byteLength);
+		assert.equal(buffer.slice(0, contents.byteLength).toString(), 'Hello World');
+		posInFileRead += contents.byteLength;
+
+		await fileProvider.write(fdWrite, 6, contents.buffer, 0, contents.byteLength);
+
+		await fileProvider.read(fdRead, 0, buffer.buffer, 0, 11);
+		assert.equal(buffer.slice(0, 11).toString(), 'Lorem Hello');
+
+		await fileProvider.write(fdWrite, posInFileWrite, contents.buffer, 0, contents.byteLength);
+		posInFileWrite += contents.byteLength;
+
+		await fileProvider.read(fdRead, posInFileWrite - contents.byteLength, buffer.buffer, 0, contents.byteLength);
+		assert.equal(buffer.slice(0, contents.byteLength).toString(), 'Hello World');
+
+		await fileProvider.close(fdWrite);
+		await fileProvider.close(fdRead);
+	});
 });

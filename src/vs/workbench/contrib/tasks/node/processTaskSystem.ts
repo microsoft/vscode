@@ -90,6 +90,10 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return result;
 	}
 
+	public getBusyTasks(): Task[] {
+		return this.getActiveTasks();
+	}
+
 	public run(task: Task): ITaskExecuteResult {
 		if (this.activeTask) {
 			return { kind: TaskExecuteKind.Active, task, active: { same: this.activeTask._id === task._id, background: this.activeTask.configurationProperties.isBackground! }, promise: this.activeTaskPromise! };
@@ -280,7 +284,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				this.childProcessEnded();
 				watchingProblemMatcher.done();
 				watchingProblemMatcher.dispose();
-				if (processStartedSignaled && task.command.runtime !== RuntimeType.CustomExecution) {
+				if (processStartedSignaled) {
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode!));
 				}
 				toDispose = dispose(toDispose!);
@@ -336,7 +340,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				startStopProblemMatcher.done();
 				startStopProblemMatcher.dispose();
 				this.checkTerminated(task, success);
-				if (processStartedSignaled && task.command.runtime !== RuntimeType.CustomExecution) {
+				if (processStartedSignaled) {
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode!));
 				}
 				this._onDidStateChange.fire(inactiveEvent);

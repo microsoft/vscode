@@ -12,8 +12,8 @@ export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
 export class DeferredPromise<T> {
 
-	private completeCallback: ValueCallback<T>;
-	private errorCallback: (err: any) => void;
+	private completeCallback!: ValueCallback<T>;
+	private errorCallback!: (err: any) => void;
 
 	public p: Promise<any>;
 

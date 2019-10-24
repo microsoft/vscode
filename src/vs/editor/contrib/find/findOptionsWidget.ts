@@ -11,7 +11,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { FIND_IDS } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { contrastBorder, editorWidgetBackground, inputActiveOptionBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
@@ -47,11 +47,13 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.setAttribute('aria-hidden', 'true');
 
 		const inputActiveOptionBorderColor = themeService.getTheme().getColor(inputActiveOptionBorder);
+		const inputActiveOptionBackgroundColor = themeService.getTheme().getColor(inputActiveOptionBackground);
 
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
 			isChecked: this._state.matchCase,
-			inputActiveOptionBorder: inputActiveOptionBorderColor
+			inputActiveOptionBorder: inputActiveOptionBorderColor,
+			inputActiveOptionBackground: inputActiveOptionBackgroundColor
 		}));
 		this._domNode.appendChild(this.caseSensitive.domNode);
 		this._register(this.caseSensitive.onChange(() => {
@@ -63,7 +65,8 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			isChecked: this._state.wholeWord,
-			inputActiveOptionBorder: inputActiveOptionBorderColor
+			inputActiveOptionBorder: inputActiveOptionBorderColor,
+			inputActiveOptionBackground: inputActiveOptionBackgroundColor
 		}));
 		this._domNode.appendChild(this.wholeWords.domNode);
 		this._register(this.wholeWords.onChange(() => {
@@ -75,7 +78,8 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this.regex = this._register(new RegexCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			isChecked: this._state.isRegex,
-			inputActiveOptionBorder: inputActiveOptionBorderColor
+			inputActiveOptionBorder: inputActiveOptionBorderColor,
+			inputActiveOptionBackground: inputActiveOptionBackgroundColor
 		}));
 		this._domNode.appendChild(this.regex.domNode);
 		this._register(this.regex.onChange(() => {
@@ -179,7 +183,10 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		let inputStyles = { inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) };
+		let inputStyles = {
+			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground)
+		};
 		this.caseSensitive.style(inputStyles);
 		this.wholeWords.style(inputStyles);
 		this.regex.style(inputStyles);

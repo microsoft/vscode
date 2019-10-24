@@ -7,8 +7,8 @@ import { mixin, deepClone } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from './extHost.protocol';
+import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData, MainContext } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -18,6 +18,8 @@ import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/confi
 import { isObject } from 'vs/base/common/types';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -40,13 +42,18 @@ type ConfigurationInspect<T> = {
 
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
+	readonly _serviceBrand: undefined;
+
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _barrier: Barrier;
 	private _actual: ExtHostConfigProvider | null;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace) {
-		this._proxy = proxy;
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace
+	) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadConfiguration);
 		this._extHostWorkspace = extHostWorkspace;
 		this._barrier = new Barrier();
 		this._actual = null;
@@ -263,8 +270,8 @@ export class ExtHostConfigProvider {
 		const defaultConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.defaults);
 		const userConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.user);
 		const workspaceConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.workspace);
-		const folders: ResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
-			result.set(URI.parse(key), ExtHostConfigProvider.parseConfigurationModel(data.folders[key]));
+		const folders: ResourceMap<ConfigurationModel> = data.folders.reduce((result, value) => {
+			result.set(URI.revive(value[0]), ExtHostConfigProvider.parseConfigurationModel(value[1]));
 			return result;
 		}, new ResourceMap<ConfigurationModel>());
 		return new Configuration(defaultConfiguration, userConfiguration, new ConfigurationModel(), workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);
@@ -274,3 +281,6 @@ export class ExtHostConfigProvider {
 		return new ConfigurationModel(model.contents, model.keys, model.overrides).freeze();
 	}
 }
+
+export const IExtHostConfiguration = createDecorator<IExtHostConfiguration>('IExtHostConfiguration');
+export interface IExtHostConfiguration extends ExtHostConfiguration { }

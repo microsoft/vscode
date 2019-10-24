@@ -36,12 +36,12 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export class DebugViewlet extends ViewContainerViewlet {
 
-	private startDebugActionViewItem: StartDebugActionViewItem;
+	private startDebugActionViewItem: StartDebugActionViewItem | undefined;
 	private progressResolve: (() => void) | undefined;
-	private breakpointView: ViewletPanel;
+	private breakpointView: ViewletPanel | undefined;
 	private panelListeners = new Map<string, IDisposable>();
-	private debugToolBarMenu: IMenu;
-	private disposeOnTitleUpdate: IDisposable;
+	private debugToolBarMenu: IMenu | undefined;
+	private disposeOnTitleUpdate: IDisposable | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -214,7 +214,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 
 class ToggleReplAction extends TogglePanelAction {
 	static readonly ID = 'debug.toggleRepl';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
+	static readonly LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
 
 	constructor(id: string, label: string,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,

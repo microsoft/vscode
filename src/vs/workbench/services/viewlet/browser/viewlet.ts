@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
@@ -13,7 +13,7 @@ export const IViewletService = createDecorator<IViewletService>('viewletService'
 
 export interface IViewletService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	readonly onDidViewletRegister: Event<ViewletDescriptor>;
 	readonly onDidViewletDeregister: Event<ViewletDescriptor>;
@@ -23,12 +23,12 @@ export interface IViewletService {
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null>;
+	openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | undefined>;
 
 	/**
-	 * Returns the current active viewlet or null if none.
+	 * Returns the current active viewlet if any.
 	 */
-	getActiveViewlet(): IViewlet | null;
+	getActiveViewlet(): IViewlet | undefined;
 
 	/**
 	 * Returns the id of the default viewlet.
@@ -48,7 +48,7 @@ export interface IViewletService {
 	/**
 	 * Returns the progress indicator for the side bar.
 	 */
-	getProgressIndicator(id: string): IProgressIndicator | null;
+	getProgressIndicator(id: string): IProgressIndicator | undefined;
 
 	/**
 	 * Hide the active viewlet.

@@ -22,25 +22,25 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeContent(): Event<void> { return this._onDidChangeContent.event; }
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeDirty(): Event<void> { return this._onDidChangeDirty.event; }
+	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 
 	private readonly _onDidChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeEncoding(): Event<void> { return this._onDidChangeEncoding.event; }
+	readonly onDidChangeEncoding: Event<void> = this._onDidChangeEncoding.event;
 
 	private dirty: boolean = false;
 	private versionId: number = 0;
 	private readonly contentChangeEventScheduler: RunOnceScheduler;
-	private configuredEncoding: string;
+	private configuredEncoding?: string;
 
 	constructor(
-		private readonly preferredMode: string,
+		private readonly preferredMode: string | undefined,
 		private readonly resource: URI,
 		private _hasAssociatedFilePath: boolean,
-		private readonly initialValue: string,
-		private preferredEncoding: string,
+		private readonly initialValue: string | undefined,
+		private preferredEncoding: string | undefined,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -87,7 +87,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.preferredMode;
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		return this.preferredEncoding || this.configuredEncoding;
 	}
 
@@ -190,7 +190,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 		// mark the untitled editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this._hasAssociatedFilePath && this.textEditorModel && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+		if (!this._hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
 			this.setDirty(false);
 		}
 

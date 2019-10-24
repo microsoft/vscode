@@ -14,7 +14,7 @@
 	},
 	"include": [
 		"typings/require.d.ts",
-		"./typings/require-monaco.d.ts",
+		"typings/require-monaco.d.ts",
 		"typings/thenable.d.ts",
 		"typings/es6-promise.d.ts",
 		"typings/lib.es2018.promise.d.ts",

@@ -5,19 +5,34 @@
 
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { isWindows } from 'vs/base/common/platform';
-import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AbstractAccessibilityService } from 'vs/platform/accessibility/common/abstractAccessibilityService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-export class AccessibilityService implements IAccessibilityService {
-	_serviceBrand: any;
+interface AccessibilityMetrics {
+	enabled: boolean;
+}
+type AccessibilityMetricsClassification = {
+	enabled: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
+export class AccessibilityService extends AbstractAccessibilityService implements IAccessibilityService {
+
+	_serviceBrand: undefined;
 
 	private _accessibilitySupport = AccessibilitySupport.Unknown;
-	private readonly _onDidChangeAccessibilitySupport = new Emitter<void>();
-	readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
 
 	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
-	) { }
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IConfigurationService readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
+	) {
+		super(contextKeyService, configurationService);
+	}
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {
 		if (!isWindows) {
@@ -45,14 +60,20 @@ export class AccessibilityService implements IAccessibilityService {
 
 		this._accessibilitySupport = accessibilitySupport;
 		this._onDidChangeAccessibilitySupport.fire();
+
+		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+			this._telemetryService.publicLog2<AccessibilityMetrics, AccessibilityMetricsClassification>('accessibility', { enabled: true });
+		}
 	}
 
 	getAccessibilitySupport(): AccessibilitySupport {
 		if (this._accessibilitySupport === AccessibilitySupport.Unknown) {
 			const config = this.environmentService.configuration;
-			this._accessibilitySupport = (config && config.accessibilitySupport) ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled;
+			this._accessibilitySupport = config?.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled;
 		}
 
 		return this._accessibilitySupport;
 	}
 }
+
+registerSingleton(IAccessibilityService, AccessibilityService, true);

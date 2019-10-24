@@ -76,7 +76,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private readonly _toDispose = new DisposableStore();
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private readonly _proxy: ExtHostDocumentsShape;
-	private readonly _modelIsSynced: { [modelId: string]: boolean; };
+	private readonly _modelIsSynced = new Set<string>();
 	private _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(
@@ -98,7 +98,6 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._environmentService = environmentService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
-		this._modelIsSynced = {};
 
 		this._toDispose.add(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
 		this._toDispose.add(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
@@ -144,7 +143,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 			return;
 		}
 		const modelUrl = model.uri;
-		this._modelIsSynced[modelUrl.toString()] = true;
+		this._modelIsSynced.add(modelUrl.toString());
 		this._modelToDisposeMap[modelUrl.toString()] = model.onDidChangeContent((e) => {
 			this._proxy.$acceptModelChanged(modelUrl, e, this._textFileService.isDirty(modelUrl));
 		});
@@ -153,7 +152,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
 		let { model, oldModeId } = event;
 		const modelUrl = model.uri;
-		if (!this._modelIsSynced[modelUrl.toString()]) {
+		if (!this._modelIsSynced.has(modelUrl.toString())) {
 			return;
 		}
 		this._proxy.$acceptModelModeChanged(model.uri, oldModeId, model.getLanguageIdentifier().language);
@@ -161,10 +160,10 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _onModelRemoved(modelUrl: URI): void {
 		const strModelUrl = modelUrl.toString();
-		if (!this._modelIsSynced[strModelUrl]) {
+		if (!this._modelIsSynced.has(strModelUrl)) {
 			return;
 		}
-		delete this._modelIsSynced[strModelUrl];
+		this._modelIsSynced.delete(strModelUrl);
 		this._modelToDisposeMap[strModelUrl].dispose();
 		delete this._modelToDisposeMap[strModelUrl];
 	}
@@ -195,7 +194,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return promise.then(success => {
 			if (!success) {
 				return Promise.reject(new Error('cannot open ' + uri.toString()));
-			} else if (!this._modelIsSynced[uri.toString()]) {
+			} else if (!this._modelIsSynced.has(uri.toString())) {
 				return Promise.reject(new Error('cannot open ' + uri.toString() + '. Detail: Files above 50MB cannot be synchronized with extensions.'));
 			} else {
 				return undefined;
@@ -236,7 +235,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		}).then(model => {
 			const resource = model.getResource();
 
-			if (!this._modelIsSynced[resource.toString()]) {
+			if (!this._modelIsSynced.has(resource.toString())) {
 				throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
 			}
 

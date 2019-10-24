@@ -263,7 +263,10 @@ function registerDiffEditorCommands(): void {
 		const candidates = [editorService.activeControl, ...editorService.visibleControls].filter(e => e instanceof TextDiffEditor);
 
 		if (candidates.length > 0) {
-			next ? (<TextDiffEditor>candidates[0]).getDiffNavigator().next() : (<TextDiffEditor>candidates[0]).getDiffNavigator().previous();
+			const navigator = (<TextDiffEditor>candidates[0]).getDiffNavigator();
+			if (navigator) {
+				next ? navigator.next() : navigator.previous();
+			}
 		}
 	}
 
@@ -443,11 +446,11 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
 
 	// Split editor (if it can be split)
-	let editorToCopy: IEditorInput | null;
+	let editorToCopy: IEditorInput | undefined;
 	if (context && typeof context.editorIndex === 'number') {
 		editorToCopy = sourceGroup.getEditor(context.editorIndex);
 	} else {
-		editorToCopy = sourceGroup.activeEditor;
+		editorToCopy = types.withNullAsUndefined(sourceGroup.activeEditor);
 	}
 
 	if (editorToCopy && (editorToCopy as EditorInput).supportsSplitEditor()) {
@@ -603,6 +606,10 @@ function registerCloseEditorCommands() {
 						.map(context => typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : group.activeEditor);
 					const editorsToClose = group.editors.filter(e => editors.indexOf(e) === -1);
 
+					if (group.activeEditor) {
+						group.pinEditor(group.activeEditor);
+					}
+
 					return group.closeEditors(editorsToClose);
 				}
 
@@ -621,6 +628,10 @@ function registerCloseEditorCommands() {
 
 			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 			if (group && editor) {
+				if (group.activeEditor) {
+					group.pinEditor(group.activeEditor);
+				}
+
 				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor });
 			}
 
@@ -741,7 +752,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 			const selection: Array<IEditorIdentifier | IEditorGroup> = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 
 			// Only respect selection if it contains focused element
-			if (selection && selection.some(s => {
+			if (selection?.some(s => {
 				if (isEditorGroup(s)) {
 					return s.id === focus.groupId;
 				}

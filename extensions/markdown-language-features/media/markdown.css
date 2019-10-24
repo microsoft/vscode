@@ -182,12 +182,12 @@ pre.hljs code > div {
 	overflow: auto;
 }
 
-/** Theming */
-
 pre code {
 	color: var(--vscode-editor-foreground);
+	tab-size: 4;
 }
 
+/** Theming */
 
 .vscode-light pre {
 	background-color: rgba(220, 220, 220, 0.4);

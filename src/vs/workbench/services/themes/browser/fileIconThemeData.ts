@@ -11,7 +11,7 @@ import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { asDomUri } from 'vs/base/browser/dom';
+import { asCSSUrl } from 'vs/base/browser/dom';
 
 export class FileIconThemeData implements IFileIconTheme {
 	id: string;
@@ -332,7 +332,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 	let fonts = iconThemeDocument.fonts;
 	if (Array.isArray(fonts)) {
 		fonts.forEach(font => {
-			let src = font.src.map(l => `url('${asDomUri(resolvePath(l.path))}') format('${l.format}')`).join(', ');
+			let src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
 			cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; }`);
 		});
 		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}}`);
@@ -343,7 +343,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 		let definition = iconThemeDocument.iconDefinitions[defId];
 		if (definition) {
 			if (definition.iconPath) {
-				cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: url("${asDomUri(resolvePath(definition.iconPath))}"); }`);
+				cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: ${asCSSUrl(resolvePath(definition.iconPath))}; }`);
 			}
 			if (definition.fontCharacter || definition.fontColor) {
 				let body = '';

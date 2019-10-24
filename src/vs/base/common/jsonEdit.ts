@@ -144,11 +144,11 @@ function withFormatting(text: string, edit: Edit, formattingOptions: FormattingO
 
 	// apply the formatting edits and track the begin and end offsets of the changes
 	for (let i = edits.length - 1; i >= 0; i--) {
-		const edit = edits[i];
-		newText = applyEdit(newText, edit);
-		begin = Math.min(begin, edit.offset);
-		end = Math.max(end, edit.offset + edit.length);
-		end += edit.content.length - edit.length;
+		const curr = edits[i];
+		newText = applyEdit(newText, curr);
+		begin = Math.min(begin, curr.offset);
+		end = Math.max(end, curr.offset + curr.length);
+		end += curr.content.length - curr.length;
 	}
 	// create a single edit with all changes
 	const editLength = text.length - (newText.length - end) - begin;

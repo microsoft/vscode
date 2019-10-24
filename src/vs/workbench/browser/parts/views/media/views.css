@@ -20,31 +20,6 @@
 	content: ' ';
 }
 
-.file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("tree-expanded-light.svg");
-}
-
-.file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	display: inline-block;
-	background-image: url("tree-collapsed-light.svg");
-}
-
-.vs-dark .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("tree-expanded-dark.svg");
-}
-
-.vs-dark .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("tree-collapsed-dark.svg");
-}
-
-.hc-black .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("tree-expanded-hc.svg");
-}
-
-.hc-black .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("tree-collapsed-hc.svg");
-}
-
 .file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before,
 .file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
 	display: none;
@@ -52,12 +27,13 @@
 
 /* File icons in trees */
 
-.file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.collapsible),
-.file-icon-themable-tree .align-icon-with-twisty .monaco-tl-twistie:not(.collapsible),
-.file-icon-themable-tree.hide-arrows .monaco-tl-twistie {
+.file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
+.file-icon-themable-tree .align-icon-with-twisty .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
+.file-icon-themable-tree.hide-arrows .monaco-tl-twistie:not(.force-twistie) {
 	background-image: none !important;
 	width: 0 !important;
 	margin-right: 0 !important;
+	visibility: hidden;
 }
 
 /* Misc */
@@ -104,6 +80,7 @@
 
 .customview-tree .monaco-list .monaco-list-row {
 	padding-right: 12px;
+	padding-left: 0px;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
@@ -113,7 +90,8 @@
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
-	flex-wrap: nowrap
+	flex-wrap: nowrap;
+	padding-left: 3px;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel {

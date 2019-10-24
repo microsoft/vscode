@@ -121,10 +121,10 @@ class MarkerStats implements MarkerStatistics {
 
 export class MarkerService implements IMarkerService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	private _onMarkerChanged = new Emitter<URI[]>();
-	private _onMarkerChangedEvent: Event<URI[]> = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
+	private readonly _onMarkerChanged = new Emitter<readonly URI[]>();
+	private _onMarkerChangedEvent: Event<readonly URI[]> = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
 	private _byResource: MapMap<IMarker[]> = Object.create(null);
 	private _byOwner: MapMap<IMarker[]> = Object.create(null);
 	private _stats: MarkerStats;
@@ -137,7 +137,7 @@ export class MarkerService implements IMarkerService {
 		this._stats.dispose();
 	}
 
-	get onMarkerChanged(): Event<URI[]> {
+	get onMarkerChanged(): Event<readonly URI[]> {
 		return this._onMarkerChangedEvent;
 	}
 

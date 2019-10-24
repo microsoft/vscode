@@ -56,19 +56,6 @@
 	display: none;
 }
 
-.vs .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('exclude-settings-light.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
-.hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('exclude-settings-dark.svg') center center no-repeat;
-}
-
-.hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('exclude-settings-hc.svg') center center no-repeat;
-}
-
 .markers-panel .markers-panel-container {
 	height: 100%;
 }
@@ -97,6 +84,7 @@
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
 	display: flex;
 	line-height: 22px;
+	padding-right: 10px;
 }
 
 .hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
@@ -112,23 +100,22 @@
 	margin-left: 10px;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details,
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message:not(.multiline) {
-	display: flex;
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container {
+	flex: 1;
 	overflow: hidden;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message.multiline {
-	white-space: pre;
-	flex: 1;
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line {
+	overflow: hidden;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message:not(.multiline) .marker-message-line {
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line > .marker-message {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message .details-container {
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line.details-container {
 	display: flex;
 }
 
@@ -145,9 +132,15 @@
 	margin-left: 6px;
 }
 
-.markers-panel .monaco-tl-contents .marker-icon,
-.markers-panel .monaco-tl-contents .actions .action-item {
+.markers-panel .monaco-tl-contents .marker-icon {
 	margin-right: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.markers-panel .monaco-tl-contents .actions .action-item {
+	margin-right: 2px;
 }
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,
@@ -164,31 +157,6 @@
 
 .markers-panel .monaco-tl-contents .marker-icon {
 	height: 22px;
-}
-
-.markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-light.svg') center no-repeat;
-	margin-right: 0px;
-}
-
-.markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
-	background: url('lightbulb-autofix-light.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-dark.svg') center no-repeat;
-}
-
-.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-hc.svg') center no-repeat;
-}
-
-.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
-	background: url('lightbulb-autofix-dark.svg') center center no-repeat;
-}
-
-.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
-	background: url('lightbulb-autofix-hc.svg') center center no-repeat;
 }
 
 .markers-panel .monaco-tl-contents .actions .monaco-action-bar {

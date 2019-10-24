@@ -156,11 +156,11 @@ function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 
 export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
 	private readonly _styleElement: HTMLStyleElement;
-	private _theme: IStandaloneTheme;
+	private _theme!: IStandaloneTheme;
 	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
 	private readonly _onIconThemeChange: Emitter<IIconTheme>;
 	private readonly environment: IEnvironmentService = Object.create(null);

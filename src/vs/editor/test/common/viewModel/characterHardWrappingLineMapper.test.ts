@@ -114,6 +114,11 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 		assert.equal(mapper!.getWrappedLinesIndent(), '                \t');
 	});
 
+	test('issue #75494: surrogate pairs', () => {
+		let factory = new CharacterHardWrappingLineMapperFactory('', ' ', '');
+		assertLineMapping(factory, 4, 49, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇|👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬', WrappingIndent.Same);
+	});
+
 	test('CharacterHardWrappingLineMapper - WrappingIndent.DeepIndent', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('', ' ', '');
 		let mapper = assertLineMapping(factory, 4, 26, '        W e A r e T e s t |i n g D e |e p I n d |e n t a t |i o n', WrappingIndent.DeepIndent);

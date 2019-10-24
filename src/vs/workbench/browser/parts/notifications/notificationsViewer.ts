@@ -62,7 +62,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		}
 
 		// Last row: source and buttons if we have any
-		if (notification.source || isNonEmptyArray(notification.actions.primary)) {
+		if (notification.source || isNonEmptyArray(notification.actions && notification.actions.primary)) {
 			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
 
@@ -82,7 +82,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		if (notification.canCollapse) {
 			actions++; // expand/collapse
 		}
-		if (isNonEmptyArray(notification.actions.secondary)) {
+		if (isNonEmptyArray(notification.actions && notification.actions.secondary)) {
 			actions++; // secondary actions
 		}
 		this.offsetHelper.style.width = `calc(100% - ${10 /* padding */ + 24 /* severity icon */ + (actions * 24) /* 24px per action */}px)`;
@@ -207,6 +207,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		// Icon
 		data.icon = document.createElement('div');
 		addClass(data.icon, 'notification-list-item-icon');
+		addClass(data.icon, 'codicon');
 
 		// Message
 		data.message = document.createElement('div');
@@ -362,7 +363,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderSeverity(notification: INotificationViewItem): void {
 		NotificationTemplateRenderer.SEVERITIES.forEach(severity => {
 			const domAction = notification.severity === this.toSeverity(severity) ? addClass : removeClass;
-			domAction(this.template.icon, `icon-${severity}`);
+			domAction(this.template.icon, `codicon-${severity}`);
 		});
 	}
 
@@ -392,8 +393,9 @@ export class NotificationTemplateRenderer extends Disposable {
 		const actions: IAction[] = [];
 
 		// Secondary Actions
-		if (isNonEmptyArray(notification.actions.secondary)) {
-			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification.actions.secondary);
+		const secondaryActions = notification.actions ? notification.actions.secondary : undefined;
+		if (isNonEmptyArray(secondaryActions)) {
+			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, secondaryActions);
 			actions.push(configureNotificationAction);
 			this.inputDisposables.add(configureNotificationAction);
 		}
@@ -435,10 +437,11 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderButtons(notification: INotificationViewItem): void {
 		clearNode(this.template.buttonsContainer);
 
-		if (notification.expanded && notification.actions.primary) {
-			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, notification.actions.primary.length, { title: true /* assign titles to buttons in case they overflow */ });
+		const primaryActions = notification.actions ? notification.actions.primary : undefined;
+		if (notification.expanded && isNonEmptyArray(primaryActions)) {
+			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, primaryActions.length, { title: true /* assign titles to buttons in case they overflow */ });
 			buttonGroup.buttons.forEach((button, index) => {
-				const action = notification.actions.primary![index];
+				const action = primaryActions[index];
 				button.label = action.label;
 
 				this.inputDisposables.add(button.onDidClick(e => {

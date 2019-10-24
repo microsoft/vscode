@@ -5,7 +5,10 @@
 			"type": "npm",
 			"script": "watch",
 			"label": "Build VS Code",
-			"group": "build",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never"
@@ -73,14 +76,33 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "gulp",
-			"task": "electron",
+			"type": "npm",
+			"script": "electron",
 			"label": "Download electron"
 		},
 		{
 			"type": "gulp",
 			"task": "hygiene",
 			"problemMatcher": []
-		}
+		},
+		{
+			"type": "shell",
+			"command": "yarn web -- --no-launch",
+			"label": "Run web",
+			"isBackground": true,
+			// This section to make error go away when launching the debug config
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"beginsPattern": ".*node .*",
+					"endsPattern": "Web UI available at .*"
+				}
+			},
+			"presentation": {
+				"reveal": "never"
+			}
+		},
 	]
 }

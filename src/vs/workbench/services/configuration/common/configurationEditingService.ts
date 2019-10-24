@@ -130,10 +130,10 @@ interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
 
 export class ConfigurationEditingService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private queue: Queue<void>;
-	private remoteSettingsResource: URI | null;
+	private remoteSettingsResource: URI | null = null;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -427,11 +427,6 @@ export class ConfigurationEditingService {
 			// Global tasks and launches are not supported
 			if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
 				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET, target, operation);
-			}
-
-			// Workspace tasks are not supported
-			if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && operation.target === EditableConfigurationTarget.WORKSPACE) {
-				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET, target, operation);
 			}
 		}
 

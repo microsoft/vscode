@@ -32,19 +32,19 @@ interface ILog {
 
 function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string): void {
 	switch (level) {
-		case LogLevel.Trace: return logger.trace(message);
-		case LogLevel.Debug: return logger.debug(message);
-		case LogLevel.Info: return logger.info(message);
-		case LogLevel.Warning: return logger.warn(message);
-		case LogLevel.Error: return logger.error(message);
-		case LogLevel.Critical: return logger.critical(message);
+		case LogLevel.Trace: logger.trace(message); break;
+		case LogLevel.Debug: logger.debug(message); break;
+		case LogLevel.Info: logger.info(message); break;
+		case LogLevel.Warning: logger.warn(message); break;
+		case LogLevel.Error: logger.error(message); break;
+		case LogLevel.Critical: logger.critical(message); break;
 		default: throw new Error('Invalid log level');
 	}
 }
 
 export class SpdLogService extends AbstractLogService implements ILogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private buffer: ILog[] = [];
 	private _loggerCreationPromise: Promise<void> | undefined = undefined;
@@ -86,47 +86,54 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 		}
 	}
 
-	trace(): void {
+	trace(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Trace) {
-			this._log(LogLevel.Trace, this.format(arguments));
+			this._log(LogLevel.Trace, this.format([message, ...args]));
 		}
 	}
 
-	debug(): void {
+	debug(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Debug) {
-			this._log(LogLevel.Debug, this.format(arguments));
+			this._log(LogLevel.Debug, this.format([message, ...args]));
 		}
 	}
 
-	info(): void {
+	info(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Info) {
-			this._log(LogLevel.Info, this.format(arguments));
+			this._log(LogLevel.Info, this.format([message, ...args]));
 		}
 	}
 
-	warn(): void {
+	warn(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Warning) {
-			this._log(LogLevel.Warning, this.format(arguments));
+			this._log(LogLevel.Warning, this.format([message, ...args]));
 		}
 	}
 
-	error(): void {
+	error(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Error) {
-			const arg = arguments[0];
 
-			if (arg instanceof Error) {
+			if (message instanceof Error) {
 				const array = Array.prototype.slice.call(arguments) as any[];
-				array[0] = arg.stack;
+				array[0] = message.stack;
 				this._log(LogLevel.Error, this.format(array));
 			} else {
-				this._log(LogLevel.Error, this.format(arguments));
+				this._log(LogLevel.Error, this.format([message, ...args]));
 			}
 		}
 	}
 
-	critical(): void {
+	critical(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Critical) {
-			this._log(LogLevel.Critical, this.format(arguments));
+			this._log(LogLevel.Critical, this.format([message, ...args]));
+		}
+	}
+
+	flush(): void {
+		if (this._logger) {
+			this._logger.flush();
+		} else if (this._loggerCreationPromise) {
+			this._loggerCreationPromise.then(() => this.flush());
 		}
 	}
 

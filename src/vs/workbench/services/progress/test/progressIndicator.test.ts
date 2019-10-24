@@ -28,7 +28,7 @@ class TestViewlet implements IViewlet {
 }
 
 class TestCompositeScope extends CompositeScope {
-	isActive: boolean;
+	isActive: boolean = false;
 
 	constructor(viewletService: IViewletService, panelService: IPanelService, scopeId: string) {
 		super(viewletService, panelService, scopeId);
@@ -39,12 +39,10 @@ class TestCompositeScope extends CompositeScope {
 }
 
 class TestProgressBar {
-	fTotal: number;
-	fWorked: number;
-	fInfinite: boolean;
-	fDone: boolean;
-
-	constructor() { }
+	fTotal: number = 0;
+	fWorked: number = 0;
+	fInfinite: boolean = false;
+	fDone: boolean = false;
 
 	infinite() {
 		this.fDone = null!;

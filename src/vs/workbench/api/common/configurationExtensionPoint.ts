@@ -10,7 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { workspaceSettingsSchemaId, launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
@@ -39,15 +39,16 @@ const configurationEntrySchema: IJSONSchema = {
 							},
 							scope: {
 								type: 'string',
-								enum: ['application', 'machine', 'window', 'resource'],
+								enum: ['application', 'machine', 'window', 'resource', 'machine-overridable'],
 								default: 'window',
 								enumDescriptions: [
-									nls.localize('scope.application.description', "Application specific configuration, which can be configured only in the user settings."),
-									nls.localize('scope.machine.description', "Machine specific configuration, which can be configured only in the user settings when the extension is running locally, or only in the remote settings when the extension is running remotely."),
-									nls.localize('scope.window.description', "Window specific configuration, which can be configured in the user, remote or workspace settings."),
-									nls.localize('scope.resource.description', "Resource specific configuration, which can be configured in the user, remote, workspace or folder settings.")
+									nls.localize('scope.application.description', "Configuration that can be configured only in the user settings."),
+									nls.localize('scope.machine.description', "Configuration that can be configured only in the user settings when the extension is running locally, or only in the remote settings when the extension is running remotely."),
+									nls.localize('scope.window.description', "Configuration that can be configured in the user, remote or workspace settings."),
+									nls.localize('scope.resource.description', "Configuration that can be configured in the user, remote, workspace or folder settings."),
+									nls.localize('scope.machine-overridable.description', "Machine configuration that can be configured also in workspace or folder settings.")
 								],
-								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window` and `resource`.")
+								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource` and `machine-overridable`.")
 							},
 							enumDescriptions: {
 								type: 'array',
@@ -215,6 +216,8 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 					propertyConfiguration.scope = ConfigurationScope.MACHINE;
 				} else if (propertyConfiguration.scope.toString() === 'resource') {
 					propertyConfiguration.scope = ConfigurationScope.RESOURCE;
+				} else if (propertyConfiguration.scope.toString() === 'machine-overridable') {
+					propertyConfiguration.scope = ConfigurationScope.MACHINE_OVERRIDABLE;
 				} else {
 					propertyConfiguration.scope = ConfigurationScope.WINDOW;
 				}
@@ -235,6 +238,7 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 	allowComments: true,
+	allowTrailingCommas: true,
 	default: {
 		folders: [
 			{
@@ -291,6 +295,12 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			default: { configurations: [], compounds: [] },
 			description: nls.localize('workspaceConfig.launch.description', "Workspace launch configurations"),
 			$ref: launchSchemaId
+		},
+		'tasks': {
+			type: 'object',
+			default: { version: '2.0.0', tasks: [] },
+			description: nls.localize('workspaceConfig.tasks.description', "Workspace task configurations"),
+			$ref: tasksSchemaId
 		},
 		'extensions': {
 			type: 'object',

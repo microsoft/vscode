@@ -15,6 +15,7 @@ import { FileOperationResult, FileOperationError, IFileService } from 'vs/platfo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { timeout } from 'vs/base/common/async';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { assertIsDefined } from 'vs/base/common/types';
 
 class ServiceAccessor {
 	constructor(@ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService, @IFileService public fileService: TestFileService) {
@@ -52,6 +53,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.textEditorModel!.setValue('bar');
 		assert.ok(getLastModifiedTime(model) <= Date.now());
+		assert.ok(model.hasState(ModelState.DIRTY));
 
 		let savedEvent = false;
 		model.onDidStateChange(e => {
@@ -60,9 +62,13 @@ suite('Files - TextFileEditorModel', () => {
 			}
 		});
 
-		await model.save();
+		const pendingSave = model.save();
+		assert.ok(model.hasState(ModelState.PENDING_SAVE));
+
+		await pendingSave;
 
 		assert.ok(model.getLastSaveAttemptTime() <= Date.now());
+		assert.ok(model.hasState(ModelState.SAVED));
 		assert.ok(!model.isDirty());
 		assert.ok(savedEvent);
 
@@ -219,6 +225,33 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isDirty());
 	});
 
+	test('Make Dirty', async function () {
+		let eventCounter = 0;
+
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		model.makeDirty();
+		assert.ok(!model.isDirty()); // needs to be resolved
+
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+		assert.ok(model.isDirty());
+
+		await model.revert(true /* soft revert */);
+		assert.ok(!model.isDirty());
+
+		model.onDidStateChange(e => {
+			if (e === StateChange.DIRTY) {
+				eventCounter++;
+			}
+		});
+
+		model.makeDirty();
+		assert.ok(model.isDirty());
+		assert.equal(eventCounter, 1);
+		model.dispose();
+	});
+
 	test('File not modified error is handled gracefully', async function () {
 		let model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
@@ -254,8 +287,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		model1.textEditorModel!.setValue('foo');
 
-		const m1Mtime = model1.getStat().mtime;
-		const m2Mtime = model2.getStat().mtime;
+		const m1Mtime = assertIsDefined(model1.getStat()).mtime;
+		const m2Mtime = assertIsDefined(model2.getStat()).mtime;
 		assert.ok(m1Mtime > 0);
 		assert.ok(m2Mtime > 0);
 
@@ -270,8 +303,8 @@ suite('Files - TextFileEditorModel', () => {
 		await accessor.textFileService.saveAll();
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
-		assert.ok(model1.getStat().mtime > m1Mtime);
-		assert.ok(model2.getStat().mtime > m2Mtime);
+		assert.ok(assertIsDefined(model1.getStat()).mtime > m1Mtime);
+		assert.ok(assertIsDefined(model2.getStat()).mtime > m2Mtime);
 		assert.ok(model1.getLastSaveAttemptTime() > m1Mtime);
 		assert.ok(model2.getLastSaveAttemptTime() > m2Mtime);
 

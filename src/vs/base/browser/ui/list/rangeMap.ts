@@ -186,8 +186,4 @@ export class RangeMap {
 
 		return -1;
 	}
-
-	dispose() {
-		this.groups = null!; // StrictNullOverride: nulling out ok in dispose
-	}
 }

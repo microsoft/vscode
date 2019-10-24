@@ -190,7 +190,7 @@ class TouchHandler extends MouseHandler {
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
-		Gesture.addTarget(this.viewHelper.linesContentDomNode);
+		this._register(Gesture.addTarget(this.viewHelper.linesContentDomNode));
 
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));

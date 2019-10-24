@@ -14,6 +14,8 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOverlayLine> {
 
@@ -147,7 +149,7 @@ export class ViewOverlayLine implements IVisibleLine {
 
 	constructor(configuration: IConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
 		this._configuration = configuration;
-		this._lineHeight = this._configuration.editor.lineHeight;
+		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
 		this._dynamicOverlays = dynamicOverlays;
 
 		this._domNode = null;
@@ -171,9 +173,7 @@ export class ViewOverlayLine implements IVisibleLine {
 		// Nothing
 	}
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
-		if (e.lineHeight) {
-			this._lineHeight = this._configuration.editor.lineHeight;
-		}
+		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
@@ -215,8 +215,9 @@ export class ContentViewOverlays extends ViewOverlays {
 
 	constructor(context: ViewContext) {
 		super(context);
-
-		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._contentWidth = layoutInfo.contentWidth;
 
 		this.domNode.setHeight(0);
 	}
@@ -224,10 +225,10 @@ export class ContentViewOverlays extends ViewOverlays {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.layoutInfo) {
-			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-		}
-		return super.onConfigurationChanged(e);
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._contentWidth = layoutInfo.contentWidth;
+		return super.onConfigurationChanged(e) || true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
@@ -249,25 +250,22 @@ export class MarginViewOverlays extends ViewOverlays {
 	constructor(context: ViewContext) {
 		super(context);
 
-		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._contentLeft = layoutInfo.contentLeft;
 
 		this.domNode.setClassName('margin-view-overlays');
 		this.domNode.setWidth(1);
 
-		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+		Configuration.applyFontInfo(this.domNode, options.get(EditorOption.fontInfo));
 	}
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		let shouldRender = false;
-		if (e.fontInfo) {
-			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
-			shouldRender = true;
-		}
-		if (e.layoutInfo) {
-			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-			shouldRender = true;
-		}
-		return super.onConfigurationChanged(e) || shouldRender;
+		const options = this._context.configuration.options;
+		Configuration.applyFontInfo(this.domNode, options.get(EditorOption.fontInfo));
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._contentLeft = layoutInfo.contentLeft;
+		return super.onConfigurationChanged(e) || true;
 	}
 
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {

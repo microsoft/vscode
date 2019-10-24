@@ -14,10 +14,10 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _onDidContextMenu = this._register(new Emitter<void>());
-	get onDidContextMenu(): Event<void> { return this._onDidContextMenu.event; }
+	readonly onDidContextMenu: Event<void> = this._onDidContextMenu.event;
 
 	private contextMenuHandler: ContextMenuHandler;
 

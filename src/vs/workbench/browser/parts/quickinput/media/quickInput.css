@@ -37,7 +37,7 @@
 	flex: 1;
 }
 
-.quick-input-titlebar .monaco-action-bar .action-label.icon {
+.quick-input-titlebar .monaco-action-bar .action-label.codicon {
 	margin: 0;
 	width: 19px;
 	height: 100%;
@@ -212,7 +212,7 @@
 	overflow: visible;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar .action-label.icon {
+.quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
 	margin: 0;
 	width: 19px;
 	height: 100%;
@@ -224,11 +224,11 @@
 	margin-top: 1px;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar ul:first-child .action-label.icon {
+.quick-input-list .quick-input-list-entry-action-bar ul:first-child .action-label.codicon {
 	margin-left: 2px;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar ul:last-child .action-label.icon {
+.quick-input-list .quick-input-list-entry-action-bar ul:last-child .action-label.codicon {
 	margin-right: 8px;
 }
 

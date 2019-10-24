@@ -11,7 +11,7 @@ import * as os from 'os';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import * as pfs from 'vs/base/node/pfs';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -42,17 +42,16 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
-// import { VSBuffer } from 'vs/base/common/buffer';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-class TestEnvironmentService extends WorkbenchEnvironmentService {
+class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
+		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
@@ -107,8 +106,10 @@ suite('WorkspaceContextService - Folder', () => {
 				workspaceResource = folderDir;
 				const environmentService = new TestEnvironmentService(URI.file(parentDir));
 				const fileService = new FileService(new NullLogService());
+				const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, new DiskFileSystemProvider(new NullLogService()), environmentService));
-				workspaceContextService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, new RemoteAgentService(<IWindowConfiguration>{}, environmentService, new RemoteAuthorityResolverService(), new SignService()));
+				workspaceContextService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, new RemoteAgentService(<IWindowConfiguration>{}, environmentService, new RemoteAuthorityResolverService(), new SignService(undefined), new NullLogService()));
 				return (<WorkspaceService>workspaceContextService).initialize(convertToWorkspacePayload(URI.file(folderDir)));
 			});
 	});
@@ -734,6 +735,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'default': 'isSet',
 					scope: ConfigurationScope.MACHINE
 				},
+				'configurationService.folder.machineOverridableSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+				},
 				'configurationService.folder.testSetting': {
 					'type': 'string',
 					'default': 'isSet',
@@ -786,7 +792,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('defaults', () => {
-		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'testSetting': 'isSet' } });
+		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet' } });
 	});
 
 	test('globals override defaults', () => {
@@ -814,6 +820,13 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue'));
 	});
 
+	test('machine overridable settings override user Settings', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.machineOverridableSetting": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.machineOverridableSetting": "workspaceValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.machineOverridableSetting'), 'workspaceValue'));
+	});
+
 	test('workspace settings override user settings after defaults are registered ', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.newSetting": "userValue" }');
 		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.newSetting": "workspaceValue" }');
@@ -832,6 +845,28 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				});
 
 				assert.equal(testObject.getValue('configurationService.folder.newSetting'), 'workspaceValue');
+			});
+	});
+
+	test('machine overridable settings override user settings after defaults are registered ', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.newMachineOverridableSetting": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.newMachineOverridableSetting": "workspaceValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => {
+
+				configurationRegistry.registerConfiguration({
+					'id': '_test',
+					'type': 'object',
+					'properties': {
+						'configurationService.folder.newMachineOverridableSetting': {
+							'type': 'string',
+							'default': 'isSet',
+							scope: ConfigurationScope.MACHINE_OVERRIDABLE
+						}
+					}
+				});
+
+				assert.equal(testObject.getValue('configurationService.folder.newMachineOverridableSetting'), 'workspaceValue');
 			});
 	});
 
@@ -1065,6 +1100,11 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 					'default': 'isSet',
 					scope: ConfigurationScope.MACHINE
 				},
+				'configurationService.workspace.machineOverridableSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+				},
 				'configurationService.workspace.testResourceSetting': {
 					'type': 'string',
 					'default': 'isSet',
@@ -1121,21 +1161,21 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('application settings are not read from workspace', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.applicationSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'settings', value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }, true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
 	});
 
 	test('machine settings are not read from workspace', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.machineSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'settings', value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }, true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.machineSetting'), 'userValue'));
 	});
 
 	test('workspace settings override user settings after defaults are registered ', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.newSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'settings', value: { 'configurationService.workspace.newSetting': 'workspaceValue' } }, true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.newSetting': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				configurationRegistry.registerConfiguration({
@@ -1149,6 +1189,26 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 					}
 				});
 				assert.equal(testObject.getValue('configurationService.workspace.newSetting'), 'workspaceValue');
+			});
+	});
+
+	test('workspace settings override user settings after defaults are registered for machine overridable settings ', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.newMachineOverridableSetting": "userValue" }');
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.newMachineOverridableSetting': 'workspaceValue' } }], true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				configurationRegistry.registerConfiguration({
+					'id': '_test',
+					'type': 'object',
+					'properties': {
+						'configurationService.workspace.newMachineOverridableSetting': {
+							'type': 'string',
+							'default': 'isSet',
+							scope: ConfigurationScope.MACHINE_OVERRIDABLE
+						}
+					}
+				});
+				assert.equal(testObject.getValue('configurationService.workspace.newMachineOverridableSetting'), 'workspaceValue');
 			});
 	});
 
@@ -1208,7 +1268,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('resource setting in folder is read after it is registered later', () => {
 		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewResourceSetting2": "workspaceFolderValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'settings', value: { 'configurationService.workspace.testNewResourceSetting2': 'workspaceValue' } }, true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.testNewResourceSetting2': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				configurationRegistry.registerConfiguration({
@@ -1223,6 +1283,26 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 					}
 				});
 				assert.equal(testObject.getValue('configurationService.workspace.testNewResourceSetting2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
+			});
+	});
+
+	test('machine overridable setting in folder is read after it is registered later', () => {
+		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewMachineOverridableSetting2": "workspaceFolderValue" }');
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.testNewMachineOverridableSetting2': 'workspaceValue' } }], true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				configurationRegistry.registerConfiguration({
+					'id': '_test',
+					'type': 'object',
+					'properties': {
+						'configurationService.workspace.testNewMachineOverridableSetting2': {
+							'type': 'string',
+							'default': 'isSet',
+							scope: ConfigurationScope.MACHINE_OVERRIDABLE
+						}
+					}
+				});
+				assert.equal(testObject.getValue('configurationService.workspace.testNewMachineOverridableSetting2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
 			});
 	});
 
@@ -1251,7 +1331,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				assert.equal(actual.workspaceFolder, undefined);
 				assert.equal(actual.value, 'userValue');
 
-				return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'settings', value: { 'configurationService.workspace.testResourceSetting': 'workspaceValue' } }, true)
+				return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.testResourceSetting': 'workspaceValue' } }], true)
 					.then(() => testObject.reloadConfiguration())
 					.then(() => {
 						actual = testObject.inspect('configurationService.workspace.testResourceSetting');
@@ -1293,7 +1373,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				}
 			]
 		};
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'launch', value: expectedLaunchConfiguration }, true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'launch', value: expectedLaunchConfiguration }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				const actual = testObject.getValue('launch');
@@ -1318,11 +1398,58 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				}
 			]
 		};
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'launch', value: expectedLaunchConfiguration }, true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'launch', value: expectedLaunchConfiguration }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				const actual = testObject.inspect('launch').workspace;
 				assert.deepEqual(actual, expectedLaunchConfiguration);
+			});
+	});
+
+
+	test('get tasks configuration', () => {
+		const expectedTasksConfiguration = {
+			'version': '2.0.0',
+			'tasks': [
+				{
+					'label': 'Run Dev',
+					'type': 'shell',
+					'command': './scripts/code.sh',
+					'windows': {
+						'command': '.\\scripts\\code.bat'
+					},
+					'problemMatcher': []
+				}
+			]
+		};
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.getValue('tasks');
+				assert.deepEqual(actual, expectedTasksConfiguration);
+			});
+	});
+
+	test('inspect tasks configuration', () => {
+		const expectedTasksConfiguration = {
+			'version': '2.0.0',
+			'tasks': [
+				{
+					'label': 'Run Dev',
+					'type': 'shell',
+					'command': './scripts/code.sh',
+					'windows': {
+						'command': '.\\scripts\\code.bat'
+					},
+					'problemMatcher': []
+				}
+			]
+		};
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.inspect('tasks').workspace;
+				assert.deepEqual(actual, expectedTasksConfiguration);
 			});
 	});
 
@@ -1403,25 +1530,17 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			.then(() => assert.deepEqual(testObject.getValue('tasks', { resource: workspace.folders[0].uri }), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
 	});
 
-	test('update tasks configuration in a workspace is not supported', () => {
-		const workspace = workspaceContextService.getWorkspace();
-		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
-			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET));
-	});
-
 	test('update launch configuration in a workspace', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
 			.then(() => assert.deepEqual(testObject.getValue('launch'), { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }));
 	});
 
-	test('task configurations are not read from workspace', () => {
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'tasks', value: { 'version': '1.0' } }, true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => {
-				const actual = testObject.inspect('tasks.version');
-				assert.equal(actual.workspace, undefined);
-			});
+	test('update tasks configuration in a workspace', () => {
+		const workspace = workspaceContextService.getWorkspace();
+		const tasks = { 'version': '2.0.0', tasks: [{ 'label': 'myTask' }] };
+		return testObject.updateValue('tasks', tasks, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.deepEqual(testObject.getValue('tasks'), tasks));
 	});
 
 	test('configuration of newly added folder is available on configuration change event', async () => {
@@ -1465,6 +1584,11 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.MACHINE
+				},
+				'configurationService.remote.machineOverridableSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE_OVERRIDABLE
 				},
 				'configurationService.remote.testSetting': {
 					'type': 'string',
@@ -1603,7 +1727,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	// 			}
 	// 		});
 	// 	});
-	// 	await instantiationService.get(IFileService).writeFile(URI.file(remoteSettingsFile), VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
+	// 	fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
 	// 	return promise;
 	// });
 
@@ -1613,6 +1737,52 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		resolveRemoteEnvironment();
 		await initialize();
 		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
+	});
+
+	test('machine overridable settings in local user settings does not override defaults', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.machineOverridableSetting": "globalValue" }');
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		assert.equal(testObject.getValue('configurationService.remote.machineOverridableSetting'), 'isSet');
+	});
+
+	test('machine settings in local user settings does not override defaults after defalts are registered ', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.newMachineSetting": "userValue" }');
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.remote.newMachineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
+				}
+			}
+		});
+		assert.equal(testObject.getValue('configurationService.remote.newMachineSetting'), 'isSet');
+	});
+
+	test('machine overridable settings in local user settings does not override defaults after defalts are registered ', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.newMachineOverridableSetting": "userValue" }');
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.remote.newMachineOverridableSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+				}
+			}
+		});
+		assert.equal(testObject.getValue('configurationService.remote.newMachineOverridableSetting'), 'isSet');
 	});
 
 });

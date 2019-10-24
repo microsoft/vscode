@@ -53,17 +53,17 @@
 			"statusBar/windowIndicator": [
 				{
 					"command": "vscode-testresolver.newWindow",
-					"when": "!remoteAuthority",
+					"when": "!remoteName",
 					"group": "9_local_testresolver@2"
 				},
 				{
 					"command": "vscode-testresolver.showLog",
-					"when": "remoteAuthority =~ /^test\\+.*$/",
+					"when": "remoteName == test",
 					"group": "1_remote_testresolver_open@3"
 				},
 				{
 					"command": "vscode-testresolver.newWindow",
-					"when": "remoteAuthority =~ /^test\\+.*$/",
+					"when": "remoteName == test",
 					"group": "1_remote_testresolver_open@1"
 				}
 			]

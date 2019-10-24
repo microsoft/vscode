@@ -178,8 +178,9 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 			}
 		});
 	}
-	result = result.replace(/export default/g, 'export');
-	result = result.replace(/export declare/g, 'export');
+	result = result.replace(/export default /g, 'export ');
+	result = result.replace(/export declare /g, 'export ');
+	result = result.replace(/declare /g, '');
 
 	if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
 		result = result.replace(/const enum/, 'enum');
@@ -366,8 +367,8 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 
 	let failed = false;
 
-	usage.push(`var a;`);
-	usage.push(`var b;`);
+	usage.push(`var a: any;`);
+	usage.push(`var b: any;`);
 
 	const generateUsageImport = (moduleId: string) => {
 		let importName = 'm' + (++usageCounter);
@@ -616,7 +617,7 @@ export class DeclarationResolver {
 			'file.ts': fileContents
 		};
 		const service = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, fileMap, {}));
-		const text = service.getEmitOutput('file.ts', true).outputFiles[0].text;
+		const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
 		return new CacheEntry(
 			ts.createSourceFile(fileName, text, ts.ScriptTarget.ES5),
 			mtime

@@ -5,7 +5,7 @@
 
 import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, IDataSource, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { Iterator } from 'vs/base/common/iterator';
@@ -23,20 +23,21 @@ export interface IDataTreeViewState {
 
 export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
-	protected model: ObjectTreeModel<T, TFilterData>;
+	protected model!: ObjectTreeModel<T, TFilterData>;
 	private input: TInput | undefined;
 
 	private identityProvider: IIdentityProvider<T> | undefined;
 	private nodesByIdentity = new Map<string, ITreeNode<T, TFilterData>>();
 
 	constructor(
+		private user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private dataSource: IDataSource<TInput, T>,
 		options: IDataTreeOptions<T, TFilterData> = {}
 	) {
-		super(container, delegate, renderers, options);
+		super(user, container, delegate, renderers, options);
 		this.identityProvider = options.identityProvider;
 	}
 
@@ -48,7 +49,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 
 	setInput(input: TInput, viewState?: IDataTreeViewState): void {
 		if (viewState && !this.identityProvider) {
-			throw new Error('Can\'t restore tree view state without an identity provider');
+			throw new TreeError(this.user, 'Can\'t restore tree view state without an identity provider');
 		}
 
 		this.input = input;
@@ -89,7 +90,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 
 	updateChildren(element: TInput | T = this.input!): void {
 		if (typeof this.input === 'undefined') {
-			throw new Error('Tree input not set');
+			throw new TreeError(this.user, 'Tree input not set');
 		}
 
 		let isCollapsed: ((el: T) => boolean | undefined) | undefined;
@@ -161,23 +162,24 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		const children = this.dataSource.getChildren(element);
 		const elements = Iterator.map<any, ITreeElement<T>>(Iterator.fromArray(children), element => {
 			const { elements: children, size } = this.iterate(element, isCollapsed);
+			const collapsible = this.dataSource.hasChildren ? this.dataSource.hasChildren(element) : undefined;
 			const collapsed = size === 0 ? undefined : (isCollapsed && isCollapsed(element));
 
-			return { element, children, collapsed };
+			return { element, children, collapsible, collapsed };
 		});
 
 		return { elements, size: children.length };
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IDataTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
-		return new ObjectTreeModel(view, options);
+	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IDataTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+		return new ObjectTreeModel(user, view, options);
 	}
 
 	// view state
 
 	getViewState(): IDataTreeViewState {
 		if (!this.identityProvider) {
-			throw new Error('Can\'t get tree view state without an identity provider');
+			throw new TreeError(this.user, 'Can\'t get tree view state without an identity provider');
 		}
 
 		const getId = (element: T) => this.identityProvider!.getId(element).toString();

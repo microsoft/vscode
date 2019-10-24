@@ -21,7 +21,7 @@ export class SnippetCompletion implements CompletionItem {
 	label: string;
 	detail: string;
 	insertText: string;
-	documentation: MarkdownString;
+	documentation?: MarkdownString;
 	range: IRange;
 	sortText: string;
 	kind: CompletionItemKind;

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { tmpdir } from 'os';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
@@ -15,13 +16,13 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
+import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
 export class RemoteExtensionManagementChannelClient extends ExtensionManagementChannelClient {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		channel: IChannel,
@@ -79,8 +80,8 @@ export class RemoteExtensionManagementChannelClient extends ExtensionManagementC
 	}
 
 	private async downloadAndInstall(extension: IGalleryExtension, installed: ILocalExtension[]): Promise<ILocalExtension> {
-		const location = await this.galleryService.download(extension, installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
-		return super.install(URI.file(location));
+		const location = await this.galleryService.download(extension, URI.file(tmpdir()), installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
+		return super.install(location);
 	}
 
 	private async installUIDependenciesAndPackedExtensions(local: ILocalExtension): Promise<void> {

@@ -27,6 +27,7 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { coalesce, flatten } from 'vs/base/common/arrays';
 
 export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -36,7 +37,7 @@ export const defaultReferenceSearchOptions: RequestOptions = {
 
 export class ReferenceController implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.referenceController';
+	public static readonly ID = 'editor.contrib.referenceController';
 
 	constructor(
 		editor: ICodeEditor,
@@ -48,10 +49,6 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-	}
-
-	public getId(): string {
-		return ReferenceController.ID;
 	}
 }
 
@@ -92,7 +89,7 @@ export class ReferenceAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ReferenceController);
+registerEditorContribution(ReferenceController.ID, ReferenceController);
 
 registerEditorAction(ReferenceAction);
 
@@ -287,15 +284,7 @@ export function provideReferences(model: ITextModel, position: Position, token: 
 		});
 	});
 
-	return Promise.all(promises).then(references => {
-		let result: Location[] = [];
-		for (let ref of references) {
-			if (ref) {
-				result.push(...ref);
-			}
-		}
-		return result;
-	});
+	return Promise.all(promises).then(references => flatten(coalesce(references)));
 }
 
 registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => provideReferences(model, position, CancellationToken.None));

@@ -58,6 +58,8 @@ class ErrorInvalidArgType extends Error {
 
 		msg += `. Received type ${typeof actual}`;
 		super(msg);
+
+		this.code = 'ERR_INVALID_ARG_TYPE';
 	}
 }
 
@@ -167,7 +169,7 @@ function _format(sep: string, pathObject: ParsedPath) {
 	return dir + sep + base;
 }
 
-interface ParsedPath {
+export interface ParsedPath {
 	root: string;
 	dir: string;
 	base: string;
@@ -175,7 +177,7 @@ interface ParsedPath {
 	name: string;
 }
 
-interface IPath {
+export interface IPath {
 	normalize(path: string): string;
 	isAbsolute(path: string): boolean;
 	join(...paths: string[]): string;

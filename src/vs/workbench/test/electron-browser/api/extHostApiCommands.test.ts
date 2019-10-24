@@ -78,7 +78,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			});
 			instantiationService.stub(IMarkerService, new MarkerService());
 			instantiationService.stub(IModelService, <IModelService>{
-				_serviceBrand: IModelService,
+				_serviceBrand: undefined,
 				getModel(): any { return model; },
 				createModel() { throw new Error(); },
 				updateModel() { throw new Error(); },
@@ -181,7 +181,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(nullExtensionDescription, {
-			provideWorkspaceSymbols(query): vscode.SymbolInformation[] {
+			provideWorkspaceSymbols(): vscode.SymbolInformation[] {
 				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar')) as vscode.SymbolInformation];
 			}
 		}));
@@ -312,7 +312,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('reference search, back and forth', function () {
 
 		disposables.push(extHost.registerReferenceProvider(nullExtensionDescription, defaultSelector, <vscode.ReferenceProvider>{
-			provideReferences(doc: any) {
+			provideReferences() {
 				return [
 					new types.Location(URI.parse('some:uri/path'), new types.Range(0, 1, 0, 5))
 				];
@@ -388,7 +388,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	test('Suggest, back and forth', function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
-			provideCompletionItems(doc, pos): any {
+			provideCompletionItems(): any {
 				let a = new types.CompletionItem('item1');
 				let b = new types.CompletionItem('item2');
 				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
@@ -631,6 +631,61 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('vscode.executeCodeActionProvider passes Range to provider although Selection is passed in #77997', function () {
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, rangeOrSelection],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+				}];
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
+				assert.equal(value.length, 1);
+				const [first] = value;
+				assert.ok(first.command);
+				assert.ok(first.command!.arguments![1] instanceof types.Selection);
+				assert.ok(first.command!.arguments![1].isEqual(selection));
+			});
+		});
+	});
+
+	test('vscode.executeCodeActionProvider results seem to be missing their `isPreferred` property #78098', function () {
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, rangeOrSelection],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+					isPreferred: true
+				}];
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
+				assert.equal(value.length, 1);
+				const [first] = value;
+				assert.equal(first.isPreferred, true);
+			});
+		});
+	});
+
 	// --- code lens
 
 	test('CodeLens, back and forth', function () {
@@ -724,7 +779,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideDocumentColors(): vscode.ColorInformation[] {
 				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
 			},
-			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+			provideColorPresentations(): vscode.ColorPresentation[] {
 				const cp = new types.ColorPresentation('#ABC');
 				cp.textEdit = types.TextEdit.replace(new types.Range(1, 0, 1, 20), '#ABC');
 				cp.additionalTextEdits = [types.TextEdit.insert(new types.Position(2, 20), '*')];
@@ -802,4 +857,33 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.ok(value[0].parent);
 	});
 
+	// --- call hierarcht
+
+	test('Call Hierarchy, back and forth', async function () {
+
+		disposables.push(extHost.registerCallHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.CallHierarchyItemProvider {
+			provideCallHierarchyIncomingCalls(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyIncomingCall[]> {
+				return [
+					new types.CallHierarchyIncomingCall(new types.CallHierarchyItem(types.SymbolKind.Array, 'IN', '', document.uri, new types.Range(0, 0, 2, 0), new types.Range(0, 0, 2, 0)), [new types.Range(0, 0, 0, 0)]),
+				];
+			}
+			provideCallHierarchyOutgoingCalls(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyOutgoingCall[]> {
+				return [
+					new types.CallHierarchyOutgoingCall(new types.CallHierarchyItem(types.SymbolKind.Array, 'OUT', '', document.uri, new types.Range(0, 0, 2, 0), new types.Range(0, 0, 2, 0)), [new types.Range(0, 0, 0, 0)]),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		let incoming = await commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.executeCallHierarchyProviderIncomingCalls', model.uri, new types.Position(0, 10));
+		assert.equal(incoming.length, 1);
+		assert.ok(incoming[0].from instanceof types.CallHierarchyItem);
+		assert.equal(incoming[0].from.name, 'IN');
+
+		let outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.executeCallHierarchyProviderOutgoingCalls', model.uri, new types.Position(0, 10));
+		assert.equal(outgoing.length, 1);
+		assert.ok(outgoing[0].to instanceof types.CallHierarchyItem);
+		assert.equal(outgoing[0].to.name, 'OUT');
+	});
 });

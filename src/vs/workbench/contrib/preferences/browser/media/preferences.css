@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.preferences-editor {
+	display: flex;
+	flex-direction: column;
+}
+
 .preferences-editor > .preferences-header {
 	padding-left: 27px;
 	padding-right: 32px;
@@ -11,7 +16,7 @@
 }
 
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {
-	position: relative;
+	flex: 1;
 }
 
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor .preferences-header-container {
@@ -198,43 +203,29 @@
 	outline: 1px dotted #f38518;
 }
 
-.monaco-editor .settings-group-title-widget .title-container .expand-collapse-icon {
-	background: url("tree-expanded-light.svg") 50% 50% no-repeat;
-	margin-right: 2px;
+.monaco-editor .settings-group-title-widget .title-container .codicon {
+	margin: 0 2px;
 	width: 16px;
 	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
-.monaco-editor.vs-dark .settings-group-title-widget .title-container .expand-collapse-icon,
-.monaco-editor.hc-black .settings-group-title-widget .title-container .expand-collapse-icon {
-	background: url("tree-expanded-dark.svg") 50% 50% no-repeat;
+.monaco-editor .settings-group-title-widget .title-container.collapsed .codicon::before {
+	transform: rotate(-90deg);
 }
 
-.monaco-editor .settings-group-title-widget .title-container.collapsed .expand-collapse-icon {
-	background: url("tree-collapsed-light.svg") 50% 50% no-repeat;
-}
-
-.monaco-editor.vs-dark .settings-group-title-widget .title-container.collapsed .expand-collapse-icon,
-.monaco-editor.hc-black .settings-group-title-widget .title-container.collapsed .expand-collapse-icon {
-	background: url("tree-collapsed-dark.svg") 50% 50% no-repeat;
-}
-
-.monaco-editor .edit-preferences-widget {
-	background: url('edit-light.svg') center center no-repeat;
+.monaco-editor .codicon-edit {
 	transform: rotate(-90deg);
 	width:16px;
 	height: 16px;
 	cursor: pointer;
 }
 
-.monaco-editor .edit-preferences-widget.hidden {
+.monaco-editor .codicon-edit.hidden {
 	display: none;
 	visibility: hidden;
-}
-
-.monaco-editor.hc-black .edit-preferences-widget,
-.monaco-editor.vs-dark .edit-preferences-widget {
-	background: url('edit-dark.svg') center center no-repeat;
 }
 
 .monaco-editor .dim-configuration {

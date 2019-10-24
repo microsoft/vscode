@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, INotificationViewItem, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } from 'vs/workbench/common/notifications';
-import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
 
 export class NotificationsStatus extends Disposable {
 
-	private notificationsCenterStatusItem: IStatusbarEntryAccessor;
+	private notificationsCenterStatusItem: IStatusbarEntryAccessor | undefined;
 	private currentNotifications = new Set<INotificationViewItem>();
 
 	private currentStatusMessage: [IStatusMessageViewItem, IDisposable] | undefined;
 
-	private isNotificationsCenterVisible: boolean;
+	private isNotificationsCenterVisible: boolean | undefined;
 
 	constructor(
 		private model: INotificationsModel,

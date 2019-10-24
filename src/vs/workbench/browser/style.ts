@@ -6,10 +6,18 @@
 import 'vs/css!./media/style';
 
 import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
-import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
+import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { isWeb } from 'vs/base/common/platform';
+import { createMetaElement } from 'vs/base/browser/dom';
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Icon defaults
+	const iconForegroundColor = theme.getColor(iconForeground);
+	if (iconForegroundColor) {
+		collector.addRule(`.monaco-workbench .codicon { color: ${iconForegroundColor}; }`);
+	}
 
 	// Foreground
 	const windowForeground = theme.getColor(foreground);
@@ -135,5 +143,21 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			background: transparent; /* Search input focus fix when in high contrast */
 		}
 		`);
+	}
+
+	// Update <meta name="theme-color" content=""> based on selected theme
+	if (isWeb) {
+		const titleBackground = theme.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
+		if (titleBackground) {
+			const metaElementId = 'monaco-workbench-meta-theme-color';
+			let metaElement = document.getElementById(metaElementId) as HTMLMetaElement | null;
+			if (!metaElement) {
+				metaElement = createMetaElement();
+				metaElement.name = 'theme-color';
+				metaElement.id = metaElementId;
+			}
+
+			metaElement.content = titleBackground.toString();
+		}
 	}
 });
