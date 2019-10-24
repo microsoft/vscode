@@ -110,7 +110,7 @@ class MessageWidget {
 			this._domNode.style.bottom = `${Math.max(_y, WIDGET_HEIGHT) - WIDGET_HEIGHT}px`;
 		} else {
 			// Y position is to the bottom of the widget
-			this._domNode.style.bottom = `${Math.min(Math.max(_y, WIDGET_HEIGHT), _container.offsetHeight - WIDGET_HEIGHT)}px`;
+			this._domNode.style.bottom = `${Math.min(_y, _container.offsetHeight - WIDGET_HEIGHT)}px`;
 		}
 
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
