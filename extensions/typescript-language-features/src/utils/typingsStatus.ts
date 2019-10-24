@@ -57,20 +57,19 @@ export default class TypingsStatus extends Disposable {
 	}
 }
 
-export class AtaProgressReporter {
+export class AtaProgressReporter extends Disposable {
 
-	private _promises = new Map<number, Function>();
-	private _disposable: vscode.Disposable;
+	private readonly _promises = new Map<number, Function>();
 
 	constructor(client: ITypeScriptServiceClient) {
-		this._disposable = vscode.Disposable.from(
-			client.onDidBeginInstallTypings(e => this._onBegin(e.eventId)),
-			client.onDidEndInstallTypings(e => this._onEndOrTimeout(e.eventId)),
-			client.onTypesInstallerInitializationFailed(_ => this.onTypesInstallerInitializationFailed()));
+		super();
+		this._register(client.onDidBeginInstallTypings(e => this._onBegin(e.eventId)));
+		this._register(client.onDidEndInstallTypings(e => this._onEndOrTimeout(e.eventId)));
+		this._register(client.onTypesInstallerInitializationFailed(_ => this.onTypesInstallerInitializationFailed()));
 	}
 
 	dispose(): void {
-		this._disposable.dispose();
+		super.dispose();
 		this._promises.forEach(value => value());
 	}
 
