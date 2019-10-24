@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
@@ -41,10 +41,10 @@ export class UserConfiguration extends Disposable {
 		this.parser = new ConfigurationModelParser(this.userSettingsResource.toString(), this.scopes);
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.userSettingsResource))(() => this.reloadConfigurationScheduler.schedule()));
-		whenProviderRegistered(Schemas.file, fileService).then(() => {
+		runWhenIdle(() => {
 			this._userConfiguration = this.createAndRegisterConfiguration();
 			this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel));
-		});
+		}, 5000);
 	}
 
 	private createAndRegisterConfiguration(): FileServiceBasedUserConfiguration {
