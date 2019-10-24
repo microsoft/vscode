@@ -82,16 +82,11 @@ if (fs.existsSync(processTreeDts)) {
 }
 
 function getInstalledVersion(packageName, cwd) {
-	const opts = {};
-	if (cwd) {
-		opts.cwd = cwd;
-	}
-
-	const result = cp.spawnSync(yarn, ['list', '--pattern', packageName], opts);
-	const stdout = result.stdout.toString();
+	const { stdout } = cp.spawnSync(yarn, ['list', packageName], { encoding: 'utf8', cwd });
 	const match = stdout.match(new RegExp(packageName + '@(\\S+)'));
+
 	if (!match || !match[1]) {
-		throw new Error('Unexpected output from yarn list: ' + stdout);
+		throw new Error(`Missing ${packageName} in ${cwd}: \n${stdout}`);
 	}
 
 	return match[1];
@@ -108,7 +103,7 @@ function assertSameVersionsBetweenFolders(packageName, otherFolder) {
 
 // Check that modules in both the base package.json and remote/ have the same version installed
 const requireSameVersionsInRemote = [
-	'xterm',
+	// 'xterm',
 	'xterm-addon-search',
 	'xterm-addon-web-links',
 	'node-pty',
