@@ -319,6 +319,32 @@ suite('URI', () => {
 		assert.equal(actual, expected.toString());
 	}
 
+	function assertComponents(input: string | URI, scheme: string, authority: string, path: string, query: string, fragment: string) {
+		if (typeof input === 'string') {
+			input = URI.parse(input);
+		}
+		assert.equal(input.scheme, scheme);
+		assert.equal(input.authority, authority);
+		assert.equal(input.path, path);
+		assert.equal(input.query, query);
+		assert.equal(input.fragment, fragment);
+	}
+
+	function assertEqualUri(input: string | URI, other: string | URI) {
+		if (typeof input === 'string') {
+			input = URI.parse(input);
+		}
+		if (typeof other === 'string') {
+			other = URI.parse(other);
+		}
+		assert.equal(input.scheme, other.scheme);
+		assert.equal(input.authority, other.authority);
+		assert.equal(input.path, other.path);
+		assert.equal(input.query, other.query);
+		assert.equal(input.fragment, other.fragment);
+		assert.equal(input.toString(), other.toString());
+	}
+
 	test('URI.toString, only scheme and query', () => {
 		assertToString('stuff:?qüery', 'stuff:?q%C3%BCery');
 	});
@@ -450,40 +476,35 @@ suite('URI', () => {
 	test('Links in markdown are broken if url contains encoded parameters #79474', function () {
 		let strIn = 'https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom';
 		let uri1 = URI.parse(strIn);
+		assertToString(uri1, strIn);
 		let strOut = uri1.toString();
 		let uri2 = URI.parse(strOut);
-
-		assert.equal(uri1.scheme, uri2.scheme);
-		assert.equal(uri1.authority, uri2.authority);
-		assert.equal(uri1.path, uri2.path);
-		assert.equal(uri1.query, uri2.query);
-		assert.equal(uri1.fragment, uri2.fragment);
+		assertEqualUri(uri1, uri2);
 		assert.equal(strIn, strOut);
 	});
 
 	test('Uri#parse can break path-component #45515', function () {
 		let strIn = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
 		let uri1 = URI.parse(strIn);
+		assertToString(uri1, strIn);
+
+		assertComponents(uri1,
+			'https',
+			'firebasestorage.googleapis.com',
+			'/v0/b/brewlangerie.appspot.com/o/products/zVNZkudXJyq8bPGTXUxx/Betterave-Sesame.jpg', // INCORRECT: %2F got decoded but for compat reasons we cannot change this anymore...
+			'alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437',
+			''
+		);
+
 		let strOut = uri1.toString();
 		let uri2 = URI.parse(strOut);
-
-		assert.equal(uri1.scheme, uri2.scheme);
-		assert.equal(uri1.authority, uri2.authority);
-		assert.equal(uri1.path, uri2.path);
-		assert.equal(uri1.query, uri2.query);
-		assert.equal(uri1.fragment, uri2.fragment);
-		assert.equal(strIn, strOut);
+		assertEqualUri(uri1, uri2);
 	});
 
-	test('Uri#parse can break path-component #45515, part 2', function () {
-		let strIn = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
-		let uri1 = URI.parse(strIn);
-		assert.equal(uri1.toString(), strIn);
-		assert.equal(uri1.scheme, 'https');
-		assert.equal(uri1.authority, 'firebasestorage.googleapis.com');
-		assert.equal(uri1.path, '/v0/b/brewlangerie.appspot.com/o/products/zVNZkudXJyq8bPGTXUxx/Betterave-Sesame.jpg'); // INCORRECT: %2F got decoded but for compat reasons we cannot change this anymore...
-		assert.equal(uri1.query, 'alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437');
-		assert.equal(uri1.fragment, '');
+	test('Nonce does not match on login #75755', function () {
+		let uri = URI.parse('http://localhost:60371/signin?nonce=iiK1zRI%2BHyDCKb2zatvrYA%3D%3D');
+		assertComponents(uri, 'http', 'localhost:60371', '/signin', 'nonce=iiK1zRI+HyDCKb2zatvrYA==', '');
+		assertToString(uri, 'http://localhost:60371/signin?nonce=iiK1zRI%2BHyDCKb2zatvrYA%3D%3D');
 	});
 
 	test('URI#parse creates normalized output', function () {
@@ -664,5 +685,6 @@ suite('URI', () => {
 		assertToString('http://foo@localhost/far');
 		assertToString('http://foo:bAr@localhost:8080/far');
 		assertToString('http://foo@localhost:8080/far');
+		assertToString('http://localhost:60371/signin?nonce=iiK1zRI%2BHyDCKb2zatvrYA%3D%3D');
 	});
 });
