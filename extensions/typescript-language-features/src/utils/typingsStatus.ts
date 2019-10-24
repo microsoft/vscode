@@ -15,22 +15,20 @@ const typingsInstallTimeout = 30 * 1000;
 export default class TypingsStatus extends Disposable {
 	private _acquiringTypings: { [eventId: string]: NodeJS.Timer } = Object.create({});
 	private _client: ITypeScriptServiceClient;
-	private _subscriptions: vscode.Disposable[] = [];
 
 	constructor(client: ITypeScriptServiceClient) {
 		super();
 		this._client = client;
 
-		this._subscriptions.push(
+		this._register(
 			this._client.onDidBeginInstallTypings(event => this.onBeginInstallTypings(event.eventId)));
 
-		this._subscriptions.push(
+		this._register(
 			this._client.onDidEndInstallTypings(event => this.onEndInstallTypings(event.eventId)));
 	}
 
 	public dispose(): void {
 		super.dispose();
-		this._subscriptions.forEach(x => x.dispose());
 
 		for (const eventId of Object.keys(this._acquiringTypings)) {
 			clearTimeout(this._acquiringTypings[eventId]);
