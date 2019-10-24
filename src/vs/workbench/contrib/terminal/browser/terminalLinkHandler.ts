@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
+import { TerminalWidgetManager, WidgetVerticalAlignment } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -96,12 +96,12 @@ export class TerminalLinkHandler {
 
 			// Get the row bottom up
 			let offsetRow = this._xterm.rows - location.start.row + 1;
-			let useTopPosition = false;
+			let verticalAlignment = WidgetVerticalAlignment.Bottom;
 
-			// Handle a link on the top row
+			// Show the tooltip on the top of the next row to avoid obscuring the first row
 			if (location.start.row === 1) {
 				offsetRow--;
-				useTopPosition = true;
+				verticalAlignment = WidgetVerticalAlignment.Top;
 			}
 
 			if (this._configHelper.config.rendererType === 'dom') {
@@ -110,9 +110,9 @@ export class TerminalLinkHandler {
 				const charHeight = font.charHeight;
 
 				const leftPosition = (location.start.col - 1) * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
-				const bottomPosition = offsetRow * (charHeight! * font.lineHeight);
+				const bottomPosition = offsetRow * (Math.ceil(charHeight! * window.devicePixelRatio) * font.lineHeight) / window.devicePixelRatio;
 
-				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(), useTopPosition);
+				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(), verticalAlignment);
 			} else {
 				const target = (e.target as HTMLElement);
 				const colWidth = target.offsetWidth / this._xterm.cols;
@@ -120,7 +120,7 @@ export class TerminalLinkHandler {
 
 				const leftPosition = (location.start.col - 1) * colWidth;
 				const bottomPosition = offsetRow * rowHeight;
-				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(), useTopPosition);
+				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(), verticalAlignment);
 			}
 		};
 		this._leaveCallback = () => {

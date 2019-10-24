@@ -5,6 +5,11 @@
 
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 
+export enum WidgetVerticalAlignment {
+	Bottom,
+	Top
+}
+
 const WIDGET_HEIGHT = 29;
 
 export class TerminalWidgetManager implements IDisposable {
@@ -43,13 +48,13 @@ export class TerminalWidgetManager implements IDisposable {
 		mutationObserver.observe(this._xtermViewport, { attributes: true, attributeFilter: ['style'] });
 	}
 
-	public showMessage(left: number, bottom: number, text: string, positionIsTopOfWidget: boolean = false): void {
+	public showMessage(left: number, y: number, text: string, verticalAlignment: WidgetVerticalAlignment = WidgetVerticalAlignment.Bottom): void {
 		if (!this._container) {
 			return;
 		}
 		dispose(this._messageWidget);
 		this._messageListeners.clear();
-		this._messageWidget = new MessageWidget(this._container, left, bottom, text, positionIsTopOfWidget);
+		this._messageWidget = new MessageWidget(this._container, left, y, text, verticalAlignment);
 	}
 
 	public closeMessage(): void {
@@ -71,10 +76,10 @@ class MessageWidget {
 	private _domNode: HTMLDivElement;
 
 	public get left(): number { return this._left; }
-	public get bottom(): number { return this._bottom; }
+	public get y(): number { return this._y; }
 	public get text(): string { return this._text; }
 	public get domNode(): HTMLElement { return this._domNode; }
-	public get positionTop(): boolean { return this._positionTop; }
+	public get verticalAlignment(): WidgetVerticalAlignment { return this._verticalAlignment; }
 
 	public static fadeOut(messageWidget: MessageWidget): IDisposable {
 		let handle: any;
@@ -92,20 +97,20 @@ class MessageWidget {
 	constructor(
 		private _container: HTMLElement,
 		private _left: number,
-		private _bottom: number,
+		private _y: number,
 		private _text: string,
-		private _positionTop: boolean
+		private _verticalAlignment: WidgetVerticalAlignment
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.left = `${_left}px`;
 
-		if (this.positionTop) {
-			// Bottom position is to the top of the widget
-			this._domNode.style.bottom = `${Math.max(_bottom, WIDGET_HEIGHT) - WIDGET_HEIGHT}px`;
+		if (this.verticalAlignment === WidgetVerticalAlignment.Top) {
+			// Y position is to the top of the widget
+			this._domNode.style.bottom = `${Math.max(_y, WIDGET_HEIGHT) - WIDGET_HEIGHT}px`;
 		} else {
-			// Bottom position is to the bottom of the widget
-			this._domNode.style.bottom = `${Math.min(Math.max(_bottom, WIDGET_HEIGHT), _container.offsetHeight - WIDGET_HEIGHT)}px`;
+			// Y position is to the bottom of the widget
+			this._domNode.style.bottom = `${Math.min(Math.max(_y, WIDGET_HEIGHT), _container.offsetHeight - WIDGET_HEIGHT)}px`;
 		}
 
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
