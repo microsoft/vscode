@@ -80,36 +80,3 @@ if (fs.existsSync(processTreeDts)) {
 	console.log('Removing windows-process-tree.d.ts');
 	fs.unlinkSync(processTreeDts);
 }
-
-function getInstalledVersion(packageName, cwd) {
-	const { stdout } = cp.spawnSync(yarn, ['list', packageName], { encoding: 'utf8', cwd });
-	const match = stdout.match(new RegExp(packageName + '@(\\S+)'));
-
-	if (!match || !match[1]) {
-		throw new Error(`Missing ${packageName} in ${cwd}: \n${stdout}`);
-	}
-
-	return match[1];
-}
-
-function assertSameVersionsBetweenFolders(packageName, otherFolder) {
-	const baseVersion = getInstalledVersion(packageName);
-	const otherVersion = getInstalledVersion(packageName, otherFolder);
-
-	if (baseVersion !== otherVersion) {
-		throw new Error(`Mismatched versions installed for ${packageName}: root has ${baseVersion}, ./${otherFolder} has ${otherVersion}. These should be the same!`);
-	}
-}
-
-// Check that modules in both the base package.json and remote/ have the same version installed
-const requireSameVersionsInRemote = [
-	// 'xterm',
-	'xterm-addon-search',
-	'xterm-addon-web-links',
-	'node-pty',
-	'vscode-ripgrep'
-];
-
-requireSameVersionsInRemote.forEach(packageName => {
-	assertSameVersionsBetweenFolders(packageName, 'remote');
-});
