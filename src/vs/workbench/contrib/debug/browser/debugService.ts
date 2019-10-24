@@ -570,7 +570,10 @@ export class DebugService implements IDebugService {
 			}
 
 			if (!this.internalTerminalWasOpened) {
-				this.panelService.hideActivePanel();
+				const closeConsoleOnFinish = this.configurationService.getValue<IDebugConfiguration>('debug').closeConsoleOnFinish;
+				if (closeConsoleOnFinish) {
+					this.panelService.hideActivePanel();
+				}
 			}
 
 		}));
