@@ -14,7 +14,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 
@@ -259,6 +259,11 @@ registerThemingParticipant((theme, collector) => {
 	const findWidgetBGColor = theme.getColor(editorWidgetBackground);
 	if (findWidgetBGColor) {
 		collector.addRule(`.monaco-workbench .simple-find-part { background-color: ${findWidgetBGColor} !important; }`);
+	}
+
+	const widgetForeground = theme.getColor(editorWidgetForeground);
+	if (widgetForeground) {
+		collector.addRule(`.monaco-workbench .simple-find-part { color: ${widgetForeground}; }`);
 	}
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
