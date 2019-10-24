@@ -756,6 +756,8 @@ class SuggestAdapter {
 			range = item.textEdit.range;
 		} else if (item.range) {
 			range = item.range;
+		} else if (item.range2) {
+			range = item.range2;
 		}
 
 		if (range) {
