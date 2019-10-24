@@ -98,26 +98,36 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 	private async flushRenames(): Promise<void> {
 		const renames = Array.from(this._pendingRenames);
 		this._pendingRenames.clear();
-		for (const { oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved } of renames) {
-			const document = await vscode.workspace.openTextDocument(jsTsFileThatIsBeingMoved);
+		for (const group of this.groupRenames(renames)) {
+			const edits = new vscode.WorkspaceEdit();
+			const resourcesBeingRenamed: vscode.Uri[] = [];
 
-			// Make sure TS knows about file
-			this.client.bufferSyncSupport.closeResource(oldUri);
-			this.client.bufferSyncSupport.openTextDocument(document);
+			for (const { oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved } of group) {
+				const document = await vscode.workspace.openTextDocument(jsTsFileThatIsBeingMoved);
 
-			const edits = await this.getEditsForFileRename(document, oldFilePath, newFilePath);
-			if (!edits || !edits.size) {
-				return;
+				// Make sure TS knows about file
+				this.client.bufferSyncSupport.closeResource(oldUri);
+				this.client.bufferSyncSupport.openTextDocument(document);
+
+				if (await this.withEditsForFileRename(edits, document, oldFilePath, newFilePath)) {
+					resourcesBeingRenamed.push(newUri);
+				}
 			}
 
-			if (await this.confirmActionWithUser(newUri)) {
-				await vscode.workspace.applyEdit(edits);
+			if (edits.size) {
+				if (await this.confirmActionWithUser(resourcesBeingRenamed)) {
+					await vscode.workspace.applyEdit(edits);
+				}
 			}
 		}
 	}
 
-	private async confirmActionWithUser(newResource: vscode.Uri): Promise<boolean> {
-		const config = this.getConfiguration(newResource);
+	private async confirmActionWithUser(newResources: readonly vscode.Uri[]): Promise<boolean> {
+		if (!newResources.length) {
+			return false;
+		}
+
+		const config = this.getConfiguration(newResources[0]);
 		const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
 		switch (setting) {
 			case UpdateImportsOnFileMoveSetting.Always:
@@ -126,7 +136,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				return false;
 			case UpdateImportsOnFileMoveSetting.Prompt:
 			default:
-				return this.promptUser(newResource);
+				return this.promptUser(newResources);
 		}
 	}
 
@@ -134,7 +144,11 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		return vscode.workspace.getConfiguration(doesResourceLookLikeATypeScriptFile(resource) ? 'typescript' : 'javascript', resource);
 	}
 
-	private async promptUser(newResource: vscode.Uri): Promise<boolean> {
+	private async promptUser(newResources: readonly vscode.Uri[]): Promise<boolean> {
+		if (!newResources.length) {
+			return false;
+		}
+
 		const enum Choice {
 			None = 0,
 			Accept = 1,
@@ -144,11 +158,14 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		}
 
 		interface Item extends vscode.MessageItem {
-			choice: Choice;
+			readonly choice: Choice;
 		}
 
+
 		const response = await vscode.window.showInformationMessage<Item>(
-			localize('prompt', "Update imports for moved file: '{0}'?", path.basename(newResource.fsPath)), {
+			this.getConfirmMessage(newResources.length === 1
+				? localize('prompt', "Update imports for moved file:")
+				: localize('promptMoreThanOne', "Update imports for moved files:"), newResources), {
 			modal: true,
 		}, {
 			title: localize('reject.title', "No"),
@@ -180,7 +197,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				}
 			case Choice.Always:
 				{
-					const config = this.getConfiguration(newResource);
+					const config = this.getConfiguration(newResources[0]);
 					config.update(
 						updateImportsOnFileMoveName,
 						UpdateImportsOnFileMoveSetting.Always,
@@ -189,7 +206,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				}
 			case Choice.Never:
 				{
-					const config = this.getConfiguration(newResource);
+					const config = this.getConfiguration(newResources[0]);
 					config.update(
 						updateImportsOnFileMoveName,
 						UpdateImportsOnFileMoveSetting.Never,
@@ -217,11 +234,12 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		return (await this._handles(resource)) ? resource : undefined;
 	}
 
-	private async getEditsForFileRename(
+	private async withEditsForFileRename(
+		edits: vscode.WorkspaceEdit,
 		document: vscode.TextDocument,
 		oldFilePath: string,
 		newFilePath: string,
-	): Promise<vscode.WorkspaceEdit | undefined> {
+	): Promise<boolean> {
 		const response = await this.client.interruptGetErr(() => {
 			this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
 			const args: Proto.GetEditsForFileRenameRequestArgs = {
@@ -230,11 +248,46 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			};
 			return this.client.execute('getEditsForFileRename', args, nulToken);
 		});
-		if (response.type !== 'response') {
-			return;
+		if (response.type !== 'response' || !response.body.length) {
+			return false;
 		}
 
-		return typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
+		typeConverters.WorkspaceEdit.withFileCodeEdits(edits, this.client, response.body);
+		return true;
+	}
+
+	private groupRenames(renames: Iterable<RenameAction>): Iterable<Iterable<RenameAction>> {
+		const groups = new Map<string, Set<RenameAction>>();
+
+		for (const rename of renames) {
+			// Group renames by type (js/ts) and by workspace.
+			const key = `${this.client.getWorkspaceRootForResource(rename.jsTsFileThatIsBeingMoved)}@@@${doesResourceLookLikeATypeScriptFile(rename.jsTsFileThatIsBeingMoved)}`;
+			if (!groups.has(key)) {
+				groups.set(key, new Set());
+			}
+			groups.get(key)!.add(rename);
+		}
+
+		return groups.values();
+	}
+
+	private getConfirmMessage(start: string, resourcesToConfirm: readonly vscode.Uri[]): string {
+		const MAX_CONFIRM_FILES = 10;
+
+		const paths = [start];
+		paths.push('');
+		paths.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => path.basename(r.fsPath)));
+
+		if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
+			if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
+				paths.push(localize('moreFile', "...1 additional file not shown"));
+			} else {
+				paths.push(localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+			}
+		}
+
+		paths.push('');
+		return paths.join('\n');
 	}
 }
 
