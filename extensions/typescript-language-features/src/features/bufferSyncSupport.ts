@@ -176,15 +176,12 @@ class SyncedBuffer {
 		const args: Proto.OpenRequestArgs = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
+			projectRootPath: this.client.getWorkspaceRootForResource(this.document.uri),
 		};
 
 		const scriptKind = mode2ScriptKind(this.document.languageId);
 		if (scriptKind) {
 			args.scriptKindName = scriptKind;
-		}
-
-		if (this.client.apiVersion.gte(API.v230)) {
-			args.projectRootPath = this.client.getWorkspaceRootForResource(this.document.uri);
 		}
 
 		if (this.client.apiVersion.gte(API.v240)) {
@@ -349,6 +346,14 @@ export default class BufferSyncSupport extends Disposable {
 		vscode.workspace.onDidOpenTextDocument(this.openTextDocument, this, this._disposables);
 		vscode.workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this._disposables);
 		vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this._disposables);
+		vscode.window.onDidChangeVisibleTextEditors(e => {
+			for (const { document } of e) {
+				const syncedBuffer = this.syncedBuffers.get(document.uri);
+				if (syncedBuffer) {
+					this.requestDiagnostic(syncedBuffer);
+				}
+			}
+		}, this, this._disposables);
 		vscode.workspace.textDocuments.forEach(this.openTextDocument, this);
 	}
 

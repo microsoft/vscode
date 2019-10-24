@@ -129,7 +129,7 @@ document.addEventListener('dblclick', event => {
 	}
 });
 
-const passThroughLinkSchemes = ['http:', 'https:', 'mailto:', 'vscode:', 'vscode-insiders'];
+const passThroughLinkSchemes = ['http:', 'https:', 'mailto:', 'vscode:', 'vscode-insiders:'];
 
 document.addEventListener('click', event => {
 	if (!event) {

@@ -68,7 +68,7 @@
 						"none",
 						"stopContainer"
 					],
-					"description": "Action to take when VS Code is shutting down. The default is to stop the container."
+					"description": "Action to take when the VS Code window is closed. The default is to stop the container."
 				},
 				"overrideCommand": {
 					"type": "boolean",
@@ -146,7 +146,7 @@
 						"none",
 						"stopCompose"
 					],
-					"description": "Action to take when VS Code is shutting down. The default is to stop the containers."
+					"description": "Action to take when the VS Code window is closed. The default is to stop the containers."
 				}
 			},
 			"required": [

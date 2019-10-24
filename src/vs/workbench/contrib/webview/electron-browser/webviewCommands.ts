@@ -6,11 +6,10 @@
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import { Command, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewTag } from 'electron';
+import { getActiveWebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewCommands';
 
 export class OpenWebviewDeveloperToolsAction extends Action {
 	static readonly ID = 'workbench.action.webview.openDeveloperTools';
@@ -80,12 +79,6 @@ export class RedoWebviewEditorCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		withActiveWebviewBasedWebview(accessor, webview => webview.redo());
 	}
-}
-
-function getActiveWebviewEditor(accessor: ServicesAccessor): WebviewEditor | undefined {
-	const editorService = accessor.get(IEditorService);
-	const activeControl = editorService.activeControl as WebviewEditor;
-	return activeControl.isWebviewEditor ? activeControl : undefined;
 }
 
 function withActiveWebviewBasedWebview(accessor: ServicesAccessor, f: (webview: ElectronWebviewBasedWebview) => void): void {

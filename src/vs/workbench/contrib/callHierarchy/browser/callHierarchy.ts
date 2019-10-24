@@ -20,6 +20,7 @@ export const enum CallHierarchyDirection {
 }
 
 export interface CallHierarchyItem {
+	id: string;
 	kind: SymbolKind;
 	name: string;
 	detail?: string;
@@ -38,46 +39,79 @@ export interface OutgoingCall {
 	to: CallHierarchyItem;
 }
 
+export interface CallHierarchySession {
+	root: CallHierarchyItem;
+	dispose(): void;
+}
+
 export interface CallHierarchyProvider {
 
-	provideIncomingCalls(document: ITextModel, postion: IPosition, token: CancellationToken): ProviderResult<IncomingCall[]>;
+	prepareCallHierarchy(document: ITextModel, position: IPosition, token: CancellationToken): ProviderResult<CallHierarchySession>;
 
-	provideOutgoingCalls(document: ITextModel, postion: IPosition, token: CancellationToken): ProviderResult<OutgoingCall[]>;
+	provideIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<IncomingCall[]>;
+
+	provideOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<OutgoingCall[]>;
 }
 
 export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();
 
 
-export async function provideIncomingCalls(model: ITextModel, position: IPosition, token: CancellationToken): Promise<IncomingCall[]> {
-	const [provider] = CallHierarchyProviderRegistry.ordered(model);
-	if (!provider) {
+export class CallHierarchyModel {
+
+	static async create(model: ITextModel, position: IPosition, token: CancellationToken): Promise<CallHierarchyModel | undefined> {
+		const [provider] = CallHierarchyProviderRegistry.ordered(model);
+		if (!provider) {
+			return undefined;
+		}
+		const session = await provider.prepareCallHierarchy(model, position, token);
+		if (!session) {
+			return undefined;
+		}
+		return new CallHierarchyModel(provider, session);
+	}
+
+	private constructor(
+		readonly provider: CallHierarchyProvider,
+		readonly session: CallHierarchySession,
+		readonly root = session.root
+	) { }
+
+	dispose(): void {
+		this.session.dispose();
+	}
+
+	async resolveIncomingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<IncomingCall[]> {
+		try {
+			const result = await this.provider.provideIncomingCalls(item, token);
+			if (isNonEmptyArray(result)) {
+				return result;
+			}
+		} catch (e) {
+			onUnexpectedExternalError(e);
+		}
 		return [];
 	}
-	try {
-		const result = await provider.provideIncomingCalls(model, position, token);
-		if (isNonEmptyArray(result)) {
-			return result;
+
+	async resolveOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<OutgoingCall[]> {
+		try {
+			const result = await this.provider.provideOutgoingCalls(item, token);
+			if (isNonEmptyArray(result)) {
+				return result;
+			}
+		} catch (e) {
+			onUnexpectedExternalError(e);
 		}
-	} catch (e) {
-		onUnexpectedExternalError(e);
+		return [];
 	}
-	return [];
+}
+
+
+export async function provideIncomingCalls(model: ITextModel, position: IPosition, token: CancellationToken): Promise<IncomingCall[]> {
+	throw new Error();
 }
 
 export async function provideOutgoingCalls(model: ITextModel, position: IPosition, token: CancellationToken): Promise<OutgoingCall[]> {
-	const [provider] = CallHierarchyProviderRegistry.ordered(model);
-	if (!provider) {
-		return [];
-	}
-	try {
-		const result = await provider.provideOutgoingCalls(model, position, token);
-		if (isNonEmptyArray(result)) {
-			return result;
-		}
-	} catch (e) {
-		onUnexpectedExternalError(e);
-	}
-	return [];
+	throw new Error();
 }
 
 registerDefaultLanguageCommand('_executeCallHierarchyIncomingCalls', async (model, position) => provideIncomingCalls(model, position, CancellationToken.None));

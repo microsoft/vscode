@@ -72,24 +72,17 @@ declare module 'vscode' {
 
 	export interface CallHierarchyItemProvider {
 
+		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
+
 		/**
 		 * Provide a list of callers for the provided item, e.g. all function calling a function.
 		 */
-		provideCallHierarchyIncomingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
+		provideCallHierarchyIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
 
 		/**
 		 * Provide a list of calls for the provided item, e.g. all functions call from a function.
 		 */
-		provideCallHierarchyOutgoingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
-
-		//  todo@joh this could return as 'prepareCallHierarchy' (similar to the RenameProvider#prepareRename)
-		//
-		// /**
-		//  *
-		//  * Given a document and position compute a call hierarchy item. This is justed as
-		//  * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
-		//  */
-		// resolveCallHierarchyItem(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
+		provideCallHierarchyOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
 	}
 
 	export namespace languages {
@@ -994,6 +987,26 @@ declare module 'vscode' {
 			provider: WebviewEditorProvider,
 			options?: WebviewPanelOptions
 		): Disposable;
+	}
+
+	//#endregion
+
+	//#region joh, insert/replace completions: https://github.com/microsoft/vscode/issues/10266
+
+	export interface CompletionItem {
+
+		/**
+		 * A range or a insert and replace range selecting the text that should be replaced by this completion item.
+		 *
+		 * When omitted, the range of the [current word](#TextDocument.getWordRangeAtPosition) is used as replace-range
+		 * and as insert-range the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position is used.
+		 *
+		 * *Note 1:* A range must be a [single line](#Range.isSingleLine) and it must
+		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
+		 */
+		range2?: Range | { insert: Range; replace: Range; };
 	}
 
 	//#endregion

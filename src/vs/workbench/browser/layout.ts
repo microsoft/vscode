@@ -1146,6 +1146,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
+	hasWindowBorder(): boolean {
+		return this.state.windowBorder;
+	}
+
+	getWindowBorderRadius(): string | undefined {
+		return this.state.windowBorder && isMacintosh ? '5px' : undefined;
+	}
+
 	isPanelMaximized(): boolean {
 		if (!this.workbenchGrid) {
 			return false;
