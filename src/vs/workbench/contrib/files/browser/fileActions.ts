@@ -6,7 +6,7 @@
 import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isWeb } from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import { extname, basename } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
@@ -45,6 +45,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError, getErrorMessage } from 'vs/base/common/errors';
+import { asDomUri, triggerDownload } from 'vs/base/browser/dom';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -1050,11 +1051,17 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 	if (explorerContext.stat) {
 		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 		stats.forEach(async s => {
-			const destination = await fileDialogService.showSaveDialog({
-				availableFileSystems: [Schemas.file]
-			});
-			if (destination) {
-				await fileService.copy(s.resource, destination);
+			if (isWeb) {
+				if (!s.isDirectory) {
+					triggerDownload(asDomUri(s.resource), s.name);
+				}
+			} else {
+				const destination = await fileDialogService.showSaveDialog({
+					availableFileSystems: [Schemas.file]
+				});
+				if (destination) {
+					await fileService.copy(s.resource, destination);
+				}
 			}
 		});
 	}
