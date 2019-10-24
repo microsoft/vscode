@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import * as objects from 'vs/base/common/objects';
-import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import { escape } from 'vs/base/common/strings';
 
 export interface IHighlight {
@@ -16,15 +15,15 @@ export interface IHighlight {
 export class HighlightedLabel {
 
 	private domNode: HTMLElement;
-	private text: string;
-	private title: string;
-	private highlights: IHighlight[];
-	private didEverRender: boolean;
+	private text: string = '';
+	private title: string = '';
+	private highlights: IHighlight[] = [];
+	private didEverRender: boolean = false;
 
-	constructor(container: HTMLElement, private supportOcticons: boolean) {
+	constructor(container: HTMLElement, private supportCodicons: boolean) {
 		this.domNode = document.createElement('span');
 		this.domNode.className = 'monaco-highlighted-label';
-		this.didEverRender = false;
+
 		container.appendChild(this.domNode);
 	}
 
@@ -54,10 +53,9 @@ export class HighlightedLabel {
 		this.render();
 	}
 
-	private render() {
-		dom.clearNode(this.domNode);
+	private render(): void {
 
-		let htmlContent: string[] = [];
+		let htmlContent = '';
 		let pos = 0;
 
 		for (const highlight of this.highlights) {
@@ -65,27 +63,27 @@ export class HighlightedLabel {
 				continue;
 			}
 			if (pos < highlight.start) {
-				htmlContent.push('<span>');
+				htmlContent += '<span>';
 				const substring = this.text.substring(pos, highlight.start);
-				htmlContent.push(this.supportOcticons ? renderOcticons(substring) : escape(substring));
-				htmlContent.push('</span>');
+				htmlContent += this.supportCodicons ? renderCodicons(substring) : escape(substring);
+				htmlContent += '</span>';
 				pos = highlight.end;
 			}
-			htmlContent.push('<span class="highlight">');
+			htmlContent += '<span class="highlight">';
 			const substring = this.text.substring(highlight.start, highlight.end);
-			htmlContent.push(this.supportOcticons ? renderOcticons(substring) : escape(substring));
-			htmlContent.push('</span>');
+			htmlContent += this.supportCodicons ? renderCodicons(substring) : escape(substring);
+			htmlContent += '</span>';
 			pos = highlight.end;
 		}
 
 		if (pos < this.text.length) {
-			htmlContent.push('<span>');
+			htmlContent += '<span>';
 			const substring = this.text.substring(pos);
-			htmlContent.push(this.supportOcticons ? renderOcticons(substring) : escape(substring));
-			htmlContent.push('</span>');
+			htmlContent += this.supportCodicons ? renderCodicons(substring) : escape(substring);
+			htmlContent += '</span>';
 		}
 
-		this.domNode.innerHTML = htmlContent.join('');
+		this.domNode.innerHTML = htmlContent;
 		this.domNode.title = this.title;
 		this.didEverRender = true;
 	}

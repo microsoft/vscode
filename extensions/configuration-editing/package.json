@@ -4,6 +4,7 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.0.0"
   },
@@ -17,7 +18,7 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "2.0.2",
+    "jsonc-parser": "^2.1.1",
     "vscode-nls": "^4.0.0"
   },
   "contributes": {
@@ -36,7 +37,8 @@
           "launch.json",
           "tasks.json",
           "keybindings.json",
-          "extensions.json"
+          "extensions.json",
+          "argv.json"
         ]
       }
     ],
@@ -50,12 +52,16 @@
         "url": "vscode://schemas/keybindings"
       },
       {
-        "fileMatch": "vscode://defaultsettings/settings.json",
+        "fileMatch": "vscode://defaultsettings/*/*.json",
         "url": "vscode://schemas/settings/default"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
         "url": "vscode://schemas/settings/user"
+      },
+      {
+        "fileMatch": "%MACHINE_SETTINGS_HOME%/settings.json",
+        "url": "vscode://schemas/settings/machine"
       },
       {
         "fileMatch": "%APP_WORKSPACES_HOME%/*/workspace.json",
@@ -66,8 +72,8 @@
         "url": "vscode://schemas/workspaceConfig"
       },
       {
-        "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
-        "url": "vscode://schemas/locale"
+        "fileMatch": "**/argv.json",
+        "url": "vscode://schemas/argv"
       },
       {
         "fileMatch": "/.vscode/settings.json",
@@ -92,10 +98,22 @@
       {
         "fileMatch": "/.vscode/extensions.json",
         "url": "vscode://schemas/extensions"
+      },
+      {
+        "fileMatch": "/.devcontainer/devcontainer.json",
+        "url": "./schemas/devContainer.schema.json"
+      },
+      {
+        "fileMatch": "/.devcontainer.json",
+        "url": "./schemas/devContainer.schema.json"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/imageConfigs/*.json",
+        "url": "./schemas/attachContainer.schema.json"
       }
     ]
   },
   "devDependencies": {
-    "@types/node": "^10.12.21"
+    "@types/node": "^10.14.8"
   }
 }

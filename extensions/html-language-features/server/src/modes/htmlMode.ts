@@ -15,7 +15,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		getId() {
 			return 'html';
 		},
-		getSelectionRanges(document: TextDocument, positions: Position[]): SelectionRange[][] {
+		getSelectionRanges(document: TextDocument, positions: Position[]): SelectionRange[] {
 			return htmlLanguageService.getSelectionRanges(document, positions);
 		},
 		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {

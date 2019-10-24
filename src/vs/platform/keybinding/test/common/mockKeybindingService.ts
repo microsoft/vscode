@@ -36,7 +36,7 @@ class MockKeybindingContextKey<T> implements IContextKey<T> {
 
 export class MockContextKeyService implements IContextKeyService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	private _keys = new Map<string, IContextKey<any>>();
 
 	public dispose(): void {
@@ -53,6 +53,7 @@ export class MockContextKeyService implements IContextKeyService {
 	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		return Event.None;
 	}
+	public bufferChangeEvents() { }
 	public getContextKeyValue(key: string) {
 		const value = this._keys.get(key);
 		if (value) {
@@ -68,7 +69,7 @@ export class MockContextKeyService implements IContextKeyService {
 }
 
 export class MockKeybindingService implements IKeybindingService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
 		return Event.None;
@@ -134,6 +135,10 @@ export class MockKeybindingService implements IKeybindingService {
 	}
 
 	public _dumpDebugInfo(): string {
+		return '';
+	}
+
+	public _dumpDebugInfoJSON(): string {
 		return '';
 	}
 }

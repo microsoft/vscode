@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -30,13 +30,13 @@ export interface RequestOptions {
 
 export abstract class ReferencesController implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.referencesController';
+	public static readonly ID = 'editor.contrib.referencesController';
 
+	private readonly _disposables = new DisposableStore();
 	private readonly _editor: ICodeEditor;
-	private _widget: ReferenceWidget | null;
-	private _model: ReferencesModel | null;
+	private _widget?: ReferenceWidget;
+	private _model?: ReferencesModel;
 	private _requestIdPool = 0;
-	private _disposables: IDisposable[] = [];
 	private _ignoreModelChangeEvent = false;
 
 	private readonly _referenceSearchVisible: IContextKey<boolean>;
@@ -59,20 +59,16 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
 	}
 
-	public getId(): string {
-		return ReferencesController.ID;
-	}
-
 	public dispose(): void {
 		this._referenceSearchVisible.reset();
 		dispose(this._disposables);
 		if (this._widget) {
 			dispose(this._widget);
-			this._widget = null;
+			this._widget = undefined;
 		}
 		if (this._model) {
 			dispose(this._model);
-			this._model = null;
+			this._model = undefined;
 		}
 	}
 
@@ -91,28 +87,28 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this._disposables.push(this._editor.onDidChangeModelLanguage(() => { this.closeWidget(); }));
-		this._disposables.push(this._editor.onDidChangeModel(() => {
+		this._disposables.add(this._editor.onDidChangeModelLanguage(() => { this.closeWidget(); }));
+		this._disposables.add(this._editor.onDidChangeModel(() => {
 			if (!this._ignoreModelChangeEvent) {
 				this.closeWidget();
 			}
 		}));
 		const storageKey = 'peekViewLayout';
-		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
+		const data = LayoutData.fromJSON(this._storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
 		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 
-		this._disposables.push(this._widget.onDidClose(() => {
+		this._disposables.add(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 			if (this._widget) {
 				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
-				this._widget = null;
+				this._widget = undefined;
 			}
 			this.closeWidget();
 		}));
 
-		this._disposables.push(this._widget.onDidSelectReference(event => {
+		this._disposables.add(this._widget.onDidSelectReference(event => {
 			let { element, kind } = event;
 			switch (kind) {
 				case 'open':
@@ -202,13 +198,13 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	public closeWidget(): void {
 		if (this._widget) {
 			dispose(this._widget);
-			this._widget = null;
+			this._widget = undefined;
 		}
 		this._referenceSearchVisible.reset();
-		this._disposables = dispose(this._disposables);
+		this._disposables.clear();
 		if (this._model) {
 			dispose(this._model);
-			this._model = null;
+			this._model = undefined;
 		}
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests

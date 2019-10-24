@@ -7,8 +7,8 @@ import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
-import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { TERMINAL_PANEL_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -24,7 +24,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -35,6 +34,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ITerminalInstance, ITerminalService, Direction } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -85,7 +85,7 @@ export class ToggleTerminalAction extends TogglePanelAction {
 		if (this.terminalService.terminalInstances.length === 0) {
 			// If there is not yet an instance attempt to create it here so that we can suggest a
 			// new shell on Windows (and not do so when the panel is restored on reload).
-			const newTerminalInstance = this.terminalService.createTerminal(undefined, true);
+			const newTerminalInstance = this.terminalService.createTerminal(undefined);
 			const toDispose = newTerminalInstance.onProcessIdReady(() => {
 				newTerminalInstance.focus();
 				toDispose.dispose();
@@ -105,7 +105,7 @@ export class KillTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private readonly terminalService: ITerminalService
 	) {
-		super(id, label, 'terminal-action kill');
+		super(id, label, 'terminal-action codicon-trash');
 	}
 
 	public run(event?: any): Promise<any> {
@@ -159,10 +159,10 @@ export class CopyTerminalSelectionAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
+	public async run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
-			terminalInstance.copySelection();
+			await terminalInstance.copySelection();
 		}
 		return Promise.resolve(undefined);
 	}
@@ -231,14 +231,14 @@ export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
 		label: string,
 		@ITerminalService terminalService: ITerminalService
 	) {
-		// Send alt+D
-		super(id, label, '\x1bD', terminalService);
+		// Send alt+d
+		super(id, label, '\x1bd', terminalService);
 	}
 }
 
 export class DeleteToLineStartTerminalAction extends BaseSendTextTerminalAction {
 	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_TO_LINE_START;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteToLineStart', "Delete to Line Start");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteToLineStart', "Delete To Line Start");
 
 	constructor(
 		id: string,
@@ -298,6 +298,32 @@ export class SendSequenceTerminalCommand extends Command {
 	}
 }
 
+export class CreateNewWithCwdTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.NEW_WITH_CWD;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
+	public static readonly CWD_ARG_LABEL = nls.localize('workbench.action.terminal.newWithCwd.cwd', "The directory to start the terminal at");
+
+	public runCommand(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const configurationResolverService = accessor.get(IConfigurationResolverService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const historyService = accessor.get(IHistoryService);
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+
+		let cwd: string | undefined;
+		if (args && args.cwd) {
+			cwd = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.cwd);
+		}
+		const instance = terminalService.createTerminal({ cwd });
+		if (!instance) {
+			return Promise.resolve(undefined);
+		}
+		terminalService.setActiveInstance(instance);
+		return terminalService.showPanel(true);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW;
@@ -310,7 +336,7 @@ export class CreateNewTerminalAction extends Action {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action new');
+		super(id, label, 'terminal-action codicon-add');
 	}
 
 	public run(event?: any): Promise<any> {
@@ -329,7 +355,7 @@ export class CreateNewTerminalAction extends Action {
 		if (folders.length <= 1) {
 			// Allow terminal service to handle the path when there is only a
 			// single root
-			instancePromise = Promise.resolve(this.terminalService.createTerminal(undefined, true));
+			instancePromise = Promise.resolve(this.terminalService.createTerminal(undefined));
 		} else {
 			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
@@ -339,7 +365,7 @@ export class CreateNewTerminalAction extends Action {
 					// Don't create the instance if the workspace picker was canceled
 					return null;
 				}
-				return this.terminalService.createTerminal({ cwd: workspace.uri.fsPath }, true);
+				return this.terminalService.createTerminal({ cwd: workspace.uri });
 			});
 		}
 
@@ -366,7 +392,7 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 	}
 
 	public run(event?: any): Promise<any> {
-		const instance = this.terminalService.createTerminal(undefined, true);
+		const instance = this.terminalService.createTerminal(undefined);
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
@@ -386,7 +412,7 @@ export class SplitTerminalAction extends Action {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action split');
+		super(id, label, 'terminal-action codicon-split-horizontal');
 	}
 
 	public run(event?: any): Promise<any> {
@@ -549,7 +575,7 @@ export class FocusActiveTerminalAction extends Action {
 	}
 
 	public run(event?: any): Promise<any> {
-		const instance = this.terminalService.getActiveOrCreateInstance(true);
+		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
@@ -607,12 +633,11 @@ export class TerminalPasteAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
+	public async run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (instance) {
-			instance.paste();
+			await instance.paste();
 		}
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -623,13 +648,13 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): Promise<any> {
-		return this.terminalService.selectDefaultWindowsShell();
+		return this._terminalService.selectDefaultWindowsShell();
 	}
 }
 
@@ -720,13 +745,23 @@ export class SwitchTerminalAction extends Action {
 		if (!item || !item.split) {
 			return Promise.resolve(null);
 		}
+		if (item === SwitchTerminalActionViewItem.SEPARATOR) {
+			this.terminalService.refreshActiveTab();
+			return Promise.resolve(null);
+		}
+		if (item === SelectDefaultShellWindowsTerminalAction.LABEL) {
+			this.terminalService.refreshActiveTab();
+			return this.terminalService.selectDefaultWindowsShell();
+		}
 		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveTabByIndex(selectedTabIndex);
 		return this.terminalService.showPanel(true);
 	}
 }
 
-export class SwitchTerminalActionItem extends SelectActionItem {
+export class SwitchTerminalActionViewItem extends SelectActionViewItem {
+
+	public static readonly SEPARATOR = '─────────';
 
 	constructor(
 		action: IAction,
@@ -736,14 +771,18 @@ export class SwitchTerminalActionItem extends SelectActionItem {
 	) {
 		super(null, action, terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
 
-		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
-		this.toDispose.push(terminalService.onActiveTabChanged(this._updateItems, this));
-		this.toDispose.push(terminalService.onInstanceTitleChanged(this._updateItems, this));
-		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
+		this._register(terminalService.onInstancesChanged(this._updateItems, this));
+		this._register(terminalService.onActiveTabChanged(this._updateItems, this));
+		this._register(terminalService.onInstanceTitleChanged(this._updateItems, this));
+		this._register(terminalService.onTabDisposed(this._updateItems, this));
+		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 	}
 
 	private _updateItems(): void {
-		this.setOptions(this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), this.terminalService.activeTabIndex);
+		const items = this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
+		items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
+		items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
+		this.setOptions(items, this.terminalService.activeTabIndex);
 	}
 }
 
@@ -873,6 +912,71 @@ export class ScrollToTopTerminalAction extends Action {
 	}
 }
 
+export class NavigationModeExitTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeExit', "Exit Navigation Mode");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.exitNavigationMode();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+
+
+export class NavigationModeFocusPreviousTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.focusPreviousLine();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+export class NavigationModeFocusNextTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.focusNextLine();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
 export class ClearTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.CLEAR;
@@ -915,28 +1019,10 @@ export class ClearSelectionTerminalAction extends Action {
 	}
 }
 
-export class AllowWorkspaceShellTerminalCommand extends Action {
+export class ManageWorkspaceShellPermissionsTerminalCommand extends Action {
 
-	public static readonly ID = TERMINAL_COMMAND_ID.WORKSPACE_SHELL_ALLOW;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.allowWorkspaceShell', "Allow Workspace Shell Configuration");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): Promise<any> {
-		this.terminalService.setWorkspaceShellAllowed(true);
-		return Promise.resolve(undefined);
-	}
-}
-
-export class DisallowWorkspaceShellTerminalCommand extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.WORKSPACE_SHELL_DISALLOW;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.disallowWorkspaceShell', "Disallow Workspace Shell Configuration");
+	public static readonly ID = TERMINAL_COMMAND_ID.MANAGE_WORKSPACE_SHELL_PERMISSIONS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.manageWorkspaceShellPermissions', "Manage Workspace Shell Permissions");
 
 	constructor(
 		id: string, label: string,
@@ -945,9 +1031,8 @@ export class DisallowWorkspaceShellTerminalCommand extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		this.terminalService.setWorkspaceShellAllowed(false);
-		return Promise.resolve(undefined);
+	public async run(event?: any): Promise<any> {
+		await this.terminalService.manageWorkspaceShellPermissions();
 	}
 }
 
@@ -975,7 +1060,7 @@ export class RenameTerminalAction extends Action {
 			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 		}).then(name => {
 			if (name) {
-				terminalInstance.setTitle(name, false);
+				terminalInstance.setTitle(name, TitleEventSource.Api);
 			}
 		});
 	}
@@ -1023,7 +1108,7 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 		super();
 	}
 
-	public getActions(context: any): IAction[] {
+	public getActions(context: any): ReadonlyArray<IAction> {
 		const actions: Action[] = [];
 		if (context.element instanceof TerminalEntry) {
 			actions.push(this.instantiationService.createInstance(RenameTerminalQuickOpenAction, RenameTerminalQuickOpenAction.ID, RenameTerminalQuickOpenAction.LABEL, context.element));
@@ -1090,7 +1175,7 @@ export class ScrollToPreviousCommandAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.scrollToPreviousCommand();
 			instance.focus();
 		}
@@ -1111,7 +1196,7 @@ export class ScrollToNextCommandAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.scrollToNextCommand();
 			instance.focus();
 		}
@@ -1132,7 +1217,7 @@ export class SelectToPreviousCommandAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.selectToPreviousCommand();
 			instance.focus();
 		}
@@ -1153,7 +1238,7 @@ export class SelectToNextCommandAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.selectToNextCommand();
 			instance.focus();
 		}
@@ -1174,7 +1259,7 @@ export class SelectToPreviousLineAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.selectToPreviousLine();
 			instance.focus();
 		}
@@ -1195,7 +1280,7 @@ export class SelectToNextLineAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.selectToNextLine();
 			instance.focus();
 		}
@@ -1243,7 +1328,6 @@ abstract class ToggleFindOptionCommand extends Action {
 
 export class ToggleRegexCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
 
 	protected runInner(state: FindReplaceState): void {
@@ -1253,7 +1337,6 @@ export class ToggleRegexCommand extends ToggleFindOptionCommand {
 
 export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
 
 	protected runInner(state: FindReplaceState): void {
@@ -1263,7 +1346,6 @@ export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
 
 export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
 
 	protected runInner(state: FindReplaceState): void {
@@ -1273,7 +1355,6 @@ export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 
 export class FindNext extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.FIND_NEXT;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.findNext', "Find next");
 
 	constructor(
@@ -1291,7 +1372,6 @@ export class FindNext extends Action {
 
 export class FindPrevious extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.FIND_PREVIOUS;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.findPrevious', "Find previous");
 
 	constructor(

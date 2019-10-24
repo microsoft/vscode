@@ -149,7 +149,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 			id: 'editor.action.gotoLine',
 			label: GoToLineNLS.gotoLineActionLabel,
 			alias: 'Go to Line...',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,

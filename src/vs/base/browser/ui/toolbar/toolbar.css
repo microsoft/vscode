@@ -7,12 +7,3 @@
 	display: inline-block;
 	padding: 0;
 }
-
-.vs .monaco-toolbar .action-label.toolbar-toggle-more {
-	background-image: url('ellipsis.svg');
-}
-
-.hc-black .monaco-toolbar .action-label.toolbar-toggle-more,
-.vs-dark .monaco-toolbar .action-label.toolbar-toggle-more {
-	background-image: url('ellipsis-inverse.svg');
-}

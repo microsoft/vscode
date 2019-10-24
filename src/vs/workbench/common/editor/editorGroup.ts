@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection } from 'vs/workbench/common/editor';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { coalesce } from 'vs/base/common/arrays';
@@ -48,7 +48,7 @@ export interface ISerializedEditorGroup {
 }
 
 export function isSerializedEditorGroup(obj?: any): obj is ISerializedEditorGroup {
-	const group = obj as ISerializedEditorGroup;
+	const group: ISerializedEditorGroup = obj;
 
 	return obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru);
 }
@@ -60,55 +60,56 @@ export class EditorGroup extends Disposable {
 	//#region events
 
 	private readonly _onDidEditorActivate = this._register(new Emitter<EditorInput>());
-	get onDidEditorActivate(): Event<EditorInput> { return this._onDidEditorActivate.event; }
+	readonly onDidEditorActivate: Event<EditorInput> = this._onDidEditorActivate.event;
 
 	private readonly _onDidEditorOpen = this._register(new Emitter<EditorInput>());
-	get onDidEditorOpen(): Event<EditorInput> { return this._onDidEditorOpen.event; }
+	readonly onDidEditorOpen: Event<EditorInput> = this._onDidEditorOpen.event;
 
 	private readonly _onDidEditorClose = this._register(new Emitter<EditorCloseEvent>());
-	get onDidEditorClose(): Event<EditorCloseEvent> { return this._onDidEditorClose.event; }
+	readonly onDidEditorClose: Event<EditorCloseEvent> = this._onDidEditorClose.event;
 
 	private readonly _onDidEditorDispose = this._register(new Emitter<EditorInput>());
-	get onDidEditorDispose(): Event<EditorInput> { return this._onDidEditorDispose.event; }
+	readonly onDidEditorDispose: Event<EditorInput> = this._onDidEditorDispose.event;
 
 	private readonly _onDidEditorBecomeDirty = this._register(new Emitter<EditorInput>());
-	get onDidEditorBecomeDirty(): Event<EditorInput> { return this._onDidEditorBecomeDirty.event; }
+	readonly onDidEditorBecomeDirty: Event<EditorInput> = this._onDidEditorBecomeDirty.event;
 
 	private readonly _onDidEditorLabelChange = this._register(new Emitter<EditorInput>());
-	get onDidEditorLabelChange(): Event<EditorInput> { return this._onDidEditorLabelChange.event; }
+	readonly onDidEditorLabelChange: Event<EditorInput> = this._onDidEditorLabelChange.event;
 
 	private readonly _onDidEditorMove = this._register(new Emitter<EditorInput>());
-	get onDidEditorMove(): Event<EditorInput> { return this._onDidEditorMove.event; }
+	readonly onDidEditorMove: Event<EditorInput> = this._onDidEditorMove.event;
 
 	private readonly _onDidEditorPin = this._register(new Emitter<EditorInput>());
-	get onDidEditorPin(): Event<EditorInput> { return this._onDidEditorPin.event; }
+	readonly onDidEditorPin: Event<EditorInput> = this._onDidEditorPin.event;
 
 	private readonly _onDidEditorUnpin = this._register(new Emitter<EditorInput>());
-	get onDidEditorUnpin(): Event<EditorInput> { return this._onDidEditorUnpin.event; }
+	readonly onDidEditorUnpin: Event<EditorInput> = this._onDidEditorUnpin.event;
 
 	//#endregion
 
 	private _id: GroupIdentifier;
+	get id(): GroupIdentifier { return this._id; }
 
 	private editors: EditorInput[] = [];
 	private mru: EditorInput[] = [];
 	private mapResourceToEditorCount: ResourceMap<number> = new ResourceMap<number>();
 
-	private preview: EditorInput | null; // editor in preview state
-	private active: EditorInput | null;  // editor in active state
+	private preview: EditorInput | null = null; // editor in preview state
+	private active: EditorInput | null = null;  // editor in active state
 
-	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
-	private focusRecentEditorAfterClose: boolean;
+	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
+	private focusRecentEditorAfterClose: boolean | undefined;
 
 	constructor(
-		labelOrSerializedGroup: ISerializedEditorGroup,
+		labelOrSerializedGroup: ISerializedEditorGroup | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
 		if (isSerializedEditorGroup(labelOrSerializedGroup)) {
-			this.deserialize(labelOrSerializedGroup);
+			this._id = this.deserialize(labelOrSerializedGroup);
 		} else {
 			this._id = EditorGroup.IDS++;
 		}
@@ -126,10 +127,6 @@ export class EditorGroup extends Disposable {
 		this.focusRecentEditorAfterClose = this.configurationService.getValue('workbench.editor.focusRecentEditorAfterClose');
 	}
 
-	get id(): GroupIdentifier {
-		return this._id;
-	}
-
 	get count(): number {
 		return this.editors.length;
 	}
@@ -138,26 +135,26 @@ export class EditorGroup extends Disposable {
 		return mru ? this.mru.slice(0) : this.editors.slice(0);
 	}
 
-	getEditor(index: number): EditorInput | null;
-	getEditor(resource: URI): EditorInput | null;
-	getEditor(arg1: any): EditorInput | null {
+	getEditor(index: number): EditorInput | undefined;
+	getEditor(resource: URI): EditorInput | undefined;
+	getEditor(arg1: number | URI): EditorInput | undefined {
 		if (typeof arg1 === 'number') {
 			return this.editors[arg1];
 		}
 
 		const resource: URI = arg1;
 		if (!this.contains(resource)) {
-			return null; // fast check for resource opened or not
+			return undefined; // fast check for resource opened or not
 		}
 
 		for (const editor of this.editors) {
-			const editorResource = toResource(editor, { supportSideBySide: true });
-			if (editorResource && editorResource.toString() === resource.toString()) {
+			const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			if (editorResource?.toString() === resource.toString()) {
 				return editor;
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 
 	get activeEditor(): EditorInput | null {
@@ -179,8 +176,8 @@ export class EditorGroup extends Disposable {
 	openEditor(editor: EditorInput, options?: IEditorOpenOptions): void {
 		const index = this.indexOf(editor);
 
-		const makePinned = options && options.pinned;
-		const makeActive = (options && options.active) || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
+		const makePinned = options?.pinned;
+		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
 
 		// New editor
 		if (index === -1) {
@@ -270,30 +267,30 @@ export class EditorGroup extends Disposable {
 	}
 
 	private registerEditorListeners(editor: EditorInput): void {
-		const unbind: IDisposable[] = [];
+		const listeners = new DisposableStore();
 
 		// Re-emit disposal of editor input as our own event
 		const onceDispose = Event.once(editor.onDispose);
-		unbind.push(onceDispose(() => {
+		listeners.add(onceDispose(() => {
 			if (this.indexOf(editor) >= 0) {
 				this._onDidEditorDispose.fire(editor);
 			}
 		}));
 
 		// Re-Emit dirty state changes
-		unbind.push(editor.onDidChangeDirty(() => {
+		listeners.add(editor.onDidChangeDirty(() => {
 			this._onDidEditorBecomeDirty.fire(editor);
 		}));
 
 		// Re-Emit label changes
-		unbind.push(editor.onDidChangeLabel(() => {
+		listeners.add(editor.onDidChangeLabel(() => {
 			this._onDidEditorLabelChange.fire(editor);
 		}));
 
 		// Clean up dispose listeners once the editor gets closed
-		unbind.push(this.onDidEditorClose(event => {
+		listeners.add(this.onDidEditorClose(event => {
 			if (event.editor.matches(editor)) {
-				dispose(unbind);
+				dispose(listeners);
 			}
 		}));
 	}
@@ -501,7 +498,7 @@ export class EditorGroup extends Disposable {
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
 		const editorToDeleteOrReplace = this.editors[index];
 
-		const args: any[] = [index, del ? 1 : 0];
+		const args: (number | EditorInput)[] = [index, del ? 1 : 0];
 		if (editor) {
 			args.push(editor);
 		}
@@ -535,7 +532,7 @@ export class EditorGroup extends Disposable {
 	}
 
 	private updateResourceMap(editor: EditorInput, remove: boolean): void {
-		const resource = toResource(editor, { supportSideBySide: true });
+		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource) {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
@@ -561,7 +558,7 @@ export class EditorGroup extends Disposable {
 		}
 	}
 
-	indexOf(candidate: EditorInput | null, editors = this.editors): number {
+	indexOf(candidate: IEditorInput | null, editors = this.editors): number {
 		if (!candidate) {
 			return -1;
 		}
@@ -614,7 +611,7 @@ export class EditorGroup extends Disposable {
 		this.mru.unshift(editor);
 	}
 
-	private matches(editorA: EditorInput | null, editorB: EditorInput | null): boolean {
+	private matches(editorA: IEditorInput | null, editorB: IEditorInput | null): boolean {
 		return !!editorA && !!editorB && editorA.matches(editorB);
 	}
 
@@ -664,7 +661,7 @@ export class EditorGroup extends Disposable {
 		};
 	}
 
-	private deserialize(data: ISerializedEditorGroup): void {
+	private deserialize(data: ISerializedEditorGroup): number {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		if (typeof data.id === 'number') {
@@ -678,20 +675,26 @@ export class EditorGroup extends Disposable {
 		this.editors = coalesce(data.editors.map(e => {
 			const factory = registry.getEditorInputFactory(e.id);
 			if (factory) {
-				const editor = factory.deserialize(this.instantiationService, e.value)!;
-
-				this.registerEditorListeners(editor);
-				this.updateResourceMap(editor, false /* add */);
+				const editor = factory.deserialize(this.instantiationService, e.value);
+				if (editor) {
+					this.registerEditorListeners(editor);
+					this.updateResourceMap(editor, false /* add */);
+				}
 
 				return editor;
 			}
 
 			return null;
 		}));
+
 		this.mru = data.mru.map(i => this.editors[i]);
+
 		this.active = this.mru[0];
+
 		if (typeof data.preview === 'number') {
 			this.preview = this.editors[data.preview];
 		}
+
+		return this._id;
 	}
 }

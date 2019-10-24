@@ -30,7 +30,7 @@ class TestTelemetryAppender implements ITelemetryAppender {
 		return this.events.length;
 	}
 
-	public dispose(): Promise<any> {
+	public flush(): Promise<any> {
 		this.isDisposed = true;
 		return Promise.resolve(null);
 	}
@@ -768,29 +768,29 @@ suite('TelemetryService', () => {
 		let service = new TelemetryService({
 			appender: testAppender
 		}, {
-				_serviceBrand: undefined,
-				getValue() {
-					return {
-						enableTelemetry: enableTelemetry
-					} as any;
-				},
-				updateValue(): Promise<void> {
-					return null!;
-				},
-				inspect(key: string) {
-					return {
-						value: getConfigurationValue(this.getValue(), key),
-						default: getConfigurationValue(this.getValue(), key),
-						user: getConfigurationValue(this.getValue(), key),
-						workspace: null!,
-						workspaceFolder: null!
-					};
-				},
-				keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; },
-				onDidChangeConfiguration: emitter.event,
-				reloadConfiguration(): Promise<void> { return null!; },
-				getConfigurationData() { return null; }
-			});
+			_serviceBrand: undefined,
+			getValue() {
+				return {
+					enableTelemetry: enableTelemetry
+				} as any;
+			},
+			updateValue(): Promise<void> {
+				return null!;
+			},
+			inspect(key: string) {
+				return {
+					value: getConfigurationValue(this.getValue(), key),
+					default: getConfigurationValue(this.getValue(), key),
+					user: getConfigurationValue(this.getValue(), key),
+					workspace: null!,
+					workspaceFolder: null!
+				};
+			},
+			keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; },
+			onDidChangeConfiguration: emitter.event,
+			reloadConfiguration(): Promise<void> { return null!; },
+			getConfigurationData() { return null; }
+		});
 
 		assert.equal(service.isOptedIn, false);
 

@@ -12,6 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IScrollEvent } from 'vs/editor/common/editorCommon';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 export interface EventCallback<T> {
 	(event: T): void;
@@ -31,6 +32,7 @@ export class ViewOutgoingEvents extends Disposable {
 	public onMouseDown: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseDrag: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseDrop: EventCallback<IPartialEditorMouseEvent> | null = null;
+	public onMouseWheel: EventCallback<IMouseWheelEvent> | null = null;
 
 	private readonly _viewModel: IViewModel;
 
@@ -108,6 +110,12 @@ export class ViewOutgoingEvents extends Disposable {
 	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
 		if (this.onMouseDrop) {
 			this.onMouseDrop(this._convertViewToModelMouseEvent(e));
+		}
+	}
+
+	public emitMouseWheel(e: IMouseWheelEvent): void {
+		if (this.onMouseWheel) {
+			this.onMouseWheel(e);
 		}
 	}
 

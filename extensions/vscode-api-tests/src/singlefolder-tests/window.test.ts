@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, Terminal, TerminalDimensionsChangeEvent } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
@@ -518,19 +518,20 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
-	test('showWorkspaceFolderPick', async function () {
-		const p = window.showWorkspaceFolderPick(undefined);
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showWorkspaceFolderPick', async function () {
+	// 	const p = window.showWorkspaceFolderPick(undefined);
 
-		await timeout(10);
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		try {
-			await p;
-			assert.ok(true);
-		}
-		catch (_error) {
-			assert.ok(false);
-		}
-	});
+	// 	await timeout(10);
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	try {
+	// 		await p;
+	// 		assert.ok(true);
+	// 	}
+	// 	catch (_error) {
+	// 		assert.ok(false);
+	// 	}
+	// });
 
 	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
@@ -567,178 +568,4 @@ suite('window namespace tests', () => {
 
 		});
 	});
-
-	suite('Terminal', () => {
-		test('sendText immediately after createTerminal should not throw', () => {
-			const terminal = window.createTerminal();
-			assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
-			terminal.dispose();
-		});
-
-		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
-			const terminal = window.createTerminal();
-			const reg = window.onDidCloseTerminal((eventTerminal) => {
-				assert.equal(terminal, eventTerminal);
-				reg.dispose();
-				done();
-			});
-			terminal.dispose();
-		});
-
-		test('processId immediately after createTerminal should fetch the pid', (done) => {
-			const terminal = window.createTerminal();
-			terminal.processId.then(id => {
-				assert.ok(id > 0);
-				terminal.dispose();
-				done();
-			});
-		});
-
-		test('name in constructor should set terminal.name', () => {
-			const terminal = window.createTerminal('a');
-			assert.equal(terminal.name, 'a');
-			terminal.dispose();
-		});
-
-		test('onDidOpenTerminal should fire when a terminal is created', (done) => {
-			const reg1 = window.onDidOpenTerminal(term => {
-				assert.equal(term.name, 'b');
-				reg1.dispose();
-				const reg2 = window.onDidCloseTerminal(() => {
-					reg2.dispose();
-					done();
-				});
-				terminal.dispose();
-			});
-			const terminal = window.createTerminal('b');
-		});
-
-		test('createTerminalRenderer should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
-			const reg1 = window.onDidOpenTerminal(term => {
-				assert.equal(term.name, 'c');
-				reg1.dispose();
-				const reg2 = window.onDidCloseTerminal(() => {
-					reg2.dispose();
-					done();
-				});
-				term.dispose();
-			});
-			window.createTerminalRenderer('c');
-		});
-
-		test('terminal renderers should get maximum dimensions set when shown', (done) => {
-			let terminal: Terminal;
-			const reg1 = window.onDidOpenTerminal(term => {
-				reg1.dispose();
-				term.show();
-				terminal = term;
-			});
-			const renderer = window.createTerminalRenderer('foo');
-			const reg2 = renderer.onDidChangeMaximumDimensions(dimensions => {
-				assert.ok(dimensions.columns > 0);
-				assert.ok(dimensions.rows > 0);
-				reg2.dispose();
-				const reg3 = window.onDidCloseTerminal(() => {
-					reg3.dispose();
-					done();
-				});
-				terminal.dispose();
-			});
-		});
-
-		test('TerminalRenderer.write should fire Terminal.onData', (done) => {
-			const reg1 = window.onDidOpenTerminal(terminal => {
-				reg1.dispose();
-				const reg2 = terminal.onDidWriteData(data => {
-					assert.equal(data, 'bar');
-					reg2.dispose();
-					const reg3 = window.onDidCloseTerminal(() => {
-						reg3.dispose();
-						done();
-					});
-					terminal.dispose();
-				});
-				renderer.write('bar');
-			});
-			const renderer = window.createTerminalRenderer('foo');
-		});
-
-		test('Terminal.sendText should fire Terminal.onInput', (done) => {
-			const reg1 = window.onDidOpenTerminal(terminal => {
-				reg1.dispose();
-				const reg2 = renderer.onDidAcceptInput(data => {
-					assert.equal(data, 'bar');
-					reg2.dispose();
-					const reg3 = window.onDidCloseTerminal(() => {
-						reg3.dispose();
-						done();
-					});
-					terminal.dispose();
-				});
-				terminal.sendText('bar', false);
-			});
-			const renderer = window.createTerminalRenderer('foo');
-		});
-
-		test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
-			const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
-				assert.equal(active, terminal);
-				assert.equal(active, window.activeTerminal);
-				reg1.dispose();
-				const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
-					assert.equal(active, undefined);
-					assert.equal(active, window.activeTerminal);
-					reg2.dispose();
-					done();
-				});
-				terminal.dispose();
-			});
-			const terminal = window.createTerminal();
-			terminal.show();
-		});
-
-		test('onDidChangeTerminalDimensions should fire when new terminals are created', (done) => {
-			const reg1 = window.onDidChangeTerminalDimensions(async (event: TerminalDimensionsChangeEvent) => {
-				assert.equal(event.terminal, terminal1);
-				assert.equal(typeof event.dimensions.columns, 'number');
-				assert.equal(typeof event.dimensions.rows, 'number');
-				assert.ok(event.dimensions.columns > 0);
-				assert.ok(event.dimensions.rows > 0);
-				reg1.dispose();
-				let terminal2: Terminal;
-				const reg2 = window.onDidOpenTerminal((newTerminal) => {
-					// This is guarantees to fire before dimensions change event
-					if (newTerminal !== terminal1) {
-						terminal2 = newTerminal;
-						reg2.dispose();
-					}
-				});
-				let firstCalled = false;
-				let secondCalled = false;
-				const reg3 = window.onDidChangeTerminalDimensions((event: TerminalDimensionsChangeEvent) => {
-					if (event.terminal === terminal1) {
-						// The original terminal should fire dimension change after a split
-						firstCalled = true;
-					} else if (event.terminal !== terminal1) {
-						// The new split terminal should fire dimension change
-						secondCalled = true;
-					}
-					if (firstCalled && secondCalled) {
-						terminal1.dispose();
-						terminal2.dispose();
-						reg3.dispose();
-						done();
-					}
-				});
-				await timeout(500);
-				commands.executeCommand('workbench.action.terminal.split');
-			});
-			const terminal1 = window.createTerminal({ name: 'test' });
-			terminal1.show();
-		});
-	});
 });
-
-async function timeout(ms = 0): Promise<void> {
-	return new Promise<void>(resolve => setTimeout(() => resolve(), ms));
-}

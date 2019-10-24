@@ -10,12 +10,13 @@ import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { HorizontalRange, VisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { HIGH_CONTRAST, ThemeType } from 'vs/platform/theme/common/themeService';
+import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -69,28 +70,30 @@ export class DomReadingContext {
 
 export class ViewLineOptions {
 	public readonly themeType: ThemeType;
-	public readonly renderWhitespace: 'none' | 'boundary' | 'all';
+	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'all';
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
-	public readonly fontLigatures: boolean;
+	public readonly fontLigatures: string;
 
 	constructor(config: IConfiguration, themeType: ThemeType) {
 		this.themeType = themeType;
-		this.renderWhitespace = config.editor.viewInfo.renderWhitespace;
-		this.renderControlCharacters = config.editor.viewInfo.renderControlCharacters;
-		this.spaceWidth = config.editor.fontInfo.spaceWidth;
+		const options = config.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
+		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
+		this.spaceWidth = fontInfo.spaceWidth;
 		this.useMonospaceOptimizations = (
-			config.editor.fontInfo.isMonospace
-			&& !config.editor.viewInfo.disableMonospaceOptimizations
+			fontInfo.isMonospace
+			&& !options.get(EditorOption.disableMonospaceOptimizations)
 		);
-		this.canUseHalfwidthRightwardsArrow = config.editor.fontInfo.canUseHalfwidthRightwardsArrow;
-		this.lineHeight = config.editor.lineHeight;
-		this.stopRenderingLineAfter = config.editor.viewInfo.stopRenderingLineAfter;
-		this.fontLigatures = config.editor.viewInfo.fontLigatures;
+		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
+		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
+		this.fontLigatures = options.get(EditorOption.fontLigatures);
 	}
 
 	public equals(other: ViewLineOptions): boolean {
@@ -152,7 +155,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (alwaysRenderInlineSelection || this._options.themeType === HIGH_CONTRAST) {
+		if (alwaysRenderInlineSelection || this._options.themeType === HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
 			this._isMaybeInvalid = true;
 			return true;
 		}
@@ -171,7 +174,9 @@ export class ViewLine implements IVisibleLine {
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 
-		if (alwaysRenderInlineSelection || options.themeType === HIGH_CONTRAST) {
+		// Only send selection information when needed for rendering whitespace
+		let selectionsOnLine: LineRange[] | null = null;
+		if (alwaysRenderInlineSelection || options.themeType === HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
 			const selections = viewportData.selections;
 			for (const selection of selections) {
 
@@ -184,7 +189,15 @@ export class ViewLine implements IVisibleLine {
 				const endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
 
 				if (startColumn < endColumn) {
-					actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
+					if (this._options.renderWhitespace !== 'selection') {
+						actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
+					} else {
+						if (!selectionsOnLine) {
+							selectionsOnLine = [];
+						}
+
+						selectionsOnLine.push(new LineRange(startColumn - 1, endColumn - 1));
+					}
 				}
 			}
 		}
@@ -204,7 +217,8 @@ export class ViewLine implements IVisibleLine {
 			options.stopRenderingLineAfter,
 			options.renderWhitespace,
 			options.renderControlCharacters,
-			options.fontLigatures
+			options.fontLigatures !== EditorFontLigatures.OFF,
+			selectionsOnLine
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -281,7 +295,7 @@ export class ViewLine implements IVisibleLine {
 		return this._renderedViewLine.getWidthIsFast();
 	}
 
-	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {
+	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): VisibleRanges | null {
 		if (!this._renderedViewLine) {
 			return null;
 		}
@@ -292,21 +306,27 @@ export class ViewLine implements IVisibleLine {
 		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
 
 		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter | 0; // @perf
+		let outsideRenderedLine = false;
 
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
+		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1 && endColumn > stopRenderingLineAfter + 1) {
 			// This range is obviously not visible
-			return null;
+			outsideRenderedLine = true;
 		}
 
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter) {
-			startColumn = stopRenderingLineAfter;
+		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1) {
+			startColumn = stopRenderingLineAfter + 1;
 		}
 
-		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter) {
-			endColumn = stopRenderingLineAfter;
+		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter + 1) {
+			endColumn = stopRenderingLineAfter + 1;
 		}
 
-		return this._renderedViewLine.getVisibleRangesForRange(startColumn, endColumn, context);
+		const horizontalRanges = this._renderedViewLine.getVisibleRangesForRange(startColumn, endColumn, context);
+		if (horizontalRanges && horizontalRanges.length > 0) {
+			return new VisibleRanges(outsideRenderedLine, horizontalRanges);
+		}
+
+		return null;
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {

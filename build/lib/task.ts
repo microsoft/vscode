@@ -54,7 +54,7 @@ async function _doExecute(task: Task): Promise<void> {
 	// Always invoke as if it were a callback task
 	return new Promise((resolve, reject) => {
 		if (task.length === 1) {
-			// this is a calback task
+			// this is a callback task
 			task((err) => {
 				if (err) {
 					return reject(err);

@@ -23,7 +23,7 @@ export class LineDecoder {
 		this.remaining = null;
 	}
 
-	public write(buffer: Buffer): string[] {
+	write(buffer: Buffer): string[] {
 		const result: string[] = [];
 		const value = this.remaining
 			? this.remaining + this.stringDecoder.write(buffer)
@@ -56,7 +56,7 @@ export class LineDecoder {
 		return result;
 	}
 
-	public end(): string | null {
+	end(): string | null {
 		return this.remaining;
 	}
 }

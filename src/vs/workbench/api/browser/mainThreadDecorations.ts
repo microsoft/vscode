@@ -93,14 +93,13 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 					if (!data) {
 						return undefined;
 					}
-					const [weight, bubble, tooltip, letter, themeColor, source] = data;
+					const [weight, bubble, tooltip, letter, themeColor] = data;
 					return <IDecorationData>{
 						weight: weight || 0,
 						bubble: bubble || false,
 						color: themeColor && themeColor.id,
 						tooltip,
-						letter,
-						source,
+						letter
 					};
 				});
 			}
@@ -112,7 +111,7 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 		const provider = this._provider.get(handle);
 		if (provider) {
 			const [emitter] = provider;
-			emitter.fire(resources && resources.map(URI.revive));
+			emitter.fire(resources && resources.map(r => URI.revive(r)));
 		}
 	}
 

@@ -293,7 +293,7 @@ export class Color {
 		}
 	}
 
-	equals(other: Color): boolean {
+	equals(other: Color | null): boolean {
 		return !!other && RGBA.equals(this.rgba, other.rgba) && HSLA.equals(this.hsla, other.hsla) && HSVA.equals(this.hsva, other.hsva);
 	}
 
@@ -507,10 +507,6 @@ export namespace Color {
 			 * The default format will use HEX if opaque and RGBA otherwise.
 			 */
 			export function format(color: Color): string | null {
-				if (!color) {
-					return null;
-				}
-
 				if (color.isOpaque()) {
 					return Color.Format.CSS.formatHex(color);
 				}
@@ -524,11 +520,6 @@ export namespace Color {
 			 * @param hex string (#RGB, #RGBA, #RRGGBB or #RRGGBBAA).
 			 */
 			export function parseHex(hex: string): Color | null {
-				if (!hex) {
-					// Invalid color
-					return null;
-				}
-
 				const length = hex.length;
 
 				if (length === 0) {

@@ -143,7 +143,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 			if (curKey === null) {
 				return fail('missing <key>');
 			}
-			let newDict = {};
+			let newDict: { [key: string]: any } = {};
 			if (locationKeyName !== null) {
 				newDict[locationKeyName] = {
 					filename: filename,
@@ -168,7 +168,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 
 	const arrState = {
 		enterDict: function () {
-			let newDict = {};
+			let newDict: { [key: string]: any } = {};
 			if (locationKeyName !== null) {
 				newDict[locationKeyName] = {
 					filename: filename,

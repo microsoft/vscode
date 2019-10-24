@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><defs><style>.icon-canvas-transparent{fill:#f6f6f6;opacity:0;}.icon-disabled-grey{fill:#848484;}</style></defs><title>drag</title><g id="canvas"><path class="icon-canvas-transparent" d="M16,0V16H0V0Z"/></g><g id="iconBg"><path class="icon-disabled-grey" d="M7,4A1,1,0,1,1,6,3,1,1,0,0,1,7,4Zm3,1A1,1,0,1,0,9,4,1,1,0,0,0,10,5ZM6,7A1,1,0,1,0,7,8,1,1,0,0,0,6,7Zm4,0a1,1,0,1,0,1,1A1,1,0,0,0,10,7ZM6,11a1,1,0,1,0,1,1A1,1,0,0,0,6,11Zm4,0a1,1,0,1,0,1,1A1,1,0,0,0,10,11Z"/></g></svg>
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="5" y="3" width="2" height="2" fill="#848484"/>
+<rect x="5" y="7" width="2" height="2" fill="#848484"/>
+<rect x="5" y="11" width="2" height="2" fill="#848484"/>
+<rect x="9" y="3" width="2" height="2" fill="#848484"/>
+<rect x="9" y="7" width="2" height="2" fill="#848484"/>
+<rect x="9" y="11" width="2" height="2" fill="#848484"/>
+</svg>

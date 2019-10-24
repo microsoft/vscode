@@ -7,6 +7,8 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { disposeAll } from '../utils/dispose';
+import { createTestEditor, joinLines, wait } from './testUtils';
+import { acceptFirstSuggestion, typeCommitCharacter } from './suggestTestHelpers';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
@@ -131,6 +133,9 @@ suite('TypeScript Completions', () => {
 					'const x = { "hello world2": 1 };',
 					`x["hello world2"]${insert}`
 				));
+
+			disposeAll(_disposables);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 		}
 	});
 
@@ -160,7 +165,7 @@ suite('TypeScript Completions', () => {
 			`f('abc.abc$0')`
 		);
 
-		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables, { useLineRange: true });
 		assert.strictEqual(
 			document.getText(),
 			joinLines(
@@ -264,71 +269,28 @@ suite('TypeScript Completions', () => {
 				`abcdef(1, 2, 3)`
 			));
 	});
+
+	test('should not de-prioritized this.member suggestion, #74164', async () => {
+		await createTestEditor(testDocumentUri,
+			`class A {`,
+			`  private detail = '';`,
+			`  foo() {`,
+			`    det$0`,
+			`  }`,
+			`}`,
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`class A {`,
+				`  private detail = '';`,
+				`  foo() {`,
+				`    this.detail`,
+				`  }`,
+				`}`,
+			));
+	});
 });
 
-const joinLines = (...args: string[]) => args.join('\n');
-
-const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function acceptFirstSuggestion(uri: vscode.Uri, _disposables: vscode.Disposable[]) {
-	const didChangeDocument = onChangedDocument(uri, _disposables);
-	const didSuggest = onDidSuggest(_disposables);
-	await vscode.commands.executeCommand('editor.action.triggerSuggest');
-	await didSuggest;
-	// TODO: depends on reverting fix for https://github.com/Microsoft/vscode/issues/64257
-	// Make sure we have time to resolve the suggestion because `acceptSelectedSuggestion` doesn't
-	await wait(40);
-	await vscode.commands.executeCommand('acceptSelectedSuggestion');
-	return await didChangeDocument;
-}
-
-async function typeCommitCharacter(uri: vscode.Uri, character: string, _disposables: vscode.Disposable[]) {
-	const didChangeDocument = onChangedDocument(uri, _disposables);
-	const didSuggest = onDidSuggest(_disposables);
-	await vscode.commands.executeCommand('editor.action.triggerSuggest');
-	await didSuggest;
-	await vscode.commands.executeCommand('type', { text: character });
-	return await didChangeDocument;
-}
-
-function onChangedDocument(documentUri: vscode.Uri, disposables: vscode.Disposable[]) {
-	return new Promise<vscode.TextDocument>(resolve => vscode.workspace.onDidChangeTextDocument(e => {
-		if (e.document.uri.toString() === documentUri.toString()) {
-			resolve(e.document);
-		}
-	}, undefined, disposables));
-}
-
-async function createTestEditor(uri: vscode.Uri, ...lines: string[]) {
-	const document = await vscode.workspace.openTextDocument(uri);
-	await vscode.window.showTextDocument(document);
-	const activeEditor = vscode.window.activeTextEditor;
-	if (!activeEditor) {
-		throw new Error('no active editor');
-	}
-
-	await activeEditor.insertSnippet(new vscode.SnippetString(joinLines(...lines)), new vscode.Range(0, 0, 1000, 0));
-}
-
-function onDidSuggest(disposables: vscode.Disposable[]) {
-	return new Promise(resolve =>
-		disposables.push(vscode.languages.registerCompletionItemProvider('typescript', new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(doc: vscode.TextDocument, position: vscode.Position): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
-				// Return a fake item that will come first
-				const range = new vscode.Range(new vscode.Position(position.line, 0), position);
-				return [{
-					label: '🦄',
-					insertText: doc.getText(range),
-					filterText: doc.getText(range),
-					preselect: true,
-					sortText: '\0',
-					range: range
-				}];
-			}
-			async resolveCompletionItem(item: vscode.CompletionItem) {
-				await vscode.commands.executeCommand('selectNextSuggestion');
-				resolve();
-				return item;
-			}
-		})));
-}

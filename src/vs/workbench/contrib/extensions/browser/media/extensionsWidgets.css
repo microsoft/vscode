@@ -1,0 +1,50 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.extension-ratings {
+	display: inline-block;
+}
+
+.extension-ratings.small {
+	font-size: 80%;
+}
+
+.extension-ratings > .star {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	background-repeat: no-repeat;
+	background-position: center center;
+}
+
+.extension-ratings > .star:not(:first-child) {
+	margin-left: 3px;
+}
+
+.extension-ratings.small > .star {
+	width: 10px;
+	height: 10px;
+	background-image: url('star-small.svg');
+}
+
+.extension-ratings > .full {
+	background-image: url('star-full.svg');
+}
+
+.extension-ratings > .half {
+	background-image: url('star-half.svg');
+}
+
+.extension-ratings > .empty {
+	background-image: url('star-empty.svg');
+}
+
+.extension-ratings > .count {
+	margin-left: 6px;
+}
+
+.extension-ratings.small > .count {
+	margin-left: 2px;
+}

@@ -16,7 +16,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import {
-	ContributedTask, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
+	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
 	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource,
 	TaskSourceKind, ExtensionTaskSource, RunOptions, TaskSet, TaskDefinition
 } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -264,7 +264,7 @@ namespace TaskSourceDTO {
 			}
 		} else if (value.kind === TaskSourceKind.Workspace) {
 			result.extensionId = '$core';
-			result.scope = value.config.workspaceFolder.uri;
+			result.scope = value.config.workspaceFolder ? value.config.workspaceFolder.uri : TaskScope.Global;
 		}
 		return result;
 	}
@@ -304,17 +304,17 @@ namespace TaskHandleDTO {
 }
 
 namespace TaskDTO {
-	export function from(task: Task): TaskDTO | undefined {
-		if (task === undefined || task === null || (!CustomTask.is(task) && !ContributedTask.is(task))) {
+	export function from(task: Task | ConfiguringTask): TaskDTO | undefined {
+		if (task === undefined || task === null || (!CustomTask.is(task) && !ContributedTask.is(task) && !ConfiguringTask.is(task))) {
 			return undefined;
 		}
 		const result: TaskDTO = {
 			_id: task._id,
 			name: task.configurationProperties.name,
-			definition: TaskDefinitionDTO.from(task.getDefinition()),
+			definition: TaskDefinitionDTO.from(task.getDefinition(true)),
 			source: TaskSourceDTO.from(task._source),
 			execution: undefined,
-			presentationOptions: task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
+			presentationOptions: !ConfiguringTask.is(task) && task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
 			isBackground: task.configurationProperties.isBackground,
 			problemMatchers: [],
 			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
@@ -323,7 +323,10 @@ namespace TaskDTO {
 		if (task.configurationProperties.group) {
 			result.group = task.configurationProperties.group;
 		}
-		if (task.command) {
+		if (task.configurationProperties.detail) {
+			result.detail = task.configurationProperties.detail;
+		}
+		if (!ConfiguringTask.is(task) && task.command) {
 			if (task.command.runtime === RuntimeType.Process) {
 				result.execution = ProcessExecutionDTO.from(task.command);
 			} else if (task.command.runtime === RuntimeType.Shell) {
@@ -380,6 +383,7 @@ namespace TaskDTO {
 				group: task.group,
 				isBackground: !!task.isBackground,
 				problemMatchers: task.problemMatchers.slice(),
+				detail: task.detail
 			}
 		);
 		return result;
@@ -398,7 +402,7 @@ namespace TaskFilterDTO {
 @extHostNamedCustomer(MainContext.MainThreadTask)
 export class MainThreadTask implements MainThreadTaskShape {
 
-	private readonly _extHostContext: IExtHostContext;
+	private readonly _extHostContext: IExtHostContext | undefined;
 	private readonly _proxy: ExtHostTaskShape;
 	private readonly _providers: Map<number, { disposable: IDisposable, provider: ITaskProvider }>;
 
@@ -422,6 +426,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
 		});
+		this._taskService.setJsonTasksSupported(Promise.resolve(this._proxy.$jsonTasksSupported()));
 	}
 
 	public dispose(): void {
@@ -442,7 +447,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
-	public $registerTaskProvider(handle: number): Promise<void> {
+	public $registerTaskProvider(handle: number, type: string): Promise<void> {
 		const provider: ITaskProvider = {
 			provideTasks: (validTypes: IStringDictionary<boolean>) => {
 				return Promise.resolve(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
@@ -460,9 +465,24 @@ export class MainThreadTask implements MainThreadTaskShape {
 						extension: value.extension
 					} as TaskSet;
 				});
+			},
+			resolveTask: (task: ConfiguringTask) => {
+				const dto = TaskDTO.from(task);
+
+				if (dto) {
+					dto.name = ((dto.name === undefined) ? '' : dto.name); // Using an empty name causes the name to default to the one given by the provider.
+					return Promise.resolve(this._proxy.$resolveTask(handle, dto)).then(resolvedTask => {
+						if (resolvedTask) {
+							return TaskDTO.to(resolvedTask, this._workspaceContextServer, true);
+						}
+
+						return undefined;
+					});
+				}
+				return Promise.resolve<ContributedTask | undefined>(undefined);
 			}
 		};
-		const disposable = this._taskService.registerTaskProvider(provider);
+		const disposable = this._taskService.registerTaskProvider(provider, type);
 		this._providers.set(handle, { disposable, provider });
 		return Promise.resolve(undefined);
 	}
@@ -611,6 +631,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 						});
 					});
 				});
+			},
+			getDefaultShellAndArgs: (): Promise<{ shell: string, args: string[] | string | undefined }> => {
+				return Promise.resolve(this._proxy.$getDefaultShellAndArgs());
 			}
 		});
 	}

@@ -15,7 +15,7 @@ import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editor
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentSymbol, DocumentSymbolProviderRegistry, symbolKindToCssClass } from 'vs/editor/common/modes';
+import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKinds } from 'vs/editor/common/modes';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import { BaseEditorQuickOpenAction, IDecorator } from 'vs/editor/standalone/browser/quickOpen/editorQuickOpen';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -26,12 +26,12 @@ let SCOPE_PREFIX = ':';
 export class SymbolEntry extends QuickOpenEntryGroup {
 	private readonly name: string;
 	private readonly type: string;
-	private readonly description: string | null;
+	private readonly description: string | undefined;
 	private readonly range: Range;
 	private readonly editor: ICodeEditor;
 	private readonly decorator: IDecorator;
 
-	constructor(name: string, type: string, description: string | null, range: Range, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator) {
+	constructor(name: string, type: string, description: string | undefined, range: Range, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator) {
 		super();
 
 		this.name = name;
@@ -55,7 +55,7 @@ export class SymbolEntry extends QuickOpenEntryGroup {
 		return this.type;
 	}
 
-	public getDescription(): string | null {
+	public getDescription(): string | undefined {
 		return this.description;
 	}
 
@@ -169,7 +169,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	private symbolEntry(name: string, type: string, description: string | null, range: IRange, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator): SymbolEntry {
+	private symbolEntry(name: string, type: string, description: string | undefined, range: IRange, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator): SymbolEntry {
 		return new SymbolEntry(name, type, description, Range.lift(range), highlights, editor, decorator);
 	}
 
@@ -192,13 +192,13 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			if (highlights) {
 
 				// Show parent scope as description
-				let description: string | null = null;
+				let description: string | undefined = undefined;
 				if (element.containerName) {
 					description = element.containerName;
 				}
 
 				// Add
-				results.push(this.symbolEntry(label, symbolKindToCssClass(element.kind), description, element.range, highlights, editor, controller));
+				results.push(this.symbolEntry(label, SymbolKinds.toCssClassName(element.kind), description, element.range, highlights, editor, controller));
 			}
 		}
 

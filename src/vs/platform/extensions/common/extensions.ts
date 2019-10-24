@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import * as strings from 'vs/base/common/strings';
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
@@ -89,6 +88,14 @@ export interface IColor {
 	defaults: { light: string, dark: string, highContrast: string };
 }
 
+export interface IWebviewEditor {
+	readonly viewType: string;
+	readonly priority: string;
+	readonly selector: readonly {
+		readonly filenamePattern?: string;
+	}[];
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -105,27 +112,10 @@ export interface IExtensionContributions {
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
 	localizations?: ILocalization[];
+	readonly webviewEditors?: readonly IWebviewEditor[];
 }
 
-export type ExtensionKind = 'ui' | 'workspace';
-
-export class ExtensionIdentifierWithVersion {
-	constructor(
-		readonly identifier: IExtensionIdentifier,
-		readonly version: string
-	) { }
-
-	key(): string {
-		return `${this.identifier.id}-${this.version}`;
-	}
-
-	equals(o: any): boolean {
-		if (!(o instanceof ExtensionIdentifierWithVersion)) {
-			return false;
-		}
-		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
-	}
-}
+export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -159,6 +149,7 @@ export interface IExtensionManifest {
 	readonly bugs?: { url: string; };
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
+	readonly scripts?: { [key: string]: string; };
 }
 
 export const enum ExtensionType {

@@ -5,24 +5,23 @@
 
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
+import { env as processEnv } from 'vs/base/common/process';
+import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminalProcessExtHostProxy';
+import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Schemas } from 'vs/base/common/network';
-import { REMOTE_HOST_SCHEME, getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService } from 'vs/platform/product/common/product';
+import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -32,6 +31,11 @@ const LAUNCHING_DURATION = 500;
  */
 const LATENCY_MEASURING_INTERVAL = 1000;
 
+enum ProcessType {
+	Process,
+	ExtensionTerminal
+}
+
 /**
  * Holds all state related to the creation and management of terminal processes.
  *
@@ -40,29 +44,35 @@ const LATENCY_MEASURING_INTERVAL = 1000;
  * - Pty Process: The pseudoterminal master process (or the winpty agent process)
  * - Shell Process: The pseudoterminal slave process (ie. the shell)
  */
-export class TerminalProcessManager implements ITerminalProcessManager {
+export class TerminalProcessManager extends Disposable implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	public ptyProcessReady: Promise<void>;
-	public shellProcessId: number;
+	public shellProcessId: number | undefined;
 	public remoteAuthority: string | undefined;
 	public os: platform.OperatingSystem | undefined;
 	public userHome: string | undefined;
 
 	private _process: ITerminalChildProcess | null = null;
+	private _processType: ProcessType = ProcessType.Process;
 	private _preLaunchInputQueue: string[] = [];
-	private _disposables: IDisposable[] = [];
 	private _latency: number = -1;
-	private _latencyRequest: Promise<number>;
 	private _latencyLastMeasured: number = 0;
+	private _initialCwd: string | undefined;
 
-	private readonly _onProcessReady = new Emitter<void>();
+	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
-	private readonly _onProcessData = new Emitter<string>();
+	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
+	public get onBeforeProcessData(): Event<IBeforeProcessDataEvent> { return this._onBeforeProcessData.event; }
+	private readonly _onProcessData = this._register(new Emitter<string>());
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
-	private readonly _onProcessTitle = new Emitter<string>();
+	private readonly _onProcessTitle = this._register(new Emitter<string>());
 	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
-	private readonly _onProcessExit = new Emitter<number>();
+	private readonly _onProcessExit = this._register(new Emitter<number>());
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
+	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensions | undefined>());
+	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
+	private readonly _onProcessOverrideShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
+	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
 
 	constructor(
 		private readonly _terminalId: number,
@@ -72,13 +82,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
-		@IWindowService private readonly _windowService: IWindowService,
 		@IConfigurationService private readonly _workspaceConfigurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
 	) {
+		super();
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
@@ -97,114 +107,130 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			this._process.shutdown(immediate);
 			this._process = null;
 		}
-		this._disposables.forEach(d => d.dispose());
-		this._disposables.length = 0;
+		super.dispose();
 	}
 
-	public addDisposable(disposable: IDisposable) {
-		this._disposables.push(disposable);
-	}
-
-	public createProcess(
+	public async createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
-		rows: number
-	): void {
-		const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
-		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
-			this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
+		rows: number,
+		isScreenReaderModeEnabled: boolean
+	): Promise<void> {
+		if (shellLaunchConfig.isExtensionTerminal) {
+			this._processType = ProcessType.ExtensionTerminal;
+			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
 		} else {
-			this.remoteAuthority = this._windowService.getConfiguration().remoteAuthority;
-		}
-		const hasRemoteAuthority = !!this.remoteAuthority;
-		let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
-
-		this.userHome = this._environmentService.userHome;
-		this.os = platform.OS;
-		if (launchRemotely) {
-			if (hasRemoteAuthority) {
-				this._remoteAgentService.getEnvironment().then(env => {
-					if (!env) {
-						return;
-					}
-					this.userHome = env.userHome.path;
-					this.os = env.os;
-				});
-			}
-
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(hasRemoteAuthority ? REMOTE_HOST_SCHEME : undefined);
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
-		} else {
-			if (!shellLaunchConfig.executable) {
-				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
-			}
-
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-			const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentService.userHome, activeWorkspaceRootUri, this._configHelper.config.cwd);
-
-			// Compel type system as process.env should not have any undefined entries
-			let env: platform.IProcessEnvironment = {};
-
-			if (shellLaunchConfig.strictEnv) {
-				// Only base the terminal process environment on this environment and add the
-				// various mixins when strictEnv is false
-				env = { ...shellLaunchConfig.env } as any;
+			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
+			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
+				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
 			} else {
-				// Merge process env with the env from config and from shellLaunchConfig
-				env = { ...process.env } as any;
-
-				// Resolve env vars from config and shell
-				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
-				const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-				const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
-				const envFromConfigValue = this._workspaceConfigurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
-				const allowedEnvFromConfig = (isWorkspaceShellAllowed ? envFromConfigValue.value : envFromConfigValue.user);
-				const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...allowedEnvFromConfig }, lastActiveWorkspaceRoot);
-				const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-				shellLaunchConfig.env = envFromShell;
-
-				terminalEnvironment.mergeEnvironments(env, envFromConfig);
-				terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
-
-				// Sanitize the environment, removing any undesirable VS Code and Electron environment
-				// variables
-				sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
-
-				// Adding other env keys necessary to create the process
-				terminalEnvironment.addTerminalEnvironmentKeys(env, this._productService.version, platform.locale, this._configHelper.config.setLocaleVariables);
+				this.remoteAuthority = this._environmentService.configuration.remoteAuthority;
 			}
+			const hasRemoteAuthority = !!this.remoteAuthority;
+			let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
-			this._logService.debug(`Terminal process launching`, shellLaunchConfig, initialCwd, cols, rows, env);
-			this._process = this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
+			this.userHome = this._environmentService.userHome;
+			this.os = platform.OS;
+			if (launchRemotely) {
+				if (hasRemoteAuthority) {
+					this._remoteAgentService.getEnvironment().then(env => {
+						if (!env) {
+							return;
+						}
+						this.userHome = env.userHome.path;
+						this.os = env.os;
+					});
+				}
+
+				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+				this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+			} else {
+				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
+			}
 		}
 		this.processState = ProcessState.LAUNCHING;
 
-		// The process is non-null, but TS isn't clever enough to know
-		const p = this._process!;
-
-		p.onProcessData(data => {
-			this._onProcessData.fire(data);
+		this._process.onProcessData(data => {
+			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
+			this._onBeforeProcessData.fire(beforeProcessDataEvent);
+			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
+				this._onProcessData.fire(beforeProcessDataEvent.data);
+			}
 		});
 
-		p.onProcessIdReady(pid => {
-			this.shellProcessId = pid;
+		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
+			this.shellProcessId = e.pid;
+			this._initialCwd = e.cwd;
 			this._onProcessReady.fire();
 
 			// Send any queued data that's waiting
-			if (this._preLaunchInputQueue.length > 0) {
-				p.input(this._preLaunchInputQueue.join(''));
+			if (this._preLaunchInputQueue.length > 0 && this._process) {
+				this._process.input(this._preLaunchInputQueue.join(''));
 				this._preLaunchInputQueue.length = 0;
 			}
 		});
 
-		p.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
-		p.onProcessExit(exitCode => this._onExit(exitCode));
+		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
+		this._process.onProcessExit(exitCode => this._onExit(exitCode));
+		if (this._process.onProcessOverrideDimensions) {
+			this._process.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e));
+		}
+		if (this._process.onProcessResolvedShellLaunchConfig) {
+			this._process.onProcessResolvedShellLaunchConfig(e => this._onProcessOverrideShellLaunchConfig.fire(e));
+		}
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {
 				this.processState = ProcessState.RUNNING;
 			}
 		}, LAUNCHING_DURATION);
+	}
+
+	private async _launchProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cols: number,
+		rows: number,
+		isScreenReaderModeEnabled: boolean
+	): Promise<ITerminalChildProcess> {
+		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
+		if (!shellLaunchConfig.executable) {
+			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs(false);
+			shellLaunchConfig.executable = defaultConfig.shell;
+			shellLaunchConfig.args = defaultConfig.args;
+		} else {
+			shellLaunchConfig.executable = this._configurationResolverService.resolve(lastActiveWorkspace === null ? undefined : lastActiveWorkspace, shellLaunchConfig.executable);
+			if (shellLaunchConfig.args) {
+				if (Array.isArray(shellLaunchConfig.args)) {
+					const resolvedArgs: string[] = [];
+					for (const arg of shellLaunchConfig.args) {
+						resolvedArgs.push(this._configurationResolverService.resolve(lastActiveWorkspace === null ? undefined : lastActiveWorkspace, arg));
+					}
+					shellLaunchConfig.args = resolvedArgs;
+				} else {
+					shellLaunchConfig.args = this._configurationResolverService.resolve(lastActiveWorkspace === null ? undefined : lastActiveWorkspace, shellLaunchConfig.args);
+				}
+			}
+		}
+
+		const initialCwd = terminalEnvironment.getCwd(
+			shellLaunchConfig,
+			this._environmentService.userHome,
+			lastActiveWorkspace ? lastActiveWorkspace : undefined,
+			this._configurationResolverService,
+			activeWorkspaceRootUri,
+			this._configHelper.config.cwd,
+			this._logService
+		);
+		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
+		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
+		this._configHelper.showRecommendations(shellLaunchConfig);
+		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
+		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
+
+		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
+		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
 	}
 
 	public setDimensions(cols: number, rows: number): void {
@@ -224,7 +250,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public write(data: string): void {
-		if (this.shellProcessId) {
+		if (this.shellProcessId || this._processType === ProcessType.ExtensionTerminal) {
 			if (this._process) {
 				// Send data if the pty is ready
 				this._process.input(data);
@@ -236,10 +262,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public getInitialCwd(): Promise<string> {
-		if (!this._process) {
-			return Promise.resolve('');
-		}
-		return this._process.getInitialCwd();
+		return Promise.resolve(this._initialCwd ? this._initialCwd : '');
 	}
 
 	public getCwd(): Promise<string> {
@@ -255,8 +278,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			return Promise.resolve(0);
 		}
 		if (this._latencyLastMeasured === 0 || this._latencyLastMeasured + LATENCY_MEASURING_INTERVAL < Date.now()) {
-			this._latencyRequest = this._process.getLatency();
-			this._latency = await this._latencyRequest;
+			const latencyRequest = this._process.getLatency();
+			this._latency = await latencyRequest;
 			this._latencyLastMeasured = Date.now();
 		}
 		return Promise.resolve(this._latency);

@@ -82,7 +82,7 @@ function getCommitSha(repoId, repoPath) {
 	});
 }
 
-exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'master') {
+exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'master', packageJsonPathOverride = '') {
 	var contentPath = 'https://raw.githubusercontent.com/' + repoId + `/${version}/` + repoPath;
 	console.log('Reading from ' + contentPath);
 	return download(contentPath).then(function (content) {
@@ -128,7 +128,11 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'mas
 
 				// Add commit sha to cgmanifest.
 				if (currentCommitDate > commitDate) {
-					let packageJsonPath = 'https://raw.githubusercontent.com/' + repoId + `/${info.commitSha}/package.json`;
+					let packageJsonPath = 'https://raw.githubusercontent.com/' + repoId + `/${info.commitSha}/`;
+					if (packageJsonPathOverride) {
+						packageJsonPath += packageJsonPathOverride;
+					}
+					packageJsonPath += 'package.json';
 					for (let i = 0; i < cgmanifestRead.registrations.length; i++) {
 						if (cgmanifestRead.registrations[i].component.git.repositoryUrl.substr(cgmanifestRead.registrations[i].component.git.repositoryUrl.length - repoId.length, repoId.length) === repoId) {
 							cgmanifestRead.registrations[i].component.git.commitHash = info.commitSha;

@@ -13,7 +13,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
 import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -75,13 +75,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 			editorGroupService,
 			null!,
 			new class extends mock<IPanelService>() implements IPanelService {
-				_serviceBrand: any;
+				_serviceBrand: undefined;
 				onDidPanelOpen = Event.None;
 				onDidPanelClose = Event.None;
 				getActivePanel() {
-					return null;
+					return undefined;
 				}
-			}
+			},
+			TestEnvironmentService
 		);
 		/* tslint:enable */
 	});

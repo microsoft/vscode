@@ -9,8 +9,12 @@ import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/sn
 suite('SnippetRewrite', function () {
 
 	function assertRewrite(input: string, expected: string | boolean): void {
-		const actual = Snippet._rewriteBogousVariables(input);
-		assert.equal(actual, expected);
+		const actual = new Snippet(['foo'], 'foo', 'foo', 'foo', input, 'foo', SnippetSource.User);
+		if (typeof expected === 'boolean') {
+			assert.equal(actual.codeSnippet, input);
+		} else {
+			assert.equal(actual.codeSnippet, expected);
+		}
 	}
 
 	test('bogous variable rewrite', function () {

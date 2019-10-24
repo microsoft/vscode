@@ -62,9 +62,9 @@
 	margin: 2px 0;
 }
 .monaco-diff-editor .action-label.icon.close-diff-review {
-	background: url('close.svg') center center no-repeat;
+	background: url('close-light.svg') center center no-repeat;
 }
 .monaco-diff-editor.hc-black .action-label.icon.close-diff-review,
 .monaco-diff-editor.vs-dark .action-label.icon.close-diff-review {
-	background: url('close-inverse.svg') center center no-repeat;
+	background: url('close-dark.svg') center center no-repeat;
 }

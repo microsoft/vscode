@@ -5,6 +5,7 @@
   "description": "%description%",
   "icon": "resources/icons/merge-conflict.png",
   "version": "1.0.0",
+  "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "^1.5.0"
@@ -114,6 +115,21 @@
           "type": "boolean",
           "description": "%config.autoNavigateNextConflictEnabled%",
           "default": false
+        },
+        "merge-conflict.diffViewPosition": {
+          "type": "string",
+          "enum": [
+            "Current",
+            "Beside",
+            "Below"
+          ],
+          "description": "%config.diffViewPosition%",
+          "enumDescriptions": [
+            "%config.diffViewPosition.current%",
+            "%config.diffViewPosition.beside%",
+            "%config.diffViewPosition.below%"
+          ],
+          "default": "Current"
         }
       }
     }
@@ -122,6 +138,6 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "8.0.33"
+    "@types/node": "^10.14.8"
   }
 }

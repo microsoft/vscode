@@ -9,8 +9,7 @@ import { Disposable } from './util/dispose';
 import * as arrays from './util/arrays';
 
 const resolveExtensionResource = (extension: vscode.Extension<any>, resourcePath: string): vscode.Uri => {
-	return vscode.Uri.file(path.join(extension.extensionPath, resourcePath))
-		.with({ scheme: 'vscode-resource' });
+	return vscode.Uri.file(path.join(extension.extensionPath, resourcePath));
 };
 
 const resolveExtensionResources = (extension: vscode.Extension<any>, resourcePaths: unknown): vscode.Uri[] => {

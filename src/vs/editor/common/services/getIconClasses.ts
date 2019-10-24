@@ -19,14 +19,11 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 
 		// Get the path and name of the resource. For data-URIs, we need to parse specially
 		let name: string | undefined;
-		let path: string | undefined;
 		if (resource.scheme === Schemas.data) {
 			const metadata = DataUri.parseMetaData(resource);
 			name = metadata.get(DataUri.META_DATA_LABEL);
-			path = name;
 		} else {
 			name = cssEscape(basenameOrAuthority(resource).toLowerCase());
-			path = resource.path.toLowerCase();
 		}
 
 		// Folders
@@ -47,46 +44,48 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
 
-			// Configured Language
-			let configuredLangId: string | null = getConfiguredLangId(modelService, modeService, resource);
-			configuredLangId = configuredLangId || (path ? modeService.getModeIdByFilepathOrFirstLine(path) : null);
-			if (configuredLangId) {
-				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
+			// Detected Mode
+			const detectedModeId = detectModeId(modelService, modeService, resource);
+			if (detectedModeId) {
+				classes.push(`${cssEscape(detectedModeId)}-lang-file-icon`);
 			}
 		}
 	}
 	return classes;
 }
 
-export function getConfiguredLangId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
-	let configuredLangId: string | null = null;
-	if (resource) {
-		let modeId: string | null = null;
+export function detectModeId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
+	if (!resource) {
+		return null; // we need a resource at least
+	}
 
-		// Data URI: check for encoded metadata
-		if (resource.scheme === Schemas.data) {
-			const metadata = DataUri.parseMetaData(resource);
-			const mime = metadata.get(DataUri.META_DATA_MIME);
+	let modeId: string | null = null;
 
-			if (mime) {
-				modeId = modeService.getModeId(mime);
-			}
-		}
+	// Data URI: check for encoded metadata
+	if (resource.scheme === Schemas.data) {
+		const metadata = DataUri.parseMetaData(resource);
+		const mime = metadata.get(DataUri.META_DATA_MIME);
 
-		// Any other URI: check for model if existing
-		else {
-			const model = modelService.getModel(resource);
-			if (model) {
-				modeId = model.getLanguageIdentifier().language;
-			}
-		}
-
-		if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-			configuredLangId = modeId; // only take if the mode is specific (aka no just plain text)
+		if (mime) {
+			modeId = modeService.getModeId(mime);
 		}
 	}
 
-	return configuredLangId;
+	// Any other URI: check for model if existing
+	else {
+		const model = modelService.getModel(resource);
+		if (model) {
+			modeId = model.getModeId();
+		}
+	}
+
+	// only take if the mode is specific (aka no just plain text)
+	if (modeId && modeId !== PLAINTEXT_MODE_ID) {
+		return modeId;
+	}
+
+	// otherwise fallback to path based detection
+	return modeService.getModeIdByFilepathOrFirstLine(resource);
 }
 
 export function cssEscape(val: string): string {

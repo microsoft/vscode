@@ -9,9 +9,10 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 
 export interface IRemoteAgentEnvironment {
 	pid: number;
+	connectionToken: string;
 	appRoot: URI;
 	appSettingsHome: URI;
-	appSettingsPath: URI;
+	settingsPath: URI;
 	logsPath: URI;
 	extensionsPath: URI;
 	extensionHostLogsPath: URI;
@@ -19,7 +20,6 @@ export interface IRemoteAgentEnvironment {
 	userHome: URI;
 	extensions: IExtensionDescription[];
 	os: OperatingSystem;
-	syncExtensions: boolean;
 }
 
 export interface RemoteAgentConnectionContext {

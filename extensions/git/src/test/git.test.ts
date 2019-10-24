@@ -6,6 +6,7 @@
 import 'mocha';
 import { GitStatusParser, parseGitCommit, parseGitmodules, parseLsTree, parseLsFiles } from '../git';
 import * as assert from 'assert';
+import { splitInChunks } from '../util';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -172,6 +173,17 @@ suite('git', () => {
 				{ name: 'deps/spdlog4', path: 'deps/spdlog4', url: 'https://github.com/gabime/spdlog4.git' }
 			]);
 		});
+
+		test('whitespace #74844', () => {
+			const sample = `[submodule "deps/spdlog"]
+	path = deps/spdlog
+	url  = https://github.com/gabime/spdlog.git
+`;
+
+			assert.deepEqual(parseGitmodules(sample), [
+				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' }
+			]);
+		});
 	});
 
 	suite('parseGitCommit', () => {
@@ -279,6 +291,80 @@ This is a commit message.`;
 				{ mode: '100644', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', stage: '0', file: 'what.txt' },
 				{ mode: '100644', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', stage: '0', file: 'what.txt2' },
 			]);
+		});
+	});
+
+	suite('splitInChunks', () => {
+		test('unit tests', function () {
+			assert.deepEqual(
+				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 6)],
+				[['hello'], ['there'], ['cool'], ['stuff']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 10)],
+				[['hello', 'there'], ['cool', 'stuff']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 12)],
+				[['hello', 'there'], ['cool', 'stuff']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 14)],
+				[['hello', 'there', 'cool'], ['stuff']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 2000)],
+				[['hello', 'there', 'cool', 'stuff']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 1)],
+				[['0'], ['01'], ['012'], ['0'], ['01'], ['012'], ['0'], ['01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 2)],
+				[['0'], ['01'], ['012'], ['0'], ['01'], ['012'], ['0'], ['01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 3)],
+				[['0', '01'], ['012'], ['0', '01'], ['012'], ['0', '01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 4)],
+				[['0', '01'], ['012', '0'], ['01'], ['012', '0'], ['01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 5)],
+				[['0', '01'], ['012', '0'], ['01', '012'], ['0', '01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 6)],
+				[['0', '01', '012'], ['0', '01', '012'], ['0', '01', '012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 7)],
+				[['0', '01', '012', '0'], ['01', '012', '0'], ['01', '012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 8)],
+				[['0', '01', '012', '0'], ['01', '012', '0', '01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
+				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
+			);
 		});
 	});
 });

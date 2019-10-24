@@ -7,16 +7,16 @@ import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
-import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionViewItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
@@ -24,19 +24,21 @@ import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/c
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { assertIsDefined } from 'vs/base/common/types';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TerminalPanel extends Panel {
 
-	private _actions: IAction[];
-	private _copyContextMenuAction: IAction;
-	private _contextMenuActions: IAction[];
+	private _actions: IAction[] | undefined;
+	private _copyContextMenuAction: IAction | undefined;
+	private _contextMenuActions: IAction[] | undefined;
 	private _cancelContextMenu: boolean = false;
-	private _fontStyleElement: HTMLElement;
-	private _parentDomElement: HTMLElement;
-	private _terminalContainer: HTMLElement;
-	private _findWidget: TerminalFindWidget;
+	private _fontStyleElement: HTMLElement | undefined;
+	private _parentDomElement: HTMLElement | undefined;
+	private _terminalContainer: HTMLElement | undefined;
+	private _findWidget: TerminalFindWidget | undefined;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -61,16 +63,16 @@ export class TerminalPanel extends Panel {
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
 
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
-		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(FIND_FOCUS_CLASS));
-		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(FIND_FOCUS_CLASS));
+		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
 
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);
 		this._parentDomElement.appendChild(this._findWidget.getDomNode());
 
-		this._attachEventListeners();
+		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 
-		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
+		const container = assertIsDefined(this.getContainer());
+		this._terminalService.setContainers(container, this._terminalContainer);
 
 		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -137,7 +139,7 @@ export class TerminalPanel extends Panel {
 	}
 
 	private _getContextMenuActions(): IAction[] {
-		if (!this._contextMenuActions) {
+		if (!this._contextMenuActions || !this._copyContextMenuAction) {
 			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.SHORT_LABEL);
 			this._contextMenuActions = [
 				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
@@ -161,12 +163,12 @@ export class TerminalPanel extends Panel {
 		return this._contextMenuActions;
 	}
 
-	public getActionItem(action: Action): IActionItem | undefined {
+	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchTerminalAction.ID) {
-			return this._instantiationService.createInstance(SwitchTerminalActionItem, action);
+			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 		}
 
-		return super.getActionItem(action);
+		return super.getActionViewItem(action);
 	}
 
 	public focus(): void {
@@ -179,31 +181,31 @@ export class TerminalPanel extends Panel {
 	public focusFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget.reveal(activeInstance.selection);
+			this._findWidget!.reveal(activeInstance.selection);
 		} else {
-			this._findWidget.reveal();
+			this._findWidget!.reveal();
 		}
 	}
 
 	public hideFindWidget() {
-		this._findWidget.hide();
+		this._findWidget!.hide();
 	}
 
 	public showFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget.show(activeInstance.selection);
+			this._findWidget!.show(activeInstance.selection);
 		} else {
-			this._findWidget.show();
+			this._findWidget!.show();
 		}
 	}
 
 	public getFindWidget(): TerminalFindWidget {
-		return this._findWidget;
+		return this._findWidget!;
 	}
 
-	private _attachEventListeners(): void {
-		this._register(dom.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
+	private _attachEventListeners(parentDomElement: HTMLElement, terminalContainer: HTMLElement): void {
+		this._register(dom.addDisposableListener(parentDomElement, 'mousedown', async (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
 			}
@@ -216,13 +218,14 @@ export class TerminalPanel extends Panel {
 					terminal.focus();
 				}
 			} else if (event.which === 3) {
-				if (this._terminalService.configHelper.config.rightClickBehavior === 'copyPaste') {
+				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					const terminal = this._terminalService.getActiveInstance();
 					if (!terminal) {
 						return;
 					}
-					if (terminal.hasSelection()) {
-						terminal.copySelection();
+					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
+						await terminal.copySelection();
 						terminal.clearSelection();
 					} else {
 						terminal.paste();
@@ -240,21 +243,7 @@ export class TerminalPanel extends Panel {
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(this._parentDomElement, 'mouseup', (event: MouseEvent) => {
-			if (this._configurationService.getValue('terminal.integrated.copyOnSelection')) {
-				if (this._terminalService.terminalInstances.length === 0) {
-					return;
-				}
-
-				if (event.which === 1) {
-					const terminal = this._terminalService.getActiveInstance();
-					if (terminal && terminal.hasSelection()) {
-						terminal.copySelection();
-					}
-				}
-			}
-		}));
-		this._register(dom.addDisposableListener(this._parentDomElement, 'contextmenu', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
 				const standardEvent = new StandardMouseEvent(event);
 				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
@@ -264,24 +253,25 @@ export class TerminalPanel extends Panel {
 					getActionsContext: () => this._parentDomElement
 				});
 			} else {
+				event.preventDefault();
 				event.stopImmediatePropagation();
 			}
 			this._cancelContextMenu = false;
 		}));
 		this._register(dom.addDisposableListener(document, 'keydown', (event: KeyboardEvent) => {
-			this._terminalContainer.classList.toggle('alt-active', !!event.altKey);
+			terminalContainer.classList.toggle('alt-active', !!event.altKey);
 		}));
 		this._register(dom.addDisposableListener(document, 'keyup', (event: KeyboardEvent) => {
-			this._terminalContainer.classList.toggle('alt-active', !!event.altKey);
+			terminalContainer.classList.toggle('alt-active', !!event.altKey);
 		}));
-		this._register(dom.addDisposableListener(this._parentDomElement, 'keyup', (event: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(parentDomElement, 'keyup', (event: KeyboardEvent) => {
 			if (event.keyCode === 27) {
 				// Keep terminal open on escape
 				event.stopPropagation();
 			}
 		}));
-		this._register(dom.addDisposableListener(this._parentDomElement, dom.EventType.DROP, async (e: DragEvent) => {
-			if (e.target === this._parentDomElement || dom.isAncestor(e.target as HTMLElement, this._parentDomElement)) {
+		this._register(dom.addDisposableListener(parentDomElement, dom.EventType.DROP, async (e: DragEvent) => {
+			if (e.target === this._parentDomElement || dom.isAncestor(e.target as HTMLElement, parentDomElement)) {
 				if (!e.dataTransfer) {
 					return;
 				}
@@ -291,7 +281,7 @@ export class TerminalPanel extends Panel {
 				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 				if (resources) {
 					path = URI.parse(JSON.parse(resources)[0]).fsPath;
-				} else if (e.dataTransfer.files.length > 0) {
+				} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
 					// Check if the file was dragged from the filesystem
 					path = URI.file(e.dataTransfer.files[0].path).fsPath;
 				}
@@ -315,11 +305,13 @@ export class TerminalPanel extends Panel {
 			theme = this.themeService.getTheme();
 		}
 
-		this._findWidget.updateTheme(theme);
+		if (this._findWidget) {
+			this._findWidget.updateTheme(theme);
+		}
 	}
 
 	private _updateFont(): void {
-		if (this._terminalService.terminalInstances.length === 0) {
+		if (this._terminalService.terminalInstances.length === 0 || !this._parentDomElement) {
 			return;
 		}
 		// TODO: Can we support ligatures?

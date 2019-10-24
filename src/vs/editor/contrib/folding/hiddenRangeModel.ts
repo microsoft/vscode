@@ -14,7 +14,7 @@ export class HiddenRangeModel {
 	private readonly _foldingModel: FoldingModel;
 	private _hiddenRanges: IRange[];
 	private _foldingModelListener: IDisposable | null;
-	private _updateEventEmitter = new Emitter<IRange[]>();
+	private readonly _updateEventEmitter = new Emitter<IRange[]>();
 
 	public get onDidChange(): Event<IRange[]> { return this._updateEventEmitter.event; }
 	public get hiddenRanges() { return this._hiddenRanges; }

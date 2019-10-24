@@ -8,17 +8,19 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { revive } from 'vs/base/common/marshalling';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
 
-	private readonly _disposables = new Map<string, IDisposable>();
+	private readonly _commandRegistrations = new Map<string, IDisposable>();
 	private readonly _generateCommandsDocumentationRegistration: IDisposable;
 	private readonly _proxy: ExtHostCommandsShape;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCommands);
 
@@ -26,8 +28,8 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	dispose() {
-		this._disposables.forEach(value => value.dispose());
-		this._disposables.clear();
+		this._commandRegistrations.forEach(value => value.dispose());
+		this._commandRegistrations.clear();
 
 		this._generateCommandsDocumentationRegistration.dispose();
 	}
@@ -36,10 +38,9 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		return this._proxy.$getContributedCommandHandlerDescriptions().then(result => {
 			// add local commands
 			const commands = CommandsRegistry.getCommands();
-			for (let id in commands) {
-				let { description } = commands[id];
-				if (description) {
-					result[id] = description;
+			for (const [id, command] of commands) {
+				if (command.description) {
+					result[id] = command.description;
 				}
 			}
 
@@ -53,33 +54,37 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	$registerCommand(id: string): void {
-		this._disposables.set(
+		this._commandRegistrations.set(
 			id,
 			CommandsRegistry.registerCommand(id, (accessor, ...args) => {
 				return this._proxy.$executeContributedCommand(id, ...args).then(result => {
-					return revive(result, 0);
+					return revive(result);
 				});
 			})
 		);
 	}
 
 	$unregisterCommand(id: string): void {
-		const command = this._disposables.get(id);
+		const command = this._commandRegistrations.get(id);
 		if (command) {
 			command.dispose();
-			this._disposables.delete(id);
+			this._commandRegistrations.delete(id);
 		}
 	}
 
-	$executeCommand<T>(id: string, args: any[]): Promise<T | undefined> {
+	async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
 		for (let i = 0; i < args.length; i++) {
-			args[i] = revive(args[i], 0);
+			args[i] = revive(args[i]);
+		}
+		if (retry && args.length > 0 && !CommandsRegistry.getCommand(id)) {
+			await this._extensionService.activateByEvent(`onCommand:${id}`);
+			throw new Error('$executeCommand:retry');
 		}
 		return this._commandService.executeCommand<T>(id, ...args);
 	}
 
 	$getCommands(): Promise<string[]> {
-		return Promise.resolve(Object.keys(CommandsRegistry.getCommands()));
+		return Promise.resolve([...CommandsRegistry.getCommands().keys()]);
 	}
 }
 

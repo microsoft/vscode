@@ -16,7 +16,6 @@ suite('Paths', () => {
 	});
 
 	test('getRoot', () => {
-
 		assert.equal(extpath.getRoot('/user/far'), '/');
 		assert.equal(extpath.getRoot('\\\\server\\share\\some\\path'), '//server/share/');
 		assert.equal(extpath.getRoot('//server/share/some/path'), '//server/share/');
@@ -63,6 +62,56 @@ suite('Paths', () => {
 			assert.ok(!extpath.isValidBasename('test.txt\t'));
 			assert.ok(!extpath.isValidBasename('tes:t.txt'));
 			assert.ok(!extpath.isValidBasename('tes"t.txt'));
+		}
+	});
+
+	test('sanitizeFilePath', () => {
+		if (platform.isWindows) {
+			assert.equal(extpath.sanitizeFilePath('.', 'C:\\the\\cwd'), 'C:\\the\\cwd');
+			assert.equal(extpath.sanitizeFilePath('', 'C:\\the\\cwd'), 'C:\\the\\cwd');
+
+			assert.equal(extpath.sanitizeFilePath('C:', 'C:\\the\\cwd'), 'C:\\');
+			assert.equal(extpath.sanitizeFilePath('C:\\', 'C:\\the\\cwd'), 'C:\\');
+			assert.equal(extpath.sanitizeFilePath('C:\\\\', 'C:\\the\\cwd'), 'C:\\');
+
+			assert.equal(extpath.sanitizeFilePath('C:\\folder\\my.txt', 'C:\\the\\cwd'), 'C:\\folder\\my.txt');
+			assert.equal(extpath.sanitizeFilePath('C:\\folder\\my', 'C:\\the\\cwd'), 'C:\\folder\\my');
+			assert.equal(extpath.sanitizeFilePath('C:\\folder\\..\\my', 'C:\\the\\cwd'), 'C:\\my');
+			assert.equal(extpath.sanitizeFilePath('C:\\folder\\my\\', 'C:\\the\\cwd'), 'C:\\folder\\my');
+			assert.equal(extpath.sanitizeFilePath('C:\\folder\\my\\\\\\', 'C:\\the\\cwd'), 'C:\\folder\\my');
+
+			assert.equal(extpath.sanitizeFilePath('my.txt', 'C:\\the\\cwd'), 'C:\\the\\cwd\\my.txt');
+			assert.equal(extpath.sanitizeFilePath('my.txt\\', 'C:\\the\\cwd'), 'C:\\the\\cwd\\my.txt');
+
+			assert.equal(extpath.sanitizeFilePath('\\\\localhost\\folder\\my', 'C:\\the\\cwd'), '\\\\localhost\\folder\\my');
+			assert.equal(extpath.sanitizeFilePath('\\\\localhost\\folder\\my\\', 'C:\\the\\cwd'), '\\\\localhost\\folder\\my');
+		} else {
+			assert.equal(extpath.sanitizeFilePath('.', '/the/cwd'), '/the/cwd');
+			assert.equal(extpath.sanitizeFilePath('', '/the/cwd'), '/the/cwd');
+			assert.equal(extpath.sanitizeFilePath('/', '/the/cwd'), '/');
+
+			assert.equal(extpath.sanitizeFilePath('/folder/my.txt', '/the/cwd'), '/folder/my.txt');
+			assert.equal(extpath.sanitizeFilePath('/folder/my', '/the/cwd'), '/folder/my');
+			assert.equal(extpath.sanitizeFilePath('/folder/../my', '/the/cwd'), '/my');
+			assert.equal(extpath.sanitizeFilePath('/folder/my/', '/the/cwd'), '/folder/my');
+			assert.equal(extpath.sanitizeFilePath('/folder/my///', '/the/cwd'), '/folder/my');
+
+			assert.equal(extpath.sanitizeFilePath('my.txt', '/the/cwd'), '/the/cwd/my.txt');
+			assert.equal(extpath.sanitizeFilePath('my.txt/', '/the/cwd'), '/the/cwd/my.txt');
+		}
+	});
+
+	test('isRoot', () => {
+		if (platform.isWindows) {
+			assert.ok(extpath.isRootOrDriveLetter('c:'));
+			assert.ok(extpath.isRootOrDriveLetter('D:'));
+			assert.ok(extpath.isRootOrDriveLetter('D:/'));
+			assert.ok(extpath.isRootOrDriveLetter('D:\\'));
+			assert.ok(!extpath.isRootOrDriveLetter('D:\\path'));
+			assert.ok(!extpath.isRootOrDriveLetter('D:/path'));
+		} else {
+			assert.ok(extpath.isRootOrDriveLetter('/'));
+			assert.ok(!extpath.isRootOrDriveLetter('/path'));
 		}
 	});
 });

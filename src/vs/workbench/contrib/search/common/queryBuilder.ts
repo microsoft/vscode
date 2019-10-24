@@ -274,7 +274,7 @@ export class QueryBuilder {
 	 * Split search paths (./ or ../ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
 	 */
 	private expandSearchPathPatterns(searchPaths: string[]): ISearchPathPattern[] {
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || !searchPaths || !searchPaths.length) {
+		if (!searchPaths || !searchPaths.length) {
 			// No workspace => ignore search paths
 			return [];
 		}
@@ -288,7 +288,7 @@ export class QueryBuilder {
 					globPortion = normalizeGlobPattern(globPortion);
 				}
 
-				// One pathPortion to multiple expanded search paths (eg duplicate matching workspace folders)
+				// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
 				const oneExpanded = this.expandOneSearchPath(pathPortion);
 
 				// Expanded search paths to multiple resolved patterns (with ** and without)

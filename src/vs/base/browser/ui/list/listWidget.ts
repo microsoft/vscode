@@ -5,7 +5,7 @@
 
 import 'vs/css!./list';
 import { localize } from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { range, firstIndex, binarySearch } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
@@ -16,8 +16,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole } from './list';
-import { ListView, IListViewOptions, IListViewDragAndDrop, IAriaSetProvider } from './listView';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole, ListError, IKeyboardNavigationDelegate } from './list';
+import { ListView, IListViewOptions, IListViewDragAndDrop, IAriaProvider } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
@@ -110,8 +110,8 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	private indexes: number[] = [];
 	private sortedIndexes: number[] = [];
 
-	private _onChange = new Emitter<ITraitChangeEvent>();
-	get onChange(): Event<ITraitChangeEvent> { return this._onChange.event; }
+	private readonly _onChange = new Emitter<ITraitChangeEvent>();
+	readonly onChange: Event<ITraitChangeEvent> = this._onChange.event;
 
 	get trait(): string { return this._trait; }
 
@@ -176,7 +176,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	}
 
 	dispose() {
-		this._onChange = dispose(this._onChange);
+		dispose(this._onChange);
 	}
 }
 
@@ -228,7 +228,7 @@ function isInputElement(e: HTMLElement): boolean {
 
 class KeyboardController<T> implements IDisposable {
 
-	private disposables: IDisposable[];
+	private readonly disposables = new DisposableStore();
 	private openController: IOpenController;
 
 	constructor(
@@ -236,8 +236,7 @@ class KeyboardController<T> implements IDisposable {
 		private view: ListView<T>,
 		options: IListOptions<T>
 	) {
-		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
-		this.disposables = [];
+		const multipleSelectionSupport = options.multipleSelectionSupport !== false;
 
 		this.openController = options.openController || DefaultOpenController;
 
@@ -314,7 +313,7 @@ class KeyboardController<T> implements IDisposable {
 	}
 
 	dispose() {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -323,15 +322,18 @@ enum TypeLabelControllerState {
 	Typing
 }
 
-export function mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-	if (event.ctrlKey || event.metaKey || event.altKey) {
-		return false;
-	}
+export const DefaultKeyboardNavigationDelegate = new class implements IKeyboardNavigationDelegate {
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+		if (event.ctrlKey || event.metaKey || event.altKey) {
+			return false;
+		}
 
-	return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
-		|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
-		|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
-}
+		return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
+			|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
+			|| (event.keyCode >= KeyCode.NUMPAD_0 && event.keyCode <= KeyCode.NUMPAD_9)
+			|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
+	}
+};
 
 class TypeLabelController<T> implements IDisposable {
 
@@ -341,13 +343,14 @@ class TypeLabelController<T> implements IDisposable {
 	private automaticKeyboardNavigation = true;
 	private triggered = false;
 
-	private enabledDisposables: IDisposable[] = [];
-	private disposables: IDisposable[] = [];
+	private readonly enabledDisposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>,
-		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
+		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
+		private delegate: IKeyboardNavigationDelegate
 	) {
 		this.updateOptions(list.options);
 	}
@@ -379,7 +382,7 @@ class TypeLabelController<T> implements IDisposable {
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
-			.filter(this.keyboardNavigationLabelProvider.mightProducePrintableCharacter ? e => this.keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : e => mightProducePrintableCharacter(e))
+			.filter(e => this.delegate.mightProducePrintableCharacter(e))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.map(event => event.browserEvent.key)
 			.event;
@@ -398,7 +401,7 @@ class TypeLabelController<T> implements IDisposable {
 			return;
 		}
 
-		this.enabledDisposables = dispose(this.enabledDisposables);
+		this.enabledDisposables.clear();
 		this.enabled = false;
 		this.triggered = false;
 	}
@@ -430,20 +433,19 @@ class TypeLabelController<T> implements IDisposable {
 
 	dispose() {
 		this.disable();
-		this.disposables = dispose(this.disposables);
+		this.enabledDisposables.dispose();
+		this.disposables.dispose();
 	}
 }
 
 class DOMFocusController<T> implements IDisposable {
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>
 	) {
-		this.disposables = [];
-
 		const onKeyDown = Event.chain(domEvent(view.domNode, 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e));
@@ -486,7 +488,7 @@ class DOMFocusController<T> implements IDisposable {
 	}
 
 	dispose() {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -502,7 +504,7 @@ function isMouseRightClick(event: UIEvent): boolean {
 	return event instanceof MouseEvent && event.button === 2;
 }
 
-const DefaultMultipleSelectionContoller = {
+const DefaultMultipleSelectionController = {
 	isSelectionSingleChangeEvent,
 	isSelectionRangeChangeEvent
 };
@@ -520,16 +522,16 @@ const DefaultOpenController: IOpenController = {
 export class MouseController<T> implements IDisposable {
 
 	private multipleSelectionSupport: boolean;
-	readonly multipleSelectionController: IMultipleSelectionController<T>;
+	readonly multipleSelectionController: IMultipleSelectionController<T> | undefined;
 	private openController: IOpenController;
 	private mouseSupport: boolean;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(protected list: List<T>) {
 		this.multipleSelectionSupport = !(list.options.multipleSelectionSupport === false);
 
 		if (this.multipleSelectionSupport) {
-			this.multipleSelectionController = list.options.multipleSelectionController || DefaultMultipleSelectionContoller;
+			this.multipleSelectionController = list.options.multipleSelectionController || DefaultMultipleSelectionController;
 		}
 
 		this.openController = list.options.openController || DefaultOpenController;
@@ -540,7 +542,7 @@ export class MouseController<T> implements IDisposable {
 			list.onContextMenu(this.onContextMenu, this, this.disposables);
 			list.onMouseDblClick(this.onDoubleClick, this, this.disposables);
 			list.onTouchStart(this.onMouseDown, this, this.disposables);
-			Gesture.addTarget(list.getHTMLElement());
+			this.disposables.add(Gesture.addTarget(list.getHTMLElement()));
 		}
 
 		list.onMouseClick(this.onPointer, this, this.disposables);
@@ -619,7 +621,7 @@ export class MouseController<T> implements IDisposable {
 		}
 	}
 
-	private onDoubleClick(e: IListMouseEvent<T>): void {
+	protected onDoubleClick(e: IListMouseEvent<T>): void {
 		if (isInputElement(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -654,6 +656,8 @@ export class MouseController<T> implements IDisposable {
 			const selection = this.list.getSelection();
 			const newSelection = selection.filter(i => i !== focus);
 
+			this.list.setFocus([focus]);
+
 			if (selection.length === newSelection.length) {
 				this.list.setSelection([...newSelection, focus], e.browserEvent);
 			} else {
@@ -663,7 +667,7 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	dispose() {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -817,7 +821,8 @@ export interface IListOptions<T> extends IListStyles {
 	readonly enableKeyboardNavigation?: boolean;
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
-	readonly ariaRole?: ListAriaRootRole;
+	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
+	readonly ariaRole?: ListAriaRootRole | string;
 	readonly ariaLabel?: string;
 	readonly keyboardSupport?: boolean;
 	readonly multipleSelectionSupport?: boolean;
@@ -833,7 +838,7 @@ export interface IListOptions<T> extends IListStyles {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
-	readonly ariaSetProvider?: IAriaSetProvider<T>;
+	readonly ariaProvider?: IAriaProvider<T>;
 }
 
 export interface IListStyles {
@@ -857,17 +862,19 @@ export interface IListStyles {
 	listFilterWidgetOutline?: Color;
 	listFilterWidgetNoMatchesOutline?: Color;
 	listMatchesShadow?: Color;
+	treeIndentGuidesStroke?: Color;
 }
 
 const defaultStyles: IListStyles = {
-	listFocusBackground: Color.fromHex('#073655'),
+	listFocusBackground: Color.fromHex('#7FB0D0'),
 	listActiveSelectionBackground: Color.fromHex('#0E639C'),
 	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
 	listFocusAndSelectionBackground: Color.fromHex('#094771'),
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
 	listHoverBackground: Color.fromHex('#2A2D2E'),
-	listDropBackground: Color.fromHex('#383B3D')
+	listDropBackground: Color.fromHex('#383B3D'),
+	treeIndentGuidesStroke: Color.fromHex('#a9a9a9')
 };
 
 const DefaultOptions = {
@@ -909,7 +916,7 @@ function getContiguousRangeContaining(range: number[], value: number): number[] 
 
 /**
  * Given two sorted collections of numbers, returns the intersection
- * betweem them (OR).
+ * between them (OR).
  */
 function disjunction(one: number[], other: number[]): number[] {
 	const result: number[] = [];
@@ -979,20 +986,20 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		return this.renderers.map(r => r.renderTemplate(container));
 	}
 
-	renderElement(element: T, index: number, templateData: any[], dynamicHeightProbing?: boolean): void {
+	renderElement(element: T, index: number, templateData: any[], height: number | undefined): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.renderElement(element, index, templateData[i++], dynamicHeightProbing);
+			renderer.renderElement(element, index, templateData[i++], height);
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: any[], dynamicHeightProbing?: boolean): void {
+	disposeElement(element: T, index: number, templateData: any[], height: number | undefined): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
 			if (renderer.disposeElement) {
-				renderer.disposeElement(element, index, templateData[i], dynamicHeightProbing);
+				renderer.disposeElement(element, index, templateData[i], height);
 			}
 
 			i += 1;
@@ -1094,7 +1101,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private styleController: IStyleController;
 	private typeLabelController?: TypeLabelController<T>;
 
-	protected disposables: IDisposable[];
+	protected readonly disposables = new DisposableStore();
 
 	@memoize get onFocusChange(): Event<IListEvent<T>> {
 		return Event.map(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
@@ -1104,14 +1111,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
-	private _onDidOpen = new Emitter<IListEvent<T>>();
+	private readonly _onDidOpen = new Emitter<IListEvent<T>>();
 	readonly onDidOpen: Event<IListEvent<T>> = this._onDidOpen.event;
 
-	private _onPin = new Emitter<number[]>();
-	@memoize get onPin(): Event<IListEvent<T>> {
-		return Event.map(this._onPin.event, indexes => this.toListEvent({ indexes }));
-	}
+	private readonly _onDidPin = new Emitter<IListEvent<T>>();
+	readonly onDidPin: Event<IListEvent<T>> = this._onDidPin.event;
 
+	get domId(): string { return this.view.domId; }
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
 	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }
@@ -1162,10 +1168,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
 
-	private _onDidDispose = new Emitter<void>();
-	get onDidDispose(): Event<void> { return this._onDidDispose.event; }
+	private readonly _onDidDispose = new Emitter<void>();
+	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(
+		private user: string,
 		container: HTMLElement,
 		virtualDelegate: IListVirtualDelegate<T>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
@@ -1191,11 +1198,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
 
-		if (typeof _options.ariaRole !== 'string') {
-			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
-		} else {
-			this.view.domNode.setAttribute('role', _options.ariaRole);
-		}
+		this.updateAriaRole();
 
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
@@ -1207,24 +1210,28 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.view
 		]);
 
-		this.disposables = [this.focus, this.selection, this.view, this._onDidDispose];
+		this.disposables.add(this.focus);
+		this.disposables.add(this.selection);
+		this.disposables.add(this.view);
+		this.disposables.add(this._onDidDispose);
 
 		this.onDidFocus = Event.map(domEvent(this.view.domNode, 'focus', true), () => null!);
 		this.onDidBlur = Event.map(domEvent(this.view.domNode, 'blur', true), () => null!);
 
-		this.disposables.push(new DOMFocusController(this, this.view));
+		this.disposables.add(new DOMFocusController(this, this.view));
 
 		if (typeof _options.keyboardSupport !== 'boolean' || _options.keyboardSupport) {
 			const controller = new KeyboardController(this, this.view, _options);
-			this.disposables.push(controller);
+			this.disposables.add(controller);
 		}
 
 		if (_options.keyboardNavigationLabelProvider) {
-			this.typeLabelController = new TypeLabelController(this, this.view, _options.keyboardNavigationLabelProvider);
-			this.disposables.push(this.typeLabelController);
+			const delegate = _options.keyboardNavigationDelegate || DefaultKeyboardNavigationDelegate;
+			this.typeLabelController = new TypeLabelController(this, this.view, _options.keyboardNavigationLabelProvider, delegate);
+			this.disposables.add(this.typeLabelController);
 		}
 
-		this.disposables.push(this.createMouseController(_options));
+		this.disposables.add(this.createMouseController(_options));
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
 		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
@@ -1254,11 +1261,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
 		if (start < 0 || start > this.view.length) {
-			throw new Error(`Invalid start index: ${start}`);
+			throw new ListError(this.user, `Invalid start index: ${start}`);
 		}
 
 		if (deleteCount < 0) {
-			throw new Error(`Invalid delete count: ${deleteCount}`);
+			throw new ListError(this.user, `Invalid delete count: ${deleteCount}`);
 		}
 
 		if (deleteCount === 0 && elements.length === 0) {
@@ -1300,6 +1307,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view.setScrollTop(scrollTop);
 	}
 
+	get scrollLeft(): number {
+		return this.view.getScrollLeft();
+	}
+
+	set scrollLeft(scrollLeft: number) {
+		this.view.setScrollLeft(scrollLeft);
+	}
+
 	get scrollHeight(): number {
 		return this.view.scrollHeight;
 	}
@@ -1333,7 +1348,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
@@ -1351,7 +1366,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	setFocus(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
@@ -1503,7 +1518,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	reveal(index: number, relativeTop?: number): void {
 		if (index < 0 || index >= this.length) {
-			throw new Error(`Invalid index ${index}`);
+			throw new ListError(this.user, `Invalid index ${index}`);
 		}
 
 		const scrollTop = this.view.getScrollTop();
@@ -1518,7 +1533,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			const viewItemBottom = elementTop + elementHeight;
 			const wrapperBottom = scrollTop + this.view.renderHeight;
 
-			if (elementTop < scrollTop) {
+			if (elementTop < scrollTop && viewItemBottom >= wrapperBottom) {
+				// The element is already overflowing the viewport, no-op
+			} else if (elementTop < scrollTop) {
 				this.view.setScrollTop(elementTop);
 			} else if (viewItemBottom >= wrapperBottom) {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
@@ -1532,7 +1549,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	 */
 	getRelativeTop(index: number): number | null {
 		if (index < 0 || index >= this.length) {
-			throw new Error(`Invalid index ${index}`);
+			throw new ListError(this.user, `Invalid index ${index}`);
 		}
 
 		const scrollTop = this.view.getScrollTop();
@@ -1559,21 +1576,21 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	open(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
 		this._onDidOpen.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
 	}
 
-	pin(indexes: number[]): void {
+	pin(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
-		this._onPin.fire(indexes);
+		this._onDidPin.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
 	}
 
 	style(styles: IListStyles): void {
@@ -1593,8 +1610,17 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.view.domNode.removeAttribute('aria-activedescendant');
 		}
 
-		this.view.domNode.setAttribute('role', 'tree');
+		this.updateAriaRole();
+
 		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
+	}
+
+	private updateAriaRole(): void {
+		if (typeof this.options.ariaRole !== 'string') {
+			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
+		} else {
+			this.view.domNode.setAttribute('role', this.options.ariaRole);
+		}
 	}
 
 	private _onSelectionChange(): void {
@@ -1607,10 +1633,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	dispose(): void {
 		this._onDidDispose.fire();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 
 		this._onDidOpen.dispose();
-		this._onPin.dispose();
+		this._onDidPin.dispose();
 		this._onDidDispose.dispose();
 	}
 }

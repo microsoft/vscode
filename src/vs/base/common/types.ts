@@ -93,6 +93,39 @@ export function isUndefinedOrNull(obj: any): obj is undefined | null {
 	return isUndefined(obj) || obj === null;
 }
 
+/**
+ * Asserts that the argument passed in is neither undefined nor null.
+ */
+export function assertIsDefined<T>(arg: T | null | undefined): T {
+	if (isUndefinedOrNull(arg)) {
+		throw new Error('Assertion Failed: argument is undefined or null');
+	}
+
+	return arg;
+}
+
+/**
+ * Asserts that each argument passed in is neither undefined nor null.
+ */
+export function assertAllDefined<T1, T2>(t1: T1 | null | undefined, t2: T2 | null | undefined): [T1, T2];
+export function assertAllDefined<T1, T2, T3>(t1: T1 | null | undefined, t2: T2 | null | undefined, t3: T3 | null | undefined): [T1, T2, T3];
+export function assertAllDefined<T1, T2, T3, T4>(t1: T1 | null | undefined, t2: T2 | null | undefined, t3: T3 | null | undefined, t4: T4 | null | undefined): [T1, T2, T3, T4];
+export function assertAllDefined(...args: (unknown | null | undefined)[]): unknown[] {
+	const result = [];
+
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+
+		if (isUndefinedOrNull(arg)) {
+			throw new Error(`Assertion Failed: argument at index ${i} is undefined or null`);
+		}
+
+		result.push(arg);
+	}
+
+	return result;
+}
+
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
@@ -159,27 +192,6 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 	}
 }
 
-/**
- * Creates a new object of the provided class and will call the constructor with
- * any additional argument supplied.
- */
-export function create(ctor: Function, ...args: any[]): any {
-	if (isNativeClass(ctor)) {
-		return new (ctor as any)(...args);
-	} else {
-		const obj = Object.create(ctor.prototype);
-		ctor.apply(obj, args);
-		return obj;
-	}
-}
-
-// https://stackoverflow.com/a/32235645/1499159
-function isNativeClass(thing: any): boolean {
-	return typeof thing === 'function'
-		&& thing.hasOwnProperty('prototype')
-		&& !thing.hasOwnProperty('arguments');
-}
-
 export function getAllPropertyNames(obj: object): string[] {
 	let res: string[] = [];
 	let proto = Object.getPrototypeOf(obj);
@@ -188,6 +200,31 @@ export function getAllPropertyNames(obj: object): string[] {
 		proto = Object.getPrototypeOf(proto);
 	}
 	return res;
+}
+
+export function getAllMethodNames(obj: object): string[] {
+	const methods: string[] = [];
+	for (const prop of getAllPropertyNames(obj)) {
+		if (typeof (obj as any)[prop] === 'function') {
+			methods.push(prop);
+		}
+	}
+	return methods;
+}
+
+export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: any[]) => any): T {
+	const createProxyMethod = (method: string): () => any => {
+		return function () {
+			const args = Array.prototype.slice.call(arguments, 0);
+			return invoke(method, args);
+		};
+	};
+
+	let result = {} as T;
+	for (const methodName of methodNames) {
+		(<any>result)[methodName] = createProxyMethod(methodName);
+	}
+	return result;
 }
 
 /**
@@ -203,3 +240,18 @@ export function withNullAsUndefined<T>(x: T | null): T | undefined {
 export function withUndefinedAsNull<T>(x: T | undefined): T | null {
 	return typeof x === 'undefined' ? null : x;
 }
+
+/**
+ * Allows to add a first parameter to functions of a type.
+ */
+export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, FirstParameter> = {
+
+	//  For every property
+	[K in keyof Target]:
+
+	// Function: add param to function
+	Target[K] extends (...args: any) => TargetFunctionsReturnType ? (firstArg: FirstParameter, ...args: Parameters<Target[K]>) => ReturnType<Target[K]> :
+
+	// Else: just leave as is
+	Target[K]
+};

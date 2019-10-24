@@ -103,7 +103,7 @@ class Survey {
 	}
 
 	private get triggerCount(): number {
-		const count = this.memento.get(this.triggerCountMementoKey);
+		const count = this.memento.get<number>(this.triggerCountMementoKey);
 		return !count || isNaN(+count) ? 0 : +count;
 	}
 
@@ -165,12 +165,12 @@ export class Surveyor extends Disposable {
 				title: localize('takeShortSurvey', "Take Short Survey"),
 				choice: Choice.GoToSurvey
 			}, {
-				title: localize('remindLater', "Remind Me Later"),
-				choice: Choice.RemindLater
-			}, {
-				title: localize('neverAgain', "Disable JS/TS Surveys"),
-				choice: Choice.NeverAgain
-			});
+			title: localize('remindLater', "Remind Me Later"),
+			choice: Choice.RemindLater
+		}, {
+			title: localize('neverAgain', "Disable JS/TS Surveys"),
+			choice: Choice.NeverAgain
+		});
 
 		switch (response && response.choice) {
 			case Choice.GoToSurvey:

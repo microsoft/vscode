@@ -18,8 +18,8 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/markers';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { BaseActionItem, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { toDisposable } from 'vs/base/common/lifecycle';
+import { BaseActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
@@ -115,13 +115,12 @@ export interface IMarkerFilterController {
 	getFilterStats(): { total: number, filtered: number };
 }
 
-export class MarkersFilterActionItem extends BaseActionItem {
+export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private delayedFilterUpdate: Delayer<void>;
-	private container: HTMLElement;
-	private filterInputBox: HistoryInputBox;
-	private controlsContainer: HTMLInputElement;
-	private filterBadge: HTMLInputElement;
+	private container: HTMLElement | null = null;
+	private filterInputBox: HistoryInputBox | null = null;
+	private filterBadge: HTMLElement | null = null;
 	private focusContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -159,6 +158,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	toggleLayout(small: boolean) {
 		if (this.container) {
 			DOM.toggleClass(this.container, 'small', small);
+			this.adjustInputBox();
 		}
 	}
 
@@ -171,13 +171,13 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		this.filterInputBox.inputElement.setAttribute('aria-labelledby', 'markers-panel-arialabel');
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.action.filterText;
-		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox))));
+		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox!))));
 		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
 			if (event.filterText) {
-				this.filterInputBox.value = this.action.filterText;
+				this.filterInputBox!.value = this.action.filterText;
 			}
 		}));
-		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox)));
+		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox!)));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
 
@@ -188,24 +188,24 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private createControls(container: HTMLElement): void {
-		this.controlsContainer = DOM.append(container, DOM.$('.markers-panel-filter-controls'));
-		this.createBadge(this.controlsContainer);
-		this.createFilesExcludeCheckbox(this.controlsContainer);
+		const controlsContainer = DOM.append(container, DOM.$('.markers-panel-filter-controls'));
+		this.createBadge(controlsContainer);
+		this.createFilesExcludeCheckbox(controlsContainer);
 	}
 
 	private createBadge(container: HTMLElement): void {
-		this.filterBadge = DOM.append(container, DOM.$('.markers-panel-filter-badge'));
+		const filterBadge = this.filterBadge = DOM.append(container, DOM.$('.markers-panel-filter-badge'));
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
-			this.filterBadge.style.backgroundColor = background;
+			filterBadge.style.backgroundColor = background;
 
-			this.filterBadge.style.borderWidth = border ? '1px' : null;
-			this.filterBadge.style.borderStyle = border ? 'solid' : null;
-			this.filterBadge.style.borderColor = border;
-			this.filterBadge.style.color = foreground;
+			filterBadge.style.borderWidth = border ? '1px' : '';
+			filterBadge.style.borderStyle = border ? 'solid' : '';
+			filterBadge.style.borderColor = border;
+			filterBadge.style.color = foreground;
 		}));
 		this.updateBadge();
 		this._register(this.filterController.onDidFilter(() => this.updateBadge()));
@@ -213,7 +213,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 
 	private createFilesExcludeCheckbox(container: HTMLElement): void {
 		const filesExcludeFilter = this._register(new Checkbox({
-			actionClassName: 'markers-panel-filter-filesExclude',
+			actionClassName: 'codicon codicon-exclude',
 			title: this.action.useFilesExclude ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE,
 			isChecked: this.action.useFilesExclude
 		}));
@@ -240,14 +240,18 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private updateBadge(): void {
-		const { total, filtered } = this.filterController.getFilterStats();
-		DOM.toggleClass(this.filterBadge, 'hidden', total === filtered || filtered === 0);
-		this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
-		this.adjustInputBox();
+		if (this.filterBadge) {
+			const { total, filtered } = this.filterController.getFilterStats();
+			DOM.toggleClass(this.filterBadge, 'hidden', total === filtered || filtered === 0);
+			this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
+			this.adjustInputBox();
+		}
 	}
 
 	private adjustInputBox(): void {
-		this.filterInputBox.inputElement.style.paddingRight = (DOM.getTotalWidth(this.controlsContainer) || 20) + 'px';
+		if (this.container && this.filterInputBox && this.filterBadge) {
+			this.filterInputBox.inputElement.style.paddingRight = DOM.hasClass(this.container, 'small') || DOM.hasClass(this.filterBadge, 'hidden') ? '25px' : '150px';
+		}
 	}
 
 	// Action toolbar is swallowing some keys for action items which should not be for an input box
@@ -275,10 +279,11 @@ export class MarkersFilterActionItem extends BaseActionItem {
 
 	private reportFilteringUsed(): void {
 		const filterOptions = this.filterController.getFilterOptions();
-		const data = {};
-		data['errors'] = filterOptions.filterErrors;
-		data['warnings'] = filterOptions.filterWarnings;
-		data['infos'] = filterOptions.filterInfos;
+		const data = {
+			errors: filterOptions.filterErrors,
+			warnings: filterOptions.filterWarnings,
+			infos: filterOptions.filterInfos,
+		};
 		/* __GDPR__
 			"problems.filter" : {
 				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -293,12 +298,10 @@ export class MarkersFilterActionItem extends BaseActionItem {
 export class QuickFixAction extends Action {
 
 	public static readonly ID: string = 'workbench.actions.problems.quickfix';
-	private static readonly CLASS: string = 'markers-panel-action-quickfix';
+	private static readonly CLASS: string = 'markers-panel-action-quickfix codicon-lightbulb';
 	private static readonly AUTO_FIX_CLASS: string = QuickFixAction.CLASS + ' autofixable';
 
-	private disposables: IDisposable[] = [];
-
-	private readonly _onShowQuickFixes: Emitter<void> = new Emitter<void>();
+	private readonly _onShowQuickFixes = this._register(new Emitter<void>());
 	readonly onShowQuickFixes: Event<void> = this._onShowQuickFixes.event;
 
 	private _quickFixes: IAction[] = [];
@@ -324,14 +327,9 @@ export class QuickFixAction extends Action {
 		this._onShowQuickFixes.fire();
 		return Promise.resolve();
 	}
-
-	dispose(): void {
-		dispose(this.disposables);
-		super.dispose();
-	}
 }
 
-export class QuickFixActionItem extends ActionItem {
+export class QuickFixActionViewItem extends ActionViewItem {
 
 	constructor(action: QuickFixAction,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,

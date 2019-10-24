@@ -18,49 +18,78 @@ declare module 'vscode' {
 
 	//#region Joh - call hierarchy
 
-	export enum CallHierarchyDirection {
-		CallsFrom = 1,
-		CallsTo = 2,
-	}
-
 	export class CallHierarchyItem {
-		kind: SymbolKind;
+		/**
+		 * The name of this item.
+		 */
 		name: string;
+
+		/**
+		 * The kind of this item.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * Tags for this item.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
+
+		/**
+		 * More detail for this item, e.g. the signature of a function.
+		 */
 		detail?: string;
+
+		/**
+		 * The resource identifier of this item.
+		 */
 		uri: Uri;
+
+		/**
+		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
+		 */
 		range: Range;
+
+		/**
+		 * The range that should be selected and reveal when this symbol is being picked, e.g. the name of a function.
+		 * Must be contained by the [`range`](#CallHierarchyItem.range).
+		 */
 		selectionRange: Range;
 
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
+	export class CallHierarchyIncomingCall {
+		from: CallHierarchyItem;
+		fromRanges: Range[];
+		constructor(item: CallHierarchyItem, fromRanges: Range[]);
+	}
+
+	export class CallHierarchyOutgoingCall {
+		fromRanges: Range[];
+		to: CallHierarchyItem;
+		constructor(item: CallHierarchyItem, fromRanges: Range[]);
+	}
+
 	export interface CallHierarchyItemProvider {
 
 		/**
-		 * Given a document and position compute a call hierarchy item. This is justed as
-		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		 * Provide a list of callers for the provided item, e.g. all function calling a function.
 		 */
-		provideCallHierarchyItem(
-			document: TextDocument,
-			postion: Position,
-			token: CancellationToken
-		): ProviderResult<CallHierarchyItem>;
+		provideCallHierarchyIncomingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
 
 		/**
-		 * Resolve a call hierarchy item, e.g. compute all calls from or to a function.
-		 * The result is an array of item/location-tuples. The location in the returned tuples
-		 * is always relative to the "caller" with the caller either being the provided item or
-		 * the returned item.
-		 *
-		 * @param item A call hierarchy item previously returned from `provideCallHierarchyItem` or `resolveCallHierarchyItem`
-		 * @param direction Resolve calls from a function or calls to a function
-		 * @param token A cancellation token
+		 * Provide a list of calls for the provided item, e.g. all functions call from a function.
 		 */
-		resolveCallHierarchyItem(
-			item: CallHierarchyItem,
-			direction: CallHierarchyDirection,
-			token: CancellationToken
-		): ProviderResult<[CallHierarchyItem, Location[]][]>;
+		provideCallHierarchyOutgoingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
+
+		//  todo@joh this could return as 'prepareCallHierarchy' (similar to the RenameProvider#prepareRename)
+		//
+		// /**
+		//  *
+		//  * Given a document and position compute a call hierarchy item. This is justed as
+		//  * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		//  */
+		// resolveCallHierarchyItem(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
 	}
 
 	export namespace languages {
@@ -72,17 +101,32 @@ declare module 'vscode' {
 
 	//#region Alex - resolvers
 
+	export interface RemoteAuthorityResolverContext {
+		resolveAttempt: number;
+	}
+
 	export class ResolvedAuthority {
 		readonly host: string;
 		readonly port: number;
-		debugListenPort?: number;
-		debugConnectPort?: number;
 
 		constructor(host: string, port: number);
 	}
 
+	export interface ResolvedOptions {
+		extensionHostEnv?: { [key: string]: string | null };
+	}
+
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions;
+
+	export class RemoteAuthorityResolverError extends Error {
+		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
+		static TemporarilyNotAvailable(message?: string): RemoteAuthorityResolverError;
+
+		constructor(message?: string);
+	}
+
 	export interface RemoteAuthorityResolver {
-		resolve(authority: string): ResolvedAuthority | Thenable<ResolvedAuthority>;
+		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -110,31 +154,20 @@ declare module 'vscode' {
 
 	// #region Joh - code insets
 
-	/**
-	 */
-	export class CodeInset {
-		range: Range;
-		height?: number;
-		constructor(range: Range, height?: number);
+	export interface WebviewEditorInset {
+		readonly editor: TextEditor;
+		readonly line: number;
+		readonly height: number;
+		readonly webview: Webview;
+		readonly onDidDispose: Event<void>;
+		dispose(): void;
 	}
 
-	export interface CodeInsetProvider {
-		onDidChangeCodeInsets?: Event<void>;
-		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
-		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a code inset provider.
-		 *
-		 */
-		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
+	export namespace window {
+		export function createWebviewTextEditorInset(editor: TextEditor, line: number, height: number, options?: WebviewOptions): WebviewEditorInset;
 	}
 
 	//#endregion
-
 
 	//#region Joh - read/write in chunks
 
@@ -222,7 +255,6 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 		 */
 		useGlobalIgnoreFiles: boolean;
-
 	}
 
 	/**
@@ -391,7 +423,6 @@ declare module 'vscode' {
 		 * Provide the set of files that match a certain file path pattern.
 		 * @param query The parameters for this query.
 		 * @param options A set of options to consider while searching files.
-		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
 		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
@@ -476,11 +507,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * DEPRECATED
-		 */
-		export function registerSearchProvider(): Disposable;
-
-		/**
 		 * Register a search provider.
 		 *
 		 * Only one provider can be registered per scheme.
@@ -559,25 +585,17 @@ declare module 'vscode' {
 
 	//#region Joh: decorations
 
-	//todo@joh -> make class
-	export interface DecorationData {
+	export class Decoration {
 		letter?: string;
 		title?: string;
 		color?: ThemeColor;
 		priority?: number;
 		bubble?: boolean;
-		source?: string; // hacky... we should remove it and use equality under the hood
-	}
-
-	export interface SourceControlResourceDecorations {
-		source?: string;
-		letter?: string;
-		color?: ThemeColor;
 	}
 
 	export interface DecorationProvider {
 		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
-		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
+		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<Decoration>;
 	}
 
 	export namespace window {
@@ -711,380 +729,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Comments
-	/**
-	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
-	 */
-
-	interface CommentInfo {
-		/**
-		 * All of the comment threads associated with the document.
-		 */
-		threads: CommentThread[];
-
-		/**
-		 * The ranges of the document which support commenting.
-		 */
-		commentingRanges?: Range[];
-
-		/**
-		 * If it's in draft mode or not
-		 */
-		inDraftMode?: boolean;
-	}
-
-	export enum CommentThreadCollapsibleState {
-		/**
-		 * Determines an item is collapsed
-		 */
-		Collapsed = 0,
-		/**
-		 * Determines an item is expanded
-		 */
-		Expanded = 1
-	}
-
-	/**
-	 * A collection of comments representing a conversation at a particular range in a document.
-	 */
-	export interface CommentThread {
-		/**
-		 * A unique identifier of the comment thread.
-		 */
-		threadId: string;
-
-		/**
-		 * The uri of the document the thread has been created on.
-		 */
-		resource: Uri;
-
-		/**
-		 * The range the comment thread is located within the document. The thread icon will be shown
-		 * at the first line of the range.
-		 */
-		range: Range;
-
-		/**
-		 * The human-readable label describing the [Comment Thread](#CommentThread)
-		 */
-		label?: string;
-
-		/**
-		 * The ordered comments of the thread.
-		 */
-		comments: Comment[];
-
-		/**
-		 * Optional accept input command
-		 *
-		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
-		 * This command will be invoked when users the user accepts the value in the comment editor.
-		 * This command will disabled when the comment editor is empty.
-		 */
-		acceptInputCommand?: Command;
-
-		/**
-		 * Optional additonal commands.
-		 *
-		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
-		 */
-		additionalCommands?: Command[];
-
-		/**
-		 * Whether the thread should be collapsed or expanded when opening the document.
-		 * Defaults to Collapsed.
-		 */
-		collapsibleState?: CommentThreadCollapsibleState;
-
-		/**
-		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
-		 * when the user collapses a comment thread that has no comments in it.
-		 */
-		deleteCommand?: Command;
-
-		/**
-		 * Dispose this comment thread.
-		 * Once disposed, the comment thread will be removed from visible text editors and Comments Panel.
-		 */
-		dispose?(): void;
-	}
-
-	/**
-	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
-	 */
-	export interface Comment {
-		/**
-		 * The id of the comment
-		 */
-		commentId: string;
-
-		/**
-		 * The text of the comment
-		 */
-		body: MarkdownString;
-
-		/**
-		 * Optional label describing the [Comment](#Comment)
-		 * Label will be rendered next to userName if exists.
-		 */
-		label?: string;
-
-		/**
-		 * The display name of the user who created the comment
-		 */
-		userName: string;
-
-		/**
-		 * The icon path for the user who created the comment
-		 */
-		userIconPath?: Uri;
-
-		/**
-		 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
-		 */
-		gravatar?: string;
-
-		/**
-		 * Whether the current user has permission to edit the comment.
-		 *
-		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
-		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
-		 *
-		 * DEPRECATED, use editCommand
-		 */
-		canEdit?: boolean;
-
-		/**
-		 * Whether the current user has permission to delete the comment.
-		 *
-		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
-		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
-		 *
-		 * DEPRECATED, use deleteCommand
-		 */
-		canDelete?: boolean;
-
-		/**
-		 * @deprecated
-		 * The command to be executed if the comment is selected in the Comments Panel
-		 */
-		command?: Command;
-
-		/**
-		 * The command to be executed if the comment is selected in the Comments Panel
-		 */
-		selectCommand?: Command;
-
-		/**
-		 * The command to be executed when users try to save the edits to the comment
-		 */
-		editCommand?: Command;
-
-		/**
-		 * The command to be executed when users try to delete the comment
-		 */
-		deleteCommand?: Command;
-
-		/**
-		 * Deprecated
-		 */
-		isDraft?: boolean;
-
-		/**
-		 * Proposed Comment Reaction
-		 */
-		commentReactions?: CommentReaction[];
-	}
-
-	/**
-	 * Deprecated
-	 */
-	export interface CommentThreadChangedEvent {
-		/**
-		 * Added comment threads.
-		 */
-		readonly added: CommentThread[];
-
-		/**
-		 * Removed comment threads.
-		 */
-		readonly removed: CommentThread[];
-
-		/**
-		 * Changed comment threads.
-		 */
-		readonly changed: CommentThread[];
-
-		/**
-		 * Changed draft mode
-		 */
-		readonly inDraftMode: boolean;
-	}
-
-	/**
-	 * Comment Reactions
-	 */
-	interface CommentReaction {
-		readonly label?: string;
-		readonly iconPath?: string | Uri;
-		count?: number;
-		readonly hasReacted?: boolean;
-	}
-
-	/**
-	 * DEPRECATED
-	 */
-	interface DocumentCommentProvider {
-		/**
-		 * Provide the commenting ranges and comment threads for the given document. The comments are displayed within the editor.
-		 */
-		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
-
-		/**
-		 * Called when a user adds a new comment thread in the document at the specified range, with body text.
-		 */
-		createNewCommentThread(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-
-		/**
-		 * Called when a user replies to a new comment thread in the document at the specified range, with body text.
-		 */
-		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-
-		/**
-		 * Called when a user edits the comment body to the be new text.
-		 */
-		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<void>;
-
-		/**
-		 * Called when a user deletes the comment.
-		 */
-		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
-
-		startDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-		deleteDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-		finishDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-
-		startDraftLabel?: string;
-		deleteDraftLabel?: string;
-		finishDraftLabel?: string;
-
-		addReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-		deleteReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-		reactionGroup?: CommentReaction[];
-
-		/**
-		 * Notify of updates to comment threads.
-		 */
-		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
-	}
-
-	/**
-	 * DEPRECATED
-	 */
-	interface WorkspaceCommentProvider {
-		/**
-		 * Provide all comments for the workspace. Comments are shown within the comments panel. Selecting a comment
-		 * from the panel runs the comment's command.
-		 */
-		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-
-		/**
-		 * Notify of updates to comment threads.
-		 */
-		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
-	}
-
-	/**
-	 * The comment input box in Comment Widget.
-	 */
-	export interface CommentInputBox {
-		/**
-		 * Setter and getter for the contents of the comment input box.
-		 */
-		value: string;
-	}
-
-	export interface CommentReactionProvider {
-		availableReactions: CommentReaction[];
-		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-	}
-
-	export interface CommentingRangeProvider {
-		/**
-		 * Provide a list of ranges which allow new comment threads creation or null for a given document
-		 */
-		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
-	}
-
-	export interface EmptyCommentThreadFactory {
-		/**
-		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
-		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
-		 */
-		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<void>;
-	}
-
-	export interface CommentController {
-		/**
-		 * The id of this comment controller.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable label of this comment controller.
-		 */
-		readonly label: string;
-
-		/**
-		 * The active (focused) [comment input box](#CommentInputBox).
-		 */
-		readonly inputBox?: CommentInputBox;
-
-		/**
-		 * Create a [CommentThread](#CommentThread)
-		 */
-		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
-
-		/**
-		 * Optional commenting range provider.
-		 * Provide a list [ranges](#Range) which support commenting to any given resource uri.
-		 */
-		commentingRangeProvider?: CommentingRangeProvider;
-
-		/**
-		 * Optional new comment thread factory.
-		 */
-		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
-
-		/**
-		 * Optional reaction provider
-		 */
-		reactionProvider?: CommentReactionProvider;
-
-		/**
-		 * Dispose this comment controller.
-		 */
-		dispose(): void;
-	}
-
-	namespace comment {
-		export function createCommentController(id: string, label: string): CommentController;
-	}
-
-	namespace workspace {
-		/**
-		 * DEPRECATED
-		 * Use vscode.comment.createCommentController instead.
-		 */
-		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
-		/**
-		 * DEPRECATED
-		 * Use vscode.comment.createCommentController instead and we don't differentiate document comments and workspace comments anymore.
-		 */
-		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
-	}
-
-	//#endregion
 
 	//#region Terminal
 
@@ -1102,11 +746,29 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions;
 	}
 
+	export interface TerminalDataWriteEvent {
+		/**
+		 * The [terminal](#Terminal) for which the data was written.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The data being written.
+		 */
+		readonly data: string;
+	}
+
 	namespace window {
 		/**
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
 		 */
 		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
+
+		/**
+		 * An event which fires when the terminal's pty slave pseudo-device is written to. In other
+		 * words, this provides access to the raw data stream from the process running within the
+		 * terminal, including VT sequences.
+		 */
+		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 	}
 
 	export interface Terminal {
@@ -1116,134 +778,6 @@ declare module 'vscode' {
 		 * created.
 		 */
 		readonly dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
-		 * provides access to the raw data stream from the process running within the terminal,
-		 * including VT sequences.
-		 */
-		readonly onDidWriteData: Event<string>;
-	}
-
-	/**
-	 * Represents the dimensions of a terminal.
-	 */
-	export interface TerminalDimensions {
-		/**
-		 * The number of columns in the terminal.
-		 */
-		readonly columns: number;
-
-		/**
-		 * The number of rows in the terminal.
-		 */
-		readonly rows: number;
-	}
-
-	/**
-	 * Represents a terminal without a process where all interaction and output in the terminal is
-	 * controlled by an extension. This is similar to an output window but has the same VT sequence
-	 * compatibility as the regular terminal.
-	 *
-	 * Note that an instance of [Terminal](#Terminal) will be created when a TerminalRenderer is
-	 * created with all its APIs available for use by extensions. When using the Terminal object
-	 * of a TerminalRenderer it acts just like normal only the extension that created the
-	 * TerminalRenderer essentially acts as a process. For example when an
-	 * [Terminal.onDidWriteData](#Terminal.onDidWriteData) listener is registered, that will fire
-	 * when [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
-	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
-	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
-	 *
-	 * **Example:** Create a terminal renderer, show it and write hello world in red
-	 * ```typescript
-	 * const renderer = window.createTerminalRenderer('foo');
-	 * renderer.terminal.then(t => t.show());
-	 * renderer.write('\x1b[31mHello world\x1b[0m');
-	 * ```
-	 */
-	export interface TerminalRenderer {
-		/**
-		 * The name of the terminal, this will appear in the terminal selector.
-		 */
-		name: string;
-
-		/**
-		 * The dimensions of the terminal, the rows and columns of the terminal can only be set to
-		 * a value smaller than the maximum value, if this is undefined the terminal will auto fit
-		 * to the maximum value [maximumDimensions](TerminalRenderer.maximumDimensions).
-		 *
-		 * **Example:** Override the dimensions of a TerminalRenderer to 20 columns and 10 rows
-		 * ```typescript
-		 * terminalRenderer.dimensions = {
-		 *   cols: 20,
-		 *   rows: 10
-		 * };
-		 * ```
-		 */
-		dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * The maximum dimensions of the terminal, this will be undefined immediately after a
-		 * terminal renderer is created and also until the terminal becomes visible in the UI.
-		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
-		 * to get notified when this value changes.
-		 */
-		readonly maximumDimensions: TerminalDimensions | undefined;
-
-		/**
-		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
-		 */
-		readonly terminal: Terminal;
-
-		/**
-		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
-		 * text to the underlying _process_, this will write the text to the terminal itself.
-		 *
-		 * **Example:** Write red text to the terminal
-		 * ```typescript
-		 * terminalRenderer.write('\x1b[31mHello world\x1b[0m');
-		 * ```
-		 *
-		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
-		 * ```typescript
-		 * terminalRenderer.write('\x1b[10;20H*');
-		 * ```
-		 *
-		 * @param text The text to write.
-		 */
-		write(text: string): void;
-
-		/**
-		 * An event which fires on keystrokes in the terminal or when an extension calls
-		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
-		 * corresponding VT sequence representation.
-		 *
-		 * **Example:** Simulate interaction with the terminal from an outside extension or a
-		 * workbench command such as `workbench.action.terminal.runSelectedText`
-		 * ```typescript
-		 * const terminalRenderer = window.createTerminalRenderer('test');
-		 * terminalRenderer.onDidAcceptInput(data => {
-		 *   console.log(data); // 'Hello world'
-		 * });
-		 * terminalRenderer.terminal.sendText('Hello world');
-		 * ```
-		 */
-		readonly onDidAcceptInput: Event<string>;
-
-		/**
-		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maximumDimensions) of
-		 * the terminal renderer change.
-		 */
-		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
-	}
-
-	export namespace window {
-		/**
-		 * Create a [TerminalRenderer](#TerminalRenderer).
-		 *
-		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
-		 */
-		export function createTerminalRenderer(name: string): TerminalRenderer;
 	}
 
 	//#endregion
@@ -1286,12 +820,11 @@ declare module 'vscode' {
 	//#region Tree View
 
 	export interface TreeView<T> {
-
 		/**
-		 * An optional human-readable message that will be rendered in the view.
+		 * The tree view title is initially taken from the extension package.json
+		 * Changes to the title property will be properly reflected in the UI in the title of the view.
 		 */
-		message?: string | MarkdownString;
-
+		title?: string;
 	}
 
 	/**
@@ -1326,49 +859,16 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	/**
-	 * Class used to execute an extension callback as a task.
-	 */
-	export class CustomExecution {
-		/**
-		 * @param callback The callback that will be called when the extension callback task is executed.
-		 */
-		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>);
+	//#region CustomExecution
 
-		/**
-		 * The callback used to execute the task.
-		 * @param terminalRenderer Used by the task to render output and receive input.
-		 * @param cancellationToken Cancellation used to signal a cancel request to the executing task.
-		 * @returns The callback should return '0' for success and a non-zero value for failure.
-		 */
-		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>;
-	}
 
 	/**
 	 * A task to execute
 	 */
 	export class Task2 extends Task {
-		/**
-		 * Creates a new task.
-		 *
-		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 * @param execution The process or shell execution.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
-
-		/**
-		 * The task's execution engine
-		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution;
+		detail?: string;
 	}
 
-	//#region Tasks
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
@@ -1377,34 +877,124 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Webview Port mapping— mjbvz
-	/**
-	 * Defines a port mapping used for localhost inside the webview.
-	 */
-	export interface WebviewPortMapping {
-		/**
-		 * Localhost port to remap inside the webview.
-		 */
-		readonly port: number;
+	// #region Ben - status bar item with ID and Name
+
+	export namespace window {
 
 		/**
-		 * Destination port. The `port` is resolved to this port.
+		 * Options to configure the status bar item.
 		 */
-		readonly resolvedPort: number;
+		export interface StatusBarItemOptions {
+
+			/**
+			 * A unique identifier of the status bar item. The identifier
+			 * is for example used to allow a user to show or hide the
+			 * status bar item in the UI.
+			 */
+			id: string;
+
+			/**
+			 * A human readable name of the status bar item. The name is
+			 * for example used as a label in the UI to show or hide the
+			 * status bar item.
+			 */
+			name: string;
+
+			/**
+			 * The alignment of the status bar item.
+			 */
+			alignment?: StatusBarAlignment;
+
+			/**
+			 * The priority of the status bar item. Higher value means the item should
+			 * be shown more to the left.
+			 */
+			priority?: number;
+		}
+
+		/**
+		 * Creates a status bar [item](#StatusBarItem).
+		 *
+		 * @param options The options of the item. If not provided, some default values
+		 * will be assumed. For example, the `StatusBarItemOptions.id` will be the id
+		 * of the extension and the `StatusBarItemOptions.name` will be the extension name.
+		 * @return A new status bar item.
+		 */
+		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
 	}
 
-	export interface WebviewOptions {
-		/**
-		 * Mappings of localhost ports used inside the webview.
-		 *
-		 * Port mapping allow webviews to transparently define how localhost ports are resolved. This can be used
-		 * to allow using a static localhost port inside the webview that is resolved to random port that a service is
-		 * running on.
-		 *
-		 * If a webview accesses localhost content, we recomend that you specify port mappings even if
-		 * the `from` and `to` ports are the same.
-		 */
-		readonly portMapping?: ReadonlyArray<WebviewPortMapping>;
+	//#endregion
+
+	// #region Ben - extension auth flow (desktop+web)
+
+	export interface AppUriOptions {
+		payload?: {
+			path?: string;
+			query?: string;
+			fragment?: string;
+		};
 	}
+
+	export namespace env {
+
+		/**
+		 * Creates a Uri that - if opened in a browser - will result in a
+		 * registered [UriHandler](#UriHandler) to fire. The handler's
+		 * Uri will be configured with the path, query and fragment of
+		 * [AppUriOptions](#AppUriOptions) if provided, otherwise it will be empty.
+		 *
+		 * Extensions should not make any assumptions about the resulting
+		 * Uri and should not alter it in anyway. Rather, extensions can e.g.
+		 * use this Uri in an authentication flow, by adding the Uri as
+		 * callback query argument to the server to authenticate to.
+		 *
+		 * Note: If the server decides to add additional query parameters to the Uri
+		 * (e.g. a token or secret), it will appear in the Uri that is passed
+		 * to the [UriHandler](#UriHandler).
+		 *
+		 * **Example** of an authentication flow:
+		 * ```typescript
+		 * vscode.window.registerUriHandler({
+		 *   handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
+		 *     if (uri.path === '/did-authenticate') {
+		 *       console.log(uri.toString());
+		 *     }
+		 *   }
+		 * });
+		 *
+		 * const callableUri = await vscode.env.createAppUri({ payload: { path: '/did-authenticate' } });
+		 * await vscode.env.openExternal(callableUri);
+		 * ```
+		 */
+		export function createAppUri(options?: AppUriOptions): Thenable<Uri>;
+	}
+
+	//#endregion
+
+	//#region Custom editors, mjbvz
+
+	export interface WebviewEditor extends WebviewPanel {
+	}
+
+	export interface WebviewEditorProvider {
+		/**
+		* Fills out a `WebviewEditor` for a given resource.
+		*
+		* The provider should take ownership of passed in `editor`.
+		*/
+		resolveWebviewEditor(
+			resource: Uri,
+			editor: WebviewEditor
+		): Thenable<void>;
+	}
+
+	namespace window {
+		export function registerWebviewEditorProvider(
+			viewType: string,
+			provider: WebviewEditorProvider,
+			options?: WebviewPanelOptions
+		): Disposable;
+	}
+
 	//#endregion
 }

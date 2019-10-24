@@ -10,7 +10,6 @@ import * as extpath from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { sanitizeFilePath } from 'vs/base/node/extfs';
 
 export function validatePaths(args: ParsedArgs): ParsedArgs {
 
@@ -20,12 +19,14 @@ export function validatePaths(args: ParsedArgs): ParsedArgs {
 		args._ = [];
 	}
 
-	// Normalize paths and watch out for goto line mode
-	const paths = doValidatePaths(args._, args.goto);
+	if (!args['remote']) {
+		// Normalize paths and watch out for goto line mode
+		const paths = doValidatePaths(args._, args.goto);
+		args._ = paths;
+	}
 
 	// Update environment
-	args._ = paths;
-	args.diff = args.diff && paths.length === 2;
+	args.diff = args.diff && args._.length === 2;
 
 	return args;
 }
@@ -45,7 +46,7 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 			pathCandidate = preparePath(cwd, pathCandidate);
 		}
 
-		const sanitizedFilePath = sanitizeFilePath(pathCandidate, cwd);
+		const sanitizedFilePath = extpath.sanitizeFilePath(pathCandidate, cwd);
 
 		const basename = path.basename(sanitizedFilePath);
 		if (basename /* can be empty if code is opened on root */ && !extpath.isValidBasename(basename)) {

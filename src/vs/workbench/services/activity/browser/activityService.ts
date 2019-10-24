@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class ActivityService implements IActivityService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	constructor(
 		@IPanelService private readonly panelService: IPanelService,

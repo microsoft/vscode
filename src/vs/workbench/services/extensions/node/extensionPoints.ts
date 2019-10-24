@@ -5,58 +5,25 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import * as semver from 'semver';
+import * as semver from 'semver-umd';
 import * as json from 'vs/base/common/json';
 import * as arrays from 'vs/base/common/arrays';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
-import { ExtensionIdentifier, ExtensionIdentifierWithVersion, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 
 const MANIFEST_FILE = 'package.json';
-
-export interface Translations {
-	[id: string]: string;
-}
-
-namespace Translations {
-	export function equals(a: Translations, b: Translations): boolean {
-		if (a === b) {
-			return true;
-		}
-		let aKeys = Object.keys(a);
-		let bKeys: Set<string> = new Set<string>();
-		for (let key of Object.keys(b)) {
-			bKeys.add(key);
-		}
-		if (aKeys.length !== bKeys.size) {
-			return false;
-		}
-
-		for (let key of aKeys) {
-			if (a[key] !== b[key]) {
-				return false;
-			}
-			bKeys.delete(key);
-		}
-		return bKeys.size === 0;
-	}
-}
 
 export interface NlsConfiguration {
 	readonly devMode: boolean;
 	readonly locale: string | undefined;
 	readonly pseudo: boolean;
 	readonly translations: Translations;
-}
-
-export interface ILog {
-	error(source: string, message: string): void;
-	warn(source: string, message: string): void;
-	info(source: string, message: string): void;
 }
 
 abstract class ExtensionManifestHandler {
@@ -82,15 +49,18 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 
 	public parse(): Promise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
-			try {
-				const manifest = JSON.parse(manifestContents.toString());
+			const errors: json.ParseError[] = [];
+			const manifest = json.parse(manifestContents.toString(), errors);
+			if (!!manifest && errors.length === 0) {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
 				}
 				delete manifest.__metadata;
 				return manifest;
-			} catch (e) {
-				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, getParseErrorMessage(e.message)));
+			} else {
+				errors.forEach(e => {
+					this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: [{1}, {2}] {3}.", this._absoluteManifestPath, e.offset, e.length, getParseErrorMessage(e.error)));
+				});
 			}
 			return null;
 		}, (err) => {
@@ -251,7 +221,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * This routine makes the following assumptions:
 	 * The root element is an object literal
 	 */
-	private static _replaceNLStrings<T>(nlsConfig: NlsConfiguration, literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string } | null, log: ILog, messageScope: string): void {
+	private static _replaceNLStrings<T extends object>(nlsConfig: NlsConfiguration, literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string } | null, log: ILog, messageScope: string): void {
 		function processEntry(obj: any, key: string | number, command?: boolean) {
 			let value = obj[key];
 			if (types.isString(value)) {
@@ -342,11 +312,6 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		extensionDescription.id = `${extensionDescription.publisher}.${extensionDescription.name}`;
 		extensionDescription.identifier = new ExtensionIdentifier(extensionDescription.id);
 
-		// main := absolutePath(`main`)
-		if (extensionDescription.main) {
-			extensionDescription.main = path.join(this._absoluteFolderPath, extensionDescription.main);
-		}
-
 		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);
 
 		return extensionDescription;
@@ -428,21 +393,13 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 	}
 
 	private static _isStringArray(arr: string[]): boolean {
-		if (!Array.isArray(arr)) {
-			return false;
-		}
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (typeof arr[i] !== 'string') {
-				return false;
-			}
-		}
-		return true;
+		return Array.isArray(arr) && arr.every(value => typeof value === 'string');
 	}
 }
 
 export class ExtensionScannerInput {
 
-	public mtime: number;
+	public mtime: number | undefined;
 
 	constructor(
 		public readonly ourVersion: string,

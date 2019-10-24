@@ -13,8 +13,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { MultilineTokens } from 'vs/editor/common/model/tokensStore';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -27,23 +27,43 @@ export enum OverviewRulerLane {
 }
 
 /**
- * Options for rendering a model decoration in the overview ruler.
+ * Position in the minimap to render the decoration.
  */
-export interface IModelDecorationOverviewRulerOptions {
+export enum MinimapPosition {
+	Inline = 1
+}
+
+export interface IDecorationOptions {
 	/**
-	 * CSS color to render in the overview ruler.
+	 * CSS color to render.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
 	color: string | ThemeColor | undefined;
 	/**
-	 * CSS color to render in the overview ruler.
+	 * CSS color to render.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
 	darkColor?: string | ThemeColor;
+}
+
+/**
+ * Options for rendering a model decoration in the overview ruler.
+ */
+export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions {
 	/**
 	 * The position in the overview ruler.
 	 */
 	position: OverviewRulerLane;
+}
+
+/**
+ * Options for rendering a model decoration in the overview ruler.
+ */
+export interface IModelDecorationMinimapOptions extends IDecorationOptions {
+	/**
+	 * The position in the overview ruler.
+	 */
+	position: MinimapPosition;
 }
 
 /**
@@ -90,6 +110,10 @@ export interface IModelDecorationOptions {
 	 * If set, render this decoration in the overview ruler.
 	 */
 	overviewRuler?: IModelDecorationOverviewRulerOptions | null;
+	/**
+	 * If set, render this decoration in the minimap.
+	 */
+	minimap?: IModelDecorationMinimapOptions | null;
 	/**
 	 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 	 */
@@ -435,8 +459,8 @@ export class FindMatch {
  */
 export interface IFoundBracket {
 	range: Range;
-	open: string;
-	close: string;
+	open: string[];
+	close: string[];
 	isOpen: boolean;
 }
 
@@ -458,6 +482,17 @@ export interface IActiveIndentGuideInfo {
 	startLineNumber: number;
 	endLineNumber: number;
 	indent: number;
+}
+
+/**
+ * Text snapshot that works like an iterator.
+ * Will try to return chunks of roughly ~64KB size.
+ * Will return null when finished.
+ *
+ * @internal
+ */
+export interface ITextSnapshot {
+	read(): string | null;
 }
 
 /**
@@ -572,6 +607,12 @@ export interface ITextModel {
 	 * @return The text length.
 	 */
 	getValueLengthInRange(range: IRange): number;
+
+	/**
+	 * Get the character count of text in a certain range.
+	 * @param range The range describing what text length to get.
+	 */
+	getCharacterCountInRange(range: IRange): number;
 
 	/**
 	 * Splits characters in two buckets. First bucket (A) is of characters that
@@ -746,10 +787,15 @@ export interface ITextModel {
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
 
 	/**
+	 * @internal
+	 */
+	setTokens(tokens: MultilineTokens[]): void;
+
+	/**
 	 * Flush all tokenization state.
 	 * @internal
 	 */
-	flushTokens(): void;
+	resetTokenization(): void;
 
 	/**
 	 * Force tokenization information for `lineNumber` to be accurate.
@@ -840,6 +886,13 @@ export interface ITextModel {
 	 * @internal
 	 */
 	findNextBracket(position: IPosition): IFoundBracket | null;
+
+	/**
+	 * Find the enclosing brackets that contain `position`.
+	 * @param position The position at which to start the search.
+	 * @internal
+	 */
+	findEnclosingBrackets(position: IPosition): [Range, Range] | null;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,
@@ -1083,6 +1136,12 @@ export interface ITextModel {
 	 */
 	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable;
 	/**
+	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+	 * @event
+	 * @internal
+	 */
+	onDidChangeAttached(listener: () => void): IDisposable;
+	/**
 	 * An event emitted right before disposing the model.
 	 * @event
 	 */
@@ -1150,6 +1209,7 @@ export interface ITextBuffer {
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	createSnapshot(preserveBOM: boolean): ITextSnapshot;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getCharacterCountInRange(range: Range, eol: EndOfLinePreference): number;
 	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];

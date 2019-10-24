@@ -27,9 +27,9 @@ However, within this extension, you can run a development version of `vscode-jso
 #### Linking `vscode-json-languageservice` in `json-language-features/server/`
 
 - Clone [Microsoft/vscode-json-languageservice](https://github.com/Microsoft/vscode-json-languageservice)
-- Run `yarn` in `vscode-json-languageservice`
-- Run `yarn link` in `vscode-json-languageservice`. This will compile and link `vscode-json-languageservice`
-- In `json-language-features/server/`, run `npm link vscode-json-languageservice`
+- Run `npm install` in `vscode-json-languageservice`
+- Run `npm link` in `vscode-json-languageservice`. This will compile and link `vscode-json-languageservice`
+- In `json-language-features/server/`, run `yarn link vscode-json-languageservice`
 
 #### Testing the development version of `vscode-json-languageservice`
 

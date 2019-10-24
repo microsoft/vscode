@@ -10,7 +10,7 @@ let fs = require('fs');
 let https = require('https');
 let url = require('url');
 
-// list of languagesIs not shipped with VSCode. The information is used to associate an icon with a langauge association
+// list of languagesIs not shipped with VSCode. The information is used to associate an icon with a language association
 let nonBuiltInLanguages = { // { fileNames, extensions }
 	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
 	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },
@@ -32,10 +32,11 @@ let nonBuiltInLanguages = { // { fileNames, extensions }
 	"haml": { extensions: ['haml'] },
 	"stylus": { extensions: ['styl'] },
 	"vala": { extensions: ['vala'] },
-	"todo": { fileNames: ['todo'] }
+	"todo": { fileNames: ['todo'] },
+	"jsonc": { extensions: ['json'] }
 };
 
-let FROM_DISK = false; // set to true to take content from a repo checkedout next to the vscode repo
+let FROM_DISK = true; // set to true to take content from a repo checked out next to the vscode repo
 
 let font, fontMappingsFile, fileAssociationFile, colorsFile;
 if (!FROM_DISK) {
@@ -109,7 +110,7 @@ function downloadBinary(source, dest) {
 	return new Promise((c, e) => {
 		https.get(source, function (response) {
 			switch (response.statusCode) {
-				case 200:
+				case 200: {
 					let file = fs.createWriteStream(dest);
 					response.on('data', function (chunk) {
 						file.write(chunk);
@@ -121,6 +122,7 @@ function downloadBinary(source, dest) {
 						e(err.message);
 					});
 					break;
+				}
 				case 301:
 				case 302:
 				case 303:
@@ -163,7 +165,7 @@ function darkenColor(color) {
 	for (let i = 1; i < 7; i += 2) {
 		let newVal = Math.round(parseInt('0x' + color.substr(i, 2), 16) * 0.9);
 		let hex = newVal.toString(16);
-		if (hex.length == 1) {
+		if (hex.length === 1) {
 			res += '0';
 		}
 		res += hex;

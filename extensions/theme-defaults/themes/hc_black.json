@@ -4,7 +4,8 @@
 	"include": "./hc_black_defaults.json",
 	"colors": {
 		"selection.background": "#008000",
-		"editor.selectionBackground": "#FFFFFF"
+		"editor.selectionBackground": "#FFFFFF",
+		"statusBarItem.remoteBackground": "#00000000"
 	},
 	"tokenColors": [
 		{
@@ -12,7 +13,8 @@
 			"scope": [
 				"entity.name.function",
 				"support.function",
-				"support.constant.handlebars"
+				"support.constant.handlebars",
+				"source.powershell variable.other.member"
 			],
 			"settings": {
 				"foreground": "#DCDCAA"
@@ -25,6 +27,8 @@
 				"support.class",
 				"support.type",
 				"entity.name.type",
+				"entity.name.namespace",
+				"entity.name.scope-resolution",
 				"entity.name.class",
 				"storage.type.cs",
 				"storage.type.generic.cs",
@@ -64,8 +68,14 @@
 			}
 		},
 		{
-			"name": "Control flow keywords",
-			"scope": "keyword.control",
+			"name": "Control flow / Special keywords",
+			"scope": [
+				"keyword.control",
+				"source.cpp keyword.operator.new",
+				"source.cpp keyword.operator.delete",
+				"keyword.other.using",
+				"keyword.other.operator"
+			],
 			"settings": {
 				"foreground": "#C586C0"
 			}

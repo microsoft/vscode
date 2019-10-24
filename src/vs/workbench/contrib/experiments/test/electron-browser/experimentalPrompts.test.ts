@@ -7,13 +7,13 @@ import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { INotificationService, IPromptChoice, Severity, IPromptOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, IPromptOptions, Severity } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ExperimentalPrompts } from 'vs/workbench/contrib/experiments/electron-browser/experimentalPrompt';
-import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService } from 'vs/workbench/contrib/experiments/node/experimentService';
+import { ExperimentalPrompts } from 'vs/workbench/contrib/experiments/browser/experimentalPrompt';
+import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService, LocalizedPromptText } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 
@@ -37,7 +37,6 @@ suite('Experimental Prompts', () => {
 				commands: [
 					{
 						text: 'Yes',
-						externalLink: 'https://code.visualstudio.com'
 					},
 					{
 						text: 'No'
@@ -186,12 +185,13 @@ suite('Experimental Prompts', () => {
 		};
 
 		assert.equal(ExperimentalPrompts.getLocalizedText(simpleTextCase.promptText, 'any-language'), simpleTextCase.promptText);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en'), multipleLocaleCase.promptText['en']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'de'), multipleLocaleCase.promptText['de']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-au'), multipleLocaleCase.promptText['en-au']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-gb'), multipleLocaleCase.promptText['en']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'fr'), multipleLocaleCase.promptText['en']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(englishUSTextCase.promptText, 'fr'), englishUSTextCase.promptText['en-us']);
+		const multipleLocalePromptText = multipleLocaleCase.promptText as LocalizedPromptText;
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en'), multipleLocalePromptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'de'), multipleLocalePromptText['de']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-au'), multipleLocalePromptText['en-au']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-gb'), multipleLocalePromptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'fr'), multipleLocalePromptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(englishUSTextCase.promptText, 'fr'), (englishUSTextCase.promptText as LocalizedPromptText)['en-us']);
 		assert.equal(!!ExperimentalPrompts.getLocalizedText(noEnglishTextCase.promptText, 'fr'), false);
 	});
 });

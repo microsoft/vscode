@@ -6,7 +6,7 @@
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode } from 'vs/base/browser/dom';
+import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode, isAncestor } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -15,35 +15,57 @@ import { ButtonGroup, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { SimpleCheckbox, ISimpleCheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
 
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
-	type?: 'none' | 'info' | 'error' | 'question' | 'warning';
+	checkboxLabel?: string;
+	checkboxChecked?: boolean;
+	type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
+	keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 }
 
-export interface IDialogStyles extends IButtonStyles {
+export interface IDialogResult {
+	button: number;
+	checkboxChecked?: boolean;
+}
+
+export interface IDialogStyles extends IButtonStyles, ISimpleCheckboxStyles {
 	dialogForeground?: Color;
 	dialogBackground?: Color;
 	dialogShadow?: Color;
 	dialogBorder?: Color;
 }
 
+interface ButtonMapEntry {
+	label: string;
+	index: number;
+}
+
 export class Dialog extends Disposable {
 	private element: HTMLElement | undefined;
 	private modal: HTMLElement | undefined;
 	private buttonsContainer: HTMLElement | undefined;
+	private messageDetailElement: HTMLElement | undefined;
 	private iconElement: HTMLElement | undefined;
+	private checkbox: SimpleCheckbox | undefined;
 	private toolbarContainer: HTMLElement | undefined;
 	private buttonGroup: ButtonGroup | undefined;
 	private styles: IDialogStyles | undefined;
+	private focusToReturn: HTMLElement | undefined;
+	private checkboxHasFocus: boolean = false;
+	private buttons: string[];
 
-	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
+	constructor(private container: HTMLElement, private message: string, buttons: string[], private options: IDialogOptions) {
 		super();
-		this.modal = this.container.appendChild($('.dialog-modal-block'));
+		this.modal = this.container.appendChild($(`.dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
 		this.element = this.modal.appendChild($('.dialog-box'));
 		hide(this.element);
 
+		// If no button is provided, default to OK
+		this.buttons = buttons.length ? buttons : [nls.localize('ok', "OK")];
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
@@ -56,37 +78,58 @@ export class Dialog extends Disposable {
 			messageElement.innerText = this.message;
 		}
 
-		const messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
-		messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
+		this.messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
+		this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
+
+		if (this.options.checkboxLabel) {
+			const checkboxRowElement = messageContainer.appendChild($('.dialog-checkbox-row'));
+
+			this.checkbox = this._register(new SimpleCheckbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
+
+			checkboxRowElement.appendChild(this.checkbox.domNode);
+
+			const checkboxMessageElement = checkboxRowElement.appendChild($('.dialog-checkbox-message'));
+			checkboxMessageElement.innerText = this.options.checkboxLabel;
+		}
 
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
 	}
 
-	async show(): Promise<number> {
-		return new Promise<number>((resolve) => {
-			if (!this.element || !this.buttonsContainer || !this.iconElement || !this.toolbarContainer) {
-				resolve(0);
-				return;
-			}
+	updateMessage(message: string): void {
+		if (this.messageDetailElement) {
+			this.messageDetailElement.innerText = message;
+		}
+	}
 
-			if (this.modal) {
-				this._register(domEvent(this.modal, 'mousedown')(e => {
-					// Used to stop focusing of modal with mouse
-					EventHelper.stop(e, true);
-				}));
+	async show(): Promise<IDialogResult> {
+		this.focusToReturn = document.activeElement as HTMLElement;
+
+		return new Promise<IDialogResult>((resolve) => {
+			if (!this.element || !this.buttonsContainer || !this.iconElement || !this.toolbarContainer) {
+				resolve({ button: 0 });
+				return;
 			}
 
 			clearNode(this.buttonsContainer);
 
 			let focusedButton = 0;
-			this.buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
-			this.buttonGroup.buttons.forEach((button, index) => {
-				button.label = mnemonicButtonLabel(this.buttons[index], true);
+			const buttonGroup = this.buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
+			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
+
+			// Set focused button to UI index
+			buttonMap.forEach((value, index) => {
+				if (value.index === 0) {
+					focusedButton = index;
+				}
+			});
+
+			buttonGroup.buttons.forEach((button, index) => {
+				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 
 				this._register(button.onDidClick(e => {
 					EventHelper.stop(e);
-					resolve(index);
+					resolve({ button: buttonMap[index].index, checkboxChecked: this.checkbox ? this.checkbox.checked : undefined });
 				}));
 			});
 
@@ -96,19 +139,41 @@ export class Dialog extends Disposable {
 					return;
 				}
 
-				if (this.buttonGroup) {
-					if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
-						focusedButton = focusedButton + this.buttonGroup.buttons.length - 1;
-						focusedButton = focusedButton % this.buttonGroup.buttons.length;
-						this.buttonGroup.buttons[focusedButton].focus();
-					} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
-						focusedButton++;
-						focusedButton = focusedButton % this.buttonGroup.buttons.length;
-						this.buttonGroup.buttons[focusedButton].focus();
+				let eventHandled = false;
+				if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
+					if (!this.checkboxHasFocus && focusedButton === 0) {
+						if (this.checkbox) {
+							this.checkbox.domNode.focus();
+						}
+						this.checkboxHasFocus = true;
+					} else {
+						focusedButton = (this.checkboxHasFocus ? 0 : focusedButton) + buttonGroup.buttons.length - 1;
+						focusedButton = focusedButton % buttonGroup.buttons.length;
+						buttonGroup.buttons[focusedButton].focus();
+						this.checkboxHasFocus = false;
 					}
+
+					eventHandled = true;
+				} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
+					if (!this.checkboxHasFocus && focusedButton === buttonGroup.buttons.length - 1) {
+						if (this.checkbox) {
+							this.checkbox.domNode.focus();
+						}
+						this.checkboxHasFocus = true;
+					} else {
+						focusedButton = this.checkboxHasFocus ? 0 : focusedButton + 1;
+						focusedButton = focusedButton % buttonGroup.buttons.length;
+						buttonGroup.buttons[focusedButton].focus();
+						this.checkboxHasFocus = false;
+					}
+					eventHandled = true;
 				}
 
-				EventHelper.stop(e, true);
+				if (eventHandled) {
+					EventHelper.stop(e, true);
+				} else if (this.options.keyEventProcessor) {
+					this.options.keyEventProcessor(evt);
+				}
 			}));
 
 			this._register(domEvent(window, 'keyup', true)((e: KeyboardEvent) => {
@@ -116,7 +181,20 @@ export class Dialog extends Disposable {
 				const evt = new StandardKeyboardEvent(e);
 
 				if (evt.equals(KeyCode.Escape)) {
-					resolve(this.options.cancelId || 0);
+					resolve({ button: this.options.cancelId || 0, checkboxChecked: this.checkbox ? this.checkbox.checked : undefined });
+				}
+			}));
+
+			this._register(domEvent(this.element, 'focusout', false)((e: FocusEvent) => {
+				if (!!e.relatedTarget && !!this.element) {
+					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
+						this.focusToReturn = e.relatedTarget as HTMLElement;
+
+						if (e.target) {
+							(e.target as HTMLElement).focus();
+							EventHelper.stop(e, true);
+						}
+					}
 				}
 			}));
 
@@ -129,6 +207,9 @@ export class Dialog extends Disposable {
 				case 'warning':
 					addClass(this.iconElement, 'icon-warning');
 					break;
+				case 'pending':
+					addClass(this.iconElement, 'icon-pending');
+					break;
 				case 'none':
 				case 'info':
 				case 'question':
@@ -140,7 +221,7 @@ export class Dialog extends Disposable {
 			const actionBar = new ActionBar(this.toolbarContainer, {});
 
 			const action = new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), 'dialog-close-action', true, () => {
-				resolve(this.options.cancelId || 0);
+				resolve({ button: this.options.cancelId || 0, checkboxChecked: this.checkbox ? this.checkbox.checked : undefined });
 				return Promise.resolve();
 			});
 
@@ -148,10 +229,11 @@ export class Dialog extends Disposable {
 
 			this.applyStyles();
 
+			this.element.setAttribute('aria-label', this.message);
 			show(this.element);
 
 			// Focus first element
-			this.buttonGroup.buttons[focusedButton].focus();
+			buttonGroup.buttons[focusedButton].focus();
 		});
 	}
 
@@ -159,10 +241,10 @@ export class Dialog extends Disposable {
 		if (this.styles) {
 			const style = this.styles;
 
-			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : null;
-			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : null;
-			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : null;
-			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : null;
+			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : '';
+			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : '';
+			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
+			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
 
 			if (this.element) {
 				this.element.style.color = fgColor;
@@ -172,6 +254,10 @@ export class Dialog extends Disposable {
 
 				if (this.buttonGroup) {
 					this.buttonGroup.buttons.forEach(button => button.style(style));
+				}
+
+				if (this.checkbox) {
+					this.checkbox.style(style);
 				}
 			}
 		}
@@ -188,5 +274,29 @@ export class Dialog extends Disposable {
 			removeNode(this.modal);
 			this.modal = undefined;
 		}
+
+		if (this.focusToReturn && isAncestor(this.focusToReturn, document.body)) {
+			this.focusToReturn.focus();
+			this.focusToReturn = undefined;
+		}
+	}
+
+	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
+		const buttonMap: ButtonMapEntry[] = [];
+		// Maps each button to its current label and old index so that when we move them around it's not a problem
+		buttons.forEach((button, index) => {
+			buttonMap.push({ label: button, index: index });
+		});
+
+		// macOS/linux: reverse button order
+		if (isMacintosh || isLinux) {
+			if (cancelId !== undefined) {
+				const cancelButton = buttonMap.splice(cancelId, 1)[0];
+				buttonMap.reverse();
+				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
+			}
+		}
+
+		return buttonMap;
 	}
 }

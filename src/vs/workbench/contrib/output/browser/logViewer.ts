@@ -19,7 +19,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { LOG_SCHEME, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class LogViewerInput extends ResourceEditorInput {
 
@@ -28,7 +28,7 @@ export class LogViewerInput extends ResourceEditorInput {
 	constructor(private outputChannelDescriptor: IFileOutputChannelDescriptor,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), textModelResolverService);
+		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), undefined, textModelResolverService);
 	}
 
 	public getTypeId(): string {
@@ -54,9 +54,9 @@ export class LogViewer extends AbstractTextResourceEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
-		@IWindowService windowService: IWindowService
+		@IHostService hostService: IHostService
 	) {
-		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, hostService);
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {

@@ -37,7 +37,8 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	openSideBySideDirection: 'right',
 	closeEmptyGroups: true,
 	labelFormat: 'default',
-	iconTheme: 'vs-seti'
+	iconTheme: 'vs-seti',
+	splitSizing: 'distribute'
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
@@ -74,23 +75,27 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	 * Allows to prevent the opening of an editor by providing a callback
 	 * that will be executed instead. By returning another editor promise
 	 * it is possible to override the opening with another editor. It is ok
-	 * to return a promise that resolves to NULL to prevent the opening
+	 * to return a promise that resolves to `undefined` to prevent the opening
 	 * alltogether.
 	 */
 	prevent(callback: () => undefined | Promise<IEditor | undefined>): void;
 }
 
 export interface IEditorGroupsAccessor {
+
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
 
 	readonly partOptions: IEditorPartOptions;
 	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
 
+	readonly onDidVisibilityChange: Event<boolean>;
+
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
 	getGroups(order: GroupsOrder): IEditorGroupView[];
 
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
+	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
@@ -106,6 +111,9 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly whenRestored: Promise<void>;
 	readonly disposed: boolean;
 
+	readonly isEmpty: boolean;
+	readonly isMinimized: boolean;
+
 	readonly onDidFocus: Event<void>;
 	readonly onWillDispose: Event<void>;
 	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
@@ -113,9 +121,10 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
-	isEmpty(): boolean;
 	setActive(isActive: boolean): void;
-	setLabel(label: string): void;
+
+	notifyIndexChanged(newIndex: number): void;
+
 	relayout(): void;
 }
 

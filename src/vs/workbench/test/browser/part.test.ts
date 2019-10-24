@@ -10,16 +10,15 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { append, $, hide } from 'vs/base/browser/dom';
 import { TestStorageService, TestLayoutService } from 'vs/workbench/test/workbenchTestServices';
 import { StorageScope } from 'vs/platform/storage/common/storage';
-import { Orientation } from 'vs/base/browser/ui/grid/grid';
 
 class SimplePart extends Part {
 
-	minimumWidth: number;
-	maximumWidth: number;
-	minimumHeight: number;
-	maximumHeight: number;
+	minimumWidth: number = 50;
+	maximumWidth: number = 50;
+	minimumHeight: number = 50;
+	maximumHeight: number = 50;
 
-	layout(width: number, height: number, orientation: Orientation): void {
+	layout(width: number, height: number): void {
 		throw new Error('Method not implemented.');
 	}
 

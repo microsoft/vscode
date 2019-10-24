@@ -4,28 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./welcomePage';
+import 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
 import { URI } from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
-import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughInput';
+import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IWindowService, URIType } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
+import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { used } from 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
+import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, EnablementState, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { splitName } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -39,10 +40,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
-import { IRecentlyOpened, isRecentWorkspace, IRecentWorkspace, IRecentFolder, isRecentFolder } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, isRecentWorkspace, IRecentWorkspace, IRecentFolder, isRecentFolder, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { CancellationToken } from 'vs/base/common/cancellation';
-
-used();
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
@@ -69,7 +69,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 					if (openWithReadme) {
 						return Promise.all(contextService.getWorkspace().folders.map(folder => {
 							const folderUri = folder.uri;
-							return fileService.resolveFile(folderUri)
+							return fileService.resolve(folderUri)
 								.then(folder => {
 									const files = folder.children ? folder.children.map(child => child.name) : [];
 
@@ -146,12 +146,11 @@ interface ExtensionSuggestion {
 
 const extensionPacks: ExtensionSuggestion[] = [
 	{ name: localize('welcomePage.javaScript', "JavaScript"), id: 'dbaeumer.vscode-eslint' },
-	{ name: localize('welcomePage.typeScript', "TypeScript"), id: 'ms-vscode.vscode-typescript-tslint-plugin' },
 	{ name: localize('welcomePage.python', "Python"), id: 'ms-python.python' },
 	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
 	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
-	{ name: localize('welcomePage.docker', "Docker"), id: 'peterjausovec.vscode-docker' },
+	{ name: localize('welcomePage.docker', "Docker"), id: 'ms-azuretools.vscode-docker' },
 ];
 
 const keymapExtensions: ExtensionSuggestion[] = [
@@ -245,16 +244,14 @@ const keymapStrings: Strings = {
 
 const welcomeInputTypeId = 'workbench.editors.welcomePageInput';
 
-class WelcomePage {
-
-	private disposables: IDisposable[] = [];
+class WelcomePage extends Disposable {
 
 	readonly editorInput: WalkThroughInput;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -265,11 +262,13 @@ class WelcomePage {
 		@IExtensionTipsService private readonly tipsService: IExtensionTipsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHostService private readonly hostService: IHostService
 	) {
-		this.disposables.push(lifecycleService.onShutdown(() => this.dispose()));
+		super();
+		this._register(lifecycleService.onShutdown(() => this.dispose()));
 
-		const recentlyOpened = this.windowService.getRecentlyOpened();
+		const recentlyOpened = this.workspacesService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
 		const resource = URI.parse(require.toUrl('./vs_code_welcome_page'))
 			.with({
@@ -321,14 +320,14 @@ class WelcomePage {
 				ul.append(...listEntries, moreRecent);
 			};
 			updateEntries();
-			this.disposables.push(this.labelService.onDidChangeFormatters(updateEntries));
+			this._register(this.labelService.onDidChangeFormatters(updateEntries));
 		}).then(undefined, onUnexpectedError);
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
 		this.addExtensionList(container, '.keymapList', keymapExtensions, keymapStrings);
 
 		this.updateInstalledExtensions(container, installedExtensions);
-		this.disposables.push(this.instantiationService.invokeFunction(onExtensionChanged)(ids => {
+		this._register(this.instantiationService.invokeFunction(onExtensionChanged)(ids => {
 			for (const id of ids) {
 				if (container.querySelector(`.installExtension[data-extension="${id.id}"], .enabledExtension[data-extension="${id.id}"]`)) {
 					const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
@@ -342,16 +341,13 @@ class WelcomePage {
 	private createListEntries(recents: (IRecentWorkspace | IRecentFolder)[]) {
 		return recents.map(recent => {
 			let fullPath: string;
-			let resource: URI;
-			let typeHint: URIType | undefined;
+			let windowOpenable: IWindowOpenable;
 			if (isRecentFolder(recent)) {
-				resource = recent.folderUri;
+				windowOpenable = { folderUri: recent.folderUri };
 				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
-				typeHint = 'folder';
 			} else {
 				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
-				resource = recent.workspace.configPath;
-				typeHint = 'file';
+				windowOpenable = { workspaceUri: recent.workspace.configPath };
 			}
 
 			const { name, parentPath } = splitName(fullPath);
@@ -364,17 +360,11 @@ class WelcomePage {
 			a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
 			a.href = 'javascript:void(0)';
 			a.addEventListener('click', e => {
-				/* __GDPR__
-					"workbenchActionExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('workbenchActionExecuted', {
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 					id: 'openRecentFolder',
 					from: telemetryFrom
 				});
-				this.windowService.openWindow([{ uri: resource, typeHint }], { forceNewWindow: e.ctrlKey || e.metaKey });
+				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey });
 				e.preventDefault();
 				e.stopPropagation();
 			});
@@ -467,7 +457,7 @@ class WelcomePage {
 						.then(installed => {
 							const local = installed.filter(i => areSameExtensions(extension.identifier, i.identifier))[0];
 							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement([local], EnablementState.Disabled).then(() => local);
+							return this.extensionEnablementService.setEnablement([local], EnablementState.DisabledGlobally).then(() => local);
 						});
 				});
 
@@ -482,12 +472,12 @@ class WelcomePage {
 							this.notificationService.info(strings.installing.replace('{0}', extensionSuggestion.name));
 						}, 300);
 						const extensionsToDisable = extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled).map(extension => extension.local);
-						extensionsToDisable.length ? this.extensionEnablementService.setEnablement(extensionsToDisable, EnablementState.Disabled) : Promise.resolve()
+						extensionsToDisable.length ? this.extensionEnablementService.setEnablement(extensionsToDisable, EnablementState.DisabledGlobally) : Promise.resolve()
 							.then(() => {
 								return foundAndInstalled.then(foundExtension => {
 									messageDelay.cancel();
 									if (foundExtension) {
-										return this.extensionEnablementService.setEnablement([foundExtension], EnablementState.Enabled)
+										return this.extensionEnablementService.setEnablement([foundExtension], EnablementState.EnabledGlobally)
 											.then(() => {
 												/* __GDPR__FRAGMENT__
 													"WelcomePageInstalled-2" : {
@@ -501,7 +491,7 @@ class WelcomePage {
 													extensionId: extensionSuggestion.id,
 													outcome: installedExtension ? 'enabled' : 'installed',
 												});
-												return this.windowService.reloadWindow();
+												return this.hostService.reload();
 											});
 									} else {
 										/* __GDPR__FRAGMENT__
@@ -595,10 +585,6 @@ class WelcomePage {
 					}
 				});
 		}).then(undefined, onUnexpectedError);
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }
 

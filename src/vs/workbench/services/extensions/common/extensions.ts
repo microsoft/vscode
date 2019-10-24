@@ -10,6 +10,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -82,6 +84,16 @@ export interface IExtensionHostProfile {
 	getAggregatedTimes(): Map<ProfileSegmentId, number>;
 }
 
+export interface IExtensionHostStarter {
+	readonly onExit: Event<[number, string | null]>;
+
+	start(): Promise<IMessagePassingProtocol> | null;
+	getInspectPort(): number | undefined;
+	enableInspectPort(): Promise<boolean>;
+	dispose(): void;
+}
+
+
 /**
  * Extension id or one of the four known program states.
  */
@@ -89,11 +101,10 @@ export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self';
 
 export class ActivationTimes {
 	constructor(
-		public readonly startup: boolean,
 		public readonly codeLoadingTime: number,
 		public readonly activateCallTime: number,
 		public readonly activateResolvedTime: number,
-		public readonly activationEvent: string
+		public readonly activationReason: ExtensionActivationReason
 	) {
 	}
 }
@@ -116,12 +127,11 @@ export interface IWillActivateEvent {
 }
 
 export interface IResponsiveStateChangeEvent {
-	target: ICpuProfilerTarget;
 	isResponsive: boolean;
 }
 
-export interface IExtensionService extends ICpuProfilerTarget {
-	_serviceBrand: any;
+export interface IExtensionService {
+	_serviceBrand: undefined;
 
 	/**
 	 * An event emitted when extensions are registered after their extension points got handled.
@@ -200,9 +210,10 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 
 	/**
-	 * Return the inspect port or 0.
+	 * Return the inspect port or `0`, the latter means inspection
+	 * is not possible.
 	 */
-	getInspectPort(): number;
+	getInspectPort(tryEnableInspector: boolean): Promise<number>;
 
 	/**
 	 * Restarts the extension host.
@@ -210,34 +221,17 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	restartExtensionHost(): void;
 
 	/**
-	 * Starts the extension host.
+	 * Modify the environment of the remote extension host
+	 * @param env New properties for the remote extension host
 	 */
-	startExtensionHost(): void;
-
-	/**
-	 * Stops the extension host.
-	 */
-	stopExtensionHost(): void;
+	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 
 	_logOrShowMessage(severity: Severity, msg: string): void;
-	_activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
+	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
-	_onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
+	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
 	_onExtensionHostExit(code: number): void;
-}
-
-export interface ICpuProfilerTarget {
-
-	/**
-	 * Check if the extension host can be profiled.
-	 */
-	canProfileExtensionHost(): boolean;
-
-	/**
-	 * Begin an extension host process profile session.
-	 */
-	startExtensionHostProfile(): Promise<ProfileSession>;
 }
 
 export interface ProfileSession {
@@ -265,7 +259,7 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 
 
 export class NullExtensionService implements IExtensionService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
 	onDidChangeExtensions: Event<void> = Event.None;
@@ -277,18 +271,15 @@ export class NullExtensionService implements IExtensionService {
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
-	canProfileExtensionHost(): boolean { return false; }
-	getInspectPort(): number { return 0; }
-	startExtensionHostProfile(): Promise<ProfileSession> { return Promise.resolve(Object.create(null)); }
+	getInspectPort(_tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
 	restartExtensionHost(): void { }
-	startExtensionHost(): void { }
-	stopExtensionHost(): void { }
+	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }
 	_logOrShowMessage(_severity: Severity, _msg: string): void { }
-	_activateById(_extensionId: ExtensionIdentifier, _activationEvent: string): Promise<void> { return Promise.resolve(); }
+	_activateById(_extensionId: ExtensionIdentifier, _reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(); }
 	_onWillActivateExtension(_extensionId: ExtensionIdentifier): void { }
-	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _startup: boolean, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationEvent: string): void { }
+	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationReason: ExtensionActivationReason): void { }
 	_onExtensionRuntimeError(_extensionId: ExtensionIdentifier, _err: Error): void { }
 	_onExtensionHostExit(code: number): void { }
 }

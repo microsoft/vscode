@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -96,7 +96,7 @@ class SearchOperation {
 
 class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
-	private readonly _registrations: IDisposable[];
+	private readonly _registrations = new DisposableStore();
 	private readonly _searches = new Map<number, SearchOperation>();
 
 	constructor(
@@ -106,11 +106,11 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostSearchShape
 	) {
-		this._registrations = [searchService.registerSearchResultProvider(this._scheme, type, this)];
+		this._registrations.add(searchService.registerSearchResultProvider(this._scheme, type, this));
 	}
 
 	dispose(): void {
-		dispose(this._registrations);
+		this._registrations.dispose();
 	}
 
 	fileSearch(query: IFileQuery, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
@@ -162,7 +162,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 				});
 			} else {
 				searchOp.addMatch({
-					resource: URI.revive(result)
+					resource: URI.revive(<UriComponents>result)
 				});
 			}
 		});

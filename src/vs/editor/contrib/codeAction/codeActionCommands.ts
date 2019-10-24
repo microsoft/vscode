@@ -3,31 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise } from 'vs/base/common/async';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeAction } from 'vs/editor/common/modes';
+import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionUi } from 'vs/editor/contrib/codeAction/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { CodeActionModel, SUPPORTED_CODE_ACTIONS, CodeActionsState } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
-import { CodeActionContextMenu } from './codeActionWidget';
-import { LightBulbWidget } from './lightBulbWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
+import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -35,9 +37,10 @@ function contextKeyForSupportedActions(kind: CodeActionKind) {
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
 }
 
+
 export class QuickFixController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.quickFixController';
+	public static readonly ID = 'editor.contrib.quickFixController';
 
 	public static get(editor: ICodeEditor): QuickFixController {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);
@@ -45,143 +48,118 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 	private readonly _editor: ICodeEditor;
 	private readonly _model: CodeActionModel;
-	private readonly _codeActionContextMenu: CodeActionContextMenu;
-	private readonly _lightBulbWidget: LightBulbWidget;
-
-	private _activeRequest: CancelablePromise<CodeActionSet> | undefined;
+	private readonly _ui: Lazy<CodeActionUi>;
 
 	constructor(
 		editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IProgressService progressService: IProgressService,
+		@IEditorProgressService progressService: IEditorProgressService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._editor = editor;
-		this._model = new CodeActionModel(this._editor, markerService, contextKeyService, progressService);
-		this._codeActionContextMenu = new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
-		this._lightBulbWidget = this._register(new LightBulbWidget(editor));
+		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
+		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
-		this._updateLightBulbTitle();
-
-		this._register(this._codeActionContextMenu.onDidExecuteCodeAction(_ => this._model.trigger({ type: 'auto', filter: {} })));
-		this._register(this._lightBulbWidget.onClick(this._handleLightBulbSelect, this));
-		this._register(this._model.onDidChangeState(e => this._onDidChangeCodeActionsState(e)));
-		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
-	}
-
-	public dispose(): void {
-		super.dispose();
-		this._model.dispose();
-	}
-
-	private _onDidChangeCodeActionsState(newState: CodeActionsState.State): void {
-		if (this._activeRequest) {
-			this._activeRequest.cancel();
-			this._activeRequest = undefined;
-		}
-
-		if (newState.type === CodeActionsState.Type.Triggered) {
-			this._activeRequest = newState.actions;
-
-			if (newState.trigger.filter && newState.trigger.filter.kind) {
-				// Triggered for specific scope
-				newState.actions.then(fixes => {
-					if (fixes.actions.length > 0) {
-						// Apply if we only have one action or requested autoApply
-						if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.actions.length === 1)) {
-							this._onApplyCodeAction(fixes.actions[0]);
-							return;
+		this._ui = new Lazy(() =>
+			this._register(new CodeActionUi(editor, QuickFixAction.Id, AutoFixAction.Id, {
+				applyCodeAction: async (action, retrigger) => {
+					try {
+						await this._applyCodeAction(action);
+					} finally {
+						if (retrigger) {
+							this._trigger({ type: 'auto', filter: {} });
 						}
 					}
-					this._codeActionContextMenu.show(newState.actions, newState.position);
-
-				}).catch(onUnexpectedError);
-			} else if (newState.trigger.type === 'manual') {
-				this._codeActionContextMenu.show(newState.actions, newState.position);
-			} else {
-				// auto magically triggered
-				// * update an existing list of code actions
-				// * manage light bulb
-				if (this._codeActionContextMenu.isVisible) {
-					this._codeActionContextMenu.show(newState.actions, newState.position);
-				} else {
-					this._lightBulbWidget.tryShow(newState);
 				}
-			}
-		} else {
-			this._lightBulbWidget.hide();
+			}, contextMenuService, keybindingService))
+		);
+	}
+
+	private update(newState: CodeActionsState.State): void {
+		this._ui.getValue().update(newState);
+	}
+
+	public showCodeActions(actions: CodeActionSet, at: IAnchor | IPosition) {
+		return this._ui.getValue().showCodeActionList(actions, at);
+	}
+
+	public manualTriggerAtCurrentPosition(
+		notAvailableMessage: string,
+		filter?: CodeActionFilter,
+		autoApply?: CodeActionAutoApply
+	): void {
+		if (!this._editor.hasModel()) {
+			return;
 		}
+
+		MessageController.get(this._editor).closeMessage();
+		const triggerPosition = this._editor.getPosition();
+		this._trigger({ type: 'manual', filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
 	}
 
-	public getId(): string {
-		return QuickFixController.ID;
+	private _trigger(trigger: CodeActionTrigger) {
+		return this._model.trigger(trigger);
 	}
 
-	private _handleLightBulbSelect(e: { x: number, y: number, state: CodeActionsState.Triggered }): void {
-		this._codeActionContextMenu.show(e.state.actions, e);
-	}
-
-	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Promise<CodeActionSet | undefined> {
-		return this._model.trigger({ type: 'manual', filter, autoApply });
-	}
-
-	private _updateLightBulbTitle(): void {
-		const kb = this._keybindingService.lookupKeybinding(QuickFixAction.Id);
-		let title: string;
-		if (kb) {
-			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", kb.getLabel());
-		} else {
-			title = nls.localize('quickFix', "Show Fixes");
-		}
-		this._lightBulbWidget.title = title;
-	}
-
-	private _onApplyCodeAction(action: CodeAction): Promise<void> {
-		return applyCodeAction(action, this._bulkEditService, this._commandService, this._editor);
+	private _applyCodeAction(action: CodeAction): Promise<void> {
+		return this._instantiationService.invokeFunction(applyCodeAction, action, this._bulkEditService, this._commandService, this._editor);
 	}
 }
 
 export async function applyCodeAction(
+	accessor: ServicesAccessor,
 	action: CodeAction,
 	bulkEditService: IBulkEditService,
 	commandService: ICommandService,
 	editor?: ICodeEditor,
 ): Promise<void> {
+	const notificationService = accessor.get(INotificationService);
 	if (action.edit) {
 		await bulkEditService.apply(action.edit, { editor });
 	}
 	if (action.command) {
-		await commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
+		try {
+			await commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
+		} catch (err) {
+			const message = asMessage(err);
+			notificationService.error(
+				typeof message === 'string'
+					? message
+					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
+
+		}
 	}
 }
 
-function showCodeActionsForEditorSelection(
+function asMessage(err: any): string | undefined {
+	if (typeof err === 'string') {
+		return err;
+	} else if (err instanceof Error && typeof err.message === 'string') {
+		return err.message;
+	} else {
+		return undefined;
+	}
+}
+
+function triggerCodeActionsForEditorSelection(
 	editor: ICodeEditor,
 	notAvailableMessage: string,
-	filter?: CodeActionFilter,
-	autoApply?: CodeActionAutoApply
-) {
-	if (!editor.hasModel()) {
-		return;
-	}
-
-	const controller = QuickFixController.get(editor);
-	if (!controller) {
-		return;
-	}
-
-	const pos = editor.getPosition();
-	controller.triggerFromEditorSelection(filter, autoApply).then(codeActions => {
-		if (!codeActions || !codeActions.actions.length) {
-			MessageController.get(editor).showMessage(notAvailableMessage, pos);
+	filter: CodeActionFilter | undefined,
+	autoApply: CodeActionAutoApply | undefined
+): void {
+	if (editor.hasModel()) {
+		const controller = QuickFixController.get(editor);
+		if (controller) {
+			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply);
 		}
-	});
+	}
 }
 
 export class QuickFixAction extends EditorAction {
@@ -192,7 +170,7 @@ export class QuickFixAction extends EditorAction {
 		super({
 			id: QuickFixAction.Id,
 			label: nls.localize('quickfix.trigger.label', "Quick Fix..."),
-			alias: 'Quick Fix',
+			alias: 'Quick Fix...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -203,7 +181,7 @@ export class QuickFixAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"));
+		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined);
 	}
 }
 
@@ -283,7 +261,7 @@ export class CodeActionCommand extends EditorCommand {
 			kind: CodeActionKind.Empty,
 			apply: CodeActionAutoApply.IfSingle,
 		});
-		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"),
+		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"),
 			{
 				kind: args.kind,
 				includeSourceActions: true,
@@ -302,7 +280,7 @@ export class RefactorAction extends EditorAction {
 		super({
 			id: RefactorAction.Id,
 			label: nls.localize('refactor.label', "Refactor..."),
-			alias: 'Refactor',
+			alias: 'Refactor...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -346,7 +324,7 @@ export class RefactorAction extends EditorAction {
 			kind: CodeActionKind.Refactor,
 			apply: CodeActionAutoApply.Never
 		});
-		return showCodeActionsForEditorSelection(editor,
+		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
 			{
 				kind: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.Empty,
@@ -365,7 +343,7 @@ export class SourceAction extends EditorAction {
 		super({
 			id: SourceAction.Id,
 			label: nls.localize('source.label', "Source Action..."),
-			alias: 'Source Action',
+			alias: 'Source Action...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			menuOpts: {
 				group: '1_modification',
@@ -401,7 +379,7 @@ export class SourceAction extends EditorAction {
 			kind: CodeActionKind.Source,
 			apply: CodeActionAutoApply.Never
 		});
-		return showCodeActionsForEditorSelection(editor,
+		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.source.noneMessage', "No source actions available"),
 			{
 				kind: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.Empty,
@@ -433,7 +411,7 @@ export class OrganizeImportsAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return showCodeActionsForEditorSelection(editor,
+		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.organize.noneMessage', "No organize imports action available"),
 			{ kind: CodeActionKind.SourceOrganizeImports, includeSourceActions: true },
 			CodeActionAutoApply.IfSingle);
@@ -456,7 +434,7 @@ export class FixAllAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return showCodeActionsForEditorSelection(editor,
+		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('fixAll.noneMessage', "No fix all action available"),
 			{ kind: CodeActionKind.SourceFixAll, includeSourceActions: true },
 			CodeActionAutoApply.IfSingle);
@@ -471,7 +449,7 @@ export class AutoFixAction extends EditorAction {
 		super({
 			id: AutoFixAction.Id,
 			label: nls.localize('autoFix.label', "Auto Fix..."),
-			alias: 'Auto Fix',
+			alias: 'Auto Fix...',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.writable,
 				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
@@ -487,7 +465,7 @@ export class AutoFixAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return showCodeActionsForEditorSelection(editor,
+		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.autoFix.noneMessage', "No auto fixes available"),
 			{
 				kind: CodeActionKind.QuickFix,

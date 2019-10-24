@@ -17,8 +17,9 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 		type: 'array',
-		defaultSnippets: [{ body: [{ type: '', extensions: [] }] }],
+		defaultSnippets: [{ body: [{ type: '' }] }],
 		items: {
+			additionalProperties: false,
 			type: 'object',
 			defaultSnippets: [{ body: { type: '', program: '', runtime: '', enableBreakpointsFor: { languageIds: [''] } } }],
 			properties: {
@@ -47,7 +48,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					type: 'array'
 				},
 				variables: {
-					description: nls.localize('vscode.extension.contributes.debuggers.variables', "Mapping from interactive variables (e.g ${action.pickProcess}) in `launch.json` to a command."),
+					description: nls.localize('vscode.extension.contributes.debuggers.variables', "Mapping from interactive variables (e.g. ${action.pickProcess}) in `launch.json` to a command."),
 					type: 'object'
 				},
 				initialConfigurations: {
@@ -118,6 +119,7 @@ export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registe
 		defaultSnippets: [{ body: [{ language: '' }] }],
 		items: {
 			type: 'object',
+			additionalProperties: false,
 			defaultSnippets: [{ body: { language: '' } }],
 			properties: {
 				language: {
@@ -135,6 +137,8 @@ export const launchSchema: IJSONSchema = {
 	id: launchSchemaId,
 	type: 'object',
 	title: nls.localize('app.launch.json.title', "Launch"),
+	allowTrailingCommas: true,
+	allowComments: true,
 	required: [],
 	default: { version: '0.2.0', configurations: [], compounds: [] },
 	properties: {
@@ -186,6 +190,11 @@ export const launchSchema: IJSONSchema = {
 							}]
 						},
 						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
+					},
+					preLaunchTask: {
+						type: 'string',
+						default: '',
+						description: nls.localize('compoundPrelaunchTask', "Task to run before any of the compound configurations start.")
 					}
 				},
 				default: defaultCompound

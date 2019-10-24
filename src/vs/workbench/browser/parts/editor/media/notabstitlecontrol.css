@@ -54,7 +54,7 @@
 	background-image: none;
 }
 
-.monaco-workbench.windows .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before  {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.backslash-path .monaco-breadcrumb-item::before  {
 	content: '\\';
 }
 
@@ -76,11 +76,21 @@
 	padding-right: 4px; /* does not have trailing separator*/
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .codicon[class*='codicon-symbol-'] {
+	padding: 0 1px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .codicon:last-child,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child .codicon:last-child {
+	display: none; /* hides chevrons when no tabs visible and when last items */
+}
+
 /* Title Actions */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions {
 	display: flex;
 	flex: initial;
 	opacity: 0.5;
+	padding-right: 8px;
 	height: 35px;
 }
 

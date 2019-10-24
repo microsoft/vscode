@@ -7,9 +7,8 @@ import { URI } from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
 import { memoize } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { basename } from 'vs/base/common/path';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -20,25 +19,25 @@ import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverServ
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
+export class UntitledEditorInput extends EditorInput implements IEncodingSupport, IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
-	private cachedModel: UntitledEditorModel;
-	private modelResolve?: Promise<UntitledEditorModel & IResolvedTextEditorModel>;
+	private cachedModel: UntitledEditorModel | null = null;
+	private modelResolve: Promise<UntitledEditorModel & IResolvedTextEditorModel> | null = null;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
+	readonly onDidModelChangeContent: Event<void> = this._onDidModelChangeContent.event;
 
 	private readonly _onDidModelChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
-	get onDidModelChangeEncoding(): Event<void> { return this._onDidModelChangeEncoding.event; }
+	readonly onDidModelChangeEncoding: Event<void> = this._onDidModelChangeEncoding.event;
 
 	constructor(
 		private readonly resource: URI,
 		private readonly _hasAssociatedFilePath: boolean,
-		private readonly modeId: string,
-		private readonly initialValue: string,
-		private preferredEncoding: string,
+		private preferredMode: string | undefined,
+		private readonly initialValue: string | undefined,
+		private preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILabelService private readonly labelService: ILabelService
@@ -58,21 +57,13 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.resource;
 	}
 
-	getModeId(): string | null {
-		if (this.cachedModel) {
-			return this.cachedModel.getModeId();
-		}
-
-		return this.modeId;
-	}
-
 	getName(): string {
 		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
 	}
 
 	@memoize
 	private get shortDescription(): string {
-		return basename(this.labelService.getUriLabel(dirname(this.resource)));
+		return this.labelService.getUriBasenameLabel(dirname(this.resource));
 	}
 
 	@memoize
@@ -85,9 +76,9 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.labelService.getUriLabel(dirname(this.resource));
 	}
 
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | null {
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
 		if (!this.hasAssociatedFilePath) {
-			return null;
+			return undefined;
 		}
 
 		switch (verbosity) {
@@ -116,7 +107,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.labelService.getUriLabel(this.resource);
 	}
 
-	getTitle(verbosity: Verbosity): string | null {
+	getTitle(verbosity: Verbosity): string | undefined {
 		if (!this.hasAssociatedFilePath) {
 			return this.getName();
 		}
@@ -130,7 +121,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 				return this.longTitle;
 		}
 
-		return null;
+		return undefined;
 	}
 
 	isDirty(): boolean {
@@ -145,6 +136,14 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 		// untitled files with an associated path or associated resource
 		return this.hasAssociatedFilePath;
+	}
+
+	hasBackup(): boolean {
+		if (this.cachedModel) {
+			return this.cachedModel.hasBackup();
+		}
+
+		return false;
 	}
 
 	confirmSave(): Promise<ConfirmResult> {
@@ -168,9 +167,9 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	suggestFileName(): string {
 		if (!this.hasAssociatedFilePath) {
 			if (this.cachedModel) {
-				const modeId = this.cachedModel.getModeId();
-				if (modeId !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
-					return suggestFilename(modeId, this.getName());
+				const mode = this.cachedModel.getMode();
+				if (mode !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
+					return suggestFilename(mode, this.getName());
 				}
 			}
 		}
@@ -178,7 +177,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.getName();
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		if (this.cachedModel) {
 			return this.cachedModel.getEncoding();
 		}
@@ -192,6 +191,22 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		if (this.cachedModel) {
 			this.cachedModel.setEncoding(encoding);
 		}
+	}
+
+	setMode(mode: string): void {
+		this.preferredMode = mode;
+
+		if (this.cachedModel) {
+			this.cachedModel.setMode(mode);
+		}
+	}
+
+	getMode(): string | undefined {
+		if (this.cachedModel) {
+			return this.cachedModel.getMode();
+		}
+
+		return this.preferredMode;
 	}
 
 	resolve(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
@@ -209,7 +224,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	private createModel(): UntitledEditorModel {
-		const model = this._register(this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
+		const model = this._register(this.instantiationService.createInstance(UntitledEditorModel, this.preferredMode, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
 
 		// re-emit some events from the model
 		this._register(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
@@ -219,23 +234,22 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return model;
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}
 
+		// Otherwise compare by properties
 		if (otherInput instanceof UntitledEditorInput) {
-			const otherUntitledEditorInput = <UntitledEditorInput>otherInput;
-
-			// Otherwise compare by properties
-			return otherUntitledEditorInput.resource.toString() === this.resource.toString();
+			return otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;
 	}
 
 	dispose(): void {
-		this.modelResolve = undefined;
+		this.cachedModel = null;
+		this.modelResolve = null;
 
 		super.dispose();
 	}

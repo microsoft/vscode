@@ -40,3 +40,23 @@
 .hc-black .monaco-custom-checkbox:hover {
 	background: none;
 }
+
+.monaco-custom-checkbox.monaco-simple-checkbox {
+	height: 18px;
+	width: 18px;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	margin-right: 9px;
+	margin-left: 0px;
+	padding: 0px;
+	opacity: 1;
+	background-size: 16px !important;
+}
+
+.monaco-custom-checkbox.monaco-simple-checkbox.checked {
+	background: url('check-light.svg') center center no-repeat;
+}
+
+.monaco-custom-checkbox.monaco-simple-checkbox.checked {
+	background: url('check-dark.svg') center center no-repeat;
+}

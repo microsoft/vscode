@@ -21,8 +21,8 @@ import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTe
 
 class MyEditorModel extends EditorModel { }
 class MyTextEditorModel extends BaseTextEditorModel {
-	public createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string) {
-		return super.createTextEditorModel(value, resource, modeId);
+	public createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
+		return super.createTextEditorModel(value, resource, preferredMode);
 	}
 
 	isReadonly(): boolean {
@@ -40,7 +40,7 @@ suite('Workbench editor model', () => {
 		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
-	test('EditorModel', () => {
+	test('EditorModel', async () => {
 		let counter = 0;
 
 		let m = new MyEditorModel();
@@ -50,25 +50,23 @@ suite('Workbench editor model', () => {
 			counter++;
 		});
 
-		return m.load().then(model => {
-			assert(model === m);
-			assert.strictEqual(m.isResolved(), true);
-			m.dispose();
-			assert.equal(counter, 1);
-		});
+		const model = await m.load();
+		assert(model === m);
+		assert.strictEqual(m.isResolved(), true);
+		m.dispose();
+		assert.equal(counter, 1);
 	});
 
-	test('BaseTextEditorModel', () => {
+	test('BaseTextEditorModel', async () => {
 		let modelService = stubModelService(instantiationService);
 
 		let m = new MyTextEditorModel(modelService, modeService);
-		return m.load().then((model: MyTextEditorModel) => {
-			assert(model === m);
-			model.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
-			assert.strictEqual(m.isResolved(), true);
-		}).then(() => {
-			m.dispose();
-		});
+		const model = await m.load() as MyTextEditorModel;
+
+		assert(model === m);
+		model.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
+		assert.strictEqual(m.isResolved(), true);
+		m.dispose();
 	});
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {

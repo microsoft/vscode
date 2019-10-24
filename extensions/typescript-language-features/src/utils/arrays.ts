@@ -2,20 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
-	if (one.length !== other.length) {
+
+export const empty = Object.freeze([]);
+
+export function equals<T>(
+	a: ReadonlyArray<T>,
+	b: ReadonlyArray<T>,
+	itemEquals: (a: T, b: T) => boolean = (a, b) => a === b
+): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (a.length !== b.length) {
 		return false;
 	}
-
-	for (let i = 0, len = one.length; i < len; i++) {
-		if (!itemEquals(one[i], other[i])) {
-			return false;
-		}
-	}
-
-	return true;
+	return a.every((x, i) => itemEquals(x, b[i]));
 }
 
 export function flatten<T>(arr: ReadonlyArray<T>[]): T[] {
-	return ([] as T[]).concat.apply([], arr);
+	return Array.prototype.concat.apply([], arr);
 }

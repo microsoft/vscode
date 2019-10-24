@@ -8,10 +8,10 @@ import { domEvent, stop } from 'vs/base/browser/event';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
@@ -25,23 +25,26 @@ import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameter
 
 const $ = dom.$;
 
-export class ParameterHintsWidget implements IContentWidget, IDisposable {
+export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
 	private readonly markdownRenderer: MarkdownRenderer;
-	private renderDisposeables: IDisposable[];
-	private model: ParameterHintsModel | null;
+	private readonly renderDisposeables = this._register(new DisposableStore());
+	private readonly model: ParameterHintsModel;
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
-	private element: HTMLElement;
-	private signature: HTMLElement;
-	private docs: HTMLElement;
-	private overloads: HTMLElement;
-	private visible: boolean;
-	private announcedLabel: string | null;
-	private scrollbar: DomScrollableElement;
-	private disposables: IDisposable[];
+
+	private domNodes?: {
+		readonly element: HTMLElement;
+		readonly signature: HTMLElement;
+		readonly docs: HTMLElement;
+		readonly overloads: HTMLElement;
+		readonly scrollbar: DomScrollableElement;
+	};
+
+	private visible: boolean = false;
+	private announcedLabel: string | null = null;
 
 	// Editor.IContentWidget.allowEditorOverflow
 	allowEditorOverflow = true;
@@ -52,14 +55,13 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		@IOpenerService openerService: IOpenerService,
 		@IModeService modeService: IModeService,
 	) {
-		this.markdownRenderer = new MarkdownRenderer(editor, modeService, openerService);
-		this.model = new ParameterHintsModel(editor);
+		super();
+		this.markdownRenderer = this._register(new MarkdownRenderer(editor, modeService, openerService));
+		this.model = this._register(new ParameterHintsModel(editor));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
-		this.visible = false;
-		this.disposables = [];
 
-		this.disposables.push(this.model.onChangedHints(newParameterHints => {
+		this._register(this.model.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
 				this.show();
 				this.render(newParameterHints);
@@ -70,8 +72,8 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	private createParamaterHintDOMNodes() {
-		this.element = $('.editor-widget.parameter-hints-widget');
-		const wrapper = dom.append(this.element, $('.wrapper'));
+		const element = $('.editor-widget.parameter-hints-widget');
+		const wrapper = dom.append(element, $('.wrapper'));
 		wrapper.tabIndex = -1;
 
 		const buttons = dom.append(wrapper, $('.buttons'));
@@ -79,75 +81,88 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		const next = dom.append(buttons, $('.button.next'));
 
 		const onPreviousClick = stop(domEvent(previous, 'click'));
-		onPreviousClick(this.previous, this, this.disposables);
+		this._register(onPreviousClick(this.previous, this));
 
 		const onNextClick = stop(domEvent(next, 'click'));
-		onNextClick(this.next, this, this.disposables);
+		this._register(onNextClick(this.next, this));
 
-		this.overloads = dom.append(wrapper, $('.overloads'));
+		const overloads = dom.append(wrapper, $('.overloads'));
 
 		const body = $('.body');
-		this.scrollbar = new DomScrollableElement(body, {});
-		this.disposables.push(this.scrollbar);
-		wrapper.appendChild(this.scrollbar.getDomNode());
+		const scrollbar = new DomScrollableElement(body, {});
+		this._register(scrollbar);
+		wrapper.appendChild(scrollbar.getDomNode());
 
-		this.signature = dom.append(body, $('.signature'));
+		const signature = dom.append(body, $('.signature'));
+		const docs = dom.append(body, $('.docs'));
 
-		this.docs = dom.append(body, $('.docs'));
+		element.style.userSelect = 'text';
+
+		this.domNodes = {
+			element,
+			signature,
+			overloads,
+			docs,
+			scrollbar,
+		};
 
 		this.editor.addContentWidget(this);
 		this.hide();
 
-		this.element.style.userSelect = 'text';
-		this.disposables.push(this.editor.onDidChangeCursorSelection(e => {
+		this._register(this.editor.onDidChangeCursorSelection(e => {
 			if (this.visible) {
 				this.editor.layoutContentWidget(this);
 			}
 		}));
 
 		const updateFont = () => {
-			const fontInfo = this.editor.getConfiguration().fontInfo;
-			this.element.style.fontSize = `${fontInfo.fontSize}px`;
+			if (!this.domNodes) {
+				return;
+			}
+			const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+			this.domNodes.element.style.fontSize = `${fontInfo.fontSize}px`;
 		};
 
 		updateFont();
 
-		Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
-			.filter(e => e.fontInfo)
-			.on(updateFont, null, this.disposables);
+		this._register(Event.chain<ConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+			.filter(e => e.hasChanged(EditorOption.fontInfo))
+			.on(updateFont, null));
 
-		this.disposables.push(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
+		this._register(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
 		this.updateMaxHeight();
 	}
 
 	private show(): void {
-		if (!this.model || this.visible) {
+		if (this.visible) {
 			return;
 		}
 
-		if (!this.element) {
+		if (!this.domNodes) {
 			this.createParamaterHintDOMNodes();
 		}
 
 		this.keyVisible.set(true);
 		this.visible = true;
-		setTimeout(() => dom.addClass(this.element, 'visible'), 100);
+		setTimeout(() => {
+			if (this.domNodes) {
+				dom.addClass(this.domNodes.element, 'visible');
+			}
+		}, 100);
 		this.editor.layoutContentWidget(this);
 	}
 
 	private hide(): void {
-		if (!this.model || !this.visible) {
+		if (!this.visible) {
 			return;
-		}
-
-		if (!this.element) {
-			this.createParamaterHintDOMNodes();
 		}
 
 		this.keyVisible.reset();
 		this.visible = false;
 		this.announcedLabel = null;
-		dom.removeClass(this.element, 'visible');
+		if (this.domNodes) {
+			dom.removeClass(this.domNodes.element, 'visible');
+		}
 		this.editor.layoutContentWidget(this);
 	}
 
@@ -162,38 +177,39 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	private render(hints: modes.SignatureHelp): void {
+		if (!this.domNodes) {
+			return;
+		}
+
 		const multiple = hints.signatures.length > 1;
-		dom.toggleClass(this.element, 'multiple', multiple);
+		dom.toggleClass(this.domNodes.element, 'multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
 
-		this.signature.innerHTML = '';
-		this.docs.innerHTML = '';
+		this.domNodes.signature.innerHTML = '';
+		this.domNodes.docs.innerHTML = '';
 
 		const signature = hints.signatures[hints.activeSignature];
-
 		if (!signature) {
 			return;
 		}
 
-		const code = dom.append(this.signature, $('.code'));
+		const code = dom.append(this.domNodes.signature, $('.code'));
 		const hasParameters = signature.parameters.length > 0;
 
-		const fontInfo = this.editor.getConfiguration().fontInfo;
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		code.style.fontSize = `${fontInfo.fontSize}px`;
 		code.style.fontFamily = fontInfo.fontFamily;
 
 		if (!hasParameters) {
 			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
-
 		} else {
 			this.renderParameters(code, signature, hints.activeParameter);
 		}
 
-		dispose(this.renderDisposeables);
-		this.renderDisposeables = [];
+		this.renderDisposeables.clear();
 
-		const activeParameter = signature.parameters[hints.activeParameter];
+		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[hints.activeParameter];
 
 		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
@@ -202,31 +218,33 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			} else {
 				const renderedContents = this.markdownRenderer.render(activeParameter.documentation);
 				dom.addClass(renderedContents.element, 'markdown-docs');
-				this.renderDisposeables.push(renderedContents);
+				this.renderDisposeables.add(renderedContents);
 				documentation.appendChild(renderedContents.element);
 			}
-			dom.append(this.docs, $('p', {}, documentation));
+			dom.append(this.domNodes.docs, $('p', {}, documentation));
 		}
-
-		dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
 
 		if (signature.documentation === undefined) { /** no op */ }
 		else if (typeof signature.documentation === 'string') {
-			dom.append(this.docs, $('p', {}, signature.documentation));
+			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
 			const renderedContents = this.markdownRenderer.render(signature.documentation);
 			dom.addClass(renderedContents.element, 'markdown-docs');
-			this.renderDisposeables.push(renderedContents);
-			dom.append(this.docs, renderedContents.element);
+			this.renderDisposeables.add(renderedContents);
+			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
-		let currentOverload = String(hints.activeSignature + 1);
+		const hasDocs = this.hasDocs(signature, activeParameter);
 
+		dom.toggleClass(this.domNodes.signature, 'has-docs', hasDocs);
+		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
+
+		let currentOverload = String(hints.activeSignature + 1);
 		if (hints.signatures.length < 10) {
 			currentOverload += `/${hints.signatures.length}`;
 		}
 
-		this.overloads.textContent = currentOverload;
+		this.domNodes.overloads.textContent = currentOverload;
 
 		if (activeParameter) {
 			const labelToAnnounce = this.getParameterLabel(signature, hints.activeParameter);
@@ -240,11 +258,26 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}
 
 		this.editor.layoutContentWidget(this);
-		this.scrollbar.scanDomNode();
+		this.domNodes.scrollbar.scanDomNode();
+	}
+
+	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {
+		if (activeParameter && typeof (activeParameter.documentation) === 'string' && activeParameter.documentation.length > 0) {
+			return true;
+		}
+		if (activeParameter && typeof (activeParameter.documentation) === 'object' && activeParameter.documentation.value.length > 0) {
+			return true;
+		}
+		if (typeof (signature.documentation) === 'string' && signature.documentation.length > 0) {
+			return true;
+		}
+		if (typeof (signature.documentation) === 'object' && signature.documentation.value.length > 0) {
+			return true;
+		}
+		return false;
 	}
 
 	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
-
 		const [start, end] = this.getParameterLabelOffsets(signature, currentParameter);
 
 		const beforeSpan = document.createElement('span');
@@ -284,27 +317,24 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	next(): void {
-		if (this.model) {
-			this.editor.focus();
-			this.model.next();
-		}
+		this.editor.focus();
+		this.model.next();
 	}
 
 	previous(): void {
-		if (this.model) {
-			this.editor.focus();
-			this.model.previous();
-		}
+		this.editor.focus();
+		this.model.previous();
 	}
 
 	cancel(): void {
-		if (this.model) {
-			this.model.cancel();
-		}
+		this.model.cancel();
 	}
 
 	getDomNode(): HTMLElement {
-		return this.element;
+		if (!this.domNodes) {
+			this.createParamaterHintDOMNodes();
+		}
+		return this.domNodes!.element;
 	}
 
 	getId(): string {
@@ -312,23 +342,19 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	trigger(context: TriggerContext): void {
-		if (this.model) {
-			this.model.trigger(context, 0);
-		}
+		this.model.trigger(context, 0);
 	}
 
 	private updateMaxHeight(): void {
+		if (!this.domNodes) {
+			return;
+		}
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
-		this.element.style.maxHeight = `${height}px`;
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		this.renderDisposeables = dispose(this.renderDisposeables);
-
-		if (this.model) {
-			this.model.dispose();
-			this.model = null;
+		const maxHeight = `${height}px`;
+		this.domNodes.element.style.maxHeight = maxHeight;
+		const wrapper = this.domNodes.element.getElementsByClassName('wrapper') as HTMLCollectionOf<HTMLElement>;
+		if (wrapper.length) {
+			wrapper[0].style.maxHeight = maxHeight;
 		}
 	}
 }

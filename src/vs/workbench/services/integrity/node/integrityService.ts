@@ -10,10 +10,11 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -55,7 +56,7 @@ class IntegrityStorage {
 
 export class IntegrityServiceImpl implements IIntegrityService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _storage: IntegrityStorage;
 	private _isPurePromise: Promise<IntegrityTestResult>;
@@ -63,7 +64,8 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		this._storage = new IntegrityStorage(storageService);
 
@@ -71,64 +73,70 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 		this.isPure().then(r => {
 			if (r.isPure) {
-				// all is good
-				return;
+				return; // all is good
 			}
+
 			this._prompt();
 		});
 	}
 
 	private _prompt(): void {
 		const storedData = this._storage.get();
-		if (storedData && storedData.dontShowPrompt && storedData.commit === product.commit) {
+		if (storedData?.dontShowPrompt && storedData.commit === product.commit) {
 			return; // Do not prompt
 		}
 
-		this.notificationService.prompt(
-			Severity.Warning,
-			nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort),
-			[
-				{
-					label: nls.localize('integrity.moreInformation', "More Information"),
-					run: () => window.open(URI.parse(product.checksumFailMoreInfoUrl).toString(true))
-				},
-				{
-					label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),
-					isSecondary: true,
-					run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
-				}
-			],
-			{ sticky: true }
-		);
+		const checksumFailMoreInfoUrl = product.checksumFailMoreInfoUrl;
+		const message = nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort);
+		if (checksumFailMoreInfoUrl) {
+			this.notificationService.prompt(
+				Severity.Warning,
+				message,
+				[
+					{
+						label: nls.localize('integrity.moreInformation', "More Information"),
+						run: () => this.openerService.open(URI.parse(checksumFailMoreInfoUrl))
+					},
+					{
+						label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),
+						isSecondary: true,
+						run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
+					}
+				],
+				{ sticky: true }
+			);
+		} else {
+			this.notificationService.notify({
+				severity: Severity.Warning,
+				message,
+				sticky: true
+			});
+		}
 	}
 
 	isPure(): Promise<IntegrityTestResult> {
 		return this._isPurePromise;
 	}
 
-	private _isPure(): Promise<IntegrityTestResult> {
+	private async _isPure(): Promise<IntegrityTestResult> {
 		const expectedChecksums = product.checksums || {};
 
-		return this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			let asyncResults: Promise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
-				return this._resolve(filename, expectedChecksums[filename]);
-			});
+		await this.lifecycleService.when(LifecyclePhase.Eventually);
 
-			return Promise.all(asyncResults).then<IntegrityTestResult>((allResults) => {
-				let isPure = true;
-				for (let i = 0, len = allResults.length; i < len; i++) {
-					if (!allResults[i].isPure) {
-						isPure = false;
-						break;
-					}
-				}
+		const allResults = await Promise.all(Object.keys(expectedChecksums).map(filename => this._resolve(filename, expectedChecksums[filename])));
 
-				return {
-					isPure: isPure,
-					proof: allResults
-				};
-			});
-		});
+		let isPure = true;
+		for (let i = 0, len = allResults.length; i < len; i++) {
+			if (!allResults[i].isPure) {
+				isPure = false;
+				break;
+			}
+		}
+
+		return {
+			isPure: isPure,
+			proof: allResults
+		};
 	}
 
 	private _resolve(filename: string, expected: string): Promise<ChecksumPair> {

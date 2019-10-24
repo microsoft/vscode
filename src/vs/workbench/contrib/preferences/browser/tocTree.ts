@@ -17,15 +17,19 @@ import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/set
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { localize } from 'vs/nls';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const $ = DOM.$;
 
 export class TOCTreeModel {
 
-	private _currentSearchModel: SearchResultModel | null;
-	private _settingsTreeRoot: SettingsTreeGroupElement;
+	private _currentSearchModel: SearchResultModel | null = null;
+	private _settingsTreeRoot!: SettingsTreeGroupElement;
 
-	constructor(private _viewState: ISettingsEditorViewState) {
+	constructor(
+		private _viewState: ISettingsEditorViewState,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService
+	) {
 	}
 
 	get settingsTreeRoot(): SettingsTreeGroupElement {
@@ -81,7 +85,8 @@ export class TOCTreeModel {
 			}
 
 			// Check everything that the SettingsFilter checks except whether it's filtered by a category
-			return child.matchesScope(this._viewState.settingsTarget) && child.matchesAllTags(this._viewState.tagFilters);
+			const isRemote = !!this.environmentService.configuration.remoteAuthority;
+			return child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAllTags(this._viewState.tagFilters) && child.matchesAnyExtension(this._viewState.extensionFilters);
 		}).length;
 	}
 }
@@ -110,6 +115,7 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 		const label = element.label;
 
 		template.labelElement.textContent = label;
+		template.labelElement.title = label;
 
 		if (count) {
 			template.countElement.textContent = ` (${count})`;
@@ -136,16 +142,12 @@ export function createTOCIterator(model: TOCTreeModel | SettingsTreeGroupElement
 	const groupChildren = <SettingsTreeGroupElement[]>model.children.filter(c => c instanceof SettingsTreeGroupElement);
 	const groupsIt = Iterator.fromArray(groupChildren);
 
-
 	return Iterator.map(groupsIt, g => {
-		let nodeExists = true;
-		try { tree.getNode(g); } catch (e) { nodeExists = false; }
-
 		const hasGroupChildren = g.children.some(c => c instanceof SettingsTreeGroupElement);
 
 		return {
 			element: g,
-			collapsed: nodeExists ? undefined : true,
+			collapsed: undefined,
 			collapsible: hasGroupChildren,
 			children: g instanceof SettingsTreeGroupElement ?
 				createTOCIterator(g, tree) :
@@ -198,17 +200,18 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 				}
 			},
 			styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass),
-			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider)
+			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
+			collapseByDefault: true
 		};
 
-		super(container,
+		super('SettingsTOC', container,
 			new TOCTreeDelegate(),
 			[new TOCRenderer()],
 			options);
 
 		this.getHTMLElement().classList.add(treeClass);
 
-		this.disposables.push(attachStyler(themeService, {
+		this.disposables.add(attachStyler(themeService, {
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
 			listFocusAndSelectionBackground: editorBackground,

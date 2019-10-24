@@ -7,7 +7,7 @@ import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -50,14 +50,7 @@ export class ResourceMarkers {
 	@memoize
 	get name(): string { return basename(this.resource); }
 
-	@memoize
-	get hash(): string {
-		const hasher = new Hasher();
-		hasher.hash(this.resource.toString());
-		return `${hasher.value}`;
-	}
-
-	constructor(readonly resource: URI, readonly markers: Marker[]) { }
+	constructor(readonly id: string, readonly resource: URI, public markers: Marker[]) { }
 }
 
 export class Marker {
@@ -65,7 +58,7 @@ export class Marker {
 	get resource(): URI { return this.marker.resource; }
 	get range(): IRange { return this.marker; }
 
-	private _lines: string[];
+	private _lines: string[] | undefined;
 	get lines(): string[] {
 		if (!this._lines) {
 			this._lines = this.marker.message.split(/\r\n|\r|\n/g);
@@ -73,12 +66,8 @@ export class Marker {
 		return this._lines;
 	}
 
-	@memoize
-	get hash(): string {
-		return IMarkerData.makeKey(this.marker);
-	}
-
 	constructor(
+		readonly id: string,
 		readonly marker: IMarker,
 		readonly relatedInformation: RelatedInformation[] = []
 	) { }
@@ -94,35 +83,25 @@ export class Marker {
 
 export class RelatedInformation {
 
-	@memoize
-	get hash(): string {
-		const hasher = new Hasher();
-		hasher.hash(this.resource.toString());
-		hasher.hash(this.marker.startLineNumber);
-		hasher.hash(this.marker.startColumn);
-		hasher.hash(this.marker.endLineNumber);
-		hasher.hash(this.marker.endColumn);
-		hasher.hash(this.raw.resource.toString());
-		hasher.hash(this.raw.startLineNumber);
-		hasher.hash(this.raw.startColumn);
-		hasher.hash(this.raw.endLineNumber);
-		hasher.hash(this.raw.endColumn);
-		return `${hasher.value}`;
-	}
-
 	constructor(
-		private resource: URI,
+		readonly id: string,
 		readonly marker: IMarker,
 		readonly raw: IRelatedInformation
 	) { }
+}
+
+export interface MarkerChangesEvent {
+	readonly added: ResourceMarkers[];
+	readonly removed: ResourceMarkers[];
+	readonly updated: ResourceMarkers[];
 }
 
 export class MarkersModel {
 
 	private cachedSortedResources: ResourceMarkers[] | undefined = undefined;
 
-	private readonly _onDidChange = new Emitter<URI>();
-	readonly onDidChange: Event<URI> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<MarkerChangesEvent>();
+	readonly onDidChange: Event<MarkerChangesEvent> = this._onDidChange.event;
 
 	get resourceMarkers(): ResourceMarkers[] {
 		if (!this.cachedSortedResources) {
@@ -142,27 +121,56 @@ export class MarkersModel {
 		return withUndefinedAsNull(this.resourcesByUri.get(resource.toString()));
 	}
 
-	setResourceMarkers(resource: URI, rawMarkers: IMarker[]): void {
-		if (isFalsyOrEmpty(rawMarkers)) {
-			this.resourcesByUri.delete(resource.toString());
-		} else {
-			const markers = rawMarkers.map(rawMarker => {
-				let relatedInformation: RelatedInformation[] | undefined = undefined;
-
-				if (rawMarker.relatedInformation) {
-					relatedInformation = rawMarker.relatedInformation.map(r => new RelatedInformation(resource, rawMarker, r));
+	setResourceMarkers(resourcesMarkers: [URI, IMarker[]][]): void {
+		const change: MarkerChangesEvent = { added: [], removed: [], updated: [] };
+		for (const [resource, rawMarkers] of resourcesMarkers) {
+			let resourceMarkers = this.resourcesByUri.get(resource.toString());
+			if (isFalsyOrEmpty(rawMarkers)) {
+				if (resourceMarkers) {
+					this.resourcesByUri.delete(resource.toString());
+					change.removed.push(resourceMarkers);
 				}
+			} else {
+				const resourceMarkersId = this.id(resource.toString());
+				const markersCountByKey = new Map<string, number>();
+				const markers = mergeSort(rawMarkers.map((rawMarker) => {
+					const key = IMarkerData.makeKey(rawMarker);
+					const index = markersCountByKey.get(key) || 0;
+					markersCountByKey.set(key, index + 1);
 
-				return new Marker(rawMarker, relatedInformation);
-			});
+					const markerId = this.id(resourceMarkersId, key, index);
 
-			markers.sort(compareMarkers);
+					let relatedInformation: RelatedInformation[] | undefined = undefined;
+					if (rawMarker.relatedInformation) {
+						relatedInformation = rawMarker.relatedInformation.map((r, index) => new RelatedInformation(this.id(markerId, r.resource.toString(), r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn, index), rawMarker, r));
+					}
 
-			this.resourcesByUri.set(resource.toString(), new ResourceMarkers(resource, markers));
+					return new Marker(markerId, rawMarker, relatedInformation);
+				}), compareMarkers);
+
+				if (resourceMarkers) {
+					resourceMarkers.markers = markers;
+					change.updated.push(resourceMarkers);
+				} else {
+					resourceMarkers = new ResourceMarkers(resourceMarkersId, resource, markers);
+					change.added.push(resourceMarkers);
+				}
+				this.resourcesByUri.set(resource.toString(), resourceMarkers);
+			}
 		}
 
 		this.cachedSortedResources = undefined;
-		this._onDidChange.fire(resource);
+		if (change.added.length || change.removed.length || change.updated.length) {
+			this._onDidChange.fire(change);
+		}
+	}
+
+	private id(...values: (string | number)[]): string {
+		const hasher = new Hasher();
+		for (const value of values) {
+			hasher.hash(value);
+		}
+		return `${hasher.value}`;
 	}
 
 	dispose(): void {

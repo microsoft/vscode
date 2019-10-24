@@ -15,7 +15,6 @@ import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
 import TypeScriptServiceClient from './typescriptServiceClient';
-import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
@@ -24,11 +23,13 @@ import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
+import { flatten } from './utils/arrays';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
 	6133, 	// variable is declared but never used
 	6138, 	// property is declared but its value is never read
+	6192, 	// All imports are unused
 	7027,	// unreachable code detected
 	7028,	// unused label
 	7029,	// fall through case in switch
@@ -67,7 +68,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this._disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this._disposables);
 
-		const allModeIds = this.getAllModeIds(descriptions);
+		const allModeIds = this.getAllModeIds(descriptions, pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
 			workspaceState,
 			version => this.versionStatus.onDidChangeTypeScriptVersion(version),
@@ -103,10 +104,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		this.client.ensureServiceStarted();
 		this.client.onReady(() => {
-			if (this.client.apiVersion.lt(API.v230)) {
-				return;
-			}
-
 			const languages = new Set<string>();
 			for (const plugin of pluginManager.plugins) {
 				for (const language of plugin.languages) {
@@ -137,11 +134,11 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.configurationChanged();
 	}
 
-	private getAllModeIds(descriptions: LanguageDescription[]) {
-		const allModeIds: string[] = [];
-		for (const description of descriptions) {
-			allModeIds.push(...description.modeIds);
-		}
+	private getAllModeIds(descriptions: LanguageDescription[], pluginManager: PluginManager) {
+		const allModeIds = flatten([
+			...descriptions.map(x => x.modeIds),
+			...pluginManager.plugins.map(x => x.languages)
+		]);
 		return allModeIds;
 	}
 
@@ -223,7 +220,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			}
 
 			language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), body.diagnostics.map(tsDiag => {
-				const diagnostic = new vscode.Diagnostic(typeConverters.Range.fromTextSpan(tsDiag), body.diagnostics[0].text);
+				const range = tsDiag.start && tsDiag.end ? typeConverters.Range.fromTextSpan(tsDiag) : new vscode.Range(0, 0, 0, 1);
+				const diagnostic = new vscode.Diagnostic(range, body.diagnostics[0].text, this.getDiagnosticSeverity(tsDiag));
 				diagnostic.source = language.diagnosticSource;
 				return diagnostic;
 			}));
@@ -240,8 +238,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any } {
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
-		const converted = new vscode.Diagnostic(range, text);
-		converted.severity = this.getDiagnosticSeverity(diagnostic);
+		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));
 		converted.source = diagnostic.source || source;
 		if (diagnostic.code) {
 			converted.code = diagnostic.code;

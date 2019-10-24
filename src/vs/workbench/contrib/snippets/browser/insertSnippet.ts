@@ -14,6 +14,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 interface ISnippetPick extends IQuickPickItem {
 	snippet: Snippet;
@@ -87,6 +88,7 @@ class InsertSnippetAction extends EditorAction {
 			return undefined;
 		}
 
+		const clipboardService = accessor.get(IClipboardService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const { lineNumber, column } = editor.getPosition();
 		let { snippet, name, langId } = Args.fromUser(arg);
@@ -165,10 +167,15 @@ class InsertSnippetAction extends EditorAction {
 				}
 				return quickInputService.pick(picks, { matchOnDetail: true }).then(pick => resolve(pick && pick.snippet), reject);
 			}
-		}).then(snippet => {
-			if (snippet) {
-				SnippetController2.get(editor).insert(snippet.codeSnippet, 0, 0);
+		}).then(async snippet => {
+			if (!snippet) {
+				return;
 			}
+			let clipboardText: string | undefined;
+			if (snippet.needsClipboard) {
+				clipboardText = await clipboardService.readText();
+			}
+			SnippetController2.get(editor).insert(snippet.codeSnippet, { clipboardText });
 		});
 	}
 }

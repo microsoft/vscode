@@ -5,14 +5,14 @@
 
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ITextModelService = createDecorator<ITextModelService>('textModelService');
 
 export interface ITextModelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Provided a resource URI, it will return a model reference
@@ -45,6 +45,12 @@ export interface ITextEditorModel extends IEditorModel {
 	 * Provides access to the underlying `ITextModel`.
 	 */
 	readonly textEditorModel: ITextModel | null;
+
+	/**
+	 * Creates a snapshot of the model's contents.
+	 */
+	createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
+	createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
 
 	isReadonly(): boolean;
 }

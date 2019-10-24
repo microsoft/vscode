@@ -18,6 +18,7 @@ export interface FindReplaceStateChangedEvent {
 	isRegex: boolean;
 	wholeWord: boolean;
 	matchCase: boolean;
+	preserveCase: boolean;
 	searchScope: boolean;
 	matchesPosition: boolean;
 	matchesCount: boolean;
@@ -41,6 +42,8 @@ export interface INewFindReplaceState {
 	wholeWordOverride?: FindOptionOverride;
 	matchCase?: boolean;
 	matchCaseOverride?: FindOptionOverride;
+	preserveCase?: boolean;
+	preserveCaseOverride?: FindOptionOverride;
 	searchScope?: Range | null;
 }
 
@@ -65,11 +68,13 @@ export class FindReplaceState implements IDisposable {
 	private _wholeWordOverride: FindOptionOverride;
 	private _matchCase: boolean;
 	private _matchCaseOverride: FindOptionOverride;
+	private _preserveCase: boolean;
+	private _preserveCaseOverride: FindOptionOverride;
 	private _searchScope: Range | null;
 	private _matchesPosition: number;
 	private _matchesCount: number;
 	private _currentMatch: Range | null;
-	private readonly _onFindReplaceStateChange: Emitter<FindReplaceStateChangedEvent>;
+	private readonly _onFindReplaceStateChange = new Emitter<FindReplaceStateChangedEvent>();
 
 	public get searchString(): string { return this._searchString; }
 	public get replaceString(): string { return this._replaceString; }
@@ -78,16 +83,18 @@ export class FindReplaceState implements IDisposable {
 	public get isRegex(): boolean { return effectiveOptionValue(this._isRegexOverride, this._isRegex); }
 	public get wholeWord(): boolean { return effectiveOptionValue(this._wholeWordOverride, this._wholeWord); }
 	public get matchCase(): boolean { return effectiveOptionValue(this._matchCaseOverride, this._matchCase); }
+	public get preserveCase(): boolean { return effectiveOptionValue(this._preserveCaseOverride, this._preserveCase); }
 
 	public get actualIsRegex(): boolean { return this._isRegex; }
 	public get actualWholeWord(): boolean { return this._wholeWord; }
 	public get actualMatchCase(): boolean { return this._matchCase; }
+	public get actualPreserveCase(): boolean { return this._preserveCase; }
 
 	public get searchScope(): Range | null { return this._searchScope; }
 	public get matchesPosition(): number { return this._matchesPosition; }
 	public get matchesCount(): number { return this._matchesCount; }
 	public get currentMatch(): Range | null { return this._currentMatch; }
-	public get onFindReplaceStateChange(): Event<FindReplaceStateChangedEvent> { return this._onFindReplaceStateChange.event; }
+	public readonly onFindReplaceStateChange: Event<FindReplaceStateChangedEvent> = this._onFindReplaceStateChange.event;
 
 	constructor() {
 		this._searchString = '';
@@ -100,11 +107,12 @@ export class FindReplaceState implements IDisposable {
 		this._wholeWordOverride = FindOptionOverride.NotSet;
 		this._matchCase = false;
 		this._matchCaseOverride = FindOptionOverride.NotSet;
+		this._preserveCase = false;
+		this._preserveCaseOverride = FindOptionOverride.NotSet;
 		this._searchScope = null;
 		this._matchesPosition = 0;
 		this._matchesCount = 0;
 		this._currentMatch = null;
-		this._onFindReplaceStateChange = new Emitter<FindReplaceStateChangedEvent>();
 	}
 
 	public dispose(): void {
@@ -121,6 +129,7 @@ export class FindReplaceState implements IDisposable {
 			isRegex: false,
 			wholeWord: false,
 			matchCase: false,
+			preserveCase: false,
 			searchScope: false,
 			matchesPosition: false,
 			matchesCount: false,
@@ -170,6 +179,7 @@ export class FindReplaceState implements IDisposable {
 			isRegex: false,
 			wholeWord: false,
 			matchCase: false,
+			preserveCase: false,
 			searchScope: false,
 			matchesPosition: false,
 			matchesCount: false,
@@ -180,6 +190,7 @@ export class FindReplaceState implements IDisposable {
 		const oldEffectiveIsRegex = this.isRegex;
 		const oldEffectiveWholeWords = this.wholeWord;
 		const oldEffectiveMatchCase = this.matchCase;
+		const oldEffectivePreserveCase = this.preserveCase;
 
 		if (typeof newState.searchString !== 'undefined') {
 			if (this._searchString !== newState.searchString) {
@@ -218,6 +229,9 @@ export class FindReplaceState implements IDisposable {
 		if (typeof newState.matchCase !== 'undefined') {
 			this._matchCase = newState.matchCase;
 		}
+		if (typeof newState.preserveCase !== 'undefined') {
+			this._preserveCase = newState.preserveCase;
+		}
 		if (typeof newState.searchScope !== 'undefined') {
 			if (!Range.equalsRange(this._searchScope, newState.searchScope)) {
 				this._searchScope = newState.searchScope;
@@ -230,6 +244,7 @@ export class FindReplaceState implements IDisposable {
 		this._isRegexOverride = (typeof newState.isRegexOverride !== 'undefined' ? newState.isRegexOverride : FindOptionOverride.NotSet);
 		this._wholeWordOverride = (typeof newState.wholeWordOverride !== 'undefined' ? newState.wholeWordOverride : FindOptionOverride.NotSet);
 		this._matchCaseOverride = (typeof newState.matchCaseOverride !== 'undefined' ? newState.matchCaseOverride : FindOptionOverride.NotSet);
+		this._preserveCaseOverride = (typeof newState.preserveCaseOverride !== 'undefined' ? newState.preserveCaseOverride : FindOptionOverride.NotSet);
 
 		if (oldEffectiveIsRegex !== this.isRegex) {
 			somethingChanged = true;
@@ -242,6 +257,11 @@ export class FindReplaceState implements IDisposable {
 		if (oldEffectiveMatchCase !== this.matchCase) {
 			somethingChanged = true;
 			changeEvent.matchCase = true;
+		}
+
+		if (oldEffectivePreserveCase !== this.preserveCase) {
+			somethingChanged = true;
+			changeEvent.preserveCase = true;
 		}
 
 		if (somethingChanged) {

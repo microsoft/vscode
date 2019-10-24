@@ -50,7 +50,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 			return commandService.executeCommand('editor.action.formatDocument');
 		} else {
 			const langName = model.getLanguageIdentifier().language;
-			const message = nls.localize('no.rovider', "There is no formatter for '{0}'-files installed.", langName);
+			const message = nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", langName);
 			const choice = {
 				label: nls.localize('install.formatter', "Install Formatter..."),
 				run: () => showExtensionQuery(viewletService, `category:formatters ${langName}`)

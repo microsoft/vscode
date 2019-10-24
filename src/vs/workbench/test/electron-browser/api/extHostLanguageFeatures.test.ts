@@ -7,20 +7,19 @@ import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
 import { Position as EditorPosition, Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
-import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
-import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import * as modes from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
@@ -36,8 +35,7 @@ import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/sug
 import { getDocumentFormattingEditsUntilResult, getDocumentRangeFormattingEditsUntilResult, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/format';
 import { getLinks } from 'vs/editor/contrib/links/getLinks';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
+import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -81,7 +79,6 @@ suite('ExtHostLanguageFeatures', function () {
 		{
 			let instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
-			instantiationService.stub(IHeapService, NullHeapService);
 			inst = instantiationService;
 		}
 
@@ -102,16 +99,14 @@ suite('ExtHostLanguageFeatures', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		const heapService = new ExtHostHeapService();
-
-		const commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		const commands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics, new NullLogService());
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -194,7 +189,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
+		assert.equal(value.lenses.length, 1);
 	});
 
 	test('CodeLens, do not resolve a resolved lens', async () => {
@@ -212,8 +207,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		const data = value[0];
+		assert.equal(value.lenses.length, 1);
+		const [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
 		assert.equal(symbol!.command!.id, 'id');
 		assert.equal(symbol!.command!.title, 'Title');
@@ -229,8 +224,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		let data = value[0];
+		assert.equal(value.lenses.length, 1);
+		let [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
 		assert.equal(symbol!.command!.id, 'missing');
 		assert.equal(symbol!.command!.title, '!!MISSING: command!!');
@@ -1041,16 +1036,19 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentLinkProvider {
 			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
+				const link = new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'));
+				link.tooltip = 'tooltip';
+				return [link];
 			}
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getLinks(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		let [first] = value;
+		let { links } = await getLinks(model, CancellationToken.None);
+		assert.equal(links.length, 1);
+		let [first] = links;
 		assert.equal(first.url, 'foo:bar#3');
 		assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+		assert.equal(first.tooltip, 'tooltip');
 	});
 
 	test('Links, evil provider', async () => {
@@ -1068,9 +1066,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getLinks(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		let [first] = value;
+		let { links } = await getLinks(model, CancellationToken.None);
+		assert.equal(links.length, 1);
+		let [first] = links;
 		assert.equal(first.url, 'foo:bar#3');
 		assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
 	});

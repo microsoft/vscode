@@ -9,7 +9,7 @@ import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/par
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Action } from 'vs/base/common/actions';
@@ -21,6 +21,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -101,7 +102,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
-		const entryToCategory = {};
+		const entryToCategory: IStringDictionary<string> = {};
 		entries.forEach(e => {
 			if (!entryToCategory[e.getLabel()]) {
 				entryToCategory[e.getLabel()] = e.getCategory();
@@ -195,7 +196,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 	private hasToShowViewlet(viewlet: ViewletDescriptor): boolean {
 		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(viewlet.id);
-		if (viewContainer && viewContainer.hideIfEmpty) {
+		if (viewContainer?.hideIfEmpty) {
 			const viewsCollection = this.viewsService.getViewDescriptors(viewContainer);
 			return !!viewsCollection && viewsCollection.activeViewDescriptors.length > 0;
 		}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -17,18 +17,17 @@ import { ITheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/them
 export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
 	private readonly _styleSheet: HTMLStyleElement;
-	private readonly _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
+	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
 	private readonly _themeService: IThemeService;
 
 	constructor(@IThemeService themeService: IThemeService, styleSheet = dom.createStyleSheet()) {
 		super();
 		this._styleSheet = styleSheet;
-		this._decorationOptionProviders = Object.create(null);
 		this._themeService = themeService;
 	}
 
 	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void {
-		let provider = this._decorationOptionProviders[key];
+		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const providerArgs: ProviderArguments = {
 				styleSheet: this._styleSheet,
@@ -41,17 +40,17 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 			} else {
 				provider = new DecorationSubTypeOptionsProvider(this._themeService, providerArgs);
 			}
-			this._decorationOptionProviders[key] = provider;
+			this._decorationOptionProviders.set(key, provider);
 		}
 		provider.refCount++;
 	}
 
 	public removeDecorationType(key: string): void {
-		const provider = this._decorationOptionProviders[key];
+		const provider = this._decorationOptionProviders.get(key);
 		if (provider) {
 			provider.refCount--;
 			if (provider.refCount <= 0) {
-				delete this._decorationOptionProviders[key];
+				this._decorationOptionProviders.delete(key);
 				provider.dispose();
 				this.listCodeEditors().forEach((ed) => ed.removeDecorations(key));
 			}
@@ -59,7 +58,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	}
 
 	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions {
-		const provider = this._decorationOptionProviders[decorationTypeKey];
+		const provider = this._decorationOptionProviders.get(decorationTypeKey);
 		if (!provider) {
 			throw new Error('Unknown decoration type key: ' + decorationTypeKey);
 		}
@@ -124,26 +123,25 @@ interface ProviderArguments {
 
 class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
-	private _disposables: IDisposable[];
+	private readonly _disposables = new DisposableStore();
 	public refCount: number;
 
 	public className: string | undefined;
-	public inlineClassName: string;
-	public inlineClassNameAffectsLetterSpacing: boolean;
+	public inlineClassName: string | undefined;
+	public inlineClassNameAffectsLetterSpacing: boolean | undefined;
 	public beforeContentClassName: string | undefined;
 	public afterContentClassName: string | undefined;
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
-	public overviewRuler: IModelDecorationOverviewRulerOptions;
+	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 
 	constructor(themeService: IThemeService, providerArgs: ProviderArguments) {
 		this.refCount = 0;
-		this._disposables = [];
 
 		const createCSSRules = (type: ModelDecorationCSSRuleType) => {
 			const rules = new DecorationCSSRules(type, providerArgs, themeService);
-			this._disposables.push(rules);
+			this._disposables.add(rules);
 			if (rules.hasContent) {
 				return rules.className;
 			}
@@ -151,7 +149,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		};
 		const createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
 			const rules = new DecorationCSSRules(type, providerArgs, themeService);
-			this._disposables.push(rules);
+			this._disposables.add(rules);
 			if (rules.hasContent) {
 				return { className: rules.className, hasLetterSpacing: rules.hasLetterSpacing };
 			}
@@ -203,7 +201,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	}
 
 	public dispose(): void {
-		this._disposables = disposeAll(this._disposables);
+		this._disposables.dispose();
 	}
 }
 
@@ -231,11 +229,11 @@ const _CSS_MAP: { [prop: string]: string; } = {
 	cursor: 'cursor:{0};',
 	letterSpacing: 'letter-spacing:{0};',
 
-	gutterIconPath: 'background:url(\'{0}\') center center no-repeat;',
+	gutterIconPath: 'background:{0} center center no-repeat;',
 	gutterIconSize: 'background-size:{0};',
 
 	contentText: 'content:\'{0}\';',
-	contentIconPath: 'content:url(\'{0}\');',
+	contentIconPath: 'content:{0};',
 	margin: 'margin:{0};',
 	width: 'width:{0};',
 	height: 'height:{0};'
@@ -401,7 +399,7 @@ class DecorationCSSRules {
 		if (typeof opts !== 'undefined') {
 			this.collectBorderSettingsCSSText(opts, cssTextArr);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.revive(opts.contentIconPath).toString(true).replace(/'/g, '%27')));
+				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, dom.asCSSUrl(URI.revive(opts.contentIconPath))));
 			}
 			if (typeof opts.contentText === 'string') {
 				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
@@ -428,7 +426,7 @@ class DecorationCSSRules {
 		const cssTextArr: string[] = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.revive(opts.gutterIconPath).toString(true).replace(/'/g, '%27')));
+			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, dom.asCSSUrl(URI.revive(opts.gutterIconPath))));
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(_CSS_MAP.gutterIconSize, opts.gutterIconSize));
 			}

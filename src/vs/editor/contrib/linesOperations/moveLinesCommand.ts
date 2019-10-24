@@ -20,7 +20,7 @@ export class MoveLinesCommand implements ICommand {
 	private readonly _isMovingDown: boolean;
 	private readonly _autoIndent: boolean;
 
-	private _selectionId: string;
+	private _selectionId: string | null;
 	private _moveEndPositionDown?: boolean;
 	private _moveEndLineSelectionShrink: boolean;
 
@@ -28,6 +28,7 @@ export class MoveLinesCommand implements ICommand {
 		this._selection = selection;
 		this._isMovingDown = isMovingDown;
 		this._autoIndent = autoIndent;
+		this._selectionId = null;
 		this._moveEndLineSelectionShrink = false;
 	}
 
@@ -36,9 +37,11 @@ export class MoveLinesCommand implements ICommand {
 		let modelLineCount = model.getLineCount();
 
 		if (this._isMovingDown && this._selection.endLineNumber === modelLineCount) {
+			this._selectionId = builder.trackSelection(this._selection);
 			return;
 		}
 		if (!this._isMovingDown && this._selection.startLineNumber === 1) {
+			this._selectionId = builder.trackSelection(this._selection);
 			return;
 		}
 
@@ -328,7 +331,7 @@ export class MoveLinesCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId);
+		let result = helper.getTrackedSelection(this._selectionId!);
 
 		if (this._moveEndPositionDown) {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);

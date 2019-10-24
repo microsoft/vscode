@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import * as extfs from 'vs/base/node/extfs';
+import * as pfs from 'vs/base/node/pfs';
 import { IFileMatch, IProgressMessage, ITextQuery, ITextSearchStats, ITextSearchMatch, ISerializedFileMatch, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
 import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
@@ -30,7 +30,7 @@ export class TextSearchEngineAdapter {
 				onMessage({ message: msg });
 			}
 		};
-		const textSearchManager = new TextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel), extfs);
+		const textSearchManager = new TextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel), pfs);
 		return new Promise((resolve, reject) => {
 			return textSearchManager
 				.search(

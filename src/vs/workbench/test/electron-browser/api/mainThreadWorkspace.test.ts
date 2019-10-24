@@ -39,7 +39,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('foo', undefined, undefined, 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch('foo', null, null, 10, new CancellationTokenSource().token);
 	});
 
 	test('exclude defaults', () => {
@@ -61,7 +61,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', undefined, undefined, 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch('', null, null, 10, new CancellationTokenSource().token);
 	});
 
 	test('disregard excludes', () => {
@@ -82,7 +82,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', undefined, false, 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch('', null, false, 10, new CancellationTokenSource().token);
 	});
 
 	test('exclude string', () => {
@@ -96,6 +96,6 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', undefined, 'exclude/**', 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch('', null, 'exclude/**', 10, new CancellationTokenSource().token);
 	});
 });

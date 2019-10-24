@@ -5,10 +5,11 @@
 
 import { Profile, ProfileNode } from 'v8-inspect-profiler';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { realpathSync } from 'vs/base/node/extfs';
+import { realpathSync } from 'vs/base/node/extpath';
 import { IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { Schemas } from 'vs/base/common/network';
 
 export class ExtensionHostProfiler {
 
@@ -30,7 +31,9 @@ export class ExtensionHostProfiler {
 	private distill(profile: Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
 		let searchTree = TernarySearchTree.forPaths<IExtensionDescription>();
 		for (let extension of extensions) {
-			searchTree.set(realpathSync(extension.extensionLocation.fsPath), extension);
+			if (extension.extensionLocation.scheme === Schemas.file) {
+				searchTree.set(realpathSync(extension.extensionLocation.fsPath), extension);
+			}
 		}
 
 		let nodes = profile.nodes;

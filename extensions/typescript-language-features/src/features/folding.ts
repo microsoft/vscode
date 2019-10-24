@@ -11,6 +11,8 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 
 class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
+	public static readonly minVersion = API.v280;
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
@@ -53,7 +55,7 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 
 		const start = range.start.line;
 		// workaround for #47240
-		const end = (range.end.character > 0 && document.getText(new vscode.Range(range.end.translate(0, -1), range.end)) === '}')
+		const end = (range.end.character > 0 && new Set(['}', ']']).has(document.getText(new vscode.Range(range.end.translate(0, -1), range.end))))
 			? Math.max(range.end.line - 1, range.start.line)
 			: range.end.line;
 
@@ -75,7 +77,7 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ): vscode.Disposable {
-	return new VersionDependentRegistration(client, API.v280, () => {
+	return new VersionDependentRegistration(client, TypeScriptFoldingProvider.minVersion, () => {
 		return vscode.languages.registerFoldingRangeProvider(selector,
 			new TypeScriptFoldingProvider(client));
 	});

@@ -23,7 +23,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return nls.localize('extensionsInputName', "Running Extensions");
 	}
 
-	matches(other: any): boolean {
+	matches(other: unknown): boolean {
 		if (!(other instanceof RuntimeExtensionsInput)) {
 			return false;
 		}

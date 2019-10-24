@@ -21,16 +21,17 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
 export interface IPeekViewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void;
 }
 
 registerSingleton(IPeekViewService, class implements IPeekViewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable }>();
 
@@ -80,17 +81,16 @@ const defaultOptions: IPeekViewOptions = {
 
 export abstract class PeekViewWidget extends ZoneWidget {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
-	private _onDidClose = new Emitter<PeekViewWidget>();
+	private readonly _onDidClose = new Emitter<PeekViewWidget>();
 
-	protected _headElement: HTMLDivElement;
-	protected _headingIcon: HTMLElement;
-	protected _primaryHeading: HTMLElement;
-	protected _secondaryHeading: HTMLElement;
-	protected _metaHeading: HTMLElement;
-	protected _actionbarWidget: ActionBar;
-	protected _bodyElement: HTMLDivElement;
+	protected _headElement?: HTMLDivElement;
+	protected _primaryHeading?: HTMLElement;
+	protected _secondaryHeading?: HTMLElement;
+	protected _metaHeading?: HTMLElement;
+	protected _actionbarWidget?: ActionBar;
+	protected _bodyElement?: HTMLDivElement;
 
 	constructor(editor: ICodeEditor, options: IPeekViewOptions = {}) {
 		super(editor, options);
@@ -140,8 +140,8 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('peekview-widget');
 
-		this._headElement = dom.$('.head');
-		this._bodyElement = dom.$('.body');
+		this._headElement = dom.$<HTMLDivElement>('.head');
+		this._bodyElement = dom.$<HTMLDivElement>('.body');
 
 		this._fillHead(this._headElement);
 		this._fillBody(this._bodyElement);
@@ -152,26 +152,29 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		const titleElement = dom.$('.peekview-title');
-		dom.append(this._headElement, titleElement);
+		dom.append(this._headElement!, titleElement);
 		dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
 
-		this._headingIcon = dom.$('span');
+		this._fillTitleIcon(titleElement);
 		this._primaryHeading = dom.$('span.filename');
 		this._secondaryHeading = dom.$('span.dirname');
 		this._metaHeading = dom.$('span.meta');
-		dom.append(titleElement, this._headingIcon, this._primaryHeading, this._secondaryHeading, this._metaHeading);
+		dom.append(titleElement, this._primaryHeading, this._secondaryHeading, this._metaHeading);
 
 		const actionsContainer = dom.$('.peekview-actions');
-		dom.append(this._headElement, actionsContainer);
+		dom.append(this._headElement!, actionsContainer);
 
 		const actionBarOptions = this._getActionBarOptions();
 		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
-		this._disposables.push(this._actionbarWidget);
+		this._disposables.add(this._actionbarWidget);
 
-		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
+		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'codicon-close', true, () => {
 			this.dispose();
 			return Promise.resolve();
 		}), { label: false, icon: true });
+	}
+
+	protected _fillTitleIcon(container: HTMLElement): void {
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
@@ -182,25 +185,25 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		// implement me
 	}
 
-	public setTitleIcon(iconClassName: string): void {
-		this._headingIcon.className = iconClassName ? `icon ${iconClassName}` : '';
-	}
-
 	public setTitle(primaryHeading: string, secondaryHeading?: string): void {
-		this._primaryHeading.innerHTML = strings.escape(primaryHeading);
-		this._primaryHeading.setAttribute('aria-label', primaryHeading);
-		if (secondaryHeading) {
-			this._secondaryHeading.innerHTML = strings.escape(secondaryHeading);
-		} else {
-			dom.clearNode(this._secondaryHeading);
+		if (this._primaryHeading && this._secondaryHeading) {
+			this._primaryHeading.innerHTML = strings.escape(primaryHeading);
+			this._primaryHeading.setAttribute('aria-label', primaryHeading);
+			if (secondaryHeading) {
+				this._secondaryHeading.innerHTML = strings.escape(secondaryHeading);
+			} else {
+				dom.clearNode(this._secondaryHeading);
+			}
 		}
 	}
 
 	public setMetaTitle(value: string): void {
-		if (value) {
-			this._metaHeading.innerHTML = strings.escape(value);
-		} else {
-			dom.clearNode(this._metaHeading);
+		if (this._metaHeading) {
+			if (value) {
+				this._metaHeading.innerHTML = strings.escape(value);
+			} else {
+				dom.clearNode(this._metaHeading);
+			}
 		}
 	}
 
@@ -214,19 +217,23 @@ export abstract class PeekViewWidget extends ZoneWidget {
 			return;
 		}
 
-		const headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
-		const bodyHeight = heightInPixel - (headHeight + 2 /* the border-top/bottom width*/);
+		const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
+		const bodyHeight = Math.round(heightInPixel - (headHeight + 2 /* the border-top/bottom width*/));
 
 		this._doLayoutHead(headHeight, widthInPixel);
 		this._doLayoutBody(bodyHeight, widthInPixel);
 	}
 
 	protected _doLayoutHead(heightInPixel: number, widthInPixel: number): void {
-		this._headElement.style.height = `${heightInPixel}px`;
-		this._headElement.style.lineHeight = this._headElement.style.height;
+		if (this._headElement) {
+			this._headElement.style.height = `${heightInPixel}px`;
+			this._headElement.style.lineHeight = this._headElement.style.height;
+		}
 	}
 
 	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
-		this._bodyElement.style.height = `${heightInPixel}px`;
+		if (this._bodyElement) {
+			this._bodyElement.style.height = `${heightInPixel}px`;
+		}
 	}
 }

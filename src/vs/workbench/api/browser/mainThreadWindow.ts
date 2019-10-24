@@ -4,38 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
 
 	private readonly proxy: ExtHostWindowShape;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
+	private readonly resolved = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IWindowService private readonly windowService: IWindowService,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IHostService private readonly hostService: IHostService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
-		Event.latch(windowService.onDidChangeFocus)
+		Event.latch(hostService.onDidChangeFocus)
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
+
+		for (const value of this.resolved.values()) {
+			value.dispose();
+		}
+		this.resolved.clear();
 	}
 
 	$getWindowVisibility(): Promise<boolean> {
-		return this.windowService.isFocused();
+		return Promise.resolve(this.hostService.hasFocus);
 	}
 
-	$openUri(uri: UriComponents): Promise<boolean> {
-		return this.windowsService.openExternal(URI.revive(uri).toString(true));
+	async $openUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<boolean> {
+		const uri = URI.from(uriComponents);
+		return this.openerService.open(uri, { openExternal: true, allowTunneling: options.allowTunneling });
+	}
+
+	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
+		const uri = URI.revive(uriComponents);
+		const result = await this.openerService.resolveExternalUri(uri, options);
+		return result.resolved;
 	}
 }

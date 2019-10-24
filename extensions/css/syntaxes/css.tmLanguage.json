@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/octref/language-css/commit/6d3a2d01dd67ef062030f4520dd42a5424330a3b",
+	"version": "https://github.com/octref/language-css/commit/377734aad976be88a425aab5667784f3f71ea7e5",
 	"name": "CSS",
 	"scopeName": "source.css",
 	"patterns": [
@@ -606,8 +606,32 @@
 					]
 				},
 				{
-					"begin": "(?i)(?=@[\\w-]+(\\s|\\(|{|;|/\\*|$))",
-					"end": "(?<=}|;)(?!\\G)",
+					"begin": "(?i)(?=@[\\w-]+[^;]+;s*$)",
+					"end": "(?<=;)(?!\\G)",
+					"patterns": [
+						{
+							"begin": "(?i)\\G(@)[\\w-]+",
+							"beginCaptures": {
+								"0": {
+									"name": "keyword.control.at-rule.css"
+								},
+								"1": {
+									"name": "punctuation.definition.keyword.css"
+								}
+							},
+							"end": ";",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.terminator.rule.css"
+								}
+							},
+							"name": "meta.at-rule.header.css"
+						}
+					]
+				},
+				{
+					"begin": "(?i)(?=@[\\w-]+(\\s|\\(|{|/\\*|$))",
+					"end": "(?<=})(?!\\G)",
 					"patterns": [
 						{
 							"begin": "(?i)\\G(@)[\\w-]+",

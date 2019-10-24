@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./panelview';
-import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, addClass, removeClass, toggleClass, trackFocus, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { $, append, addClass, removeClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
@@ -37,13 +37,13 @@ export interface IPanelStyles {
  * Subclasses wouldn't be able to set own properties
  * before the `render()` call, thus forbiding their use.
  */
-export abstract class Panel implements IView {
+export abstract class Panel extends Disposable implements IView {
 
 	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
-	private header: HTMLElement;
-	private body: HTMLElement;
+	private header!: HTMLElement;
+	private body!: HTMLElement;
 
 	protected _expanded: boolean;
 
@@ -55,10 +55,11 @@ export abstract class Panel implements IView {
 	private styles: IPanelStyles = {};
 	private animationTimer: number | undefined = undefined;
 
-	private _onDidChange = new Emitter<number | undefined>();
+	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
-	protected disposables: IDisposable[] = [];
+	private readonly _onDidChangeExpansionState = this._register(new Emitter<boolean>());
+	readonly onDidChangeExpansionState: Event<boolean> = this._onDidChangeExpansionState.event;
 
 	get draggableElement(): HTMLElement {
 		return this.header;
@@ -111,9 +112,10 @@ export abstract class Panel implements IView {
 		return headerSize + maximumBodySize;
 	}
 
-	width: number;
+	width: number = 0;
 
 	constructor(options: IPanelOptions = {}) {
+		super();
 		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 120;
@@ -145,6 +147,7 @@ export abstract class Panel implements IView {
 			}, 200);
 		}
 
+		this._onDidChangeExpansionState.fire(expanded);
 		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
 		return true;
 	}
@@ -172,26 +175,26 @@ export abstract class Panel implements IView {
 		this.renderHeader(this.header);
 
 		const focusTracker = trackFocus(this.header);
-		this.disposables.push(focusTracker);
-		focusTracker.onDidFocus(() => addClass(this.header, 'focused'), null, this.disposables);
-		focusTracker.onDidBlur(() => removeClass(this.header, 'focused'), null, this.disposables);
+		this._register(focusTracker);
+		this._register(focusTracker.onDidFocus(() => addClass(this.header, 'focused'), null));
+		this._register(focusTracker.onDidBlur(() => removeClass(this.header, 'focused'), null));
 
 		this.updateHeader();
 
 		const onHeaderKeyDown = Event.chain(domEvent(this.header, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e));
 
-		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
-			.event(() => this.setExpanded(!this.isExpanded()), null, this.disposables);
+		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
+			.event(() => this.setExpanded(!this.isExpanded()), null));
 
-		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
-			.event(() => this.setExpanded(false), null, this.disposables);
+		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
+			.event(() => this.setExpanded(false), null));
 
-		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
-			.event(() => this.setExpanded(true), null, this.disposables);
+		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
+			.event(() => this.setExpanded(true), null));
 
-		domEvent(this.header, 'click')
-			(() => this.setExpanded(!this.isExpanded()), null, this.disposables);
+		this._register(domEvent(this.header, 'click')
+			(() => this.setExpanded(!this.isExpanded()), null));
 
 		this.body = append(this.element, $('.panel-body'));
 		this.renderBody(this.body);
@@ -226,20 +229,14 @@ export abstract class Panel implements IView {
 		this.header.setAttribute('aria-expanded', String(expanded));
 
 		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : null;
-		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : null;
-		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : null;
+		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : '';
+		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : '';
 		this._dropBackground = this.styles.dropBackground;
 	}
 
 	protected abstract renderHeader(container: HTMLElement): void;
 	protected abstract renderBody(container: HTMLElement): void;
 	protected abstract layoutBody(height: number, width: number): void;
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-
-		this._onDidChange.dispose();
-	}
 }
 
 interface IDndContext {
@@ -343,7 +340,7 @@ class PanelDraggable extends Disposable {
 			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
 		}
 
-		this.panel.dropTargetElement.style.backgroundColor = backgroundColor;
+		this.panel.dropTargetElement.style.backgroundColor = backgroundColor || '';
 	}
 }
 
@@ -378,7 +375,7 @@ export class PanelView extends Disposable {
 	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];
-	private width: number;
+	private width: number = 0;
 	private splitview: SplitView;
 	private animationTimer: number | undefined = undefined;
 
@@ -397,24 +394,18 @@ export class PanelView extends Disposable {
 	}
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
+		panel.onDidChangeExpansionState(this.setupAnimation, this, disposables);
 
-		// https://github.com/Microsoft/vscode/issues/59950
-		let shouldAnimate = false;
-		disposables.push(scheduleAtNextAnimationFrame(() => shouldAnimate = true));
-
-		Event.filter(panel.onDidChange, () => shouldAnimate)
-			(this.setupAnimation, this, disposables);
-
-		const panelItem = { panel, disposable: combinedDisposable(disposables) };
+		const panelItem = { panel, disposable: disposables };
 		this.panelItems.splice(index, 0, panelItem);
 		panel.width = this.width;
 		this.splitview.addView(panel, size, index);
 
 		if (this.dnd) {
 			const draggable = new PanelDraggable(panel, this.dnd, this.dndContext);
-			disposables.push(draggable);
-			draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop, disposables);
+			disposables.add(draggable);
+			disposables.add(draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop));
 		}
 	}
 

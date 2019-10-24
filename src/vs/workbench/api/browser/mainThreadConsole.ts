@@ -6,11 +6,11 @@
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainContext, MainThreadConsoleShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
+import { IRemoteConsoleLog, log } from 'vs/base/common/console';
+import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
-import { EXTENSION_LOG_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 
 @extHostNamedCustomer(MainContext.MainThreadConsole)
 export class MainThreadConsole implements MainThreadConsoleShape {
@@ -21,8 +21,8 @@ export class MainThreadConsole implements MainThreadConsoleShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWindowsService private readonly _windowsService: IWindowsService,
-		@IBroadcastService private readonly _broadcastService: IBroadcastService,
+		@ILogService private readonly _logService: ILogService,
+		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -41,18 +41,12 @@ export class MainThreadConsole implements MainThreadConsoleShape {
 
 		// Log on main side if running tests from cli
 		if (this._isExtensionDevTestFromCli) {
-			this._windowsService.log(entry.severity, ...parse(entry).args);
+			logRemoteEntry(this._logService, entry);
 		}
 
 		// Broadcast to other windows if we are in development mode
-		else if (!this._environmentService.isBuilt || this._isExtensionDevHost) {
-			this._broadcastService.broadcast({
-				channel: EXTENSION_LOG_BROADCAST_CHANNEL,
-				payload: {
-					logEntry: entry,
-					debugId: this._environmentService.debugExtensionHost.debugId
-				}
-			});
+		else if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
+			this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
 		}
 	}
 }

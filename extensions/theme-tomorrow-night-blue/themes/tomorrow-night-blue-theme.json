@@ -14,6 +14,7 @@
 		"editor.background": "#002451",
 		"editor.foreground": "#ffffff",
 		"editor.selectionBackground": "#003f8e",
+		"minimap.selectionHighlight": "#003f8e",
         "editor.lineHighlightBackground": "#00346e",
         "editorLineNumber.activeForeground": "#949494",
 		"editorCursor.foreground": "#ffffff",
@@ -30,6 +31,7 @@
 		"debugToolBar.background": "#001c40",
 		"titleBar.activeBackground": "#001126",
 		"statusBar.background": "#001126",
+		"statusBarItem.remoteBackground": "#0e639c",
 		"statusBar.noFolderBackground": "#001126",
 		"statusBar.debuggingBackground": "#001126",
 		"activityBar.background": "#001733",
@@ -100,7 +102,7 @@
 		},
 		{
 			"name": "Class, Support",
-			"scope": "entity.name.class, entity.name.type, support.type, support.class",
+			"scope": "entity.name.class, entity.name.type, entity.name.namespace, entity.name.scope-resolution, support.type, support.class",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#FFEEAD"
