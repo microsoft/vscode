@@ -77,7 +77,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	ExplorerViewlet,
 	VIEWLET_ID,
 	nls.localize('explore', "Explorer"),
-	'explore',
+	'codicon-files',
 	0
 ));
 

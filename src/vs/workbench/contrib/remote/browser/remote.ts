@@ -461,7 +461,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	RemoteViewlet,
 	VIEWLET_ID,
 	nls.localize('remote.explorer', "Remote Explorer"),
-	'remote',
+	'codicon-remote-explorer',
 	4
 ));
 

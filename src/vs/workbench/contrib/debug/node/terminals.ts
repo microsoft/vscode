@@ -90,8 +90,6 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 		shellType = ShellType.cmd;
 	} else if (shell.indexOf('bash') >= 0) {
 		shellType = ShellType.bash;
-	} else if (shell.indexOf('git\\bin\\bash.exe') >= 0) {
-		shellType = ShellType.bash;
 	}
 
 	let quote: (s: string) => string;

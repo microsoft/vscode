@@ -85,6 +85,11 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			environment.set('extensionDevelopmentPath', extensionDevelopmentPath);
 		}
 
+		const extensionTestsPath = this.findArgument('extensionTestsPath', args);
+		if (extensionTestsPath) {
+			environment.set('extensionTestsPath', extensionTestsPath);
+		}
+
 		const debugId = this.findArgument('debugId', args);
 		if (debugId) {
 			environment.set('debugId', debugId);
@@ -140,6 +145,11 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		const ep = findArgument('extensionDevelopmentPath');
 		if (ep) {
 			addQueryParameter('extensionDevelopmentPath', ep);
+		}
+
+		const etp = findArgument('extensionTestsPath');
+		if (etp) {
+			addQueryParameter('extensionTestsPath', etp);
 		}
 
 		const di = findArgument('debugId');

@@ -566,16 +566,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment) {
-			if (!this.environmentService.args['extension-development-confirm-save']) {
-				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
-			}
-		}
-
 		const resourcesToConfirm = this.getDirty(resources);
 		if (resourcesToConfirm.length === 0) {
 			return ConfirmResult.DONT_SAVE;
 		}
+
 		return promptSave(this.dialogService, resourcesToConfirm);
 	}
 

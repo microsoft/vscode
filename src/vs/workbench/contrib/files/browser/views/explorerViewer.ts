@@ -35,7 +35,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IDialogService, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -47,6 +47,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Emitter } from 'vs/base/common/event';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -427,6 +428,13 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 	}
 }
 
+const fileOverwriteConfirm: IConfirmation = {
+	message: localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
+	detail: localize('irreversible', "This action is irreversible!"),
+	primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+	type: 'warning'
+};
+
 export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
@@ -605,6 +613,32 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+		if (isWeb) {
+			data.files.forEach(file => {
+				const reader = new FileReader();
+				reader.readAsArrayBuffer(file);
+				reader.onload = async (event) => {
+					const name = file.name;
+					if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
+						if (target.getChild(name)) {
+							const { confirmed } = await this.dialogService.confirm(fileOverwriteConfirm);
+							if (!confirmed) {
+								return;
+							}
+						}
+
+						const resource = joinPath(target.resource, name);
+						await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target?.result)));
+						if (data.files.length === 1) {
+							await this.editorService.openEditor({ resource, options: { pinned: true } });
+						}
+					}
+				};
+			});
+
+			return;
+		}
+
 		const droppedResources = extractResources(originalEvent, true);
 		// Check for dropped external files to be folders
 		const result = await this.fileService.resolveAll(droppedResources);
@@ -644,11 +678,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		else if (target instanceof ExplorerItem) {
 			return this.addResources(target, droppedResources.map(res => res.resource));
 		}
-
-		return undefined;
 	}
 
-	private async addResources(target: ExplorerItem, resources: URI[]): Promise<any> {
+	private async addResources(target: ExplorerItem, resources: URI[]): Promise<void> {
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
@@ -665,16 +697,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			const resourceExists = resources.some(resource => targetNames.has(!hasToIgnoreCase(resource) ? basename(resource) : basename(resource).toLowerCase()));
 			if (resourceExists) {
-				const confirm: IConfirmation = {
-					message: localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
-					detail: localize('irreversible', "This action is irreversible!"),
-					primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-					type: 'warning'
-				};
-
-				const confirmationResult = await this.dialogService.confirm(confirm);
+				const confirmationResult = await this.dialogService.confirm(fileOverwriteConfirm);
 				if (!confirmationResult.confirmed) {
-					return [];
+					return;
 				}
 			}
 

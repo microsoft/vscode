@@ -392,14 +392,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public async openTsServerLogFile(): Promise<boolean> {
-		if (this.apiVersion.lt(API.v222)) {
-			vscode.window.showErrorMessage(
-				localize(
-					'typescript.openTsServerLog.notSupported',
-					'TS Server logging requires TS 2.2.2+'));
-			return false;
-		}
-
 		if (this._configuration.tsServerLogLevel === TsServerLogLevel.Off) {
 			vscode.window.showErrorMessage<vscode.MessageItem>(
 				localize(

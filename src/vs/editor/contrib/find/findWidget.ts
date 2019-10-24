@@ -290,12 +290,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
 		if (e.searchString) {
-			if (this._state.searchString.indexOf('\n') >= 0) {
-				dom.addClass(this._domNode, 'multipleline');
-			} else {
-				dom.removeClass(this._domNode, 'multipleline');
-			}
-
 			try {
 				this._ignoreChangeEvent = true;
 				this._findInput.setValue(this._state.searchString);

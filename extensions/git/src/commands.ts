@@ -213,6 +213,12 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 	return [...heads, ...tags, ...remoteHeads];
 }
 
+class TagItem implements QuickPickItem {
+	get label(): string { return this.ref.name ?? ''; }
+	get description(): string { return this.ref.commit?.substr(0, 8) ?? ''; }
+	constructor(readonly ref: Ref) { }
+}
+
 enum PushType {
 	Push,
 	PushTo,
@@ -1703,6 +1709,26 @@ export class CommandCenter {
 		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
 		const message = inputMessage || name;
 		await repository.tag(name, message);
+	}
+
+	@command('git.deleteTag', { repository: true })
+	async deleteTag(repository: Repository): Promise<void> {
+		const picks = repository.refs.filter(ref => ref.type === RefType.Tag)
+			.map(ref => new TagItem(ref));
+
+		if (picks.length === 0) {
+			window.showWarningMessage(localize('no tags', "This repository has no tags."));
+			return;
+		}
+
+		const placeHolder = localize('select a tag to delete', 'Select a tag to delete');
+		const choice = await window.showQuickPick(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await repository.deleteTag(choice.label);
 	}
 
 	@command('git.fetch', { repository: true })

@@ -72,6 +72,17 @@ suite('RipgrepTextSearchEngine', () => {
 	suite('RipgrepParser', () => {
 		const TEST_FOLDER = URI.file('/foo/bar');
 
+		function joinPathExt(uri: URI, path: string): URI {
+			const result = joinPath(uri, path);
+			result.toString();
+			//     ^^^^^^^^
+			// doing this to init the URI._formatted-field because this
+			// test compares the output of URI.toJSON and because
+			// calling URI.file (called by RipgrepParser) will also
+			// initialize URI._formatted
+			return result;
+		}
+
 		function testParser(inputData: string[], expectedResults: TextSearchResult[]): void {
 			const testParser = new RipgrepParser(1000, TEST_FOLDER.fsPath);
 
@@ -119,7 +130,7 @@ suite('RipgrepTextSearchEngine', () => {
 							text: 'foobar',
 							matches: [new Range(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
+						uri: joinPathExt(TEST_FOLDER, 'file1.js'),
 						ranges: [new Range(3, 3, 3, 6)]
 					}
 				]);
@@ -138,7 +149,7 @@ suite('RipgrepTextSearchEngine', () => {
 							text: 'foobar',
 							matches: [new Range(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
+						uri: joinPathExt(TEST_FOLDER, 'file1.js'),
 						ranges: [new Range(3, 3, 3, 6)]
 					},
 					{
@@ -146,7 +157,7 @@ suite('RipgrepTextSearchEngine', () => {
 							text: 'foobar',
 							matches: [new Range(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'app/file2.js'),
+						uri: joinPathExt(TEST_FOLDER, 'app/file2.js'),
 						ranges: [new Range(3, 3, 3, 6)]
 					},
 					{
@@ -154,7 +165,7 @@ suite('RipgrepTextSearchEngine', () => {
 							text: 'foobar',
 							matches: [new Range(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'app2/file3.js'),
+						uri: joinPathExt(TEST_FOLDER, 'app2/file3.js'),
 						ranges: [new Range(3, 3, 3, 6)]
 					}
 				]);
@@ -183,7 +194,7 @@ suite('RipgrepTextSearchEngine', () => {
 							text: 'foo bar',
 							matches: [new Range(0, 3, 0, 7)]
 						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
+						uri: joinPathExt(TEST_FOLDER, 'file1.js'),
 						ranges: [new Range(3, 3, 3, 7)]
 					},
 					{
@@ -191,7 +202,7 @@ suite('RipgrepTextSearchEngine', () => {
 							text: 'foobar',
 							matches: [new Range(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'app/file2.js'),
+						uri: joinPathExt(TEST_FOLDER, 'app/file2.js'),
 						ranges: [new Range(3, 3, 3, 6)]
 					},
 					{
@@ -199,7 +210,7 @@ suite('RipgrepTextSearchEngine', () => {
 							text: 'foobar',
 							matches: [new Range(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'app2/file3.js'),
+						uri: joinPathExt(TEST_FOLDER, 'app2/file3.js'),
 						ranges: [new Range(3, 3, 3, 6)]
 					}
 				]);

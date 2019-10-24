@@ -367,6 +367,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('task.quickOpen.detail', "Controls whether to show the task detail for task that have a detail in the Run Task quick pick."),
 			type: 'boolean',
 			default: true
+		},
+		'task.quickOpen.skip': {
+			type: 'boolean',
+			description: nls.localize('task.quickOpen.skip', "Controls whether the task quick pick is skipped when there is only one task to pick from."),
+			default: false
 		}
 	}
 });

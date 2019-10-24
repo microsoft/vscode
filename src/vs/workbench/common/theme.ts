@@ -589,6 +589,18 @@ export const NOTIFICATIONS_INFO_ICON_FOREGROUND = registerColor('notificationsIn
 	hc: editorInfoForeground
 }, nls.localize('notificationsInfoIconForeground', "The color used for the notification info icon."));
 
+export const WINDOW_ACTIVE_BORDER = registerColor('window.activeBorder', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the desktop client."));
+
+export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the desktop client."));
+
 /**
  * Base class for all themable workbench components.
  */
