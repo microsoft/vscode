@@ -41,10 +41,14 @@ function _validateUri(ret: URI): void {
 }
 
 // graceful behaviour when scheme is missing: fallback to using 'file'-scheme
-function _schemeFix(scheme: string): string {
+function _schemeFix(scheme: string, strict?: boolean): string {
 	if (!scheme) {
-		console.trace('BAD uri lacks scheme, falling back to file-scheme.');
-		scheme = 'file';
+		if (strict) {
+			throw new Error('[UriError]: A scheme must be provided');
+		} else {
+			// console.trace('BAD uri lacks scheme, falling back to file-scheme.');
+			scheme = 'file';
+		}
 	}
 	return scheme;
 }
@@ -263,15 +267,17 @@ export class URI implements UriComponents {
 	 * Creates a new URI from a string, e.g. `http://www.msft.com/some/path`,
 	 * `file:///usr/home`, or `scheme:with/path`.
 	 *
+	 * *Note:* When the input lacks a scheme then `file` is used.
+	 *
 	 * @param value A string which represents an URI (see `URI#toString`).
 	 */
-	static parse(value: string): URI {
+	static parse(value: string, strict?: boolean): URI {
 		const match = _uriRegExp.exec(value);
 		if (!match) {
 			throw new Error(`[UriError]: Invalid input: ${value}`);
 		}
 
-		const scheme = _schemeFix(match[MatchIndex.scheme]) || '';
+		const scheme = _schemeFix(match[MatchIndex.scheme], strict) || '';
 		const authority = match[MatchIndex.authority] || '';
 		const path = _referenceResolution(scheme, match[MatchIndex.path] || '');
 		const query = match[MatchIndex.query] || '';

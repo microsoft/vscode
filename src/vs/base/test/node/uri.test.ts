@@ -235,6 +235,11 @@ suite('URI', () => {
 		assert.throws(() => URI.parse('file:////shares/files/p.cs'));
 	});
 
+	test('URI#parse, missing scheme', () => {
+		assert.throws(() => URI.parse('/foo/bar', true));
+		assertToString('/foo/bar', 'file:///foo/bar');
+	});
+
 	test('URI#file, win-speciale', () => {
 		if (isWindows) {
 			let value = URI.file('c:\\test\\drive');

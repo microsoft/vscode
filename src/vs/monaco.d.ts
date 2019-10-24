@@ -129,9 +129,11 @@ declare namespace monaco {
 		 * Creates a new Uri from a string, e.g. `http://www.msft.com/some/path`,
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
+		 * *Note:* When the input lacks a scheme then `file` is used.
+		 *
 		 * @param value A string which represents an Uri (see `Uri#toString`).
 		 */
-		static parse(value: string): Uri;
+		static parse(value: string, strict?: boolean): Uri;
 		/**
 		 * Creates a new Uri from a file system path, e.g. `c:\my\files`,
 		 * `/usr/home`, or `\\server\share\some\path`.
