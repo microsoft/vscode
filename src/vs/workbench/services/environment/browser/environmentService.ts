@@ -276,6 +276,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(value)];
 						extensionHostDebugEnvironment.isExtensionDevelopment = true;
 						break;
+					case 'extensionTestsPath':
+						extensionHostDebugEnvironment.extensionTestsLocationURI = URI.parse(value);
+						break;
 					case 'debugId':
 						extensionHostDebugEnvironment.params.debugId = value;
 						break;
