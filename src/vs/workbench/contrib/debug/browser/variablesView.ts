@@ -99,7 +99,7 @@ export class VariablesView extends ViewletPanel {
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
 		if (this.toolbar) {
-			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
+			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all');
 			this.toolbar.setActions([collapseAction])();
 		}
 		this.tree.updateChildren();
