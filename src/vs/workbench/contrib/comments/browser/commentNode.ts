@@ -57,7 +57,6 @@ export class CommentNode extends Disposable {
 	protected toolbar: ToolBar | undefined;
 	private _commentFormActions: CommentFormActions | null = null;
 
-	private readonly _onDidDelete = new Emitter<CommentNode>();
 	private readonly _onDidClick = new Emitter<CommentNode>();
 
 	public get domNode(): HTMLElement {
@@ -114,10 +113,6 @@ export class CommentNode extends Disposable {
 		this._clearTimeout = null;
 
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CLICK, () => this.isEditing || this._onDidClick.fire(this)));
-	}
-
-	public get onDidDelete(): Event<CommentNode> {
-		return this._onDidDelete.event;
 	}
 
 	public get onDidClick(): Event<CommentNode> {

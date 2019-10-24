@@ -87,16 +87,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _commentFormActions!: CommentFormActions;
 	private _scopedInstatiationService: IInstantiationService;
 	private _focusedComment: number | undefined = undefined;
-	private setFocusedComment(value: number | undefined) {
-		if (this._focusedComment !== undefined) {
-			this._commentElements[this._focusedComment!].setFocus(false);
-		}
-		this._focusedComment = value;
-		if (this._focusedComment !== undefined) {
-			this._commentElements[this._focusedComment!].setFocus(true);
-		}
-	}
-
 
 	public get owner(): string {
 		return this._owner;
@@ -392,6 +382,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		} else {
 			this._commentThreadContextValue.reset();
 		}
+
+		this.setFocusedComment(this._focusedComment);
 	}
 
 	protected _onWidth(widthInPixel: number): void {
@@ -593,6 +585,19 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}));
 	}
 
+	private setFocusedComment(value: number | undefined) {
+		if (this._focusedComment !== undefined) {
+			this._commentElements[this._focusedComment]?.setFocus(false);
+		}
+
+		if (this._commentElements.length === 0 || value === undefined) {
+			this._focusedComment = undefined;
+		} else {
+			this._focusedComment = Math.min(value, this._commentElements.length - 1);
+			this._commentElements[this._focusedComment].setFocus(true);
+		}
+	}
+
 	private getActiveComment(): CommentNode | ReviewZoneWidget {
 		return this._commentElements.filter(node => node.isEditing)[0] || this;
 	}
@@ -641,29 +646,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._markdownRenderer);
 
 		this._disposables.add(newCommentNode);
-		this._disposables.add(newCommentNode.onDidDelete(deletedNode => {
-			const deletedNodeId = deletedNode.comment.uniqueIdInThread;
-			const deletedElementIndex = arrays.firstIndex(this._commentElements, commentNode => commentNode.comment.uniqueIdInThread === deletedNodeId);
-			if (deletedElementIndex > -1) {
-				this._commentElements.splice(deletedElementIndex, 1);
-			}
-
-			const deletedCommentIndex = arrays.firstIndex(this._commentThread.comments!, comment => comment.uniqueIdInThread === deletedNodeId);
-			if (deletedCommentIndex > -1) {
-				this._commentThread.comments!.splice(deletedCommentIndex, 1);
-			}
-
-			this._commentsElement.removeChild(deletedNode.domNode);
-			deletedNode.dispose();
-
-			if (this._commentThread.comments!.length === 0) {
-				this.dispose();
-			}
-
-			if (deletedElementIndex === this._focusedComment) { this.setFocusedComment(undefined); }
-			if (this._focusedComment && deletedElementIndex < this._focusedComment) { this.setFocusedComment(this._focusedComment - 1); }
-		}));
-
 		this._disposables.add(newCommentNode.onDidClick(clickedNode =>
 			this.setFocusedComment(arrays.firstIndex(this._commentElements, commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
 		));
