@@ -97,6 +97,7 @@ interface IExtensionHostDebugEnvironment {
 	params: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	extensionDevelopmentLocationURI: URI[];
+	extensionTestsLocationURI?: URI;
 }
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
@@ -161,6 +162,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		}
 
 		return this._extensionHostDebugEnvironment.extensionDevelopmentLocationURI;
+	}
+
+	get extensionTestsLocationURI(): URI | undefined {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.extensionTestsLocationURI;
 	}
 
 	@memoize
@@ -241,8 +250,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 
 	//#region TODO ENABLE IN WEB
-
-	extensionTestsLocationURI?: URI;
 
 	galleryMachineIdResource?: URI;
 
