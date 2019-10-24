@@ -90,6 +90,8 @@ export class DebugService implements IDebugService {
 	private previousState: State | undefined;
 	private initCancellationToken: CancellationTokenSource | undefined;
 
+	private internalTerminalWasOpened = false;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -452,6 +454,7 @@ export class DebugService implements IDebugService {
 			await this.launchOrAttachToSession(session);
 
 			const internalConsoleOptions = session.configuration.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
+			this.internalTerminalWasOpened = this.layoutService.isVisible(Parts.PANEL_PART);
 			if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
 				this.panelService.openPanel(REPL_ID, false);
 			}
@@ -564,6 +567,10 @@ export class DebugService implements IDebugService {
 				// Data breakpoints that can not be persisted should be cleared when a session ends
 				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.canPersist);
 				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
+			}
+
+			if (!this.internalTerminalWasOpened) {
+				this.panelService.hideActivePanel();
 			}
 
 		}));
