@@ -24,7 +24,7 @@ import { startsWith } from 'vs/base/common/strings';
 let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 
 const tokenGroupToScopesMap = {
-	comments: ['comment'],
+	comments: ['comment', 'punctuation.definition.comment'],
 	strings: ['string'],
 	keywords: ['keyword - keyword.operator', 'keyword.control', 'storage', 'storage.type'],
 	numbers: ['constant.numeric'],
