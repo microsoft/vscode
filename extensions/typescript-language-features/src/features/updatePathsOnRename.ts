@@ -13,7 +13,6 @@ import { nulToken } from '../utils/cancellation';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
-import { isTypeScriptDocument } from '../utils/languageModeIds';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
@@ -43,6 +42,10 @@ interface RenameAction {
 	readonly jsTsFileThatIsBeingMoved: vscode.Uri;
 }
 
+function doesResourceLookLikeATypeScriptFile(resource: vscode.Uri): boolean {
+	return /\.tsx?$/i.test(resource.fsPath);
+}
+
 class UpdateImportsOnFileRenameHandler extends Disposable {
 	public static readonly minVersion = API.v300;
 
@@ -61,6 +64,12 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 			const oldFilePath = this.client.toPath(oldUri);
 			if (!oldFilePath) {
+				return;
+			}
+
+			const config = this.getConfiguration(newUri);
+			const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
+			if (setting === UpdateImportsOnFileMoveSetting.Never) {
 				return;
 			}
 
@@ -83,12 +92,6 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 	private async doRename({ oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved }: RenameAction): Promise<void> {
 		const document = await vscode.workspace.openTextDocument(jsTsFileThatIsBeingMoved);
 
-		const config = this.getConfiguration(document);
-		const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
-		if (setting === UpdateImportsOnFileMoveSetting.Never) {
-			return;
-		}
-
 		// Make sure TS knows about file
 		this.client.bufferSyncSupport.closeResource(oldUri);
 		this.client.bufferSyncSupport.openTextDocument(document);
@@ -98,16 +101,13 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return;
 		}
 
-		if (await this.confirmActionWithUser(newUri, document)) {
+		if (await this.confirmActionWithUser(newUri)) {
 			await vscode.workspace.applyEdit(edits);
 		}
 	}
 
-	private async confirmActionWithUser(
-		newResource: vscode.Uri,
-		newDocument: vscode.TextDocument
-	): Promise<boolean> {
-		const config = this.getConfiguration(newDocument);
+	private async confirmActionWithUser(newResource: vscode.Uri): Promise<boolean> {
+		const config = this.getConfiguration(newResource);
 		const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
 		switch (setting) {
 			case UpdateImportsOnFileMoveSetting.Always:
@@ -116,18 +116,15 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				return false;
 			case UpdateImportsOnFileMoveSetting.Prompt:
 			default:
-				return this.promptUser(newResource, newDocument);
+				return this.promptUser(newResource);
 		}
 	}
 
-	private getConfiguration(newDocument: vscode.TextDocument) {
-		return vscode.workspace.getConfiguration(isTypeScriptDocument(newDocument) ? 'typescript' : 'javascript', newDocument.uri);
+	private getConfiguration(resource: vscode.Uri) {
+		return vscode.workspace.getConfiguration(doesResourceLookLikeATypeScriptFile(resource) ? 'typescript' : 'javascript', resource);
 	}
 
-	private async promptUser(
-		newResource: vscode.Uri,
-		newDocument: vscode.TextDocument
-	): Promise<boolean> {
+	private async promptUser(newResource: vscode.Uri): Promise<boolean> {
 		const enum Choice {
 			None = 0,
 			Accept = 1,
@@ -173,7 +170,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				}
 			case Choice.Always:
 				{
-					const config = this.getConfiguration(newDocument);
+					const config = this.getConfiguration(newResource);
 					config.update(
 						updateImportsOnFileMoveName,
 						UpdateImportsOnFileMoveSetting.Always,
@@ -182,7 +179,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				}
 			case Choice.Never:
 				{
-					const config = this.getConfiguration(newDocument);
+					const config = this.getConfiguration(newResource);
 					config.update(
 						updateImportsOnFileMoveName,
 						UpdateImportsOnFileMoveSetting.Never,
