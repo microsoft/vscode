@@ -260,7 +260,7 @@ export namespace MarkdownString {
 
 		const collectUri = (href: string): string => {
 			try {
-				let uri = URI.parse(href);
+				let uri = URI.parse(href, true);
 				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
 				resUris[href] = uri;
 			} catch (e) {
