@@ -37,6 +37,8 @@
 	"command.renameBranch": "Rename Branch...",
 	"command.merge": "Merge Branch...",
 	"command.createTag": "Create Tag",
+	"command.deleteTag": "Delete Tag",
+	"command.getTags": "Get Tags",
 	"command.fetch": "Fetch",
 	"command.fetchPrune": "Fetch (Prune)",
 	"command.fetchAll": "Fetch From All Remotes",

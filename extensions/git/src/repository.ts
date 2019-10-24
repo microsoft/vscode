@@ -13,7 +13,7 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
-import { Branch, Ref, Remote, RefType, GitErrorCodes, Status, LogOptions, Change } from './api/git';
+import { Branch, Ref, Remote, RefType, GitErrorCodes, Status, LogOptions, Change, Tag } from './api/git';
 import { IFileWatcher, watch } from './watch';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
@@ -292,6 +292,8 @@ export const enum Operation {
 	Merge = 'Merge',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
+	DeleteTag = 'DeleteTag',
+	GetTags = 'GetTags',
 	Stash = 'Stash',
 	CheckIgnore = 'CheckIgnore',
 	GetObjectDetails = 'GetObjectDetails',
@@ -1019,6 +1021,14 @@ export class Repository implements Disposable {
 
 	async tag(name: string, message?: string): Promise<void> {
 		await this.run(Operation.Tag, () => this.repository.tag(name, message));
+	}
+
+	async deleteTag(name: string): Promise<void> {
+		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
+	}
+
+	async getTags(): Promise<Tag[]> {
+		return await this.run(Operation.GetTags, () => this.repository.getTags());
 	}
 
 	async checkout(treeish: string): Promise<void> {

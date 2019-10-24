@@ -15,7 +15,7 @@ import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp,
 import { CancellationToken, Progress } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, Tag } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -1325,6 +1325,26 @@ export class Repository {
 		}
 
 		await this.run(args);
+	}
+
+	async deleteTag(name: string): Promise<void> {
+		let args = ['tag', '-d', name];
+		await this.run(args);
+	}
+
+	async getTags(): Promise<Tag[]> {
+		let args = ['tag', '-n1'];
+		const result = await this.run(args);
+		return result.stdout.trim().split('\n')
+			.map(line => line.trim().split('\0'))
+			.map(([line]) => {
+				const name = line.split(' ')[0];
+				return {
+					name: name,
+					message: line.replace(name, '').trim() || '',
+					type: RefType.Tag
+				} as Tag;
+			});
 	}
 
 	async clean(paths: string[]): Promise<void> {
