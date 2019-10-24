@@ -505,19 +505,17 @@ class NavigateTypeAdapter {
 		});
 	}
 
-	resolveWorkspaceSymbol(symbol: extHostProtocol.IWorkspaceSymbolDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolDto | undefined> {
-
+	async resolveWorkspaceSymbol(symbol: extHostProtocol.IWorkspaceSymbolDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolDto | undefined> {
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return Promise.resolve(symbol);
+			return symbol;
 		}
 
 		const item = this._symbolCache[symbol._id!];
 		if (item) {
-			return asPromise(() => this._provider.resolveWorkspaceSymbol!(item, token)).then(value => {
-				return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
-			});
+			const value = await asPromise(() => this._provider.resolveWorkspaceSymbol!(item, token));
+			return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
 		}
-		return Promise.resolve(undefined);
+		return undefined;
 	}
 
 	releaseWorkspaceSymbols(id: number): any {
