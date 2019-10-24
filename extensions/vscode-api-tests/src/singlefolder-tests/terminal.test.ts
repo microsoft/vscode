@@ -109,7 +109,7 @@ suite('window namespace tests', () => {
 				reg1.dispose();
 				let terminal2: Terminal;
 				const reg2 = window.onDidOpenTerminal((newTerminal) => {
-					// This is guarantees to fire before dimensions change event
+					// This is guaranteed to fire before dimensions change event
 					if (newTerminal !== terminal1) {
 						terminal2 = newTerminal;
 						reg2.dispose();
