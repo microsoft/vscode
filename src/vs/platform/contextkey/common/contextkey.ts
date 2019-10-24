@@ -613,7 +613,7 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 
 				if (e instanceof ContextKeyOrExpr) {
 					// Not allowed, because we don't have parens!
-					throw new Error(`It is not allowed to have an or expression here due to lack of parens!`);
+					throw new Error(`It is not allowed to have an or expression here due to lack of parens! For example "a && (b||c)" is not supported, use "(a&&b) || (a&&c)" instead.`);
 				}
 
 				expr.push(e);

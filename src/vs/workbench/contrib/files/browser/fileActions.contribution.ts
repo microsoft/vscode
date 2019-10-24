@@ -14,7 +14,7 @@ import { openWindowCommand, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID,
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, IExplorerService, ExplorerResourceMoveableToTrash, ExplorerViewletVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -23,7 +23,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
+import { WorkspaceFolderCountContext, IsWebContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ActiveEditorIsSaveableContext } from 'vs/workbench/common/editor';
@@ -464,24 +464,15 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	when: ExplorerFolderContext
 });
 
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, (() => {
-	const downloadMenuItem = {
-		group: '5_cutcopypaste',
-		order: 30,
-		command: {
-			id: DOWNLOAD_COMMAND_ID,
-			title: DOWNLOAD_LABEL,
-		},
-		when: ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file))
-	};
-
-	// Web: currently not supporting download of folders
-	if (isWeb) {
-		downloadMenuItem.when = ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file), ExplorerFolderContext.toNegated());
-	}
-
-	return downloadMenuItem;
-})());
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
+	group: '5_cutcopypaste',
+	order: 30,
+	command: {
+		id: DOWNLOAD_COMMAND_ID,
+		title: DOWNLOAD_LABEL,
+	},
+	when: ContextKeyExpr.or(ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file), IsWebContext.toNegated()), ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file), ExplorerFolderContext.toNegated()))
+}));
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '6_copypath',
