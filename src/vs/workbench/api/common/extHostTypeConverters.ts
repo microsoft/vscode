@@ -627,17 +627,6 @@ export namespace DocumentSymbol {
 
 export namespace CallHierarchyItem {
 
-	export function from(item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
-		return {
-			name: item.name,
-			detail: item.detail,
-			kind: SymbolKind.from(item.kind),
-			uri: item.uri,
-			range: Range.from(item.range),
-			selectionRange: Range.from(item.selectionRange),
-		};
-	}
-
 	export function to(item: extHostProtocol.ICallHierarchyItemDto): vscode.CallHierarchyItem {
 		return new types.CallHierarchyItem(
 			SymbolKind.to(item.kind),

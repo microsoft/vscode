@@ -7,7 +7,7 @@ import 'vs/css!./media/callHierarchy';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyProvider, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
+import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { FuzzyScore } from 'vs/base/common/filters';
 import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
@@ -31,7 +31,7 @@ import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
-import { TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
+import { TreeMouseEventTarget, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { URI } from 'vs/base/common/uri';
 
 const enum State {
@@ -94,7 +94,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	private _parent!: HTMLElement;
 	private _message!: HTMLElement;
 	private _splitView!: SplitView;
-	private _tree!: WorkbenchAsyncDataTree<callHTree.CallHierarchyRoot, callHTree.Call, FuzzyScore>;
+	private _tree!: WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>;
 	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
 	private _editor!: EmbeddedCodeEditorWidget;
 	private _dim!: Dimension;
@@ -103,7 +103,6 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	constructor(
 		editor: ICodeEditor,
 		private readonly _where: IPosition,
-		private readonly _provider: CallHierarchyProvider,
 		private _direction: CallHierarchyDirection,
 		@IThemeService themeService: IThemeService,
 		@IPeekViewService private readonly _peekViewService: IPeekViewService,
@@ -209,7 +208,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			treeContainer,
 			new callHTree.VirtualDelegate(),
 			[this._instantiationService.createInstance(callHTree.CallRenderer)],
-			this._instantiationService.createInstance(callHTree.DataSource, this._provider, () => this._direction),
+			this._instantiationService.createInstance(callHTree.DataSource, () => this._direction),
 			options
 		);
 
@@ -270,7 +269,12 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			let previewUri: URI;
 			if (this._direction === CallHierarchyDirection.CallsFrom) {
 				// outgoing calls: show caller and highlight focused calls
-				previewUri = element.parent ? element.parent.item.uri : this._tree.getInput()!.model.uri;
+				const parent = this._tree.getParentElement(element);
+				if (parent instanceof callHTree.Call) {
+					previewUri = parent.item.uri;
+				} else {
+					previewUri = parent.root.uri;
+				}
 			} else {
 				// incoming calls: show caller and highlight focused calls
 				previewUri = element.item.uri;
@@ -297,8 +301,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 			// update: title
 			const title = this._direction === CallHierarchyDirection.CallsFrom
-				? localize('callFrom', "Calls from '{0}'", this._tree.getInput()!.word)
-				: localize('callsTo', "Callers of '{0}'", this._tree.getInput()!.word);
+				? localize('callFrom', "Calls from '{0}'", this._tree.getInput()!.root.name)
+				: localize('callsTo', "Callers of '{0}'", this._tree.getInput()!.root.name);
 			this.setTitle(title);
 		}));
 
@@ -361,33 +365,34 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._message.focus();
 	}
 
-	async showItem(item: callHTree.CallHierarchyRoot): Promise<void> {
+	async showItem(item: CallHierarchyModel): Promise<void> {
 
 		this._show();
 		const viewState = this._treeViewStates.get(this._direction);
+
 		await this._tree.setInput(item, viewState);
 
-		if (this._tree.getNode(item).children.length === 0) {
+		const root = <ITreeNode<callHTree.Call>>this._tree.getNode(item).children[0];
+		await this._tree.expand(root.element);
+
+		if (root.children.length === 0) {
 			//
 			this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
-				? localize('empt.callsFrom', "No calls from '{0}'", item.word)
-				: localize('empt.callsTo', "No callers of '{0}'", item.word));
+				? localize('empt.callsFrom', "No calls from '{0}'", item.root.name)
+				: localize('empt.callsTo', "No callers of '{0}'", item.root.name));
 
 		} else {
 			this._parent.dataset['state'] = State.Data;
 			this._tree.domFocus();
-			if (!viewState) {
-				this._tree.focusFirst();
-			}
+			this._tree.setFocus([root.children[0].element]);
 		}
 
 		if (!this._changeDirectionAction) {
-			const changeDirection = (newDirection: CallHierarchyDirection) => {
+			const changeDirection = async (newDirection: CallHierarchyDirection) => {
 				if (this._direction !== newDirection) {
 					this._treeViewStates.set(this._direction, this._tree.getViewState());
 					this._direction = newDirection;
-					this._tree.setFocus([]);
-					this.showItem(this._tree.getInput()!);
+					await this.showItem(item);
 				}
 			};
 			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);

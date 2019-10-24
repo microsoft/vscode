@@ -72,24 +72,17 @@ declare module 'vscode' {
 
 	export interface CallHierarchyItemProvider {
 
+		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
+
 		/**
 		 * Provide a list of callers for the provided item, e.g. all function calling a function.
 		 */
-		provideCallHierarchyIncomingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
+		provideCallHierarchyIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
 
 		/**
 		 * Provide a list of calls for the provided item, e.g. all functions call from a function.
 		 */
-		provideCallHierarchyOutgoingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
-
-		//  todo@joh this could return as 'prepareCallHierarchy' (similar to the RenameProvider#prepareRename)
-		//
-		// /**
-		//  *
-		//  * Given a document and position compute a call hierarchy item. This is justed as
-		//  * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
-		//  */
-		// resolveCallHierarchyItem(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
+		provideCallHierarchyOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
 	}
 
 	export namespace languages {
