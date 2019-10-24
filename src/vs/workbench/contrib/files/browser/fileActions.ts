@@ -46,6 +46,7 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError, getErrorMessage } from 'vs/base/common/errors';
 import { asDomUri, triggerDownload } from 'vs/base/browser/dom';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -62,6 +63,8 @@ export const COPY_FILE_LABEL = nls.localize('copyFile', "Copy");
 export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
 
 export const FileCopiedContext = new RawContextKey<boolean>('fileCopied', false);
+
+export const DOWNLOAD_LABEL = nls.localize('download', "Download");
 
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 
@@ -1056,8 +1059,16 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 					triggerDownload(asDomUri(s.resource), s.name);
 				}
 			} else {
+				let defaultUri = s.isDirectory ? fileDialogService.defaultFolderPath() : fileDialogService.defaultFilePath();
+				if (defaultUri && !s.isDirectory) {
+					defaultUri = resources.joinPath(defaultUri, s.name);
+				}
+
 				const destination = await fileDialogService.showSaveDialog({
-					availableFileSystems: [Schemas.file]
+					availableFileSystems: [Schemas.file],
+					saveLabel: mnemonicButtonLabel(nls.localize('download', "Download")),
+					title: s.isDirectory ? nls.localize('downloadFolder', "Download Folder") : nls.localize('downloadFile', "Download File"),
+					defaultUri
 				});
 				if (destination) {
 					await fileService.copy(s.resource, destination);
