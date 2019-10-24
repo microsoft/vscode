@@ -37,11 +37,6 @@ export interface Branch extends Ref {
 	readonly behind?: number;
 }
 
-export interface Tag extends Ref {
-	readonly name: string;
-	readonly message?: string;
-}
-
 export interface Commit {
 	readonly hash: string;
 	readonly message: string;

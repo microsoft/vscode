@@ -273,11 +273,6 @@
         "category": "Git"
       },
       {
-        "command": "git.getTags",
-        "title": "%command.getTags%",
-        "category": "Git"
-      },
-      {
         "command": "git.fetch",
         "title": "%command.fetch%",
         "category": "Git"

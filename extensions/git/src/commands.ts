@@ -15,7 +15,7 @@ import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Ref, RefType, Branch, GitErrorCodes, Status, Tag } from './api/git';
+import { Ref, RefType, Branch, GitErrorCodes, Status } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -35,25 +35,6 @@ class CheckoutItem implements QuickPickItem {
 		}
 
 		await repository.checkout(ref);
-	}
-}
-
-class TagItem implements QuickPickItem {
-
-	get label(): string { return (this.tag.name || '').substr(0, 20); }
-	get name(): string { return (this.tag.name || ''); }
-	get description(): string {
-		return (this.tag.message || '');
-	}
-	constructor(protected tag: Tag) { }
-
-	async run(repository: Repository): Promise<void> {
-		const name = this.tag.name || '';
-		if (!name) {
-			return;
-		}
-
-		await repository.deleteTag(name);
 	}
 }
 
@@ -232,9 +213,10 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 	return [...heads, ...tags, ...remoteHeads];
 }
 
-async function createTagItems(repository: Repository): Promise<TagItem[]> {
-	const tags = await repository.getTags();
-	return tags.map(tag => new TagItem(tag)) || [];
+class TagItem implements QuickPickItem {
+	get label(): string { return this.ref.name ?? ''; }
+	get description(): string { return this.ref.commit?.substr(0, 8) ?? ''; }
+	constructor(readonly ref: Ref) { }
 }
 
 enum PushType {
@@ -1731,16 +1713,22 @@ export class CommandCenter {
 
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
-		const picks = await createTagItems(repository);
-		if (!picks) {
+		const picks = repository.refs.filter(ref => ref.type === RefType.Tag)
+			.map(ref => new TagItem(ref));
+
+		if (picks.length === 0) {
 			window.showWarningMessage(localize('no tags', "This repository has no tags."));
+			return;
 		}
+
 		const placeHolder = localize('select a tag to delete', 'Select a tag to delete');
-		const choice = await window.showQuickPick<TagItem>(picks, { placeHolder });
+		const choice = await window.showQuickPick(picks, { placeHolder });
+
 		if (!choice) {
 			return;
 		}
-		await repository.deleteTag(choice.name);
+
+		await repository.deleteTag(choice.label);
 	}
 
 	@command('git.fetch', { repository: true })
