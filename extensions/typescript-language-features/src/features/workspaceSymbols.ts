@@ -6,6 +6,8 @@
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import * as fileSchemes from '../utils/fileSchemes';
+import { doesResourceLookLikeAJavaScriptFile, doesResourceLookLikeATypeScriptFile } from '../utils/languageDescription';
 import * as typeConverters from '../utils/typeConverters';
 
 function getSymbolKind(item: Proto.NavtoItem): vscode.SymbolKind {
@@ -35,7 +37,7 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			return [];
 		}
 
-		const filepath = this.client.toOpenedFilePath(document);
+		const filepath = await this.toOpenedFiledPath(document);
 		if (!filepath) {
 			return [];
 		}
@@ -62,10 +64,25 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 		return result;
 	}
 
+	private async toOpenedFiledPath(document: vscode.TextDocument) {
+		if (document.uri.scheme === fileSchemes.git) {
+			try {
+				const path = vscode.Uri.file(JSON.parse(document.uri.query)?.path);
+				if (doesResourceLookLikeATypeScriptFile(path) || doesResourceLookLikeAJavaScriptFile(path)) {
+					const document = await vscode.workspace.openTextDocument(path);
+					return this.client.toOpenedFilePath(document);
+				}
+			} catch {
+				// noop
+			}
+		}
+		return this.client.toOpenedFilePath(document);
+	}
+
 	private static getLabel(item: Proto.NavtoItem) {
-		let label = item.name;
+		const label = item.name;
 		if (item.kind === 'method' || item.kind === 'function') {
-			label += '()';
+			return label + '()';
 		}
 		return label;
 	}
