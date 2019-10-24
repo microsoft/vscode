@@ -264,10 +264,10 @@ node-addon-api@1.6.2:
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-1.6.2.tgz#d8aad9781a5cfc4132cc2fecdbdd982534265217"
   integrity sha512-479Bjw9nTE5DdBSZZWprFryHGjUaQC31y1wHo19We/k0BZlrmhqQitWoUL0cD8+scljCbIUL+E58oRDEakdGGA==
 
-node-pty@0.9.0:
-  version "0.9.0"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0.tgz#8f9bcc0d1c5b970a3184ffd533d862c7eb6590a6"
-  integrity sha512-MBnCQl83FTYOu7B4xWw10AW77AAh7ThCE1VXEv+JeWj8mSpGo+0bwgsV+b23ljBFwEM9OmsOv3kM27iUPPm84g==
+node-pty@^0.10.0-beta2:
+  version "0.10.0-beta2"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta2.tgz#6fd0d2fbbe881869e4e19795a05c557ac958da81"
+  integrity sha512-IU2lzlPUZ+gKG7pHJjzBHpnuwPTxWGgT3iyQicZfdL7dwLvP5cm00QxavAXCInBmRkOMhvM4aBSKvfzqQnCDBA==
   dependencies:
     nan "^2.14.0"
 
