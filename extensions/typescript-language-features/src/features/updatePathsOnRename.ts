@@ -35,6 +35,14 @@ const enum UpdateImportsOnFileMoveSetting {
 	Never = 'never',
 }
 
+interface RenameAction {
+	readonly oldUri: vscode.Uri;
+	readonly newUri: vscode.Uri;
+	readonly newFilePath: string;
+	readonly oldFilePath: string;
+	readonly jsTsFileThatIsBeingMoved: vscode.Uri;
+}
+
 class UpdateImportsOnFileRenameHandler extends Disposable {
 	public static readonly minVersion = API.v300;
 
@@ -67,18 +75,12 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				location: vscode.ProgressLocation.Window,
 				title: localize('renameProgress.title', "Checking for update of JS/TS imports")
 			}, () => {
-				return this.doRename(oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved);
+				return this.doRename({ oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved });
 			});
 		}));
 	}
 
-	private async doRename(
-		oldResource: vscode.Uri,
-		newResource: vscode.Uri,
-		newFilePath: string,
-		oldFilePath: string,
-		jsTsFileThatIsBeingMoved: vscode.Uri,
-	): Promise<void> {
+	private async doRename({ oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved }: RenameAction): Promise<void> {
 		const document = await vscode.workspace.openTextDocument(jsTsFileThatIsBeingMoved);
 
 		const config = this.getConfiguration(document);
@@ -88,7 +90,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		}
 
 		// Make sure TS knows about file
-		this.client.bufferSyncSupport.closeResource(oldResource);
+		this.client.bufferSyncSupport.closeResource(oldUri);
 		this.client.bufferSyncSupport.openTextDocument(document);
 
 		const edits = await this.getEditsForFileRename(document, oldFilePath, newFilePath);
@@ -96,7 +98,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return;
 		}
 
-		if (await this.confirmActionWithUser(newResource, document)) {
+		if (await this.confirmActionWithUser(newUri, document)) {
 			await vscode.workspace.applyEdit(edits);
 		}
 	}
