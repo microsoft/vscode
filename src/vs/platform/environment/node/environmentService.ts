@@ -235,6 +235,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
+	@memoize
+	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this._args.verbose; }

@@ -149,7 +149,7 @@ export class OpenerService extends Disposable implements IOpenerService {
 
 	private async _doOpenExternal(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
 		const { resolved } = await this.resolveExternalUri(resource, options);
-		dom.windowOpenNoOpener(encodeURI(resolved.toString(true)));
+		dom.windowOpenNoOpener(resolved.toString());
 
 		return true;
 	}

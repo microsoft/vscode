@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .activitybar > .content .monaco-action-bar .action-label.scm {
-	-webkit-mask: url('scm-activity-bar.svg') no-repeat 50% 50%;
-}
-
 .monaco-workbench .viewlet.scm-viewlet .collapsible.header .actions {
 	width: initial;
 	flex: 1;

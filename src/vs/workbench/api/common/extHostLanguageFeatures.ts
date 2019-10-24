@@ -348,7 +348,7 @@ class CodeActionAdapter {
 			only: context.only ? new CodeActionKind(context.only) : undefined
 		};
 
-		return asPromise(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then(commandsOrActions => {
+		return asPromise(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then((commandsOrActions): extHostProtocol.ICodeActionListDto | undefined => {
 			if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
 				return undefined;
 			}
@@ -390,7 +390,7 @@ class CodeActionAdapter {
 				}
 			}
 
-			return <extHostProtocol.ICodeActionListDto>{ cacheId, actions };
+			return { cacheId, actions };
 		});
 	}
 

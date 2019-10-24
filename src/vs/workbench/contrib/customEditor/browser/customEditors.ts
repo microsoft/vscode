@@ -180,7 +180,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	): CustomFileEditorInput {
 		const id = generateUuid();
 		const webview = new Lazy(() => {
-			return new UnownedDisposable(this.webviewService.createWebviewEditorOverlay(id, { customClasses: options ? options.customClasses : undefined }, {}));
+			return new UnownedDisposable(this.webviewService.createWebviewEditorOverlay(id, { customClasses: options?.customClasses }, {}));
 		});
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, webview);
 		if (group) {

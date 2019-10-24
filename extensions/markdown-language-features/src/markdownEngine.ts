@@ -227,6 +227,11 @@ export class MarkdownEngine {
 		const normalizeLink = md.normalizeLink;
 		md.normalizeLink = (link: string) => {
 			try {
+				// Normalize VS Code schemes to target the current version
+				if (isOfScheme(Schemes.vscode, link) || isOfScheme(Schemes['vscode-insiders'], link)) {
+					return normalizeLink(vscode.Uri.parse(link).with({ scheme: vscode.env.uriScheme }).toString());
+				}
+
 				// If original link doesn't look like a url with a scheme, assume it must be a link to a file in workspace
 				if (!/^[a-z\-]+:/i.test(link)) {
 					// Use a fake scheme for parsing
@@ -261,7 +266,11 @@ export class MarkdownEngine {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
 			// support file:// links
-			return validateLink(link) || isOfScheme(Schemes.file, link) || /^data:image\/.*?;/.test(link);
+			return validateLink(link)
+				|| isOfScheme(Schemes.file, link)
+				|| isOfScheme(Schemes.vscode, link)
+				|| isOfScheme(Schemes['vscode-insiders'], link)
+				|| /^data:image\/.*?;/.test(link);
 		};
 	}
 
