@@ -23,7 +23,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
+import { WorkspaceFolderCountContext, IsWebContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ActiveEditorIsSaveableContext } from 'vs/workbench/common/editor';
@@ -464,24 +464,15 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	when: ExplorerFolderContext
 });
 
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, (() => {
-	const downloadMenuItem = {
-		group: '5_cutcopypaste',
-		order: 30,
-		command: {
-			id: DOWNLOAD_COMMAND_ID,
-			title: DOWNLOAD_LABEL,
-		},
-		when: ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file))
-	};
-
-	// Web: currently not supporting download of folders
-	if (isWeb) {
-		downloadMenuItem.when = ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file), ExplorerFolderContext.toNegated());
-	}
-
-	return downloadMenuItem;
-})());
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
+	group: '5_cutcopypaste',
+	order: 30,
+	command: {
+		id: DOWNLOAD_COMMAND_ID,
+		title: DOWNLOAD_LABEL,
+	},
+	when: ContextKeyExpr.or(ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file), IsWebContext.toNegated()), ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file), ExplorerFolderContext.toNegated()))
+}));
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '6_copypath',
