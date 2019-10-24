@@ -13,8 +13,8 @@ const localize = loadMessageBundle();
 const typingsInstallTimeout = 30 * 1000;
 
 export default class TypingsStatus extends Disposable {
-	private _acquiringTypings: { [eventId: string]: NodeJS.Timer } = Object.create({});
-	private _client: ITypeScriptServiceClient;
+	private readonly _acquiringTypings = new Map<number, NodeJS.Timer>();
+	private readonly _client: ITypeScriptServiceClient;
 
 	constructor(client: ITypeScriptServiceClient) {
 		super();
@@ -30,8 +30,8 @@ export default class TypingsStatus extends Disposable {
 	public dispose(): void {
 		super.dispose();
 
-		for (const eventId of Object.keys(this._acquiringTypings)) {
-			clearTimeout(this._acquiringTypings[eventId]);
+		for (const timeout of this._acquiringTypings.values()) {
+			clearTimeout(timeout);
 		}
 	}
 
@@ -40,20 +40,20 @@ export default class TypingsStatus extends Disposable {
 	}
 
 	private onBeginInstallTypings(eventId: number): void {
-		if (this._acquiringTypings[eventId]) {
+		if (this._acquiringTypings.has(eventId)) {
 			return;
 		}
-		this._acquiringTypings[eventId] = setTimeout(() => {
+		this._acquiringTypings.set(eventId, setTimeout(() => {
 			this.onEndInstallTypings(eventId);
-		}, typingsInstallTimeout);
+		}, typingsInstallTimeout));
 	}
 
 	private onEndInstallTypings(eventId: number): void {
-		const timer = this._acquiringTypings[eventId];
+		const timer = this._acquiringTypings.get(eventId);
 		if (timer) {
 			clearTimeout(timer);
 		}
-		delete this._acquiringTypings[eventId];
+		this._acquiringTypings.delete(eventId);
 	}
 }
 
