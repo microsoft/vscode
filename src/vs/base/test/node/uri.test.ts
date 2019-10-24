@@ -575,10 +575,10 @@ suite('URI', () => {
 			assertUriFromFsPath('c:\\test with %\\path');
 			assertUriFromFsPath('c:\\test with %25\\path');
 			assertUriFromFsPath('c:\\test with %25\\c#code');
-			assertUriFromFsPath('\\\\shäres\\path\\c#\\plugin.json');
-			assertUriFromFsPath('\\\\localhost\\c$\\GitDevelopment\\express');
-			assertUriFromFsPath('\\\\shares');
-			assertUriFromFsPath('\\\\shares\\');
+			// assertUriFromFsPath('\\\\shäres\\path\\c#\\plugin.json'); // nodejs doesn't accept UNC paths as paths
+			// assertUriFromFsPath('\\\\localhost\\c$\\GitDevelopment\\express');
+			// assertUriFromFsPath('\\\\shares');
+			// assertUriFromFsPath('\\\\shares\\');
 		} else {
 			assertUriFromFsPath('/foo/bar');
 			assertUriFromFsPath('/foo/%2e.txt');
@@ -604,10 +604,10 @@ suite('URI', () => {
 			assertFsPathFromUri('file:///c:/bar/foo');
 			assertFsPathFromUri('file:///c:/alex.txt');
 			assertFsPathFromUri('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins');
-			assertFsPathFromUri('file://unc-host/foö/bar');
-			assertFsPathFromUri('file://unc-host/');
-			assertFsPathFromUri('file://monacotools/folder/isi.txt');
-			assertFsPathFromUri('file://monacotools1/certificates/SSL/');
+			assertFsPathFromUri('file://unc-host/foö/bar', false);
+			// assertFsPathFromUri('file://unc-host/', false); //nodejs \\unc-host\ vs code \
+			assertFsPathFromUri('file://monacotools/folder/isi.txt', false);
+			assertFsPathFromUri('file://monacotools1/certificates/SSL/', false);
 		} else {
 			assertFsPathFromUri('file:///foo/bar');
 			assertFsPathFromUri('file:///fo%25/bar');
@@ -636,7 +636,7 @@ suite('URI', () => {
 		assertToString('scheme://authority/path');
 		assertToString('scheme:/path');
 		assertToString('foo:bar/path');
-		// assertToString('http:/api/files/test.me?t=1234'); // URL make api the hostname,
+		// assertToString('http:/api/files/test.me?t=1234'); // URL makes api the hostname,
 		assertToString('http://api/files/test.me?t=1234');
 		// assertToString('file:///c:/test/me'); // we encode the colon
 		// assertToString('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins/c%23/plugin.json');
@@ -644,8 +644,7 @@ suite('URI', () => {
 		assertToString('file://shares/files/c%23/p.cs');
 		assertToString('inmemory:');
 		assertToString('foo:api/files/test');
-		assertToString('file:?q');
-		assertToString('file:#d');
+		assertToString('f3ile:?q');
 		assertToString('f3ile:#d');
 		assertToString('foo+bar:path');
 		assertToString('foo-bar:path');
