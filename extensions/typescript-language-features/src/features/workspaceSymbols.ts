@@ -75,17 +75,16 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 		// general questions so we check the active editor. If this
 		// doesn't match we take the first TS document.
 
-		const editor = vscode.window.activeTextEditor;
-		if (editor) {
-			const document = editor.document;
-			if (document && this.modeIds.indexOf(document.languageId) >= 0) {
-				return document;
+		const activeDocument = vscode.window.activeTextEditor?.document;
+		if (activeDocument) {
+			if (this.modeIds.includes(activeDocument.languageId)) {
+				return activeDocument;
 			}
 		}
 
 		const documents = vscode.workspace.textDocuments;
 		for (const document of documents) {
-			if (this.modeIds.indexOf(document.languageId) >= 0) {
+			if (this.modeIds.includes(document.languageId)) {
 				return document;
 			}
 		}
