@@ -271,6 +271,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	public collapse(): Promise<void> {
+		this._commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Collapsed;
 		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
 			this.deleteCommentThread();
 			return Promise.resolve();
@@ -289,11 +290,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	toggleExpand(lineNumber: number) {
 		if (this._isExpanded) {
+			this._commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Collapsed;
 			this.hide();
 			if (!this._commentThread.comments || !this._commentThread.comments.length) {
 				this.deleteCommentThread();
 			}
 		} else {
+			this._commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
 			this.show({ lineNumber: lineNumber, column: 1 }, 2);
 		}
 	}

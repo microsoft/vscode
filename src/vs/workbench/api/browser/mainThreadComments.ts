@@ -18,7 +18,7 @@ import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'v
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape } from '../common/extHost.protocol';
+import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
 import { COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 
 
@@ -116,17 +116,15 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		this._isDisposed = false;
 	}
 
-	batchUpdate(
-		range: IRange,
-		label: string,
-		contextValue: string | undefined,
-		comments: modes.Comment[],
-		collapsibleState: modes.CommentThreadCollapsibleState) {
-		this._range = range;
-		this._label = label;
-		this._contextValue = contextValue;
-		this._comments = comments;
-		this._collapsibleState = collapsibleState;
+	batchUpdate(changes: CommentThreadChanges) {
+		const modified = (value: keyof CommentThreadChanges): boolean =>
+			Object.prototype.hasOwnProperty.call(changes, value);
+
+		if (modified('range')) { this._range = changes.range!; }
+		if (modified('label')) { this._label = changes.label; }
+		if (modified('contextValue')) { this._contextValue = changes.contextValue; }
+		if (modified('comments')) { this._comments = changes.comments; }
+		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
 	}
 
 	dispose() {
@@ -228,13 +226,9 @@ export class MainThreadCommentController {
 	updateCommentThread(commentThreadHandle: number,
 		threadId: string,
 		resource: UriComponents,
-		range: IRange,
-		label: string,
-		contextValue: string | undefined,
-		comments: modes.Comment[],
-		collapsibleState: modes.CommentThreadCollapsibleState): void {
+		changes: CommentThreadChanges): void {
 		let thread = this.getKnownThread(commentThreadHandle);
-		thread.batchUpdate(range, label, contextValue, comments, collapsibleState);
+		thread.batchUpdate(changes);
 
 		this._commentService.updateComments(this._uniqueId, {
 			added: [],
@@ -430,18 +424,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		commentThreadHandle: number,
 		threadId: string,
 		resource: UriComponents,
-		range: IRange,
-		label: string,
-		contextValue: string | undefined,
-		comments: modes.Comment[],
-		collapsibleState: modes.CommentThreadCollapsibleState): void {
+		changes: CommentThreadChanges): void {
 		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return undefined;
 		}
 
-		return provider.updateCommentThread(commentThreadHandle, threadId, resource, range, label, contextValue, comments, collapsibleState);
+		return provider.updateCommentThread(commentThreadHandle, threadId, resource, changes);
 	}
 
 	$deleteCommentThread(handle: number, commentThreadHandle: number) {
