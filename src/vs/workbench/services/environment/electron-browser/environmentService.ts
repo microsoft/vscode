@@ -9,7 +9,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
+import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-browser/backup';
 import { join } from 'vs/base/common/path';
 import { IDebugParams } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/common/product';

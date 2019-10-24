@@ -12,7 +12,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { joinPath } from 'vs/base/common/resources';
@@ -31,7 +30,6 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
-		@IHostService private readonly hostService: IHostService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
@@ -125,13 +123,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	//#region Workspace Management
 
 	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
-
-		// Open workspace in same window
-		await this.hostService.openWindow([{ workspaceUri: path }], { forceReuseWindow: true, noRecentEntry: isUntitledWorkspace(path, this.environmentService) });
-
-		return {
-			workspace: await this.getWorkspaceIdentifier(path)
-		};
+		return { workspace: await this.getWorkspaceIdentifier(path) };
 	}
 
 	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
