@@ -143,7 +143,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	}
 
 	public get options(): WebviewOptions { return this._options; }
-	public set options(value: WebviewOptions) { this._options = value; }
+	public set options(value: WebviewOptions) { this._options = { customClasses: this._options.customClasses, ...value }; }
 
 	public get contentOptions(): WebviewContentOptions { return this._contentOptions; }
 	public set contentOptions(value: WebviewContentOptions) {
