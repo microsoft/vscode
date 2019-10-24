@@ -163,9 +163,9 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 
 		const response = await vscode.window.showInformationMessage<Item>(
-			this.getConfirmMessage(newResources.length === 1
-				? localize('prompt', "Update imports for moved file:")
-				: localize('promptMoreThanOne', "Update imports for moved files:"), newResources), {
+			newResources.length === 1
+				? localize('prompt', "Update imports for '{0}'?", path.basename(newResources[0].fsPath))
+				: this.getConfirmMessage(localize('promptMoreThanOne', "Update imports for the following {0} files?", newResources.length), newResources), {
 			modal: true,
 		}, {
 			title: localize('reject.title', "No"),
