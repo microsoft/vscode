@@ -8986,10 +8986,10 @@ vscode-textmate@^4.2.2:
   dependencies:
     oniguruma "^7.2.0"
 
-vscode-windows-ca-certs@0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-windows-ca-certs/-/vscode-windows-ca-certs-0.1.0.tgz#d58eeb40b536130918cfde2b01e6dc7e5c1bd757"
-  integrity sha512-ZfZbfJIE09Q0dwGqmqTj7kuAq4g6lul9WPJvo0DkKjln8/FL+dY3wUKIKbYwWQp4x56SBTLBq3tJkD72xQ9Gqw==
+vscode-windows-ca-certs@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-windows-ca-certs/-/vscode-windows-ca-certs-0.2.0.tgz#086f0f4de57e2760a35ac6920831bff246237115"
+  integrity sha512-YBrJRT0zos+Yb1Qdn73GD8QZr7pa2IE96b5Y1hmmp6XeR8aYB7Iiq5gDAF/+/AxL+caSR9KPZQ6jiYWh5biD7w==
   dependencies:
     node-addon-api "1.6.2"
 
