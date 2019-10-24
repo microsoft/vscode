@@ -137,6 +137,7 @@ export interface Location {
 export interface ParseOptions {
 	disallowComments?: boolean;
 	allowTrailingComma?: boolean;
+	allowEmptyContent?: boolean;
 }
 
 export namespace ParseOptions {
@@ -1287,7 +1288,11 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 
 	scanNext();
 	if (_scanner.getToken() === SyntaxKind.EOF) {
-		return true;
+		if (options.allowEmptyContent) {
+			return true;
+		}
+		handleError(ParseErrorCode.ValueExpected, [], []);
+		return false;
 	}
 	if (!parseValue()) {
 		handleError(ParseErrorCode.ValueExpected, [], []);
