@@ -18,7 +18,7 @@ import { FontStyle, IState, ITokenizationSupport, LanguageIdentifier, StandardTo
 import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { InspectTokensNLS } from 'vs/editor/common/standaloneStrings';
 
@@ -334,5 +334,9 @@ registerThemingParticipant((theme, collector) => {
 	const background = theme.getColor(editorHoverBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor .tokens-inspect-widget { background-color: ${background}; }`);
+	}
+	const foreground = theme.getColor(editorHoverForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .tokens-inspect-widget { color: ${foreground}; }`);
 	}
 });
