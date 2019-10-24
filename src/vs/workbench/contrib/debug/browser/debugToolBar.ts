@@ -84,11 +84,11 @@ export const debugIconStepOverForeground = registerColor('debugIcon.stepOverFore
 	hc: '#75BEFF'
 }, localize('debugIcon.stepOverForeground', "Debug toolbar icon for step over."));
 
-export const debugIconStepIntoForeground = registerColor('debugIcon.StepIntoForeground', {
+export const debugIconStepIntoForeground = registerColor('debugIcon.stepIntoForeground', {
 	dark: '#75BEFF',
 	light: '#007ACC',
 	hc: '#75BEFF'
-}, localize('debugIcon.StepIntoForeground', "Debug toolbar icon for step into."));
+}, localize('debugIcon.stepIntoForeground', "Debug toolbar icon for step into."));
 
 export const debugIconStepOutForeground = registerColor('debugIcon.stepOutForeground', {
 	dark: '#75BEFF',
