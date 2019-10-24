@@ -14,10 +14,6 @@ export default class API {
 	}
 
 	public static readonly defaultVersion = API.fromSimpleString('1.0.0');
-	public static readonly v220 = API.fromSimpleString('2.2.0');
-	public static readonly v222 = API.fromSimpleString('2.2.2');
-	public static readonly v230 = API.fromSimpleString('2.3.0');
-	public static readonly v234 = API.fromSimpleString('2.3.4');
 	public static readonly v240 = API.fromSimpleString('2.4.0');
 	public static readonly v250 = API.fromSimpleString('2.5.0');
 	public static readonly v260 = API.fromSimpleString('2.6.0');

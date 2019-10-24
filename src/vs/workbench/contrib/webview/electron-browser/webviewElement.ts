@@ -296,7 +296,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		const element = document.createElement('webview');
 		element.setAttribute('partition', `webview${Date.now()}`);
 		element.setAttribute('webpreferences', 'contextIsolation=yes');
-		element.className = `webview ${options.customClasses}`;
+		element.className = `webview ${options.customClasses || ''}`;
 
 		element.style.flex = '0 1';
 		element.style.width = '0';

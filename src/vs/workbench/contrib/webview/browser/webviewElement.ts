@@ -60,7 +60,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	protected createElement(options: WebviewOptions) {
 		const element = document.createElement('iframe');
-		element.className = `webview ${options.customClasses}`;
+		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin');
 		element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		element.style.border = 'none';
@@ -108,7 +108,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	focus(): void {
-		console.log('focus');
 		if (this.element) {
 			this._send('focus');
 		}
