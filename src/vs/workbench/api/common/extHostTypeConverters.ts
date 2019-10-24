@@ -15,7 +15,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
+import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
@@ -68,9 +68,9 @@ export namespace Selection {
 export namespace Range {
 
 	export function from(range: undefined): undefined;
-	export function from(range: RangeLike): IRange;
-	export function from(range: RangeLike | undefined): IRange | undefined;
-	export function from(range: RangeLike | undefined): IRange | undefined {
+	export function from(range: RangeLike): editorRange.IRange;
+	export function from(range: RangeLike | undefined): editorRange.IRange | undefined;
+	export function from(range: RangeLike | undefined): editorRange.IRange | undefined {
 		if (!range) {
 			return undefined;
 		}
@@ -84,9 +84,9 @@ export namespace Range {
 	}
 
 	export function to(range: undefined): types.Range;
-	export function to(range: IRange): types.Range;
-	export function to(range: IRange | undefined): types.Range | undefined;
-	export function to(range: IRange | undefined): types.Range | undefined {
+	export function to(range: editorRange.IRange): types.Range;
+	export function to(range: editorRange.IRange | undefined): types.Range | undefined;
+	export function to(range: editorRange.IRange | undefined): types.Range | undefined {
 		if (!range) {
 			return undefined;
 		}
@@ -821,14 +821,14 @@ export namespace CompletionItem {
 		result.filterText = suggestion.filterText;
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
-		result.range = Range.to(suggestion.range);
+		result.range = editorRange.Range.isIRange(suggestion.range) ? Range.to(suggestion.range) : { insert: Range.to(suggestion.range.insert), replace: Range.to(suggestion.range.replace) };
 		result.keepWhitespace = typeof suggestion.insertTextRules === 'undefined' ? false : Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
 		// 'inserText'-logic
 		if (typeof suggestion.insertTextRules !== 'undefined' && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;
-			result.textEdit = new types.TextEdit(result.range, result.insertText);
+			result.textEdit = result.range instanceof types.Range ? new types.TextEdit(result.range, result.insertText) : undefined;
 		}
 		// TODO additionalEdits, command
 

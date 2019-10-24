@@ -326,7 +326,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- suggest
 
-	private static _inflateSuggestDto(defaultRange: IRange, data: ISuggestDataDto): modes.CompletionItem {
+	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
+
 		return {
 			label: data[ISuggestDataDtoField.label],
 			kind: data[ISuggestDataDtoField.kind],
@@ -337,8 +338,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			filterText: data[ISuggestDataDtoField.filterText],
 			preselect: data[ISuggestDataDtoField.preselect],
 			insertText: typeof data.h === 'undefined' ? data[ISuggestDataDtoField.label] : data.h,
-			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			range: data[ISuggestDataDtoField.range] || defaultRange,
+			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
 			additionalTextEdits: data[ISuggestDataDtoField.additionalTextEdits],
 			command: data[ISuggestDataDtoField.command],
@@ -370,6 +371,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					if (!result) {
 						return suggestion;
 					}
+
 					let newSuggestion = MainThreadLanguageFeatures._inflateSuggestDto(suggestion.range, result);
 					return mixin(suggestion, newSuggestion, true);
 				});
