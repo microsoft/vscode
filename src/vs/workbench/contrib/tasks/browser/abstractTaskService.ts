@@ -1998,7 +1998,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				for (let task of tasks) {
 					let key = task.getRecentlyUsedKey();
 					if (!key || !recentlyUsedTasks.has(key)) {
-						if (task._source.kind === TaskSourceKind.Workspace) {
+						if ((task._source.kind === TaskSourceKind.Workspace) || (task._source.kind === TaskSourceKind.User)) {
 							configured.push(task);
 						} else {
 							detected.push(task);
