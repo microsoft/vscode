@@ -185,7 +185,7 @@ suite('Editor Modes - Link Computer', () => {
 		);
 		assertLink(
 			'let url = `http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items`;',
-			'           http://*                                                                '
+			'           http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items  '
 		);
 	});
 
@@ -200,6 +200,13 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'let x = "http://[::1]:5000/connect/token"',
 			'         http://[::1]:5000/connect/token  '
+		);
+	});
+
+	test('issue #70254: bold links dont open in markdown file using editor mode with ctrl + click', () => {
+		assertLink(
+			'2. Navigate to **https://portal.azure.com**',
+			'                 https://portal.azure.com  '
 		);
 	});
 });

@@ -265,7 +265,8 @@ export class LinkComputer {
 							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote) ? CharacterClass.None : CharacterClass.ForceTermination;
 							break;
 						case CharCode.Asterisk:
-							chClass = CharacterClass.ForceTermination;
+							// `*` terminates a link if the link began with `*`
+							chClass = (linkBeginChCode === CharCode.Asterisk) ? CharacterClass.ForceTermination : CharacterClass.None;
 							break;
 						default:
 							chClass = classifier.get(chCode);
