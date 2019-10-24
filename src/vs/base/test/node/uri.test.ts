@@ -88,7 +88,7 @@ suite('URI', () => {
 		assert.equal(uri2.fragment, uri3.fragment);
 	});
 
-	test('with, identity', () => {
+	test('URI#with, identity', () => {
 		let uri = URI.parse('foo:bar/path');
 
 		let uri2 = uri.with(null!);
@@ -101,7 +101,7 @@ suite('URI', () => {
 		assert.ok(uri === uri2);
 	});
 
-	test('with, changes', () => {
+	test('URI#with, changes', () => {
 		assert.equal(URI.parse('before:some/file/path').with({ scheme: 'after' }).toString(), 'after:some/file/path');
 		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t=1234');
 		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t=1234');
@@ -111,7 +111,7 @@ suite('URI', () => {
 		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t=1234');
 	});
 
-	test('with, remove components #8465', () => {
+	test('URI#with, remove components #8465', () => {
 		assert.equal(URI.parse('scheme://authority/path').with({ authority: '' }).toString(), 'scheme:/path');
 		assert.equal(URI.parse('scheme:/path').with({ authority: 'authority' }).with({ authority: '' }).toString(), 'scheme:/path');
 		assert.equal(URI.parse('scheme:/path').with({ authority: 'authority' }).with({ authority: null }).toString(), 'scheme:/path');
@@ -121,7 +121,7 @@ suite('URI', () => {
 		assert.equal(URI.parse('scheme:/path').with({ authority: null }).toString(), 'scheme:/path');
 	});
 
-	test('with, validation', () => {
+	test('URI#with, validation', () => {
 		let uri = URI.parse('foo:bar/path');
 		assert.throws(() => uri.with({ scheme: 'fai:l' }));
 		assert.throws(() => uri.with({ scheme: 'fäil' }));
@@ -310,50 +310,52 @@ suite('URI', () => {
 		assert.equal(value.toString(), 'file:///a.file');
 	});
 
+
+	function assertToString(input: string | URI, expected: string) {
+		if (typeof input === 'string') {
+			input = URI.parse(input);
+		}
+		const actual = input.toString();
+		assert.equal(actual, expected.toString());
+	}
+
 	test('URI.toString, only scheme and query', () => {
-		const value = URI.parse('stuff:?qüery');
-		assert.equal(value.toString(), 'stuff:?q%C3%BCery');
+		assertToString('stuff:?qüery', 'stuff:?q%C3%BCery');
 	});
 
 	test('URI#toString, upper-case percent espaces', () => {
-		const value = URI.parse('file://sh%c3%a4res/path');
-		assert.equal(value.toString(), 'file://sh%C3%A4res/path');
+		assertToString('file://sh%c3%a4res/path', 'file://sh%C3%A4res/path');
+		assertToString('file://sh%c3%z4res/path', 'file://sh%C3%z4res/path');
+		assertToString('file:///sh%a0res/path', 'file:///sh%A0res/path'); // also upper-cased invalid sequence
 	});
 
 	test('URI#toString, lower-case windows drive letter', () => {
-		assert.equal(URI.parse('untitled:c:/Users/jrieken/Code/abc.txt').toString(), 'untitled:c%3A/Users/jrieken/Code/abc.txt');
-		assert.equal(URI.parse('untitled:C:/Users/jrieken/Code/abc.txt').toString(), 'untitled:c%3A/Users/jrieken/Code/abc.txt');
+		assertToString('untitled:c:/Users/jrieken/Code/abc.txt', 'untitled:c%3A/Users/jrieken/Code/abc.txt');
+		assertToString('untitled:C:/Users/jrieken/Code/abc.txt', 'untitled:c%3A/Users/jrieken/Code/abc.txt');
 	});
 
 	test('URI#toString, escape all the bits', () => {
-
 		const value = URI.file('/Users/jrieken/Code/_samples/18500/Mödel + Other Thîngß/model.js');
-		assert.equal(value.toString(), 'file:///Users/jrieken/Code/_samples/18500/M%C3%B6del%20+%20Other%20Th%C3%AEng%C3%9F/model.js');
+		assertToString(value, 'file:///Users/jrieken/Code/_samples/18500/M%C3%B6del%20+%20Other%20Th%C3%AEng%C3%9F/model.js');
 	});
 
 	test('URI#toString, don\'t encode port', () => {
 		let value = URI.parse('http://localhost:8080/far');
-		assert.equal(value.toString(), 'http://localhost:8080/far');
+		assertToString(value, 'http://localhost:8080/far');
 
 		value = URI.from({ scheme: 'http', authority: 'löcalhost:8080', path: '/far', query: undefined, fragment: undefined });
-		assert.equal(value.toString(), 'http://l%C3%B6calhost:8080/far');
+		assertToString(value, 'http://l%C3%B6calhost:8080/far');
 	});
 
 	test('URI#toString, user information in authority', () => {
-		let value = URI.parse('http://foo:bar@localhost/far');
-		assert.equal(value.toString(), 'http://foo:bar@localhost/far');
-
-		value = URI.parse('http://foo@localhost/far');
-		assert.equal(value.toString(), 'http://foo@localhost/far');
-
-		value = URI.parse('http://foo:bAr@localhost:8080/far');
-		assert.equal(value.toString(), 'http://foo:bAr@localhost:8080/far');
-
-		value = URI.parse('http://foo@localhost:8080/far');
-		assert.equal(value.toString(), 'http://foo@localhost:8080/far');
-
-		value = URI.from({ scheme: 'http', authority: 'föö:bör@löcalhost:8080', path: '/far', query: undefined, fragment: undefined });
-		assert.equal(value.toString(), 'http://f%C3%B6%C3%B6:b%C3%B6r@l%C3%B6calhost:8080/far');
+		assertToString('http://foo:bar@localhost/far', 'http://foo:bar@localhost/far');
+		assertToString('http://foo@localhost/far', 'http://foo@localhost/far');
+		assertToString('http://foo:bAr@localhost:8080/far', 'http://foo:bAr@localhost:8080/far');
+		assertToString('http://foo@localhost:8080/far', 'http://foo@localhost:8080/far');
+		assertToString(
+			URI.from({ scheme: 'http', authority: 'föö:bör@löcalhost:8080', path: '/far', query: undefined, fragment: undefined }),
+			'http://f%C3%B6%C3%B6:b%C3%B6r@l%C3%B6calhost:8080/far'
+		);
 	});
 
 	test('correctFileUriToFilePath2', () => {

@@ -5,7 +5,7 @@
 
 import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
-import { isHighSurrogate, isLowSurrogate } from 'vs/base/common/strings';
+import { isHighSurrogate, isLowSurrogate, isLowerAsciiHex, isAsciiLetter } from 'vs/base/common/strings';
 
 const _schemeRegExp = /^\w[\w\d+.-]*$/;
 
@@ -207,10 +207,7 @@ export class URI implements UriComponents {
 	 * with URIs that represent files on disk (`file` scheme).
 	 */
 	get fsPath(): string {
-		// if (this.scheme !== 'file') {
-		// 	console.warn(`[UriError] calling fsPath with scheme ${this.scheme}`);
-		// }
-		return _makeFsPath(this);
+		return _toFsPath(this.scheme, this.authority, this.path);
 	}
 
 	// ---- modify to new -------------------------
@@ -287,7 +284,7 @@ export class URI implements UriComponents {
 			percentDecode(query),
 			percentDecode(fragment),
 		);
-		result._formatted = _toString(_normalEncoder, scheme, authority, path, query, fragment);
+		result._external = _toExternal(_normalEncoder, scheme, authority, path, query, fragment);
 		return result;
 	}
 
@@ -375,7 +372,7 @@ export class URI implements UriComponents {
 	 * @param skipEncoding Do not encode the result, default is `false`
 	 */
 	toString(skipEncoding: boolean = false): string {
-		return _toString(skipEncoding ? _minimalEncoder : _normalEncoder, this.scheme, this.authority, this.path, this.query, this.fragment);
+		return _toExternal(skipEncoding ? _minimalEncoder : _normalEncoder, this.scheme, this.authority, this.path, this.query, this.fragment);
 	}
 
 	toJSON(): UriComponents {
@@ -393,7 +390,7 @@ export class URI implements UriComponents {
 			return data;
 		} else {
 			const result = new _URI(data);
-			result._formatted = (<UriState>data).external;
+			result._external = (<UriState>data).external;
 			result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath : null;
 			return result;
 		}
@@ -420,12 +417,12 @@ const _pathSepMarker = isWindows ? 1 : undefined;
 // tslint:disable-next-line:class-name
 class _URI extends URI {
 
-	_formatted: string | null = null;
+	_external: string | null = null;
 	_fsPath: string | null = null;
 
 	get fsPath(): string {
 		if (!this._fsPath) {
-			this._fsPath = _makeFsPath(this);
+			this._fsPath = _toFsPath(this.scheme, this.authority, this.path);
 		}
 		return this._fsPath;
 	}
@@ -433,12 +430,12 @@ class _URI extends URI {
 	toString(skipEncoding: boolean = false): string {
 		if (skipEncoding) {
 			// we don't cache that
-			return _toString(_minimalEncoder, this.scheme, this.authority, this.path, this.query, this.fragment);
+			return _toExternal(_minimalEncoder, this.scheme, this.authority, this.path, this.query, this.fragment);
 		}
-		if (!this._formatted) {
-			this._formatted = _toString(_normalEncoder, this.scheme, this.authority, this.path, this.query, this.fragment);
+		if (!this._external) {
+			this._external = _toExternal(_normalEncoder, this.scheme, this.authority, this.path, this.query, this.fragment);
 		}
-		return this._formatted;
+		return this._external;
 	}
 
 	toJSON(): UriComponents {
@@ -450,8 +447,8 @@ class _URI extends URI {
 			res.fsPath = this._fsPath;
 			res._sep = _pathSepMarker;
 		}
-		if (this._formatted) {
-			res.external = this._formatted;
+		if (this._external) {
+			res.external = this._external;
 		}
 		// uri components
 		if (this.path) {
@@ -476,22 +473,22 @@ class _URI extends URI {
 /**
  * Compute `fsPath` for the given uri
  */
-function _makeFsPath(uri: URI): string {
+function _toFsPath(scheme: string, authority: string, path: string): string {
 
 	let value: string;
-	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
+	if (authority && path.length > 1 && scheme === 'file') {
 		// unc path: file://shares/c$/far/boo
-		value = `//${uri.authority}${uri.path}`;
+		value = `//${authority}${path}`;
 	} else if (
-		uri.path.charCodeAt(0) === CharCode.Slash
-		&& (uri.path.charCodeAt(1) >= CharCode.A && uri.path.charCodeAt(1) <= CharCode.Z || uri.path.charCodeAt(1) >= CharCode.a && uri.path.charCodeAt(1) <= CharCode.z)
-		&& uri.path.charCodeAt(2) === CharCode.Colon
+		path.charCodeAt(0) === CharCode.Slash
+		&& isAsciiLetter(path.charCodeAt(1))
+		&& path.charCodeAt(2) === CharCode.Colon
 	) {
 		// windows drive letter: file:///c:/far/boo
-		value = uri.path[1].toLowerCase() + uri.path.substr(2);
+		value = path[1].toLowerCase() + path.substr(2);
 	} else {
 		// other path
-		value = uri.path;
+		value = path;
 	}
 	if (isWindows) {
 		value = value.replace(_slashRegExp, '\\');
@@ -560,11 +557,6 @@ function isQueryPrecentEncodeSet(code: number): boolean {
 // this is non-standard and uses for `URI.toString(true)`
 function isHashOrQuestionMark(code: number): boolean {
 	return code === CharCode.Hash || code === CharCode.QuestionMark;
-}
-
-function isLowerAsciiHex(code: number): boolean {
-	return code >= CharCode.Digit0 && code <= CharCode.Digit9
-		|| code >= CharCode.a && code <= CharCode.z;
 }
 
 const _encodeTable: string[] = (function () {
@@ -639,7 +631,7 @@ const _driveLetterRegExp = /^(\/?[a-z])(:|%3a)/i;
 /**
  * Create the external version of a uri
  */
-function _toString(encoder: { (code: number): boolean }[], scheme: string, authority: string, path: string, query: string, fragment: string): string {
+function _toExternal(encoder: { (code: number): boolean }[], scheme: string, authority: string, path: string, query: string, fragment: string): string {
 
 	let res = '';
 	if (scheme) {
