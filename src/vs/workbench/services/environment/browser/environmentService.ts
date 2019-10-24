@@ -230,6 +230,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	machineSettingsHome!: URI;
 	machineSettingsResource!: URI;
 
+	userHome!: string;
 	userDataPath!: string;
 	appRoot!: string;
 	appSettingsHome!: URI;
@@ -244,8 +245,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	extensionTestsLocationURI?: URI;
 
 	galleryMachineIdResource?: URI;
-
-	userHome!: string;
 
 	//#endregion
 

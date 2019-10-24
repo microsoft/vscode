@@ -20,7 +20,6 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly options?: IWorkbenchConstructionOptions;
 
 	readonly logFile: URI;
-	readonly logExtensionHostCommunication: boolean;
 
 	readonly webviewExternalEndpoint: string;
 	readonly webviewResourceRoot: string;

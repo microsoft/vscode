@@ -36,9 +36,6 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	@memoize
 	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.windowId}.log`)); }
 
-	@memoize
-	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
-
 	constructor(
 		readonly configuration: IWindowConfiguration,
 		execPath: string,
