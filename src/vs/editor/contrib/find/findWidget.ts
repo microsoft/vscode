@@ -460,12 +460,23 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._isVisible = true;
 
 			const selection = this._codeEditor.getSelection();
-			const isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
-			if (isSelection && this._codeEditor.getOption(EditorOption.find).autoFindInSelection) {
-				this._toggleSelectionFind.checked = true;
-			} else {
-				this._toggleSelectionFind.checked = false;
+
+			switch (this._codeEditor.getOption(EditorOption.find).autoFindInSelection) {
+				case 'always':
+					this._toggleSelectionFind.checked = true;
+					break;
+				case 'never':
+					this._toggleSelectionFind.checked = false;
+					break;
+				case 'multiline':
+					const isSelectionMultipleLine = !!selection && selection.startLineNumber !== selection.endLineNumber;
+					this._toggleSelectionFind.checked = isSelectionMultipleLine;
+					break;
+
+				default:
+					break;
 			}
+
 			this._tryUpdateWidgetWidth();
 			this._updateButtons();
 

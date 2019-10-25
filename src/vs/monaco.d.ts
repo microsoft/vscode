@@ -3054,9 +3054,9 @@ declare namespace monaco.editor {
 		 */
 		seedSearchStringFromSelection?: boolean;
 		/**
-		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
+		 * Controls if Find in Selection flag is turned on in the editor.
 		 */
-		autoFindInSelection?: boolean;
+		autoFindInSelection?: 'never' | 'always' | 'multiline';
 		addExtraSpaceOnTop?: boolean;
 	}
 
