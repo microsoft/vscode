@@ -30,7 +30,7 @@ import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'v
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
+export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -473,19 +473,19 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 export class CheckForVSCodeUpdateAction extends Action {
 
 	static readonly ID = CheckForVSCodeUpdateActionId;
-	static LABEL = nls.localize('checkForVSCodeUpdate', "Check for VS Code Update");
+	static LABEL = nls.localize('checkForUpdates', "Check for Updates...");
 
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IUpdateService private readonly updateService: IUpdateService,
 	) {
 		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
-		return this.updateService.checkForUpdates({ windowId: this.environmentService.configuration.windowId });
+		return this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId);
 	}
 }
 
