@@ -954,6 +954,15 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.stageAllTracked', { repository: true })
+	async stageAllTracked(repository: Repository): Promise<void> {
+		const resources = repository.workingTreeGroup.resourceStates
+			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+		const uris = resources.map(r => r.resourceUri);
+
+		await repository.add(uris);
+	}
+
 	@command('git.stageAllUntracked', { repository: true })
 	async stageAllUntracked(repository: Repository): Promise<void> {
 		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
@@ -1207,26 +1216,11 @@ export class CommandCenter {
 		const untrackedResources = resources.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
 
 		if (untrackedResources.length === 0) {
-			const message = resources.length === 1
-				? localize('confirm discard all single', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
-				: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
-			const yes = resources.length === 1
-				? localize('discardAll multiple', "Discard 1 File")
-				: localize('discardAll', "Discard All {0} Files", resources.length);
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-			if (pick !== yes) {
-				return;
-			}
-
-			await repository.clean(resources.map(r => r.resourceUri));
-
+			await this._cleanTrackedChanges(repository, resources);
 		} else if (resources.length === 1) {
 			await this._cleanUntrackedChange(repository, resources[0]);
-
 		} else if (trackedResources.length === 0) {
 			await this._cleanUntrackedChanges(repository, resources);
-
 		} else { // resources.length > 1 && untrackedResources.length > 0 && trackedResources.length > 0
 			const untrackedMessage = untrackedResources.length === 1
 				? localize('there are untracked files single', "The following untracked file will be DELETED FROM DISK if discarded: {0}.", path.basename(untrackedResources[0].resourceUri.fsPath))
@@ -1251,6 +1245,18 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.cleanAllTracked', { repository: true })
+	async cleanAllTracked(repository: Repository): Promise<void> {
+		const resources = repository.workingTreeGroup.resourceStates
+			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		await this._cleanTrackedChanges(repository, resources);
+	}
+
 	@command('git.cleanAllUntracked', { repository: true })
 	async cleanAllUntracked(repository: Repository): Promise<void> {
 		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
@@ -1265,6 +1271,22 @@ export class CommandCenter {
 		} else {
 			await this._cleanUntrackedChanges(repository, resources);
 		}
+	}
+
+	private async _cleanTrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
+		const message = resources.length === 1
+			? localize('confirm discard all single', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
+			: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
+		const yes = resources.length === 1
+			? localize('discardAll multiple', "Discard 1 File")
+			: localize('discardAll', "Discard All {0} Files", resources.length);
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		await repository.clean(resources.map(r => r.resourceUri));
 	}
 
 	private async _cleanUntrackedChange(repository: Repository, resource: Resource): Promise<void> {

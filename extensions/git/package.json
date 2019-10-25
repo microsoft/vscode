@@ -110,6 +110,15 @@
         }
       },
       {
+        "command": "git.stageAllTracked",
+        "title": "%command.stageAllTracked%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/stage.svg",
+          "dark": "resources/icons/dark/stage.svg"
+        }
+      },
+      {
         "command": "git.stageAllUntracked",
         "title": "%command.stageAllUntracked%",
         "category": "Git",
@@ -181,6 +190,15 @@
       {
         "command": "git.cleanAll",
         "title": "%command.cleanAll%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/clean.svg",
+          "dark": "resources/icons/dark/clean.svg"
+        }
+      },
+      {
+        "command": "git.cleanAllTracked",
+        "title": "%command.cleanAllTracked%",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/clean.svg",
@@ -466,6 +484,10 @@
         },
         {
           "command": "git.stageAll",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stageAllTracked",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -885,22 +907,42 @@
         },
         {
           "command": "git.cleanAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.handleUntracked == withchanges",
           "group": "1_modification"
         },
         {
           "command": "git.stageAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.handleUntracked == withchanges",
           "group": "1_modification"
         },
         {
           "command": "git.cleanAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.handleUntracked == withchanges",
           "group": "inline"
         },
         {
           "command": "git.stageAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.handleUntracked == withchanges",
+          "group": "inline"
+        },
+        {
+          "command": "git.cleanAllTracked",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.handleUntracked != withchanges",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.stageAllTracked",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.handleUntracked != withchanges",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.cleanAllTracked",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.handleUntracked != withchanges",
+          "group": "inline"
+        },
+        {
+          "command": "git.stageAllTracked",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.handleUntracked != withchanges",
           "group": "inline"
         },
         {
