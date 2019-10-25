@@ -574,10 +574,6 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
-          "command": "git.getTags",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
-        },
-        {
           "command": "git.fetch",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
