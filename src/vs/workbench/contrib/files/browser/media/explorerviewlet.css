@@ -63,6 +63,7 @@
 
 .explorer-viewlet .panel-header .count {
 	min-width: fit-content;
+	min-width: -moz-fit-content;
 	display: flex;
 	align-items: center;
 }
