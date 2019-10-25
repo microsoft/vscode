@@ -98,6 +98,9 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return e.scrollWidthChanged || e.scrollTopChanged;
+	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
@@ -145,12 +148,6 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 }
 
 export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
-
-	// --- begin event handlers
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollWidthChanged;
-	}
-	// --- end event handlers
 
 	protected _renderOne(ctx: RenderingContext): string {
 		const className = 'current-line' + (this._shouldRenderOther() ? ' current-line-both' : '');
