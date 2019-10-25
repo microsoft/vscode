@@ -915,8 +915,8 @@ export class CommandCenter {
 		}
 
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		const handleUntracked = config.get<'withchanges' | 'separate' | 'hide'>('handleUntracked');
-		await repository.add([], handleUntracked === 'withchanges' ? undefined : { update: true });
+		const untrackedChanges = config.get<'default' | 'separate' | 'hidden'>('untrackedChanges');
+		await repository.add([], untrackedChanges === 'default' ? undefined : { update: true });
 	}
 
 	private async _stageDeletionConflict(repository: Repository, uri: Uri): Promise<void> {
@@ -1421,7 +1421,7 @@ export class CommandCenter {
 			opts.all = 'tracked';
 		}
 
-		if (opts.all && config.get<'withchanges' | 'separate' | 'hide'>('handleUntracked') !== 'withchanges') {
+		if (opts.all && config.get<'default' | 'separate' | 'hidden'>('untrackedChanges') !== 'default') {
 			opts.all = 'tracked';
 		}
 

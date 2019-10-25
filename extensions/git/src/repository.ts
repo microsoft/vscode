@@ -728,7 +728,7 @@ export class Repository implements Disposable {
 		const onConfigListenerForBranchSortOrder = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchSortOrder', root));
 		onConfigListenerForBranchSortOrder(this.updateModelState, this, this.disposables);
 
-		const onConfigListenerForUntracked = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.handleUntracked', root));
+		const onConfigListenerForUntracked = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.untrackedChanges', root));
 		onConfigListenerForUntracked(this.updateModelState, this, this.disposables);
 
 		this.mergeGroup.hideWhenEmpty = true;
@@ -1509,7 +1509,7 @@ export class Repository implements Disposable {
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
 
-		const handleUntracked = scopedConfig.get<'withchanges' | 'separate' | 'hide'>('handleUntracked');
+		const untrackedChanges = scopedConfig.get<'default' | 'separate' | 'hidden'>('untrackedChanges');
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
 		const merge: Resource[] = [];
@@ -1522,13 +1522,13 @@ export class Repository implements Disposable {
 				: undefined;
 
 			switch (raw.x + raw.y) {
-				case '??': switch (handleUntracked) {
-					case 'withchanges': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
+				case '??': switch (untrackedChanges) {
+					case 'default': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
 					case 'separate': return untracked.push(new Resource(ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
 					default: return undefined;
 				}
-				case '!!': switch (handleUntracked) {
-					case 'withchanges': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+				case '!!': switch (untrackedChanges) {
+					case 'default': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
 					case 'separate': return untracked.push(new Resource(ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
 					default: return undefined;
 				}
@@ -1575,7 +1575,7 @@ export class Repository implements Disposable {
 	private setCountBadge(): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const countBadge = config.get<'all' | 'tracked' | 'off'>('countBadge');
-		const handleUntracked = config.get<'withchanges' | 'separate' | 'hide'>('handleUntracked');
+		const untrackedChanges = config.get<'default' | 'separate' | 'hidden'>('untrackedChanges');
 
 		let count =
 			this.mergeGroup.resourceStates.length +
@@ -1585,12 +1585,12 @@ export class Repository implements Disposable {
 		switch (countBadge) {
 			case 'off': count = 0; break;
 			case 'tracked':
-				if (handleUntracked === 'withchanges') {
+				if (untrackedChanges === 'default') {
 					count -= this.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length;
 				}
 				break;
 			case 'all':
-				if (handleUntracked === 'separate') {
+				if (untrackedChanges === 'separate') {
 					count += this.untrackedGroup.resourceStates.length;
 				}
 				break;
