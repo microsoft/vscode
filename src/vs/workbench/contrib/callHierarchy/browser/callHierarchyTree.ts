@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyModel, } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -11,6 +11,8 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { SymbolKinds, Location } from 'vs/editor/common/modes';
 import * as dom from 'vs/base/browser/dom';
+import { compare } from 'vs/base/common/strings';
+import { Range } from 'vs/editor/common/core/range';
 
 export class Call {
 	constructor(
@@ -19,6 +21,14 @@ export class Call {
 		readonly model: CallHierarchyModel,
 		readonly parent: Call | undefined
 	) { }
+
+	static compare(a: Call, b: Call): number {
+		let res = compare(a.item.uri.toString(), b.item.uri.toString());
+		if (res === 0) {
+			res = Range.compareRangesUsingStarts(a.item.range, b.item.range);
+		}
+		return res;
+	}
 }
 
 export class DataSource implements IAsyncDataSource<CallHierarchyModel, Call> {
@@ -61,6 +71,12 @@ export class DataSource implements IAsyncDataSource<CallHierarchyModel, Call> {
 	}
 }
 
+export class Sorter implements ITreeSorter<Call> {
+
+	compare(element: Call, otherElement: Call): number {
+		return Call.compare(element, otherElement);
+	}
+}
 
 export class IdentityProvider implements IIdentityProvider<Call> {
 
