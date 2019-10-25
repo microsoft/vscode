@@ -37,6 +37,7 @@ body {
 	overflow: hidden;
 	font-size: 11px;
 	user-select: none;
+	-webkit-user-select: none;
 }
 
 body.web {
@@ -109,15 +110,18 @@ body.web {
 
 .monaco-workbench.monaco-font-aliasing-antialiased {
 	-webkit-font-smoothing: antialiased;
+	-moz-font-smoothing: antialiased;
 }
 
 .monaco-workbench.monaco-font-aliasing-none {
 	-webkit-font-smoothing: none;
+	-moz-font-smoothing: none;
 }
 
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
 	.monaco-workbench.monaco-font-aliasing-auto {
 		-webkit-font-smoothing: antialiased;
+		-moz-font-smoothing: antialiased;
 	}
 }
 
@@ -162,8 +166,8 @@ body.web {
 
 .monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
-	-webkit-mask-size: 10px 10px;
 	mask-size: 10px 10px;
+	-webkit-mask-size: 10px 10px;
 }
 
 .monaco-workbench .monaco-menu .action-item {

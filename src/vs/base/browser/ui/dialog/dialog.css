@@ -123,6 +123,8 @@
 	text-overflow: ellipsis;
 	padding-left: 20px;
 	user-select: text;
+	-webkit-user-select: text;
+	-ms-user-select: text;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	white-space: normal;
 }

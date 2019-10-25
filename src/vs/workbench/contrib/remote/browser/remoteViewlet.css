@@ -21,6 +21,7 @@
 	width: 16px;
 	height: 22px;
 	-webkit-font-smoothing: antialiased;
+	-moz-font-smoothing: antialiased;
 }
 
 .remote-help-content .monaco-list .monaco-list-row .monaco-tl-twistie {
