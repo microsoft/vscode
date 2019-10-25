@@ -70,7 +70,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { isLinux, isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -1379,7 +1379,6 @@ export class TestElectronService implements IElectronService {
 	async toggleDevTools(): Promise<void> { }
 	async startCrashReporter(options: Electron.CrashReporterStartOptions): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
-	async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> { }
 }
 
 export class TestBackupMainService implements IBackupMainService {
