@@ -1421,6 +1421,10 @@ export class CommandCenter {
 			opts.all = 'tracked';
 		}
 
+		if (opts.all && config.get<'withchanges' | 'separate' | 'hide'>('handleUntracked') !== 'withchanges') {
+			opts.all = 'tracked';
+		}
+
 		await repository.commit(message, opts);
 
 		const postCommitCommand = config.get<'none' | 'push' | 'sync'>('postCommitCommand');
