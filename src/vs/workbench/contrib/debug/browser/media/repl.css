@@ -13,6 +13,7 @@
 
 .repl .repl-tree .monaco-tl-contents {
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .repl .repl-tree.word-wrap .monaco-tl-contents {

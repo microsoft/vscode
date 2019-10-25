@@ -21,6 +21,7 @@
 	padding: 4px;
 	border: 1px solid transparent;
 	-webkit-appearance: textfield;
+	-moz-appearance: textfield;
 }
 
 .extensions-viewlet > .extensions {
