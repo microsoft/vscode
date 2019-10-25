@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse as jsonParse } from 'vs/base/common/json';
+import { parse as jsonParse, getNodeType } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
 import { localize } from 'vs/nls';
 import { extname, basename } from 'vs/base/common/path';
@@ -203,7 +203,7 @@ export class SnippetFile {
 		if (!this._loadPromise) {
 			this._loadPromise = Promise.resolve(this._fileService.readFile(this.location)).then(content => {
 				const data = <JsonSerializedSnippets>jsonParse(content.value.toString());
-				if (typeof data === 'object') {
+				if (getNodeType(data) === 'object') {
 					forEach(data, entry => {
 						const { key: name, value: scopeOrTemplate } = entry;
 						if (isJsonSerializedSnippet(scopeOrTemplate)) {

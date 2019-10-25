@@ -401,6 +401,11 @@
         "command": "git.stashApplyLatest",
         "title": "%command.stashApplyLatest%",
         "category": "Git"
+      },
+      {
+        "command": "git.stashDrop",
+        "title": "%command.stashDrop%",
+        "category": "Git"
       }
     ],
     "menus": {
@@ -574,10 +579,6 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
-          "command": "git.getTags",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
-        },
-        {
           "command": "git.fetch",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -663,6 +664,10 @@
         },
         {
           "command": "git.stashApplyLatest",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashDrop",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         }
       ],
@@ -814,6 +819,11 @@
         },
         {
           "command": "git.stashApplyLatest",
+          "group": "6_stash",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.stashDrop",
           "group": "6_stash",
           "when": "scmProvider == git"
         },

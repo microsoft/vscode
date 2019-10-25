@@ -188,7 +188,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 	private hasErrors(content: string): boolean {
 		const parseErrors: ParseError[] = [];
-		parse(content, parseErrors);
+		parse(content, parseErrors, { allowEmptyContent: true, allowTrailingComma: true });
 		return parseErrors.length > 0;
 	}
 
@@ -248,13 +248,23 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	private getIgnoredSettings(settingsContent?: string): string[] {
-		const value: string[] = (settingsContent ? parse(settingsContent)['configurationSync.settingsToIgnore'] : this.configurationService.getValue<string[]>('configurationSync.settingsToIgnore')) || [];
+		let value: string[] = [];
+		if (settingsContent) {
+			const setting = parse(settingsContent);
+			if (setting) {
+				value = setting['configurationSync.settingsToIgnore'];
+			}
+		} else {
+			value = this.configurationService.getValue<string[]>('configurationSync.settingsToIgnore');
+		}
 		const added: string[] = [], removed: string[] = [];
-		for (const key of value) {
-			if (startsWith(key, '-')) {
-				removed.push(key.substring(1));
-			} else {
-				added.push(key);
+		if (Array.isArray(value)) {
+			for (const key of value) {
+				if (startsWith(key, '-')) {
+					removed.push(key.substring(1));
+				} else {
+					added.push(key);
+				}
 			}
 		}
 		return [...DEFAULT_IGNORED_SETTINGS, ...added].filter(setting => removed.indexOf(setting) === -1);

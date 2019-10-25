@@ -16,8 +16,12 @@
 
 declare module 'vscode' {
 
-	//#region Joh - call hierarchy
+	//#region Joh - call hierarchy: https://github.com/microsoft/vscode/issues/70231
 
+	/**
+	 * Represents programming constructs like functions or constructors in the context
+	 * of call hierarchy.
+	 */
 	export class CallHierarchyItem {
 		/**
 		 * The name of this item.
@@ -50,7 +54,7 @@ declare module 'vscode' {
 		range: Range;
 
 		/**
-		 * The range that should be selected and reveal when this symbol is being picked, e.g. the name of a function.
+		 * The range that should be selected and revealed when this symbol is being picked, e.g. the name of a function.
 		 * Must be contained by the [`range`](#CallHierarchyItem.range).
 		 */
 		selectionRange: Range;
@@ -58,35 +62,112 @@ declare module 'vscode' {
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
+	/**
+	 * Represents an incoming call, e.g. a caller of a method or constructor.
+	 */
 	export class CallHierarchyIncomingCall {
+
+		/**
+		 * The item that makes the call.
+		 */
 		from: CallHierarchyItem;
+
+		/**
+		 * The range at which at which the calls appears. This is relative to the caller
+		 * denoted by [`this.from`](#CallHierarchyIncomingCall.from).
+		 */
 		fromRanges: Range[];
+
+		/**
+		 * Create a new call object.
+		 *
+		 * @param item The item making the call.
+		 * @param fromRanges The ranges at which the calls appear.
+		 */
 		constructor(item: CallHierarchyItem, fromRanges: Range[]);
 	}
 
+	/**
+	 * Represents an outgoing call, e.g. calling a getter from a method or a method from a constructor etc.
+	 */
 	export class CallHierarchyOutgoingCall {
-		fromRanges: Range[];
+
+		/**
+		 * The item that is called.
+		 */
 		to: CallHierarchyItem;
+
+		/**
+		 * The range at which this item is called. This is the range relative to the caller, e.g the item
+		 * passed to [`provideCallHierarchyOutgoingCalls`](#CallHierarchyItemProvider.provideCallHierarchyOutgoingCalls)
+		 * and not [`this.to`](#CallHierarchyOutgoingCall.to).
+		 */
+		fromRanges: Range[];
+
+		/**
+		 * Create a new call object.
+		 *
+		 * @param item The item being called
+		 * @param fromRanges The ranges at which the calls appear.
+		 */
 		constructor(item: CallHierarchyItem, fromRanges: Range[]);
 	}
 
-	export interface CallHierarchyItemProvider {
+	/**
+	 * The call hierarchy provider interface describes the constract between extensions
+	 * and the call hierarchy feature which allows to browse calls and caller of function,
+	 * methods, constructor etc.
+	 */
+	export interface CallHierarchyProvider {
 
+		/**
+		 * Bootstraps call hierarchy by returning the item that is denoted by the given document
+		 * and position. This item will be used as entry into the call graph. Providers should
+		 * return `undefined` or `null` when there is no item at the given location.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @returns A call hierarchy item or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
 		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
 
 		/**
-		 * Provide a list of callers for the provided item, e.g. all function calling a function.
+		 * Provide all incoming calls for an item, e.g all callers for a method. In graph terms this descibes directed
+		 * and annotated edges inside the call graph, e.g the given item is the starting node and the result is the nodes
+		 * that can be reached.
+		 *
+		 * @param item The hierarchy item for which incoming calls should be computed.
+		 * @param token A cancellation token.
+		 * @returns A set of incoming calls or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
 		 */
 		provideCallHierarchyIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
 
 		/**
-		 * Provide a list of calls for the provided item, e.g. all functions call from a function.
+		 * Provide all outgoing calls for an item, e.g call calls to functions, methods, or constructors from the given item. In
+		 * graph terms this descibes directed and annotated edges inside the call graph, e.g the given item is the starting
+		 * node and the result is the nodes that can be reached.
+		 *
+		 * @param item The hierarchy item for which outgoing calls should be computed.
+		 * @param token A cancellation token.
+		 * @returns A set of outgoing calls or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
 		 */
 		provideCallHierarchyOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
 	}
 
 	export namespace languages {
-		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyItemProvider): Disposable;
+
+		/**
+		 * Register a call hierarchy provider.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A call hierarchy provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyProvider): Disposable;
 	}
 
 	//#endregion

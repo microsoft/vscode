@@ -42,19 +42,14 @@ const enum State {
 
 class ChangeHierarchyDirectionAction extends Action {
 
-	constructor(direction: CallHierarchyDirection, updateDirection: (direction: CallHierarchyDirection) => void) {
+	constructor(getDirection: () => CallHierarchyDirection, toggleDirection: () => void) {
 		super('', undefined, '', true, () => {
-			if (direction === CallHierarchyDirection.CallsTo) {
-				direction = CallHierarchyDirection.CallsFrom;
-			} else {
-				direction = CallHierarchyDirection.CallsTo;
-			}
-			updateDirection(direction);
+			toggleDirection();
 			update();
 			return Promise.resolve();
 		});
 		const update = () => {
-			if (direction === CallHierarchyDirection.CallsFrom) {
+			if (getDirection() === CallHierarchyDirection.CallsFrom) {
 				this.label = localize('toggle.from', "Showing Calls");
 				this.class = 'calls-from';
 			} else {
@@ -198,6 +193,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		addClass(treeContainer, 'tree');
 		container.appendChild(treeContainer);
 		const options: IAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
+			sorter: new callHTree.Sorter(),
 			identityProvider: new callHTree.IdentityProvider(() => this._direction),
 			ariaLabel: localize('tree.aria', "Call Hierarchy"),
 			expandOnlyOnTwistieClick: true,
@@ -269,12 +265,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			let previewUri: URI;
 			if (this._direction === CallHierarchyDirection.CallsFrom) {
 				// outgoing calls: show caller and highlight focused calls
-				const parent = this._tree.getParentElement(element);
-				if (parent instanceof callHTree.Call) {
-					previewUri = parent.item.uri;
-				} else {
-					previewUri = parent.root.uri;
-				}
+				previewUri = element.parent ? element.parent.item.uri : element.model.root.uri;
+
 			} else {
 				// incoming calls: show caller and highlight focused calls
 				previewUri = element.item.uri;
@@ -365,39 +357,44 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._message.focus();
 	}
 
-	async showItem(item: CallHierarchyModel): Promise<void> {
+	async showModel(model: CallHierarchyModel): Promise<void> {
 
 		this._show();
 		const viewState = this._treeViewStates.get(this._direction);
 
-		await this._tree.setInput(item, viewState);
+		await this._tree.setInput(model, viewState);
 
-		const root = <ITreeNode<callHTree.Call>>this._tree.getNode(item).children[0];
+		const root = <ITreeNode<callHTree.Call>>this._tree.getNode(model).children[0];
 		await this._tree.expand(root.element);
 
 		if (root.children.length === 0) {
 			//
 			this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
-				? localize('empt.callsFrom', "No calls from '{0}'", item.root.name)
-				: localize('empt.callsTo', "No callers of '{0}'", item.root.name));
+				? localize('empt.callsFrom', "No calls from '{0}'", model.root.name)
+				: localize('empt.callsTo', "No callers of '{0}'", model.root.name));
 
 		} else {
 			this._parent.dataset['state'] = State.Data;
 			this._tree.domFocus();
-			this._tree.setFocus([root.children[0].element]);
+			if (!viewState) {
+				this._tree.setFocus([root.children[0].element]);
+			}
 		}
 
 		if (!this._changeDirectionAction) {
-			const changeDirection = async (newDirection: CallHierarchyDirection) => {
-				if (this._direction !== newDirection) {
-					this._treeViewStates.set(this._direction, this._tree.getViewState());
-					this._direction = newDirection;
-					await this.showItem(item);
-				}
-			};
-			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
+			this._changeDirectionAction = new ChangeHierarchyDirectionAction(() => this._direction, () => this.toggleDirection());
 			this._disposables.add(this._changeDirectionAction);
 			this._actionbarWidget!.push(this._changeDirectionAction, { icon: true, label: false });
+		}
+	}
+
+	async toggleDirection(): Promise<void> {
+		const model = this._tree.getInput();
+		if (model) {
+			const newDirection = this._direction === CallHierarchyDirection.CallsTo ? CallHierarchyDirection.CallsFrom : CallHierarchyDirection.CallsTo;
+			this._treeViewStates.set(this._direction, this._tree.getViewState());
+			this._direction = newDirection;
+			await this.showModel(model);
 		}
 	}
 
