@@ -1,6 +1,6 @@
 {
-	"displayName": "Hide Untracked Files (Git)",
-	"description": "Copy of the built-in Git extension which hides untracked files",
+	"displayName": "Git",
+	"description": "Git SCM Integration",
 	"command.clone": "Clone",
 	"command.init": "Initialize Repository",
 	"command.openRepository": "Open Repository",
