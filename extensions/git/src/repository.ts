@@ -1521,29 +1521,11 @@ export class Repository implements Disposable {
 				: undefined;
 
 			switch (raw.x + raw.y) {
-				case '??':
-					switch (handleUntracked) {
-						case 'withchanges':
-							return workingTree.push(
-								new Resource(
-									ResourceGroupType.WorkingTree,
-									uri,
-									Status.UNTRACKED,
-									useIcons
-								)
-							);
-						case 'separate':
-							return untracked.push(
-								new Resource(
-									ResourceGroupType.Untracked,
-									uri,
-									Status.UNTRACKED,
-									useIcons
-								)
-							);
-						case 'hide':
-							return undefined;
-					}
+				case '??': switch (handleUntracked) {
+					case 'withchanges': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
+					case 'separate': return untracked.push(new Resource(ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
+					default: return undefined;
+				}
 				case '!!': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
 				case 'DD': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_DELETED, useIcons));
 				case 'AU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.ADDED_BY_US, useIcons));
@@ -1567,6 +1549,7 @@ export class Repository implements Disposable {
 				case 'D': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
 				case 'A': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
 			}
+
 			return undefined;
 		});
 
