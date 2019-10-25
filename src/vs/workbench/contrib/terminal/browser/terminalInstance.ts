@@ -465,7 +465,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity,
-			// TODO: Guess whether to use canvas or dom better
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
 		});
 		this._xterm = xterm;
@@ -484,7 +483,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
 		this._xterm.onData(data => this._processManager.write(data));
-		// TODO: How does the cwd work on detached processes?
 		this.processReady.then(async () => {
 			if (this._linkHandler) {
 				this._linkHandler.processCwd = await this._processManager.getInitialCwd();
