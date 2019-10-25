@@ -914,45 +914,9 @@ export class CommandCenter {
 			}
 		}
 
-		const handleUntracked = workspace.getConfiguration('git', Uri.file(repository.root)).get<'withchanges' | 'separate' | 'hide'>('handleUntracked');
-		let includeUntracked = false;
-		switch (handleUntracked) {
-			case 'withchanges':
-				includeUntracked = true;
-				break;
-			case 'separate':
-				if (repository.untrackedGroup.resourceStates.length > 0) {
-					const message = localize(
-						'also add untracked files',
-						'Would you like to also add and stage untracked files?'
-					);
-
-					const yes = localize('yes', "Yes");
-					const no = localize('no', 'No');
-					const pick = await window.showInformationMessage(
-						message,
-						{ modal: true },
-						yes,
-						no
-					);
-
-					if (pick === yes) {
-						includeUntracked = true;
-					} else if (pick === no) {
-						includeUntracked = false;
-					} else {
-						return;
-					}
-				} else {
-					// Doesn't matter
-					includeUntracked = false;
-				}
-				break;
-			case 'hide':
-				includeUntracked = false;
-				break;
-		}
-		await repository.add([], includeUntracked ? undefined : { update: true });
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		const handleUntracked = config.get<'withchanges' | 'separate' | 'hide'>('handleUntracked');
+		await repository.add([], handleUntracked === 'withchanges' ? undefined : { update: true });
 	}
 
 	private async _stageDeletionConflict(repository: Repository, uri: Uri): Promise<void> {
@@ -988,6 +952,15 @@ export class CommandCenter {
 				throw new Error('Cancelled');
 			}
 		}
+	}
+
+	@command('git.stageAllUntracked', { repository: true })
+	async stageAllUntracked(repository: Repository): Promise<void> {
+		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
+			.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
+		const uris = resources.map(r => r.resourceUri);
+
+		await repository.add(uris);
 	}
 
 	@command('git.stageChange')
@@ -1247,27 +1220,12 @@ export class CommandCenter {
 			}
 
 			await repository.clean(resources.map(r => r.resourceUri));
-			return;
+
 		} else if (resources.length === 1) {
-			const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(resources[0].resourceUri.fsPath));
-			const yes = localize('delete file', "Delete file");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+			await this._cleanUntrackedChange(repository, resources[0]);
 
-			if (pick !== yes) {
-				return;
-			}
-
-			await repository.clean(resources.map(r => r.resourceUri));
 		} else if (trackedResources.length === 0) {
-			const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?", resources.length);
-			const yes = localize('delete files', "Delete Files");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-			if (pick !== yes) {
-				return;
-			}
-
-			await repository.clean(resources.map(r => r.resourceUri));
+			await this._cleanUntrackedChanges(repository, resources);
 
 		} else { // resources.length > 1 && untrackedResources.length > 0 && trackedResources.length > 0
 			const untrackedMessage = untrackedResources.length === 1
@@ -1291,6 +1249,46 @@ export class CommandCenter {
 
 			await repository.clean(resources.map(r => r.resourceUri));
 		}
+	}
+
+	@command('git.cleanAllUntracked', { repository: true })
+	async cleanAllUntracked(repository: Repository): Promise<void> {
+		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
+			.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		if (resources.length === 1) {
+			await this._cleanUntrackedChange(repository, resources[0]);
+		} else {
+			await this._cleanUntrackedChanges(repository, resources);
+		}
+	}
+
+	private async _cleanUntrackedChange(repository: Repository, resource: Resource): Promise<void> {
+		const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(resource.resourceUri.fsPath));
+		const yes = localize('delete file', "Delete file");
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		await repository.clean([resource.resourceUri]);
+	}
+
+	private async _cleanUntrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
+		const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?", resources.length);
+		const yes = localize('delete files', "Delete Files");
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		await repository.clean(resources.map(r => r.resourceUri));
 	}
 
 	private async smartCommit(

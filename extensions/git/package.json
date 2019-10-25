@@ -110,6 +110,15 @@
         }
       },
       {
+        "command": "git.stageAllUntracked",
+        "title": "%command.stageAllUntracked%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/stage.svg",
+          "dark": "resources/icons/dark/stage.svg"
+        }
+      },
+      {
         "command": "git.stageSelectedRanges",
         "title": "%command.stageSelectedRanges%",
         "category": "Git"
@@ -172,6 +181,15 @@
       {
         "command": "git.cleanAll",
         "title": "%command.cleanAll%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/clean.svg",
+          "dark": "resources/icons/dark/clean.svg"
+        }
+      },
+      {
+        "command": "git.cleanAllUntracked",
+        "title": "%command.cleanAllUntracked%",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/clean.svg",
@@ -448,6 +466,10 @@
         },
         {
           "command": "git.stageAll",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stageAllUntracked",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -879,6 +901,26 @@
         {
           "command": "git.stageAll",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline"
+        },
+        {
+          "command": "git.cleanAllUntracked",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.stageAllUntracked",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.cleanAllUntracked",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "inline"
+        },
+        {
+          "command": "git.stageAllUntracked",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline"
         }
       ],

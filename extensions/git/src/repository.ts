@@ -969,6 +969,7 @@ export class Repository implements Disposable {
 			const toClean: string[] = [];
 			const toCheckout: string[] = [];
 			const submodulesToUpdate: string[] = [];
+			const resourceStates = [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates];
 
 			resources.forEach(r => {
 				const fsPath = r.fsPath;
@@ -981,7 +982,7 @@ export class Repository implements Disposable {
 				}
 
 				const raw = r.toString();
-				const scmResource = find(this.workingTreeGroup.resourceStates, sr => sr.resourceUri.toString() === raw);
+				const scmResource = find(resourceStates, sr => sr.resourceUri.toString() === raw);
 
 				if (!scmResource) {
 					return;
@@ -1526,7 +1527,11 @@ export class Repository implements Disposable {
 					case 'separate': return untracked.push(new Resource(ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
 					default: return undefined;
 				}
-				case '!!': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+				case '!!': switch (handleUntracked) {
+					case 'withchanges': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+					case 'separate': return untracked.push(new Resource(ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
+					default: return undefined;
+				}
 				case 'DD': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_DELETED, useIcons));
 				case 'AU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.ADDED_BY_US, useIcons));
 				case 'UD': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.DELETED_BY_THEM, useIcons));
