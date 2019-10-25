@@ -411,7 +411,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentsElement.setAttribute('role', 'presentation');
 		this._commentsElement.tabIndex = 0;
 
-		dom.addDisposableListener(this._commentsElement, dom.EventType.KEY_DOWN, (e) => {
+		this._disposables.add(dom.addDisposableListener(this._commentsElement, dom.EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
 				const moveFocusWithinBounds = (change: number): number => {
@@ -423,7 +423,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 				this.setFocusedComment(event.equals(KeyCode.UpArrow) ? moveFocusWithinBounds(-1) : moveFocusWithinBounds(1));
 			}
-		});
+		}));
 
 		this._commentElements = [];
 		if (this._commentThread.comments) {
