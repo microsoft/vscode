@@ -134,7 +134,7 @@ declare module 'vscode' {
 		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
 
 		/**
-		 * Provide all incoming calls for an item, e.g all callers for a method. In graph terms this descibes directed
+		 * Provide all incoming calls for an item, e.g all callers for a method. In graph terms this describes directed
 		 * and annotated edges inside the call graph, e.g the given item is the starting node and the result is the nodes
 		 * that can be reached.
 		 *
@@ -147,7 +147,7 @@ declare module 'vscode' {
 
 		/**
 		 * Provide all outgoing calls for an item, e.g call calls to functions, methods, or constructors from the given item. In
-		 * graph terms this descibes directed and annotated edges inside the call graph, e.g the given item is the starting
+		 * graph terms this describes directed and annotated edges inside the call graph, e.g the given item is the starting
 		 * node and the result is the nodes that can be reached.
 		 *
 		 * @param item The hierarchy item for which outgoing calls should be computed.
