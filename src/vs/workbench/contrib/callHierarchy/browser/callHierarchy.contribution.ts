@@ -99,7 +99,7 @@ class CallHierarchyController implements IEditorContribution {
 				return; // nothing
 			} else if (model) {
 				this._sessionDisposables.add(model);
-				widget.showItem(model);
+				widget.showModel(model);
 			} else {
 				widget.showMessage(localize('no.item', "No results"));
 			}

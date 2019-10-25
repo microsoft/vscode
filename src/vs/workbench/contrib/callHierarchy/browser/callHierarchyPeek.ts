@@ -361,21 +361,21 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._message.focus();
 	}
 
-	async showItem(item: CallHierarchyModel): Promise<void> {
+	async showModel(model: CallHierarchyModel): Promise<void> {
 
 		this._show();
 		const viewState = this._treeViewStates.get(this._direction);
 
-		await this._tree.setInput(item, viewState);
+		await this._tree.setInput(model, viewState);
 
-		const root = <ITreeNode<callHTree.Call>>this._tree.getNode(item).children[0];
+		const root = <ITreeNode<callHTree.Call>>this._tree.getNode(model).children[0];
 		await this._tree.expand(root.element);
 
 		if (root.children.length === 0) {
 			//
 			this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
-				? localize('empt.callsFrom', "No calls from '{0}'", item.root.name)
-				: localize('empt.callsTo', "No callers of '{0}'", item.root.name));
+				? localize('empt.callsFrom', "No calls from '{0}'", model.root.name)
+				: localize('empt.callsTo', "No callers of '{0}'", model.root.name));
 
 		} else {
 			this._parent.dataset['state'] = State.Data;
@@ -388,7 +388,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				if (this._direction !== newDirection) {
 					this._treeViewStates.set(this._direction, this._tree.getViewState());
 					this._direction = newDirection;
-					await this.showItem(item);
+					await this.showModel(model);
 				}
 			};
 			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
