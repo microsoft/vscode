@@ -63,26 +63,26 @@ class ChangeOperation {
  */
 class BufferSynchronizer {
 
-	private readonly _pending = new Map<string, CloseOperation | OpenOperation | ChangeOperation>();
+	private readonly _pending = new ResourceMap<CloseOperation | OpenOperation | ChangeOperation>();
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public open(args: Proto.OpenRequestArgs) {
+	public open(resource: vscode.Uri, args: Proto.OpenRequestArgs) {
 		if (this.supportsBatching) {
-			this.updatePending(args.file, pending => {
-				pending.set(args.file, new OpenOperation(args));
+			this.updatePending(resource, pending => {
+				pending.set(resource, new OpenOperation(args));
 			});
 		} else {
 			this.client.executeWithoutWaitingForResponse('open', args);
 		}
 	}
 
-	public close(filepath: string) {
+	public close(resource: vscode.Uri, filepath: string) {
 		if (this.supportsBatching) {
-			this.updatePending(filepath, pending => {
-				pending.set(filepath, new CloseOperation(filepath));
+			this.updatePending(resource, pending => {
+				pending.set(resource, new CloseOperation(filepath));
 			});
 		} else {
 			const args: Proto.FileRequestArgs = { file: filepath };
@@ -90,14 +90,14 @@ class BufferSynchronizer {
 		}
 	}
 
-	public change(filepath: string, events: readonly vscode.TextDocumentContentChangeEvent[]) {
+	public change(resource: vscode.Uri, filepath: string, events: readonly vscode.TextDocumentContentChangeEvent[]) {
 		if (!events.length) {
 			return;
 		}
 
 		if (this.supportsBatching) {
-			this.updatePending(filepath, pending => {
-				pending.set(filepath, new ChangeOperation({
+			this.updatePending(resource, pending => {
+				pending.set(resource, new ChangeOperation({
 					fileName: filepath,
 					textChanges: events.map((change): Proto.CodeEdit => ({
 						newText: change.text,
@@ -136,7 +136,7 @@ class BufferSynchronizer {
 			const closedFiles: string[] = [];
 			const openFiles: Proto.OpenRequestArgs[] = [];
 			const changedFiles: Proto.FileCodeEdits[] = [];
-			for (const change of this._pending.values()) {
+			for (const change of this._pending.values) {
 				switch (change.type) {
 					case 'change': changedFiles.push(change.args); break;
 					case 'open': openFiles.push(change.args); break;
@@ -152,8 +152,8 @@ class BufferSynchronizer {
 		return this.client.apiVersion.gte(API.v340) && vscode.workspace.getConfiguration('typescript', null).get<boolean>('useBatchedBufferSync', true);
 	}
 
-	private updatePending(filepath: string, f: (pending: Map<string, CloseOperation | OpenOperation | ChangeOperation>) => void): void {
-		if (this._pending.has(filepath)) {
+	private updatePending(resource: vscode.Uri, f: (pending: ResourceMap<CloseOperation | OpenOperation | ChangeOperation>) => void): void {
+		if (this._pending.has(resource)) {
 			// we saw this file before, make sure we flush before working with it again
 			this.flush();
 		}
@@ -193,7 +193,7 @@ class SyncedBuffer {
 			}
 		}
 
-		this.synchronizer.open(args);
+		this.synchronizer.open(this.resource, args);
 		this.state = BufferState.Open;
 	}
 
@@ -219,7 +219,7 @@ class SyncedBuffer {
 	}
 
 	public close(): void {
-		this.synchronizer.close(this.filepath);
+		this.synchronizer.close(this.resource, this.filepath);
 		this.state = BufferState.Closed;
 	}
 
@@ -228,7 +228,7 @@ class SyncedBuffer {
 			console.error(`Unexpected buffer state: ${this.state}`);
 		}
 
-		this.synchronizer.change(this.filepath, events);
+		this.synchronizer.change(this.resource, this.filepath, events);
 	}
 }
 

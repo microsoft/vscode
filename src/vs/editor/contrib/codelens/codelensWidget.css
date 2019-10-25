@@ -11,10 +11,9 @@
 
 .monaco-editor .codelens-decoration > span,
 .monaco-editor .codelens-decoration > a {
-	-moz-user-select: none;
+	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
-	user-select: none;
 	white-space: nowrap;
 	vertical-align: sub;
 }

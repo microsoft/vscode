@@ -325,7 +325,8 @@ declare module 'xterm' {
 
 	/**
 	 * Represents a specific line in the terminal that is tracked when scrollback
-	 * is trimmed and lines are added or removed.
+	 * is trimmed and lines are added or removed. This is a single line that may
+	 * be part of a larger wrapped line.
 	 */
 	export interface IMarker extends IDisposable {
 		/**
@@ -339,7 +340,8 @@ declare module 'xterm' {
 		readonly isDisposed: boolean;
 
 		/**
-		 * The actual line index in the buffer at this point in time.
+		 * The actual line index in the buffer at this point in time. This is set to
+		 * -1 if the marker has been disposed.
 		 */
 		readonly line: number;
 	}
@@ -449,7 +451,7 @@ declare module 'xterm' {
 		onLineFeed: IEvent<void>;
 
 		/**
-		 * Adds an event listener for when a scroll occurs. The  event value is the
+		 * Adds an event listener for when a scroll occurs. The event value is the
 		 * new position of the viewport.
 		 * @returns an `IDisposable` to stop listening.
 		 */
@@ -862,29 +864,34 @@ declare module 'xterm' {
 	 */
 	export interface IViewportRange {
 		/**
-		 * The start cell of the range.
+		 * The start of the range.
 		 */
-		start: IViewportCellPosition;
+		start: IViewportRangePosition;
 
 		/**
-		 * The end cell of the range.
+		 * The end of the range.
 		 */
-		end: IViewportCellPosition;
+		end: IViewportRangePosition;
 	}
 
 	/**
 	 * An object representing a cell position within the viewport of the terminal.
 	 */
-	interface IViewportCellPosition {
+	interface IViewportRangePosition {
 		/**
-		 * The column of the cell. Note that this is 1-based; the first column is column 1.
+		 * The x position of the cell. This is a 0-based index that refers to the
+		 * space in between columns, not the column itself. Index 0 refers to the
+		 * left side of the viewport, index `Terminal.cols` refers to the right side
+		 * of the viewport. This can be thought of as how a cursor is positioned in
+		 * a text editor.
 		 */
-		col: number;
+		x: number;
 
 		/**
-		 * The row of the cell. Note that this is 1-based; the first row is row 1.
+		 * The y position of the cell. This is a 0-based index that refers to a
+		 * specific row.
 		 */
-		row: number;
+		y: number;
 	}
 
 	/**

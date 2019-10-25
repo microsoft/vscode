@@ -1037,7 +1037,7 @@ class CallHierarchyAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.CallHierarchyItemProvider
+		private readonly _provider: vscode.CallHierarchyProvider
 	) { }
 
 	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<{ sessionId: string, root: extHostProtocol.ICallHierarchyItemDto } | undefined> {
@@ -1078,11 +1078,12 @@ class CallHierarchyAdapter {
 	}
 
 	releaseSession(sessionId: string): void {
-		this._cache.delete(sessionId);
+		this._cache.delete(sessionId.charAt(0));
 	}
 
-	private _cacheAndConvertItem(sessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
-		const array = this._cache.get(sessionId.charAt(0))!;
+	private _cacheAndConvertItem(itemOrSessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
+		const sessionId = itemOrSessionId.charAt(0);
+		const array = this._cache.get(sessionId)!;
 		const dto: extHostProtocol.ICallHierarchyItemDto = {
 			id: sessionId + String.fromCharCode(array.length),
 			name: item.name,
@@ -1532,7 +1533,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- call hierarchy
 
-	registerCallHierarchyProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CallHierarchyItemProvider): vscode.Disposable {
+	registerCallHierarchyProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CallHierarchyProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new CallHierarchyAdapter(this._documents, provider), extension);
 		this._proxy.$registerCallHierarchyProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);

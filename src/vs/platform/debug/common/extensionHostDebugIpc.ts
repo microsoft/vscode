@@ -102,8 +102,6 @@ export class ExtensionHostDebugChannelClient extends Disposable implements IExte
 	}
 
 	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> {
-		// TODO@Isidor
-		//return this.channel.call('openExtensionDevelopmentHostWindow', [args, env]);
-		return Promise.resolve();
+		return this.channel.call('openExtensionDevelopmentHostWindow', [args, env]);
 	}
 }

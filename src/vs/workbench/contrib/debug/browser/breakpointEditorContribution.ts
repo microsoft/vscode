@@ -247,8 +247,14 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			this.closeBreakpointWidget();
 			await this.setDecorations();
 		}));
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(async () => {
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => {
 			if (!this.ignoreBreakpointsChangeEvent && !this.setDecorationsScheduler.isScheduled()) {
+				this.setDecorationsScheduler.schedule();
+			}
+		}));
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
+			// We need to update breakpoint decorations when state changes since the top stack frame and breakpoint decoration might change
+			if (!this.setDecorationsScheduler.isScheduled()) {
 				this.setDecorationsScheduler.schedule();
 			}
 		}));

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyModel, } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -11,13 +11,24 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { SymbolKinds, Location } from 'vs/editor/common/modes';
 import * as dom from 'vs/base/browser/dom';
+import { compare } from 'vs/base/common/strings';
+import { Range } from 'vs/editor/common/core/range';
 
 export class Call {
 	constructor(
 		readonly item: CallHierarchyItem,
 		readonly locations: Location[],
-		readonly model: CallHierarchyModel
+		readonly model: CallHierarchyModel,
+		readonly parent: Call | undefined
 	) { }
+
+	static compare(a: Call, b: Call): number {
+		let res = compare(a.item.uri.toString(), b.item.uri.toString());
+		if (res === 0) {
+			res = Range.compareRangesUsingStarts(a.item.range, b.item.range);
+		}
+		return res;
+	}
 }
 
 export class DataSource implements IAsyncDataSource<CallHierarchyModel, Call> {
@@ -32,43 +43,40 @@ export class DataSource implements IAsyncDataSource<CallHierarchyModel, Call> {
 
 	async getChildren(element: CallHierarchyModel | Call): Promise<Call[]> {
 		if (element instanceof CallHierarchyModel) {
-			return [new Call(element.root, [], element)];
+			return [new Call(element.root, [], element, undefined)];
 		}
 
-		const results: Call[] = [];
+		const { model, item } = element;
+
 		if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
-			await this._getOutgoingCalls(element.model, element.item, results);
+			return (await model.resolveOutgoingCalls(item, CancellationToken.None)).map(call => {
+				return new Call(
+					call.to,
+					call.fromRanges.map(range => ({ range, uri: item.uri })),
+					model,
+					element
+				);
+			});
+
 		} else {
-			await this._getIncomingCalls(element.model, element.item, results);
-		}
-		return results;
-	}
-
-	private async _getOutgoingCalls(model: CallHierarchyModel, item: CallHierarchyItem, bucket: Call[]): Promise<void> {
-
-		const outgoingCalls = await model.resolveOutgoingCalls(item, CancellationToken.None);
-		for (const call of outgoingCalls) {
-			bucket.push(new Call(
-				call.to,
-				call.fromRanges.map(range => ({ range, uri: item.uri })),
-				model
-			));
+			return (await model.resolveIncomingCalls(item, CancellationToken.None)).map(call => {
+				return new Call(
+					call.from,
+					call.fromRanges.map(range => ({ range, uri: call.from.uri })),
+					model,
+					element
+				);
+			});
 		}
 	}
-
-	private async _getIncomingCalls(model: CallHierarchyModel, item: CallHierarchyItem, bucket: Call[]): Promise<void> {
-		const incomingCalls = await model.resolveIncomingCalls(item, CancellationToken.None);
-		for (const call of incomingCalls) {
-			bucket.push(new Call(
-				call.from,
-				call.fromRanges.map(range => ({ range, uri: call.from.uri })),
-				model
-			));
-		}
-	}
-
 }
 
+export class Sorter implements ITreeSorter<Call> {
+
+	compare(element: Call, otherElement: Call): number {
+		return Call.compare(element, otherElement);
+	}
+}
 
 export class IdentityProvider implements IIdentityProvider<Call> {
 
@@ -77,7 +85,11 @@ export class IdentityProvider implements IIdentityProvider<Call> {
 	) { }
 
 	getId(element: Call): { toString(): string; } {
-		return this.getDirection() + '->' + element.item.id;
+		let res = this.getDirection() + JSON.stringify(element.item.uri) + JSON.stringify(element.item.range);
+		if (element.parent) {
+			res += this.getId(element.parent);
+		}
+		return res;
 	}
 }
 
