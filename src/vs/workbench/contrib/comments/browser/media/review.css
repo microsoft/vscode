@@ -135,7 +135,7 @@
 	width: 16px;
 	height: 12px;
 	-webkit-font-smoothing: antialiased;
-	-moz-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 	display: inline-block;
 	margin-top: 3px;
 	margin-right: 4px;

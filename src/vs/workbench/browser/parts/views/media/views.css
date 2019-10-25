@@ -109,7 +109,7 @@
 	width: 16px;
 	height: 22px;
 	-webkit-font-smoothing: antialiased;
-	-moz-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
