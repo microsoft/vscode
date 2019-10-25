@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution } from 'vs/workbench/contrib/update/browser/update';
+import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, CheckForVSCodeUpdateAction } from 'vs/workbench/contrib/update/browser/update';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
@@ -16,6 +16,11 @@ const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensio
 workbench.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(UpdateContribution, LifecyclePhase.Restored);
 
+const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+
 // Editor
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
+actionRegistry
 	.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Show Release Notes');
+
+actionRegistry
+	.registerWorkbenchAction(new SyncActionDescriptor(CheckForVSCodeUpdateAction, CheckForVSCodeUpdateAction.ID, CheckForVSCodeUpdateAction.LABEL), 'Check for VS Code Update');

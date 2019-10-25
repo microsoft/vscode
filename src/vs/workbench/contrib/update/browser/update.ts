@@ -26,7 +26,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
+import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 
@@ -469,3 +469,23 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		});
 	}
 }
+
+export class CheckForVSCodeUpdateAction extends Action {
+
+	static readonly ID = CheckForVSCodeUpdateActionId;
+	static LABEL = nls.localize('checkForVSCodeUpdate', "Check for VS Code Update");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IUpdateService private readonly updateService: IUpdateService,
+	) {
+		super(id, label, undefined, true);
+	}
+
+	run(): Promise<void> {
+		return this.updateService.checkForUpdates({ windowId: this.environmentService.configuration.windowId });
+	}
+}
+
