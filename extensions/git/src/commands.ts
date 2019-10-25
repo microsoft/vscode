@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions, WorkspaceFolder } from 'vscode';
-import { Git, CommitOptions, Stash, ForcePushMode } from './git';
-import { Repository, Resource, ResourceGroupType } from './repository';
-import { Model } from './model';
-import { toGitUri, fromGitUri } from './uri';
-import { grep, isDescendant, pathEquals } from './util';
-import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
-import * as path from 'path';
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
+import * as path from 'path';
+import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Ref, RefType, Branch, GitErrorCodes, Status } from './api/git';
+import { Branch, GitErrorCodes, Ref, RefType, Status } from './api/git';
+import { CommitOptions, ForcePushMode, Git, Stash } from './git';
+import { Model } from './model';
+import { Repository, Resource, ResourceGroupType } from './repository';
+import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
+import { fromGitUri, toGitUri } from './uri';
+import { grep, isDescendant, pathEquals } from './util';
 
 const localize = nls.loadMessageBundle();
 
@@ -872,7 +872,8 @@ export class CommandCenter {
 		}
 
 		const workingTree = selection.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
-		const scmResources = [...workingTree, ...resolved, ...unresolved];
+		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
+		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
 		this.outputChannel.appendLine(`git.stage.scmResources ${scmResources.length}`);
 		if (!scmResources.length) {
@@ -913,7 +914,49 @@ export class CommandCenter {
 			}
 		}
 
-		await repository.add([]);
+		const handleUntracked =
+			workspace
+				.getConfiguration('git', Uri.file(repository.root))
+				.get<'withchanges' | 'separate' | 'hide'>('handleUntracked') ||
+			'withchanges';
+		let includeUntracked;
+		switch (handleUntracked) {
+			case 'withchanges':
+				includeUntracked = true;
+				break;
+			case 'separate':
+				if (repository.untrackedGroup.resourceStates.length > 0) {
+					const message = localize(
+						'also add untracked files',
+						'Would you like to also add and stage untracked files?'
+					);
+
+					const yes = localize('yes', "Yes");
+					const no = localize('no', 'No');
+					const pick = await window.showInformationMessage(
+						message,
+						{ modal: true },
+						yes,
+						no
+					);
+
+					if (pick === yes) {
+						includeUntracked = true;
+					} else if (pick === no) {
+						includeUntracked = false;
+					} else {
+						return;
+					}
+				} else {
+					// Doesn't matter
+					includeUntracked = false;
+				}
+				break;
+			case 'hide':
+				includeUntracked = false;
+				break;
+		}
+		await repository.add([], includeUntracked ? undefined : { update: true });
 	}
 
 	private async _stageDeletionConflict(repository: Repository, uri: Uri): Promise<void> {
@@ -1137,8 +1180,8 @@ export class CommandCenter {
 			resourceStates = [resource];
 		}
 
-		const scmResources = resourceStates
-			.filter(s => s instanceof Resource && s.resourceGroupType === ResourceGroupType.WorkingTree) as Resource[];
+		const scmResources = resourceStates.filter(s => s instanceof Resource
+			&& (s.resourceGroupType === ResourceGroupType.WorkingTree || s.resourceGroupType === ResourceGroupType.Untracked)) as Resource[];
 
 		if (!scmResources.length) {
 			return;
@@ -2159,7 +2202,8 @@ export class CommandCenter {
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
-		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
+			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 
 		if (noUnstagedChanges && noStagedChanges) {

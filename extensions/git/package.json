@@ -1054,6 +1054,61 @@
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "2_view"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "navigation"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "navigation"
+        },
+        {
+          "command": "git.openHEADFile",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "navigation"
+        },
+        {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "navigation"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == untracked && !gitFreshRepository",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == untracked && !gitFreshRepository",
+          "group": "inline"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "inline"
+        },
+        {
+          "command": "git.openFile2",
+          "when": "scmProvider == git && scmResourceGroup == untracked && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
+          "group": "inline0"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == untracked && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
+          "group": "inline0"
+        },
+        {
+          "command": "git.ignore",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification@3"
         }
       ],
       "editor/title": [
@@ -1457,6 +1512,21 @@
           ],
           "default": "committerdate",
           "description": "%config.branchSortOrder%"
+        },
+        "git.handleUntracked": {
+          "type": "string",
+          "enum": [
+            "withchanges",
+            "separate",
+            "hide"
+          ],
+          "enumDescriptions": [
+            "%config.handleUntracked.withchanges%",
+            "%config.handleUntracked.separate%",
+            "%config.handleUntracked.hide%"
+          ],
+          "default": "withchanges",
+          "description": "%config.handleUntracked%"
         }
       }
     },
