@@ -390,6 +390,14 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		}
 	}
 
+	getModel(): CallHierarchyModel | undefined {
+		return this._tree.getInput();
+	}
+
+	getFocused(): callHTree.Call | undefined {
+		return this._tree.getFocus()[0];
+	}
+
 	async toggleDirection(): Promise<void> {
 		const model = this._tree.getInput();
 		if (model) {
