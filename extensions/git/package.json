@@ -668,7 +668,7 @@
         },
         {
           "command": "git.stashDrop",
-          "when": "config.get.enabled && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         }
       ],
       "scm/title": [
