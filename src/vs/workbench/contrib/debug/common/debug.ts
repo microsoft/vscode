@@ -456,7 +456,7 @@ export interface IDebugConfiguration {
 	toolBarLocation: 'floating' | 'docked' | 'hidden';
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
-	closeConsoleOnFinish: boolean;
+	closeConsoleOnEnd: boolean;
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
 	showSubSessionsInToolBar: boolean;
