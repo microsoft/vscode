@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions, WorkspaceFolder } from 'vscode';
-import { Git, CommitOptions, Stash, ForcePushMode } from './git';
-import { Repository, Resource, ResourceGroupType } from './repository';
-import { Model } from './model';
-import { toGitUri, fromGitUri } from './uri';
-import { grep, isDescendant, pathEquals } from './util';
-import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
-import * as path from 'path';
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
+import * as path from 'path';
+import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Ref, RefType, Branch, GitErrorCodes, Status } from './api/git';
+import { Branch, GitErrorCodes, Ref, RefType, Status } from './api/git';
+import { CommitOptions, ForcePushMode, Git, Stash } from './git';
+import { Model } from './model';
+import { Repository, Resource, ResourceGroupType } from './repository';
+import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
+import { fromGitUri, toGitUri } from './uri';
+import { grep, isDescendant, pathEquals } from './util';
 
 const localize = nls.loadMessageBundle();
 
@@ -872,7 +872,8 @@ export class CommandCenter {
 		}
 
 		const workingTree = selection.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
-		const scmResources = [...workingTree, ...resolved, ...unresolved];
+		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
+		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
 		this.outputChannel.appendLine(`git.stage.scmResources ${scmResources.length}`);
 		if (!scmResources.length) {
@@ -913,7 +914,9 @@ export class CommandCenter {
 			}
 		}
 
-		await repository.add([]);
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		const untrackedChanges = config.get<'default' | 'separate' | 'hidden'>('untrackedChanges');
+		await repository.add([], untrackedChanges === 'default' ? undefined : { update: true });
 	}
 
 	private async _stageDeletionConflict(repository: Repository, uri: Uri): Promise<void> {
@@ -949,6 +952,24 @@ export class CommandCenter {
 				throw new Error('Cancelled');
 			}
 		}
+	}
+
+	@command('git.stageAllTracked', { repository: true })
+	async stageAllTracked(repository: Repository): Promise<void> {
+		const resources = repository.workingTreeGroup.resourceStates
+			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+		const uris = resources.map(r => r.resourceUri);
+
+		await repository.add(uris);
+	}
+
+	@command('git.stageAllUntracked', { repository: true })
+	async stageAllUntracked(repository: Repository): Promise<void> {
+		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
+			.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
+		const uris = resources.map(r => r.resourceUri);
+
+		await repository.add(uris);
 	}
 
 	@command('git.stageChange')
@@ -1137,8 +1158,8 @@ export class CommandCenter {
 			resourceStates = [resource];
 		}
 
-		const scmResources = resourceStates
-			.filter(s => s instanceof Resource && s.resourceGroupType === ResourceGroupType.WorkingTree) as Resource[];
+		const scmResources = resourceStates.filter(s => s instanceof Resource
+			&& (s.resourceGroupType === ResourceGroupType.WorkingTree || s.resourceGroupType === ResourceGroupType.Untracked)) as Resource[];
 
 		if (!scmResources.length) {
 			return;
@@ -1195,41 +1216,11 @@ export class CommandCenter {
 		const untrackedResources = resources.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
 
 		if (untrackedResources.length === 0) {
-			const message = resources.length === 1
-				? localize('confirm discard all single', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
-				: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
-			const yes = resources.length === 1
-				? localize('discardAll multiple', "Discard 1 File")
-				: localize('discardAll', "Discard All {0} Files", resources.length);
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-			if (pick !== yes) {
-				return;
-			}
-
-			await repository.clean(resources.map(r => r.resourceUri));
-			return;
+			await this._cleanTrackedChanges(repository, resources);
 		} else if (resources.length === 1) {
-			const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(resources[0].resourceUri.fsPath));
-			const yes = localize('delete file', "Delete file");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-			if (pick !== yes) {
-				return;
-			}
-
-			await repository.clean(resources.map(r => r.resourceUri));
+			await this._cleanUntrackedChange(repository, resources[0]);
 		} else if (trackedResources.length === 0) {
-			const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?", resources.length);
-			const yes = localize('delete files', "Delete Files");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-			if (pick !== yes) {
-				return;
-			}
-
-			await repository.clean(resources.map(r => r.resourceUri));
-
+			await this._cleanUntrackedChanges(repository, resources);
 		} else { // resources.length > 1 && untrackedResources.length > 0 && trackedResources.length > 0
 			const untrackedMessage = untrackedResources.length === 1
 				? localize('there are untracked files single', "The following untracked file will be DELETED FROM DISK if discarded: {0}.", path.basename(untrackedResources[0].resourceUri.fsPath))
@@ -1252,6 +1243,74 @@ export class CommandCenter {
 
 			await repository.clean(resources.map(r => r.resourceUri));
 		}
+	}
+
+	@command('git.cleanAllTracked', { repository: true })
+	async cleanAllTracked(repository: Repository): Promise<void> {
+		const resources = repository.workingTreeGroup.resourceStates
+			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		await this._cleanTrackedChanges(repository, resources);
+	}
+
+	@command('git.cleanAllUntracked', { repository: true })
+	async cleanAllUntracked(repository: Repository): Promise<void> {
+		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
+			.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		if (resources.length === 1) {
+			await this._cleanUntrackedChange(repository, resources[0]);
+		} else {
+			await this._cleanUntrackedChanges(repository, resources);
+		}
+	}
+
+	private async _cleanTrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
+		const message = resources.length === 1
+			? localize('confirm discard all single', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
+			: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
+		const yes = resources.length === 1
+			? localize('discardAll multiple', "Discard 1 File")
+			: localize('discardAll', "Discard All {0} Files", resources.length);
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		await repository.clean(resources.map(r => r.resourceUri));
+	}
+
+	private async _cleanUntrackedChange(repository: Repository, resource: Resource): Promise<void> {
+		const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(resource.resourceUri.fsPath));
+		const yes = localize('delete file', "Delete file");
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		await repository.clean([resource.resourceUri]);
+	}
+
+	private async _cleanUntrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
+		const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?", resources.length);
+		const yes = localize('delete files', "Delete Files");
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		await repository.clean(resources.map(r => r.resourceUri));
 	}
 
 	private async smartCommit(
@@ -1359,6 +1418,10 @@ export class CommandCenter {
 		}
 
 		if (opts.all && config.get<'all' | 'tracked'>('smartCommitChanges') === 'tracked') {
+			opts.all = 'tracked';
+		}
+
+		if (opts.all && config.get<'default' | 'separate' | 'hidden'>('untrackedChanges') !== 'default') {
 			opts.all = 'tracked';
 		}
 
@@ -2159,7 +2222,8 @@ export class CommandCenter {
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
-		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
+			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 
 		if (noUnstagedChanges && noStagedChanges) {

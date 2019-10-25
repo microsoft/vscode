@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const enum CallHierarchyDirection {
 	CallsTo = 1,
@@ -55,6 +56,26 @@ export interface CallHierarchyProvider {
 export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();
 
 
+class RefCountedDisposabled {
+
+	constructor(
+		private readonly _disposable: IDisposable,
+		private _counter = 1
+	) { }
+
+	acquire() {
+		this._counter++;
+		return this;
+	}
+
+	release() {
+		if (--this._counter === 0) {
+			this._disposable.dispose();
+		}
+		return this;
+	}
+}
+
 export class CallHierarchyModel {
 
 	static async create(model: ITextModel, position: IPosition, token: CancellationToken): Promise<CallHierarchyModel | undefined> {
@@ -66,17 +87,26 @@ export class CallHierarchyModel {
 		if (!session) {
 			return undefined;
 		}
-		return new CallHierarchyModel(provider, session);
+		return new CallHierarchyModel(provider, session.root, new RefCountedDisposabled(session));
 	}
 
 	private constructor(
 		readonly provider: CallHierarchyProvider,
-		readonly session: CallHierarchySession,
-		readonly root = session.root
+		readonly root: CallHierarchyItem,
+		readonly ref: RefCountedDisposabled,
 	) { }
 
 	dispose(): void {
-		this.session.dispose();
+		this.ref.release();
+	}
+
+	fork(item: CallHierarchyItem): CallHierarchyModel {
+		const that = this;
+		return new class extends CallHierarchyModel {
+			constructor() {
+				super(that.provider, item, that.ref.acquire());
+			}
+		};
 	}
 
 	async resolveIncomingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<IncomingCall[]> {

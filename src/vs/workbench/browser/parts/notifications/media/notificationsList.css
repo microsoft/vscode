@@ -107,6 +107,7 @@
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
 	max-width: fit-content;
+	max-width: -moz-fit-content;
 	padding: 5px 10px;
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	font-size: 12px;

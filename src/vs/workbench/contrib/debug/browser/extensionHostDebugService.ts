@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { mapToSerializable } from 'vs/base/common/map';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
 
@@ -44,11 +45,6 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			console.warn('Extension Host Debugging not available due to missing workspace provider.');
 		}
 
-		this.registerListeners(environmentService);
-	}
-
-	private registerListeners(environmentService: IWorkbenchEnvironmentService): void {
-
 		// Reload window on reload request
 		this._register(this.onReload(event => {
 			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
@@ -64,7 +60,8 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		}));
 	}
 
-	async openExtensionDevelopmentHostWindow(args: string[]): Promise<void> {
+	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> {
+
 		if (!this.workspaceProvider.payload) {
 			// TODO@Ben remove me once environment is adopted
 			return this.openExtensionDevelopmentHostWindowLegacy(args);
@@ -101,13 +98,13 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		}
 
 		// Open debug window as new window. Pass ParsedArgs over.
-		this.workspaceProvider.open(debugWorkspace, {
+		return this.workspaceProvider.open(debugWorkspace, {
 			reuse: false, 							// debugging always requires a new window
 			payload: mapToSerializable(environment)	// mandatory properties to enable debugging
 		});
 	}
 
-	private async openExtensionDevelopmentHostWindowLegacy(args: string[]): Promise<void> {
+	private openExtensionDevelopmentHostWindowLegacy(args: string[]): Promise<void> {
 		// we pass the "args" as query parameters of the URL
 
 		let newAddress = `${document.location.origin}${document.location.pathname}?`;
