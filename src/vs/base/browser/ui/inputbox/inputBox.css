@@ -8,7 +8,6 @@
 	display: block;
 	padding: 0;
 	box-sizing:	border-box;
-	line-height: auto !important;
 
 	/* Customizable */
 	font-size: inherit;
