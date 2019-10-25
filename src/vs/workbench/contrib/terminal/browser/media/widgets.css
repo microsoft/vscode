@@ -21,6 +21,10 @@
 	z-index: 20;
 }
 
-.monaco-workbench .terminal-message-widget > p {
+.monaco-workbench .terminal-message-widget p {
 	margin: 0px;
+}
+
+.monaco-workbench .terminal-message-widget a {
+	color: #3794ff;
 }

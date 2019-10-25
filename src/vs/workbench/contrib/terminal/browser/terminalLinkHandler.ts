@@ -277,17 +277,21 @@ export class TerminalLinkHandler {
 
 	private _getLinkHoverString(uri: string): IMarkdownString {
 		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+
+		let label = '';
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			if (isMacintosh) {
-				return new MarkdownString(nls.localize('terminalLinkHandler.followLinkAlt.mac', "Option + click to follow link"));
+				label = nls.localize('terminalLinkHandler.followLinkAlt.mac', "Option + click");
 			} else {
-				return new MarkdownString(nls.localize('terminalLinkHandler.followLinkAlt', "Alt + click to follow link"));
+				label = nls.localize('terminalLinkHandler.followLinkAlt', "Alt + click");
 			}
 		}
 		if (isMacintosh) {
-			return new MarkdownString(nls.localize('terminalLinkHandler.followLinkCmd', "Cmd + click to follow link"));
+			label = nls.localize('terminalLinkHandler.followLinkCmd', "Cmd + click");
 		}
-		return new MarkdownString(nls.localize('terminalLinkHandler.followLinkCtrl', "Ctrl + click to follow link"));
+		label = nls.localize('terminalLinkHandler.followLinkCtrl', "Ctrl + click");
+
+		return new MarkdownString(`[Follow Link](${uri}) (${label})`);
 	}
 
 	private get osPath(): IPath {
