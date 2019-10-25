@@ -1447,6 +1447,7 @@ export class Repository implements Disposable {
 	private async updateModelState(): Promise<void> {
 		const { status, didHitLimit } = await this.repository.getStatus();
 		const config = workspace.getConfiguration('git');
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
 		this.isRepositoryHuge = didHitLimit;
@@ -1507,9 +1508,7 @@ export class Repository implements Disposable {
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
 
-		const handleUntracked =
-			config.get<'withchanges' | 'separate' | 'hide'>('handleUntracked') ||
-			'withchanges';
+		const handleUntracked = scopedConfig.get<'withchanges' | 'separate' | 'hide'>('handleUntracked');
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
 		const merge: Resource[] = [];
@@ -1586,11 +1585,10 @@ export class Repository implements Disposable {
 	}
 
 	private setCountBadge(): void {
-		const config = workspace.getConfiguration('git');
-		const countBadge = config.get<string>('countBadge');
-		const handleUntracked =
-			config.get<'withchanges' | 'separate' | 'hide'>('handleUntracked') ||
-			'withchanges';
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const countBadge = config.get<'all' | 'tracked' | 'off'>('countBadge');
+		const handleUntracked = config.get<'withchanges' | 'separate' | 'hide'>('handleUntracked');
+
 		let count =
 			this.mergeGroup.resourceStates.length +
 			this.indexGroup.resourceStates.length +

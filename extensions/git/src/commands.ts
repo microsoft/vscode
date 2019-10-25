@@ -914,12 +914,8 @@ export class CommandCenter {
 			}
 		}
 
-		const handleUntracked =
-			workspace
-				.getConfiguration('git', Uri.file(repository.root))
-				.get<'withchanges' | 'separate' | 'hide'>('handleUntracked') ||
-			'withchanges';
-		let includeUntracked;
+		const handleUntracked = workspace.getConfiguration('git', Uri.file(repository.root)).get<'withchanges' | 'separate' | 'hide'>('handleUntracked');
+		let includeUntracked = false;
 		switch (handleUntracked) {
 			case 'withchanges':
 				includeUntracked = true;

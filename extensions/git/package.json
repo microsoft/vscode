@@ -1252,7 +1252,8 @@
             "%config.countBadge.off%"
           ],
           "description": "%config.countBadge%",
-          "default": "all"
+          "default": "all",
+          "scope": "resource"
         },
         "git.checkoutType": {
           "type": "string",
@@ -1526,7 +1527,8 @@
             "%config.handleUntracked.hide%"
           ],
           "default": "withchanges",
-          "description": "%config.handleUntracked%"
+          "description": "%config.handleUntracked%",
+          "scope": "resource"
         }
       }
     },
