@@ -285,12 +285,9 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 	let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
 
 	// Filter out folders which do not have a path or uri set
-	if (Array.isArray(storedWorkspace.folders)) {
+	if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {
 		storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
-	}
-
-	// Validate
-	if (!Array.isArray(storedWorkspace.folders)) {
+	} else {
 		throw new Error(`${path} looks like an invalid workspace file.`);
 	}
 

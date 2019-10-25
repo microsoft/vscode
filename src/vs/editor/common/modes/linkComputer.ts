@@ -264,6 +264,10 @@ export class LinkComputer {
 						case CharCode.BackTick:
 							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote) ? CharacterClass.None : CharacterClass.ForceTermination;
 							break;
+						case CharCode.Asterisk:
+							// `*` terminates a link if the link began with `*`
+							chClass = (linkBeginChCode === CharCode.Asterisk) ? CharacterClass.ForceTermination : CharacterClass.None;
+							break;
 						default:
 							chClass = classifier.get(chCode);
 					}

@@ -199,8 +199,8 @@
 }
 
 /* change close icon to dirty state icon */
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before {
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty:not(.dirty-border-top) > .tab-close .action-label:not(:hover)::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty:not(.dirty-border-top) > .tab-close .action-label:not(:hover)::before {
 	content: "\ea71"; /* use `circle-filled` icon unicode */
 }
 
@@ -232,6 +232,7 @@
 	padding-right: 5px; /* we need less room when sizing is shrink */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty-border-top > .tab-close,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty-border-top > .tab-close {
 	display: none; /* hide dirty state when highlightModifiedTabs is enabled and when running without close button */
 }

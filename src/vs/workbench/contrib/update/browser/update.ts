@@ -26,11 +26,11 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
+import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
+export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -134,7 +134,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 		// was there an update? if so, open release notes
 		const releaseNotesUrl = productService.releaseNotesUrl;
-		if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && productService.version !== lastVersion) {
+		if (shouldShowReleaseNotes && !environmentService.args['skip-release-notes'] && releaseNotesUrl && lastVersion && productService.version !== lastVersion) {
 			showReleaseNotes(instantiationService, productService.version)
 				.then(undefined, () => {
 					notificationService.prompt(
@@ -469,3 +469,23 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		});
 	}
 }
+
+export class CheckForVSCodeUpdateAction extends Action {
+
+	static readonly ID = CheckForVSCodeUpdateActionId;
+	static LABEL = nls.localize('checkForUpdates', "Check for Updates...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IUpdateService private readonly updateService: IUpdateService,
+	) {
+		super(id, label, undefined, true);
+	}
+
+	run(): Promise<void> {
+		return this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId);
+	}
+}
+

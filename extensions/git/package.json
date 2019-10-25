@@ -268,6 +268,11 @@
         "category": "Git"
       },
       {
+        "command": "git.deleteTag",
+        "title": "%command.deleteTag%",
+        "category": "Git"
+      },
+      {
         "command": "git.fetch",
         "title": "%command.fetch%",
         "category": "Git"
@@ -395,6 +400,11 @@
       {
         "command": "git.stashApplyLatest",
         "title": "%command.stashApplyLatest%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashDrop",
+        "title": "%command.stashDrop%",
         "category": "Git"
       }
     ],
@@ -565,6 +575,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.deleteTag",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.fetch",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -650,6 +664,10 @@
         },
         {
           "command": "git.stashApplyLatest",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashDrop",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         }
       ],
@@ -801,6 +819,11 @@
         },
         {
           "command": "git.stashApplyLatest",
+          "group": "6_stash",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.stashDrop",
           "group": "6_stash",
           "when": "scmProvider == git"
         },

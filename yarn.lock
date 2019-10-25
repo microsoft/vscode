@@ -5714,10 +5714,10 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.9.0:
-  version "0.9.0"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0.tgz#8f9bcc0d1c5b970a3184ffd533d862c7eb6590a6"
-  integrity sha512-MBnCQl83FTYOu7B4xWw10AW77AAh7ThCE1VXEv+JeWj8mSpGo+0bwgsV+b23ljBFwEM9OmsOv3kM27iUPPm84g==
+node-pty@^0.10.0-beta2:
+  version "0.10.0-beta2"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta2.tgz#6fd0d2fbbe881869e4e19795a05c557ac958da81"
+  integrity sha512-IU2lzlPUZ+gKG7pHJjzBHpnuwPTxWGgT3iyQicZfdL7dwLvP5cm00QxavAXCInBmRkOMhvM4aBSKvfzqQnCDBA==
   dependencies:
     nan "^2.14.0"
 
@@ -8510,10 +8510,10 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@3.7.0-dev.20191017:
-  version "3.7.0-dev.20191017"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.7.0-dev.20191017.tgz#e61440dd445edea6d7b9a699e7c5d5fbcd1906f2"
-  integrity sha512-Yi0lCPEN0cn9Gp8TEEkPpgKNR5SWAmx9Hmzzz+oEuivw6amURqRGynaLyFZkMA9iMsvYG5LLqhdlFO3uu5ZT/w==
+typescript@3.7.1-rc:
+  version "3.7.1-rc"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.7.1-rc.tgz#2054b872d67f8dc732e36c1df397f9327f37ada0"
+  integrity sha512-2rMtWppLsaPvmpXsoIAXWDBQVnJMw1ITGGSnidMuayLj9iCmMRT69ncKZw/Mk5rXfJkilApKucWQZxproALoRw==
 
 typescript@^2.6.2:
   version "2.6.2"
@@ -8986,10 +8986,10 @@ vscode-textmate@^4.2.2:
   dependencies:
     oniguruma "^7.2.0"
 
-vscode-windows-ca-certs@0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-windows-ca-certs/-/vscode-windows-ca-certs-0.1.0.tgz#d58eeb40b536130918cfde2b01e6dc7e5c1bd757"
-  integrity sha512-ZfZbfJIE09Q0dwGqmqTj7kuAq4g6lul9WPJvo0DkKjln8/FL+dY3wUKIKbYwWQp4x56SBTLBq3tJkD72xQ9Gqw==
+vscode-windows-ca-certs@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-windows-ca-certs/-/vscode-windows-ca-certs-0.2.0.tgz#086f0f4de57e2760a35ac6920831bff246237115"
+  integrity sha512-YBrJRT0zos+Yb1Qdn73GD8QZr7pa2IE96b5Y1hmmp6XeR8aYB7Iiq5gDAF/+/AxL+caSR9KPZQ6jiYWh5biD7w==
   dependencies:
     node-addon-api "1.6.2"
 
@@ -9266,20 +9266,20 @@ xtend@~2.1.1:
   dependencies:
     object-keys "~0.4.0"
 
-xterm-addon-search@0.3.0-beta5:
-  version "0.3.0-beta5"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.3.0-beta5.tgz#fd53d33a77a0235018479c712be8c12f7c0d083a"
-  integrity sha512-3GkGc4hST35/4hzgnQPLLvQ29WH7MkZ0mUrBE/Vm1IQum7TnMvWPTkGemwM+wAl4tdBmynNccHJlFeQzaQtVUg==
+xterm-addon-search@0.3.0-beta10:
+  version "0.3.0-beta10"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.3.0-beta10.tgz#24ca32062e8a2488e7df5d2e30855f0e2ce3e23d"
+  integrity sha512-3yPcHDgUYBM7Co5KGJkdOPUsRj2i+ZfhLSAJrHTNEP2vK6x6dO3YJ6M+YfBfiqP6ATXBXa+xTi0h0AV/IMukvQ==
 
 xterm-addon-web-links@0.2.1:
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.1.tgz#6d1f2ce613e09870badf17615e7a1170a31542b2"
   integrity sha512-2KnHtiq0IG7hfwv3jw2/jQeH1RBk2d5CH4zvgwQe00rLofSJqSfgnJ7gwowxxpGHrpbPr6Lv4AmH/joaNw2+HQ==
 
-xterm@^4.2.0-beta20:
-  version "4.2.0-beta20"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.2.0-beta20.tgz#74a759414511b4577159293397914ac33a2375d8"
-  integrity sha512-lH52ksaNQqWmLVV4OdLKWvhGkSRUXgJNvb2YYmVkBAm1PdVVS36ir8Qr4zYygnc2tBw689Wj65t4cNckmfpU1Q==
+xterm@^4.2.0-beta24:
+  version "4.2.0-beta24"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.2.0-beta24.tgz#3f68ec50d9ae1ec2e0ee1e35f1e9f25c4060cc07"
+  integrity sha512-71qwhH3uo2V68QX/hEgjpn6wZ/XU1N9DzhbTBUVT0z1pJsCz9JUeDqIxenIIqkRut/MlzxUDU7mw/pX+ZVFCfg==
 
 y18n@^3.2.1:
   version "3.2.1"

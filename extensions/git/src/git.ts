@@ -1327,6 +1327,11 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async deleteTag(name: string): Promise<void> {
+		let args = ['tag', '-d', name];
+		await this.run(args);
+	}
+
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
@@ -1586,6 +1591,24 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.LocalChangesOverwritten;
 			} else if (/^CONFLICT/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.StashConflict;
+			}
+
+			throw err;
+		}
+	}
+
+	async dropStash(index?: number): Promise<void> {
+		const args = ['stash', 'drop'];
+
+		if (typeof index === 'number') {
+			args.push(`stash@{${index}}`);
+		}
+
+		try {
+			await this.run(args);
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoStashFound;
 			}
 
 			throw err;

@@ -603,6 +603,17 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			matches = this._session.selectAll();
 		}
 
+		if (findState.searchScope) {
+			const state = findState.searchScope;
+			let inSelection: FindMatch[] | null = [];
+			for (let i = 0; i < matches.length; i++) {
+				if (matches[i].range.endLineNumber <= state.endLineNumber && matches[i].range.startLineNumber >= state.startLineNumber) {
+					inSelection.push(matches[i]);
+				}
+			}
+			matches = inSelection;
+		}
+
 		if (matches.length > 0) {
 			const editorSelection = this._editor.getSelection();
 			// Have the primary cursor remain the one where the action was invoked

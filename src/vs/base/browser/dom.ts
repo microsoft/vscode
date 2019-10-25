@@ -1212,3 +1212,18 @@ export function asCSSUrl(uri: URI): string {
 	}
 	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
+
+export function triggerDownload(uri: URI, name: string): void {
+	// In order to download from the browser, the only way seems
+	// to be creating a <a> element with download attribute that
+	// points to the file to download.
+	// See also https://developers.google.com/web/updates/2011/08/Downloading-resources-in-HTML5-a-download
+	const anchor = document.createElement('a');
+	document.body.appendChild(anchor);
+	anchor.download = name;
+	anchor.href = uri.toString(true);
+	anchor.click();
+
+	// Ensure to remove the element from DOM eventually
+	setTimeout(() => document.body.removeChild(anchor));
+}

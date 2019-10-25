@@ -80,6 +80,7 @@ class PartsSplash {
 			sideBarBackground: this._getThemeColor(themes.SIDE_BAR_BACKGROUND),
 			statusBarBackground: this._getThemeColor(themes.STATUS_BAR_BACKGROUND),
 			statusBarNoFolderBackground: this._getThemeColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND),
+			windowBorder: this._getThemeColor(themes.WINDOW_ACTIVE_BORDER) ?? this._getThemeColor(themes.WINDOW_INACTIVE_BORDER)
 		};
 		const layoutInfo = !this._shouldSaveLayoutInfo() ? undefined : {
 			sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
@@ -88,6 +89,8 @@ class PartsSplash {
 			activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART))) : 0,
 			sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.SIDEBAR_PART))) : 0,
 			statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.STATUSBAR_PART))) : 0,
+			windowBorder: this._layoutService.hasWindowBorder(),
+			windowBorderRadius: this._layoutService.getWindowBorderRadius()
 		};
 		this._textFileService.write(
 			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),

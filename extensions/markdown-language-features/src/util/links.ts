@@ -13,7 +13,7 @@ export const Schemes = {
 	data: 'data:',
 	vscode: 'vscode:',
 	'vscode-insiders': 'vscode-insiders:',
-	'vscode-resource': 'vscode-resource',
+	'vscode-resource': 'vscode-resource:',
 };
 
 const knownSchemes = [

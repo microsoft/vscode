@@ -34,8 +34,14 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// Input placeholder
 	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
 	if (placeholderForeground) {
-		collector.addRule(`.monaco-workbench input::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
-		collector.addRule(`.monaco-workbench textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
+		collector.addRule(`
+			.monaco-workbench input::-moz-placeholder,
+			.monaco-workbench input::-webkit-input-placeholder { color: ${placeholderForeground}; }
+		`);
+		collector.addRule(`
+			.monaco-workbench textarea::-moz-placeholder,
+			.monaco-workbench textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }
+		`);
 	}
 
 	// List highlight

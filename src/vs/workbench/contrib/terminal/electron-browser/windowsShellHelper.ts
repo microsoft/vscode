@@ -14,6 +14,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 const SHELL_EXECUTABLES = [
 	'cmd.exe',
 	'powershell.exe',
+	'pwsh.exe',
 	'bash.exe',
 	'wsl.exe',
 	'ubuntu.exe',

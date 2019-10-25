@@ -20,17 +20,16 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, asDomUri } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export interface IDraggedResource {
@@ -330,15 +329,8 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
 	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath)) : source.resource.toString()).join(lineDelimiter));
 
-	const envService = accessor.get(IWorkbenchEnvironmentService);
-	const hasRemote = !!envService.configuration.remoteAuthority;
-	if (
-		!(isLinux && hasRemote) && 	// Not supported on linux remote due to chrome limitation https://github.com/microsoft/vscode-remote-release/issues/849
-		!isWeb 						// Does not seem to work anymore when running from web, the file ends up being empty (and PWA crashes)
-	) {
-		// Download URL: enables support to drag a tab as file to desktop (only single file supported)
-		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), firstSource.resource.toString()].join(':'));
-	}
+	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
+	event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), asDomUri(firstSource.resource).toString()].join(':'));
 
 	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
 	const files = sources.filter(s => !s.isDirectory);

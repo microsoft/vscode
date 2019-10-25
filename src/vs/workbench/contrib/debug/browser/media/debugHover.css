@@ -10,6 +10,7 @@
 	animation-duration: 0.15s;
 	animation-name: fadeIn;
 	user-select: text;
+	-webkit-user-select: text;
 	word-break: break-all;
 	padding: 4px 5px;
 }
@@ -38,6 +39,7 @@
 
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-list-row .monaco-tl-contents {
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 /* Disable tree highlight in debug hover tree. */

@@ -195,6 +195,9 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 		for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
 			const lineVisibleRanges = linesVisibleRanges[j];
+			if (lineVisibleRanges.outsideRenderedLine) {
+				continue;
+			}
 			const lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
 
 			if (showIfCollapsed && lineVisibleRanges.ranges.length === 1) {

@@ -8,7 +8,7 @@ import { domEvent, stop } from 'vs/base/browser/event';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -19,19 +19,19 @@ import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 
 const $ = dom.$;
 
-export class ParameterHintsWidget extends Disposable implements IContentWidget, IDisposable {
+export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
 	private readonly markdownRenderer: MarkdownRenderer;
 	private readonly renderDisposeables = this._register(new DisposableStore());
-	private readonly model = this._register(new MutableDisposable<ParameterHintsModel>());
+	private readonly model: ParameterHintsModel;
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
 
@@ -57,11 +57,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	) {
 		super();
 		this.markdownRenderer = this._register(new MarkdownRenderer(editor, modeService, openerService));
-		this.model.value = new ParameterHintsModel(editor);
+		this.model = this._register(new ParameterHintsModel(editor));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
 
-		this._register(this.model.value.onChangedHints(newParameterHints => {
+		this._register(this.model.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
 				this.show();
 				this.render(newParameterHints);
@@ -134,7 +134,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	private show(): void {
-		if (!this.model || this.visible) {
+		if (this.visible) {
 			return;
 		}
 
@@ -153,7 +153,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	private hide(): void {
-		if (!this.model || !this.visible) {
+		if (!this.visible) {
 			return;
 		}
 
@@ -189,7 +189,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		this.domNodes.docs.innerHTML = '';
 
 		const signature = hints.signatures[hints.activeSignature];
-
 		if (!signature) {
 			return;
 		}
@@ -204,14 +203,13 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		if (!hasParameters) {
 			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
-
 		} else {
 			this.renderParameters(code, signature, hints.activeParameter);
 		}
 
 		this.renderDisposeables.clear();
 
-		const activeParameter = signature.parameters[hints.activeParameter];
+		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[hints.activeParameter];
 
 		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
@@ -236,25 +234,12 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
-		let hasDocs = false;
-		if (activeParameter && typeof (activeParameter.documentation) === 'string' && activeParameter.documentation.length > 0) {
-			hasDocs = true;
-		}
-		if (activeParameter && typeof (activeParameter.documentation) === 'object' && activeParameter.documentation.value.length > 0) {
-			hasDocs = true;
-		}
-		if (typeof (signature.documentation) === 'string' && signature.documentation.length > 0) {
-			hasDocs = true;
-		}
-		if (typeof (signature.documentation) === 'object' && signature.documentation.value.length > 0) {
-			hasDocs = true;
-		}
+		const hasDocs = this.hasDocs(signature, activeParameter);
 
 		dom.toggleClass(this.domNodes.signature, 'has-docs', hasDocs);
 		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
 
 		let currentOverload = String(hints.activeSignature + 1);
-
 		if (hints.signatures.length < 10) {
 			currentOverload += `/${hints.signatures.length}`;
 		}
@@ -276,8 +261,23 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		this.domNodes.scrollbar.scanDomNode();
 	}
 
-	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
+	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {
+		if (activeParameter && typeof (activeParameter.documentation) === 'string' && activeParameter.documentation.length > 0) {
+			return true;
+		}
+		if (activeParameter && typeof (activeParameter.documentation) === 'object' && activeParameter.documentation.value.length > 0) {
+			return true;
+		}
+		if (typeof (signature.documentation) === 'string' && signature.documentation.length > 0) {
+			return true;
+		}
+		if (typeof (signature.documentation) === 'object' && signature.documentation.value.length > 0) {
+			return true;
+		}
+		return false;
+	}
 
+	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
 		const [start, end] = this.getParameterLabelOffsets(signature, currentParameter);
 
 		const beforeSpan = document.createElement('span');
@@ -317,23 +317,17 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	next(): void {
-		if (this.model.value) {
-			this.editor.focus();
-			this.model.value.next();
-		}
+		this.editor.focus();
+		this.model.next();
 	}
 
 	previous(): void {
-		if (this.model.value) {
-			this.editor.focus();
-			this.model.value.previous();
-		}
+		this.editor.focus();
+		this.model.previous();
 	}
 
 	cancel(): void {
-		if (this.model.value) {
-			this.model.value.cancel();
-		}
+		this.model.cancel();
 	}
 
 	getDomNode(): HTMLElement {
@@ -348,9 +342,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	trigger(context: TriggerContext): void {
-		if (this.model.value) {
-			this.model.value.trigger(context, 0);
-		}
+		this.model.trigger(context, 0);
 	}
 
 	private updateMaxHeight(): void {
@@ -383,6 +375,11 @@ registerThemingParticipant((theme, collector) => {
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .parameter-hints-widget a { color: ${link}; }`);
+	}
+
+	const foreground = theme.getColor(editorHoverForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .parameter-hints-widget { color: ${foreground}; }`);
 	}
 
 	const codeBackground = theme.getColor(textCodeBlockBackground);

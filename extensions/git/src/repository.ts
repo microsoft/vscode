@@ -292,6 +292,7 @@ export const enum Operation {
 	Merge = 'Merge',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
+	DeleteTag = 'DeleteTag',
 	Stash = 'Stash',
 	CheckIgnore = 'CheckIgnore',
 	GetObjectDetails = 'GetObjectDetails',
@@ -1021,6 +1022,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Tag, () => this.repository.tag(name, message));
 	}
 
+	async deleteTag(name: string): Promise<void> {
+		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
+	}
+
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
 	}
@@ -1247,6 +1252,10 @@ export class Repository implements Disposable {
 
 	async popStash(index?: number): Promise<void> {
 		return await this.run(Operation.Stash, () => this.repository.popStash(index));
+	}
+
+	async dropStash(index?: number): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.dropStash(index));
 	}
 
 	async applyStash(index?: number): Promise<void> {
