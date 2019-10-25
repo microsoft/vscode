@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 
 export enum WidgetVerticalAlignment {
 	Bottom,
@@ -48,7 +50,7 @@ export class TerminalWidgetManager implements IDisposable {
 		mutationObserver.observe(this._xtermViewport, { attributes: true, attributeFilter: ['style'] });
 	}
 
-	public showMessage(left: number, y: number, text: string, verticalAlignment: WidgetVerticalAlignment = WidgetVerticalAlignment.Bottom): void {
+	public showMessage(left: number, y: number, text: IMarkdownString, verticalAlignment: WidgetVerticalAlignment = WidgetVerticalAlignment.Bottom): void {
 		if (!this._container) {
 			return;
 		}
@@ -73,11 +75,11 @@ export class TerminalWidgetManager implements IDisposable {
 }
 
 class MessageWidget {
-	private _domNode: HTMLDivElement;
+	private _domNode: HTMLElement;
 
 	public get left(): number { return this._left; }
 	public get y(): number { return this._y; }
-	public get text(): string { return this._text; }
+	public get text(): IMarkdownString { return this._text; }
 	public get domNode(): HTMLElement { return this._domNode; }
 	public get verticalAlignment(): WidgetVerticalAlignment { return this._verticalAlignment; }
 
@@ -98,10 +100,10 @@ class MessageWidget {
 		private _container: HTMLElement,
 		private _left: number,
 		private _y: number,
-		private _text: string,
+		private _text: IMarkdownString,
 		private _verticalAlignment: WidgetVerticalAlignment
 	) {
-		this._domNode = document.createElement('div');
+		this._domNode = renderMarkdown(this._text);
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.left = `${_left}px`;
 
@@ -114,7 +116,7 @@ class MessageWidget {
 		}
 
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
-		this._domNode.textContent = _text;
+
 		this._container.appendChild(this._domNode);
 	}
 
