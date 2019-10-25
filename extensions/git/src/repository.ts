@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, Decoration, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env, ProgressOptions, CancellationToken } from 'vscode';
-import { Repository as BaseRepository, Commit, Stash, GitError, Submodule, CommitOptions, ForcePushMode } from './git';
-import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable } from './util';
-import { memoize, throttle, debounce } from './decorators';
-import { toGitUri } from './uri';
-import { AutoFetcher } from './autofetch';
-import * as path from 'path';
-import * as nls from 'vscode-nls';
 import * as fs from 'fs';
+import * as path from 'path';
+import { CancellationToken, Command, Disposable, env, Event, EventEmitter, LogLevel, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, Decoration } from 'vscode';
+import * as nls from 'vscode-nls';
+import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
+import { AutoFetcher } from './autofetch';
+import { debounce, memoize, throttle } from './decorators';
+import { Commit, CommitOptions, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule } from './git';
 import { StatusBarCommands } from './statusbar';
-import { Branch, Ref, Remote, RefType, GitErrorCodes, Status, LogOptions, Change } from './api/git';
+import { toGitUri } from './uri';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
 import { IFileWatcher, watch } from './watch';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
@@ -33,7 +33,8 @@ export const enum RepositoryState {
 export const enum ResourceGroupType {
 	Merge,
 	Index,
-	WorkingTree
+	WorkingTree,
+	Untracked
 }
 
 export class Resource implements SourceControlResourceState {
@@ -570,6 +571,9 @@ export class Repository implements Disposable {
 	private _workingTreeGroup: SourceControlResourceGroup;
 	get workingTreeGroup(): GitResourceGroup { return this._workingTreeGroup as GitResourceGroup; }
 
+	private _untrackedGroup: SourceControlResourceGroup;
+	get untrackedGroup(): GitResourceGroup { return this._untrackedGroup as GitResourceGroup; }
+
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
 		return this._HEAD;
@@ -642,6 +646,7 @@ export class Repository implements Disposable {
 		this.mergeGroup.resourceStates = [];
 		this.indexGroup.resourceStates = [];
 		this.workingTreeGroup.resourceStates = [];
+		this.untrackedGroup.resourceStates = [];
 		this._sourceControl.count = 0;
 	}
 
@@ -709,6 +714,7 @@ export class Repository implements Disposable {
 		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "MERGE CHANGES"));
 		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "STAGED CHANGES"));
 		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "CHANGES"));
+		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', localize('untracked changes', "UNTRACKED CHANGES"));
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -722,11 +728,16 @@ export class Repository implements Disposable {
 		const onConfigListenerForBranchSortOrder = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchSortOrder', root));
 		onConfigListenerForBranchSortOrder(this.updateModelState, this, this.disposables);
 
+		const onConfigListenerForUntracked = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.untrackedChanges', root));
+		onConfigListenerForUntracked(this.updateModelState, this, this.disposables);
+
 		this.mergeGroup.hideWhenEmpty = true;
+		this.untrackedGroup.hideWhenEmpty = true;
 
 		this.disposables.push(this.mergeGroup);
 		this.disposables.push(this.indexGroup);
 		this.disposables.push(this.workingTreeGroup);
+		this.disposables.push(this.untrackedGroup);
 
 		this.disposables.push(new AutoFetcher(this, globalState));
 
@@ -912,8 +923,8 @@ export class Repository implements Disposable {
 		return this.run(Operation.HashObject, () => this.repository.hashObject(data));
 	}
 
-	async add(resources: Uri[]): Promise<void> {
-		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath)));
+	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
+		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath), opts));
 	}
 
 	async rm(resources: Uri[]): Promise<void> {
@@ -958,6 +969,7 @@ export class Repository implements Disposable {
 			const toClean: string[] = [];
 			const toCheckout: string[] = [];
 			const submodulesToUpdate: string[] = [];
+			const resourceStates = [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates];
 
 			resources.forEach(r => {
 				const fsPath = r.fsPath;
@@ -970,7 +982,7 @@ export class Repository implements Disposable {
 				}
 
 				const raw = r.toString();
-				const scmResource = find(this.workingTreeGroup.resourceStates, sr => sr.resourceUri.toString() === raw);
+				const scmResource = find(resourceStates, sr => sr.resourceUri.toString() === raw);
 
 				if (!scmResource) {
 					return;
@@ -1436,6 +1448,7 @@ export class Repository implements Disposable {
 	private async updateModelState(): Promise<void> {
 		const { status, didHitLimit } = await this.repository.getStatus();
 		const config = workspace.getConfiguration('git');
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
 		this.isRepositoryHuge = didHitLimit;
@@ -1496,17 +1509,29 @@ export class Repository implements Disposable {
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
 
+		const untrackedChanges = scopedConfig.get<'default' | 'separate' | 'hidden'>('untrackedChanges');
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
 		const merge: Resource[] = [];
+		const untracked: Resource[] = [];
 
 		status.forEach(raw => {
 			const uri = Uri.file(path.join(this.repository.root, raw.path));
-			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
+			const renameUri = raw.rename
+				? Uri.file(path.join(this.repository.root, raw.rename))
+				: undefined;
 
 			switch (raw.x + raw.y) {
-				case '??': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
-				case '!!': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+				case '??': switch (untrackedChanges) {
+					case 'default': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
+					case 'separate': return untracked.push(new Resource(ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
+					default: return undefined;
+				}
+				case '!!': switch (untrackedChanges) {
+					case 'default': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+					case 'separate': return untracked.push(new Resource(ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
+					default: return undefined;
+				}
 				case 'DD': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_DELETED, useIcons));
 				case 'AU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.ADDED_BY_US, useIcons));
 				case 'UD': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.DELETED_BY_THEM, useIcons));
@@ -1529,6 +1554,7 @@ export class Repository implements Disposable {
 				case 'D': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
 				case 'A': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
 			}
+
 			return undefined;
 		});
 
@@ -1536,6 +1562,7 @@ export class Repository implements Disposable {
 		this.mergeGroup.resourceStates = merge;
 		this.indexGroup.resourceStates = index;
 		this.workingTreeGroup.resourceStates = workingTree;
+		this.untrackedGroup.resourceStates = untracked;
 
 		// set count badge
 		this.setCountBadge();
@@ -1546,12 +1573,27 @@ export class Repository implements Disposable {
 	}
 
 	private setCountBadge(): void {
-		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
-		let count = this.mergeGroup.resourceStates.length + this.indexGroup.resourceStates.length + this.workingTreeGroup.resourceStates.length;
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const countBadge = config.get<'all' | 'tracked' | 'off'>('countBadge');
+		const untrackedChanges = config.get<'default' | 'separate' | 'hidden'>('untrackedChanges');
+
+		let count =
+			this.mergeGroup.resourceStates.length +
+			this.indexGroup.resourceStates.length +
+			this.workingTreeGroup.resourceStates.length;
 
 		switch (countBadge) {
 			case 'off': count = 0; break;
-			case 'tracked': count = count - this.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length; break;
+			case 'tracked':
+				if (untrackedChanges === 'default') {
+					count -= this.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length;
+				}
+				break;
+			case 'all':
+				if (untrackedChanges === 'separate') {
+					count += this.untrackedGroup.resourceStates.length;
+				}
+				break;
 		}
 
 		this._sourceControl.count = count;
@@ -1653,7 +1695,7 @@ export class Repository implements Disposable {
 		const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
 
 		return head
-			+ (this.workingTreeGroup.resourceStates.length > 0 ? '*' : '')
+			+ (this.workingTreeGroup.resourceStates.length + this.untrackedGroup.resourceStates.length > 0 ? '*' : '')
 			+ (this.indexGroup.resourceStates.length > 0 ? '+' : '')
 			+ (this.mergeGroup.resourceStates.length > 0 ? '!' : '');
 	}
