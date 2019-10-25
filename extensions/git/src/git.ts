@@ -1597,6 +1597,24 @@ export class Repository {
 		}
 	}
 
+	async dropStash(index: number): Promise<void> {
+		const args = ['stash', 'drop'];
+
+		if (typeof index === 'number') {
+			args.push(`stash@{${index}}`);
+
+			try {
+				await this.run(args);
+			}
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoStashFound;
+			}
+
+			throw err;
+		}
+	}
+
 	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
