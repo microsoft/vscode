@@ -181,7 +181,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			delete parsedArgs[o.deprecates];
 		}
 
-		if (val) {
+		if (typeof val !== "undefined") {
 			if (o.type === 'string[]') {
 				if (val && !Array.isArray(val)) {
 					val = [val];
