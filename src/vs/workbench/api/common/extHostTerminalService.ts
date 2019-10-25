@@ -9,7 +9,7 @@ import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShap
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { EXT_HOST_CREATION_DELAY, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
@@ -409,22 +409,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		const terminal = await this._getTerminalByIdEventually(id);
 		if (terminal) {
 			terminal._setProcessId(processId);
-		}
-	}
-
-	public performTerminalIdAction(id: number, callback: (terminal: ExtHostTerminal) => void): void {
-		// TODO: Use await this._getTerminalByIdEventually(id);
-		let terminal = this._getTerminalById(id);
-		if (terminal) {
-			callback(terminal);
-		} else {
-			// Retry one more time in case the terminal has not yet been initialized.
-			setTimeout(() => {
-				terminal = this._getTerminalById(id);
-				if (terminal) {
-					callback(terminal);
-				}
-			}, EXT_HOST_CREATION_DELAY * 2);
 		}
 	}
 

@@ -196,6 +196,16 @@ export interface ITerminalInstance {
 	onDisposed: Event<ITerminalInstance>;
 
 	onFocused: Event<ITerminalInstance>;
+
+	/**
+	 * An event that fires when the terminal's process has been _created_, this will happen sometime
+	 * after the `ITerminalInstance` has been constructed in a different event loop frame.
+	 */
+	onProcessCreated: Event<void>;
+
+	/**
+	 * An event that fires when the process ID running inside the terminal has been fetched.
+	 */
 	onProcessIdReady: Event<ITerminalInstance>;
 	onRequestExtHostProcess: Event<ITerminalInstance>;
 	onDimensionsChanged: Event<void>;
