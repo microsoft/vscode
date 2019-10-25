@@ -380,7 +380,9 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		} else {
 			this._parent.dataset['state'] = State.Data;
 			this._tree.domFocus();
-			this._tree.setFocus([root.children[0].element]);
+			if (!viewState) {
+				this._tree.setFocus([root.children[0].element]);
+			}
 		}
 
 		if (!this._changeDirectionAction) {

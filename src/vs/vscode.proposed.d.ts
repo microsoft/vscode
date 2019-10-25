@@ -16,7 +16,7 @@
 
 declare module 'vscode' {
 
-	//#region Joh - call hierarchy
+	//#region Joh - call hierarchy: https://github.com/microsoft/vscode/issues/70231
 
 	/**
 	 * Represents programming constructs like functions or constructors in the context
@@ -98,7 +98,7 @@ declare module 'vscode' {
 		to: CallHierarchyItem;
 
 		/**
-		 * The range at which this item is called. This is the range relative the caller, e.g the item
+		 * The range at which this item is called. This is the range relative to the caller, e.g the item
 		 * passed to [`provideCallHierarchyOutgoingCalls`](#CallHierarchyItemProvider.provideCallHierarchyOutgoingCalls)
 		 * and not [`this.to`](#CallHierarchyOutgoingCall.to).
 		 */
@@ -135,7 +135,7 @@ declare module 'vscode' {
 
 		/**
 		 * Provide all incoming calls for an item, e.g all callers for a method. In graph terms this descibes directed
-		 * and annotated edges inside the call graph, e.g the given item is the starting node and the result are the nodes
+		 * and annotated edges inside the call graph, e.g the given item is the starting node and the result is the nodes
 		 * that can be reached.
 		 *
 		 * @param item The hierarchy item for which incoming calls should be computed.
@@ -148,7 +148,7 @@ declare module 'vscode' {
 		/**
 		 * Provide all outgoing calls for an item, e.g call calls to functions, methods, or constructors from the given item. In
 		 * graph terms this descibes directed and annotated edges inside the call graph, e.g the given item is the starting
-		 * node and the result are the nodes that can be reached.
+		 * node and the result is the nodes that can be reached.
 		 *
 		 * @param item The hierarchy item for which outgoing calls should be computed.
 		 * @param token A cancellation token.
@@ -159,6 +159,14 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
+
+		/**
+		 * Register a call hierarchy provider.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A call hierarchy provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
 		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyProvider): Disposable;
 	}
 

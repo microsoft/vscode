@@ -69,7 +69,11 @@ export class IdentityProvider implements IIdentityProvider<Call> {
 	) { }
 
 	getId(element: Call): { toString(): string; } {
-		return this.getDirection() + '->' + element.item.id;
+		let res = this.getDirection() + JSON.stringify(element.item.uri) + JSON.stringify(element.item.range);
+		if (element.parent) {
+			res += this.getId(element.parent);
+		}
+		return res;
 	}
 }
 
