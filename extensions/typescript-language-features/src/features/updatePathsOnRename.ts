@@ -9,13 +9,14 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { Delayer } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
+import { doesResourceLookLikeATypeScriptFile } from '../utils/languageDescription';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-import { Delayer } from '../utils/async';
 
 const localize = nls.loadMessageBundle();
 
@@ -41,10 +42,6 @@ interface RenameAction {
 	readonly newFilePath: string;
 	readonly oldFilePath: string;
 	readonly jsTsFileThatIsBeingMoved: vscode.Uri;
-}
-
-function doesResourceLookLikeATypeScriptFile(resource: vscode.Uri): boolean {
-	return /\.tsx?$/i.test(resource.fsPath);
 }
 
 class UpdateImportsOnFileRenameHandler extends Disposable {

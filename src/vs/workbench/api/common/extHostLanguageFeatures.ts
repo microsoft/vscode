@@ -471,8 +471,8 @@ class OnTypeFormattingAdapter {
 
 class NavigateTypeAdapter {
 
-	private readonly _symbolCache: { [id: number]: vscode.SymbolInformation } = Object.create(null);
-	private readonly _resultCache: { [id: number]: [number, number] } = Object.create(null);
+	private readonly _symbolCache = new Map<number, vscode.SymbolInformation>();
+	private readonly _resultCache = new Map<number, [number, number]>();
 	private readonly _provider: vscode.WorkspaceSymbolProvider;
 
 	constructor(provider: vscode.WorkspaceSymbolProvider) {
@@ -493,40 +493,38 @@ class NavigateTypeAdapter {
 						continue;
 					}
 					const symbol = extHostProtocol.IdObject.mixin(typeConvert.WorkspaceSymbol.from(item));
-					this._symbolCache[symbol._id!] = item;
+					this._symbolCache.set(symbol._id!, item);
 					result.symbols.push(symbol);
 				}
 			}
 		}).then(() => {
 			if (result.symbols.length > 0) {
-				this._resultCache[result._id!] = [result.symbols[0]._id!, result.symbols[result.symbols.length - 1]._id!];
+				this._resultCache.set(result._id!, [result.symbols[0]._id!, result.symbols[result.symbols.length - 1]._id!]);
 			}
 			return result;
 		});
 	}
 
-	resolveWorkspaceSymbol(symbol: extHostProtocol.IWorkspaceSymbolDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolDto | undefined> {
-
+	async resolveWorkspaceSymbol(symbol: extHostProtocol.IWorkspaceSymbolDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolDto | undefined> {
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return Promise.resolve(symbol);
+			return symbol;
 		}
 
-		const item = this._symbolCache[symbol._id!];
+		const item = this._symbolCache.get(symbol._id!);
 		if (item) {
-			return asPromise(() => this._provider.resolveWorkspaceSymbol!(item, token)).then(value => {
-				return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
-			});
+			const value = await asPromise(() => this._provider.resolveWorkspaceSymbol!(item, token));
+			return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
 		}
-		return Promise.resolve(undefined);
+		return undefined;
 	}
 
 	releaseWorkspaceSymbols(id: number): any {
-		const range = this._resultCache[id];
+		const range = this._resultCache.get(id);
 		if (range) {
 			for (let [from, to] = range; from <= to; from++) {
-				delete this._symbolCache[from];
+				this._symbolCache.delete(from);
 			}
-			delete this._resultCache[id];
+			this._resultCache.delete(id);
 		}
 	}
 }

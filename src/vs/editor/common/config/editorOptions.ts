@@ -72,6 +72,12 @@ export interface IEditorOptions {
 	*/
 	cursorSurroundingLines?: number;
 	/**
+	 * Controls when `cursorSurroundingLines` should be enforced
+	 * Defaults to `default`, `cursorSurroundingLines` is not enforced when cursor position is changed
+	 * by mouse.
+	*/
+	cursorSurroundingLinesStyle?: 'default' | 'all';
+	/**
 	 * Render last line number when the file ends with a newline.
 	 * Defaults to true.
 	*/
@@ -2722,6 +2728,7 @@ export const enum EditorOption {
 	cursorSmoothCaretAnimation,
 	cursorStyle,
 	cursorSurroundingLines,
+	cursorSurroundingLinesStyle,
 	cursorWidth,
 	disableLayerHinting,
 	disableMonospaceOptimizations,
@@ -2935,6 +2942,18 @@ export const EditorOptions = {
 		EditorOption.cursorSurroundingLines, 'cursorSurroundingLines',
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or `scrollOffset` in some other editors.") }
+	)),
+	cursorSurroundingLinesStyle: register(new EditorStringEnumOption(
+		EditorOption.cursorSurroundingLinesStyle, 'cursorSurroundingLinesStyle',
+		'default' as 'default' | 'all',
+		['default', 'all'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered from keyboard and api"),
+				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
+			],
+			description: nls.localize('cursorSurroundingLinesStyle', "Controls when `cursorSurroundingLines` should be enforced")
+		}
 	)),
 	cursorWidth: register(new EditorIntOption(
 		EditorOption.cursorWidth, 'cursorWidth',
