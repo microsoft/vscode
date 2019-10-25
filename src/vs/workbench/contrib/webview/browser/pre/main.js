@@ -231,7 +231,8 @@
 		/**
 		 * @param {MouseEvent} event
 		 */
-		const handleAuxClick = (event) => {
+		const handleAuxClick =
+		(event) => {
 			// Prevent middle clicks opening a broken link in the browser
 			if (!event.view || !event.view.document) {
 				return;
