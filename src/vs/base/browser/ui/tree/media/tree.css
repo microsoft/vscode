@@ -7,6 +7,30 @@
 	display: flex;
 	height: 100%;
 	align-items: center;
+	position: relative;
+}
+
+.monaco-tl-indent {
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 18px;
+	pointer-events: none;
+}
+
+.hide-arrows .monaco-tl-indent {
+	left: 12px;
+}
+
+.monaco-tl-indent > .indent-guide {
+	display: inline-block;
+	box-sizing: border-box;
+	height: 100%;
+	border-left: 1px solid transparent;
+}
+
+.monaco-tl-indent > .indent-guide {
+	transition: border-color 0.1s linear;
 }
 
 .monaco-tl-twistie,
@@ -18,36 +42,24 @@
 	font-size: 10px;
 	text-align: right;
 	margin-right: 6px;
+	flex-shrink: 0;
+	width: 16px;
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	color: inherit !important;
+	transform: translateX(3px);
 }
 
 .monaco-tl-contents {
 	flex: 1;
+	overflow: hidden;
 }
 
-.monaco-tl-twistie.collapsible {
-	background-size: 16px;
-	background-position: 100% 50%;
-	background-repeat: no-repeat;
-	background-image: url("expanded.svg");
+.monaco-tl-twistie.collapsed::before {
+	transform: rotate(-90deg);
 }
 
-.monaco-tl-twistie.collapsible.collapsed {
-	display: inline-block;
-	background-image: url("collapsed.svg");
-}
-
-.vs-dark .monaco-tl-twistie.collapsible {
-	background-image: url("expanded-dark.svg");
-}
-
-.vs-dark .monaco-tl-twistie.collapsible.collapsed {
-	background-image: url("collapsed-dark.svg");
-}
-
-.hc-black .monaco-tl-twistie.collapsible {
-	background-image: url("expanded-hc.svg");
-}
-
-.hc-black .monaco-tl-twistie.collapsible.collapsed {
-	background-image: url("collapsed-hc.svg");
+.monaco-tl-twistie.codicon-loading::before {
+	animation: codicon-spin 1.25s linear infinite;
 }

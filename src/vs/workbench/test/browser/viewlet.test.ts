@@ -13,7 +13,7 @@ suite('Viewlets', () => {
 	class TestViewlet extends Viewlet {
 
 		constructor() {
-			super('id', null, null, null, null, null);
+			super('id', null!, null!, null!, null!, null!);
 		}
 
 		public layout(dimension: any): void {

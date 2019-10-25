@@ -123,7 +123,7 @@ suite('TextAreaState', () => {
 		textArea.dispose();
 	});
 
-	function testDeduceInput(prevState: TextAreaState, value: string, selectionStart: number, selectionEnd: number, couldBeEmojiInput: boolean, couldBeTypingAtOffset0: boolean, expected: string, expectedCharReplaceCnt: number): void {
+	function testDeduceInput(prevState: TextAreaState | null, value: string, selectionStart: number, selectionEnd: number, couldBeEmojiInput: boolean, couldBeTypingAtOffset0: boolean, expected: string, expectedCharReplaceCnt: number): void {
 		prevState = prevState || TextAreaState.EMPTY;
 
 		let textArea = new MockTextAreaWrapper();

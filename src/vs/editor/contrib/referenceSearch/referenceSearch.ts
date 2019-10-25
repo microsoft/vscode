@@ -27,16 +27,17 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { coalesce, flatten } from 'vs/base/common/arrays';
 
 export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
-		return model.references.length > 1 && nls.localize('meta.titleReference', " – {0} references", model.references.length);
+		return model.references.length > 1 ? nls.localize('meta.titleReference', " – {0} references", model.references.length) : '';
 	}
 };
 
 export class ReferenceController implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.referenceController';
+	public static readonly ID = 'editor.contrib.referenceController';
 
 	constructor(
 		editor: ICodeEditor,
@@ -49,10 +50,6 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 
 	public dispose(): void {
 	}
-
-	public getId(): string {
-		return ReferenceController.ID;
-	}
 }
 
 export class ReferenceAction extends EditorAction {
@@ -61,7 +58,7 @@ export class ReferenceAction extends EditorAction {
 		super({
 			id: 'editor.action.referenceSearch.trigger',
 			label: nls.localize('references.action.label', "Peek References"),
-			alias: 'Find All References', // leave the alias?
+			alias: 'Peek References',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
@@ -78,19 +75,21 @@ export class ReferenceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = ReferencesController.get(editor);
 		if (!controller) {
 			return;
 		}
-		let range = editor.getSelection();
-		let model = editor.getModel();
-		let references = createCancelablePromise(token => provideReferences(model, range.getStartPosition(), token).then(references => new ReferencesModel(references)));
-		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
+		if (editor.hasModel()) {
+			const range = editor.getSelection();
+			const model = editor.getModel();
+			const references = createCancelablePromise(token => provideReferences(model, range.getStartPosition(), token).then(references => new ReferencesModel(references)));
+			controller.toggleWidget(range, references, defaultReferenceSearchOptions);
+		}
 	}
 }
 
-registerEditorContribution(ReferenceController);
+registerEditorContribution(ReferenceController.ID, ReferenceController);
 
 registerEditorAction(ReferenceAction);
 
@@ -104,7 +103,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 	const codeEditorService = accessor.get(ICodeEditorService);
 	return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
-		if (!isCodeEditor(control)) {
+		if (!isCodeEditor(control) || !control.hasModel()) {
 			return undefined;
 		}
 
@@ -139,10 +138,11 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 			return undefined;
 		}
 
-		return Promise.resolve(controller.toggleWidget(
+		return controller.toggleWidget(
 			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 			createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
-			defaultReferenceSearchOptions)).then(() => true);
+			defaultReferenceSearchOptions
+		);
 	});
 };
 
@@ -284,15 +284,7 @@ export function provideReferences(model: ITextModel, position: Position, token: 
 		});
 	});
 
-	return Promise.all(promises).then(references => {
-		let result: Location[] = [];
-		for (let ref of references) {
-			if (ref) {
-				result.push(...ref);
-			}
-		}
-		return result;
-	});
+	return Promise.all(promises).then(references => flatten(coalesce(references)));
 }
 
 registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => provideReferences(model, position, CancellationToken.None));

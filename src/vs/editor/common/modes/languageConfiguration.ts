@@ -78,7 +78,9 @@ export interface LanguageConfiguration {
 	 *
 	 * @deprecated Will be replaced by a better API soon.
 	 */
-	__electricCharacterSupport?: IBracketElectricCharacterContribution;
+	__electricCharacterSupport?: {
+		docComment?: IDocComment;
+	};
 }
 
 /**
@@ -96,11 +98,11 @@ export interface IndentationRule {
 	/**
 	 * If a line matches this pattern, then **only the next line** after it should be indented once.
 	 */
-	indentNextLinePattern?: RegExp;
+	indentNextLinePattern?: RegExp | null;
 	/**
 	 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 	 */
-	unIndentedLinePattern?: RegExp;
+	unIndentedLinePattern?: RegExp | null;
 
 }
 
@@ -155,10 +157,6 @@ export interface OnEnterRule {
 	action: EnterAction;
 }
 
-export interface IBracketElectricCharacterContribution {
-	docComment?: IDocComment;
-}
-
 /**
  * Definition of documentation comments (e.g. Javadoc/JSdoc)
  */
@@ -170,7 +168,7 @@ export interface IDocComment {
 	/**
 	 * The string that appears on the last line and closes the doc comment (e.g. ' * /').
 	 */
-	close: string;
+	close?: string;
 }
 
 /**
@@ -249,7 +247,7 @@ export class StandardAutoClosingPairConditional {
 
 		if (Array.isArray(source.notIn)) {
 			for (let i = 0, len = source.notIn.length; i < len; i++) {
-				let notIn = source.notIn[i];
+				const notIn: string = source.notIn[i];
 				switch (notIn) {
 					case 'string':
 						this._standardTokenMask |= StandardTokenType.String;

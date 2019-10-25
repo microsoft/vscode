@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as fs from 'fs';
-
+import * as path from 'path';
+import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, workspace } from 'vscode';
+import { Disposable, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+import { getCustomDataPathsFromAllExtensions, getCustomDataPathsInAllWorkspaces } from './customData';
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
+const localize = nls.loadMessageBundle();
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -30,6 +30,11 @@ export function activate(context: ExtensionContext) {
 
 	let documentSelector = ['css', 'scss', 'less'];
 
+	let dataPaths = [
+		...getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders),
+		...getCustomDataPathsFromAllExtensions()
+	];
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
@@ -37,6 +42,7 @@ export function activate(context: ExtensionContext) {
 			configurationSection: ['css', 'scss', 'less']
 		},
 		initializationOptions: {
+			dataPaths
 		}
 	};
 

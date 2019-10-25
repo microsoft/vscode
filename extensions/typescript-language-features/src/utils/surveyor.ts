@@ -5,6 +5,9 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import TypeScriptServiceClient from '../typescriptServiceClient';
+import { Disposable } from './dispose';
+import { memoize } from './memoize';
 
 const localize = nls.loadMessageBundle();
 
@@ -100,7 +103,7 @@ class Survey {
 	}
 
 	private get triggerCount(): number {
-		const count = this.memento.get(this.triggerCountMementoKey);
+		const count = this.memento.get<number>(this.triggerCountMementoKey);
 		return !count || isNaN(+count) ? 0 : +count;
 	}
 
@@ -121,18 +124,24 @@ class Survey {
 	}
 }
 
-export class Surveyor {
-
-	private readonly surveys: Map<string, Survey>;
+export class Surveyor extends Disposable {
 
 	public constructor(
-		memento: vscode.Memento
+		private readonly memento: vscode.Memento,
+		serviceClient: TypeScriptServiceClient,
 	) {
-		this.surveys = new Map<string, Survey>(allSurveys.map(data =>
-			[data.id, new Survey(data, memento)] as [string, Survey]));
+		super();
+
+		this._register(serviceClient.onSurveyReady(e => this.surveyReady(e.surveyId)));
 	}
 
-	public surveyReady(surveyId: string): void {
+	@memoize
+	private get surveys(): Map<string, Survey> {
+		return new Map<string, Survey>(
+			allSurveys.map(data => [data.id, new Survey(data, this.memento)] as [string, Survey]));
+	}
+
+	private surveyReady(surveyId: string): void {
 		const survey = this.tryGetActiveSurvey(surveyId);
 		if (survey && survey.trigger()) {
 			survey.willShow();
@@ -156,12 +165,12 @@ export class Surveyor {
 				title: localize('takeShortSurvey', "Take Short Survey"),
 				choice: Choice.GoToSurvey
 			}, {
-				title: localize('remindLater', "Remind Me Later"),
-				choice: Choice.RemindLater
-			}, {
-				title: localize('neverAgain', "Disable JS/TS Surveys"),
-				choice: Choice.NeverAgain
-			});
+			title: localize('remindLater', "Remind Me Later"),
+			choice: Choice.RemindLater
+		}, {
+			title: localize('neverAgain', "Disable JS/TS Surveys"),
+			choice: Choice.NeverAgain
+		});
 
 		switch (response && response.choice) {
 			case Choice.GoToSurvey:

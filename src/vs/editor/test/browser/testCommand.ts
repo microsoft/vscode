@@ -14,16 +14,21 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 export function testCommand(
 	lines: string[],
-	languageIdentifier: LanguageIdentifier,
+	languageIdentifier: LanguageIdentifier | null,
 	selection: Selection,
 	commandFactory: (selection: Selection) => editorCommon.ICommand,
 	expectedLines: string[],
-	expectedSelection: Selection
+	expectedSelection: Selection,
+	forceTokenization?: boolean
 ): void {
 	let model = TextModel.createFromString(lines.join('\n'), undefined, languageIdentifier);
 	withTestCodeEditor('', { model: model }, (_editor, cursor) => {
 		if (!cursor) {
 			return;
+		}
+
+		if (forceTokenization) {
+			model.forceTokenization(model.getLineCount());
 		}
 
 		cursor.setSelections('tests', [selection]);

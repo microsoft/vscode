@@ -7,30 +7,29 @@ import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import { MainThreadLanguageFeatures } from 'vs/workbench/api/electron-browser/mainThreadLanguageFeatures';
-import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapService';
-import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
-import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
-import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
+import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
+import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import 'vs/workbench/parts/search/electron-browser/search.contribution';
+import 'vs/workbench/contrib/search/browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -50,7 +49,7 @@ let commands: ExtHostCommands;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
 
-function assertRejects(fn: () => Thenable<any>, message: string = 'Expected rejection') {
+function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
 }
 
@@ -66,36 +65,30 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		{
 			let instantiationService = new TestInstantiationService();
 			rpcProtocol = new TestRPCProtocol();
-			instantiationService.stub(IHeapService, {
-				_serviceBrand: undefined,
-				trackRecursive(args: any) {
-					// nothing
-					return args;
-				}
-			});
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
 				executeCommand(id: string, args: any): any {
-					if (!CommandsRegistry.getCommands()[id]) {
+					const command = CommandsRegistry.getCommands().get(id);
+					if (!command) {
 						return Promise.reject(new Error(id + ' NOT known'));
 					}
-					let { handler } = CommandsRegistry.getCommands()[id];
+					const { handler } = command;
 					return Promise.resolve(instantiationService.invokeFunction(handler, args));
 				}
 			});
 			instantiationService.stub(IMarkerService, new MarkerService());
 			instantiationService.stub(IModelService, <IModelService>{
-				_serviceBrand: IModelService,
+				_serviceBrand: undefined,
 				getModel(): any { return model; },
-				createModel(): any { throw new Error(); },
-				updateModel(): any { throw new Error(); },
-				setMode(): any { throw new Error(); },
-				destroyModel(): any { throw new Error(); },
-				getModels(): any { throw new Error(); },
-				onModelAdded: undefined,
-				onModelModeChanged: undefined,
-				onModelRemoved: undefined,
-				getCreationOptions(): any { throw new Error(); }
+				createModel() { throw new Error(); },
+				updateModel() { throw new Error(); },
+				setMode() { throw new Error(); },
+				destroyModel() { throw new Error(); },
+				getModels() { throw new Error(); },
+				onModelAdded: undefined!,
+				onModelModeChanged: undefined!,
+				onModelRemoved: undefined!,
+				getCreationOptions() { throw new Error(); }
 			});
 			inst = instantiationService;
 		}
@@ -114,9 +107,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		const heapService = new ExtHostHeapService();
-
-		commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		commands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
@@ -124,7 +115,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics, new NullLogService());
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -138,10 +129,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		mainThread.dispose();
 	});
 
-	teardown(function () {
-		while (disposables.length) {
-			disposables.pop().dispose();
-		}
+	teardown(() => {
+		disposables = dispose(disposables);
 		return rpcProtocol.sync();
 	});
 
@@ -192,8 +181,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(nullExtensionDescription, {
-			provideWorkspaceSymbols(query) {
-				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar'))];
+			provideWorkspaceSymbols(): vscode.SymbolInformation[] {
+				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar')) as vscode.SymbolInformation];
 			}
 		}));
 
@@ -323,7 +312,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('reference search, back and forth', function () {
 
 		disposables.push(extHost.registerReferenceProvider(nullExtensionDescription, defaultSelector, <vscode.ReferenceProvider>{
-			provideReferences(doc: any) {
+			provideReferences() {
 				return [
 					new types.Location(URI.parse('some:uri/path'), new types.Range(0, 1, 0, 5))
 				];
@@ -399,7 +388,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	test('Suggest, back and forth', function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
-			provideCompletionItems(doc, pos): any {
+			provideCompletionItems(): any {
 				let a = new types.CompletionItem('item1');
 				let b = new types.CompletionItem('item2');
 				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
@@ -423,32 +412,32 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(values.length, 4);
 				let [first, second, third, fourth] = values;
 				assert.equal(first.label, 'item1');
-				assert.equal(first.textEdit.newText, 'item1');
-				assert.equal(first.textEdit.range.start.line, 0);
-				assert.equal(first.textEdit.range.start.character, 0);
-				assert.equal(first.textEdit.range.end.line, 0);
-				assert.equal(first.textEdit.range.end.character, 4);
+				assert.equal(first.textEdit, undefined);// no text edit, default ranges
+				assert.ok(!types.Range.isRange(first.range));
 
 				assert.equal(second.label, 'item2');
-				assert.equal(second.textEdit.newText, 'foo');
-				assert.equal(second.textEdit.range.start.line, 0);
-				assert.equal(second.textEdit.range.start.character, 4);
-				assert.equal(second.textEdit.range.end.line, 0);
-				assert.equal(second.textEdit.range.end.character, 8);
+				assert.equal(second.textEdit!.newText, 'foo');
+				assert.equal(second.textEdit!.range.start.line, 0);
+				assert.equal(second.textEdit!.range.start.character, 4);
+				assert.equal(second.textEdit!.range.end.line, 0);
+				assert.equal(second.textEdit!.range.end.character, 8);
 
 				assert.equal(third.label, 'item3');
-				assert.equal(third.textEdit.newText, 'foobar');
-				assert.equal(third.textEdit.range.start.line, 0);
-				assert.equal(third.textEdit.range.start.character, 1);
-				assert.equal(third.textEdit.range.end.line, 0);
-				assert.equal(third.textEdit.range.end.character, 6);
+				assert.equal(third.textEdit!.newText, 'foobar');
+				assert.equal(third.textEdit!.range.start.line, 0);
+				assert.equal(third.textEdit!.range.start.character, 1);
+				assert.equal(third.textEdit!.range.end.line, 0);
+				assert.equal(third.textEdit!.range.end.character, 6);
 
 				assert.equal(fourth.label, 'item4');
 				assert.equal(fourth.textEdit, undefined);
-				assert.equal(fourth.range.start.line, 0);
-				assert.equal(fourth.range.start.character, 1);
-				assert.equal(fourth.range.end.line, 0);
-				assert.equal(fourth.range.end.character, 4);
+
+				const range: any = fourth.range!;
+				assert.ok(types.Range.isRange(range));
+				assert.equal(range.start.line, 0);
+				assert.equal(range.start.character, 1);
+				assert.equal(range.end.line, 0);
+				assert.equal(range.end.character, 4);
 				assert.ok(fourth.insertText instanceof types.SnippetString);
 				assert.equal((<types.SnippetString>fourth.insertText).value, 'foo$0bar');
 			});
@@ -564,6 +553,35 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.equal(b.commitCharacters, undefined);
 	});
 
+	// --- signatureHelp
+
+	test('Parameter Hints, back and forth', async () => {
+		disposables.push(extHost.registerSignatureHelpProvider(nullExtensionDescription, defaultSelector, new class implements vscode.SignatureHelpProvider {
+			provideSignatureHelp(_document: vscode.TextDocument, _position: vscode.Position, _token: vscode.CancellationToken, context: vscode.SignatureHelpContext): vscode.SignatureHelp {
+				return {
+					activeSignature: 0,
+					activeParameter: 1,
+					signatures: [
+						{
+							label: 'abc',
+							documentation: `${context.triggerKind === 1 /* vscode.SignatureHelpTriggerKind.Invoke */ ? 'invoked' : 'unknown'} ${context.triggerCharacter}`,
+							parameters: []
+						}
+					]
+				};
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		const firstValue = await commands.executeCommand<vscode.SignatureHelp>('vscode.executeSignatureHelpProvider', model.uri, new types.Position(0, 1), ',');
+		assert.strictEqual(firstValue.activeSignature, 0);
+		assert.strictEqual(firstValue.activeParameter, 1);
+		assert.strictEqual(firstValue.signatures.length, 1);
+		assert.strictEqual(firstValue.signatures[0].label, 'abc');
+		assert.strictEqual(firstValue.signatures[0].documentation, 'invoked ,');
+	});
+
 	// --- quickfix
 
 	test('QuickFix, back and forth', function () {
@@ -602,13 +620,68 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, new types.Range(0, 0, 1, 1)).then(value => {
 				assert.equal(value.length, 1);
-				let [first] = value;
+				const [first] = value;
 				assert.ok(first.command);
-				assert.equal(first.command.command, 'command');
-				assert.equal(first.command.title, 'command_title');
-				assert.equal(first.kind.value, 'foo');
+				assert.equal(first.command!.command, 'command');
+				assert.equal(first.command!.title, 'command_title');
+				assert.equal(first.kind!.value, 'foo');
 				assert.equal(first.title, 'title');
 
+			});
+		});
+	});
+
+	test('vscode.executeCodeActionProvider passes Range to provider although Selection is passed in #77997', function () {
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, rangeOrSelection],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+				}];
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
+				assert.equal(value.length, 1);
+				const [first] = value;
+				assert.ok(first.command);
+				assert.ok(first.command!.arguments![1] instanceof types.Selection);
+				assert.ok(first.command!.arguments![1].isEqual(selection));
+			});
+		});
+	});
+
+	test('vscode.executeCodeActionProvider results seem to be missing their `isPreferred` property #78098', function () {
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, rangeOrSelection],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+					isPreferred: true
+				}];
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
+				assert.equal(value.length, 1);
+				const [first] = value;
+				assert.equal(first.isPreferred, true);
 			});
 		});
 	});
@@ -632,13 +705,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri).then(value => {
 				assert.equal(value.length, 1);
-				let [first] = value;
+				const [first] = value;
 
-				assert.equal(first.command.title, 'Title');
-				assert.equal(first.command.command, 'cmd');
-				assert.equal(first.command.arguments[0], 1);
-				assert.equal(first.command.arguments[1], true);
-				assert.equal(first.command.arguments[2], complexArg);
+				assert.equal(first.command!.title, 'Title');
+				assert.equal(first.command!.command, 'cmd');
+				assert.equal(first.command!.arguments![0], 1);
+				assert.equal(first.command!.arguments![1], true);
+				assert.equal(first.command!.arguments![2], complexArg);
 			});
 		});
 	});
@@ -690,7 +763,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(value.length, 1);
 				let [first] = value;
 
-				assert.equal(first.target.toString(), 'foo:bar');
+				assert.equal(first.target + '', 'foo:bar');
 				assert.equal(first.range.start.line, 0);
 				assert.equal(first.range.start.character, 0);
 				assert.equal(first.range.end.line, 0);
@@ -706,7 +779,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideDocumentColors(): vscode.ColorInformation[] {
 				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
 			},
-			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+			provideColorPresentations(): vscode.ColorPresentation[] {
 				const cp = new types.ColorPresentation('#ABC');
 				cp.textEdit = types.TextEdit.replace(new types.Range(1, 0, 1, 20), '#ABC');
 				cp.additionalTextEdits = [types.TextEdit.insert(new types.Position(2, 20), '*')];
@@ -736,16 +809,16 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				let [first] = value;
 
 				assert.equal(first.label, '#ABC');
-				assert.equal(first.textEdit.newText, '#ABC');
-				assert.equal(first.textEdit.range.start.line, 1);
-				assert.equal(first.textEdit.range.start.character, 0);
-				assert.equal(first.textEdit.range.end.line, 1);
-				assert.equal(first.textEdit.range.end.character, 20);
-				assert.equal(first.additionalTextEdits.length, 1);
-				assert.equal(first.additionalTextEdits[0].range.start.line, 2);
-				assert.equal(first.additionalTextEdits[0].range.start.character, 20);
-				assert.equal(first.additionalTextEdits[0].range.end.line, 2);
-				assert.equal(first.additionalTextEdits[0].range.end.character, 20);
+				assert.equal(first.textEdit!.newText, '#ABC');
+				assert.equal(first.textEdit!.range.start.line, 1);
+				assert.equal(first.textEdit!.range.start.character, 0);
+				assert.equal(first.textEdit!.range.end.line, 1);
+				assert.equal(first.textEdit!.range.end.character, 20);
+				assert.equal(first.additionalTextEdits!.length, 1);
+				assert.equal(first.additionalTextEdits![0].range.start.line, 2);
+				assert.equal(first.additionalTextEdits![0].range.start.character, 20);
+				assert.equal(first.additionalTextEdits![0].range.end.line, 2);
+				assert.equal(first.additionalTextEdits![0].range.end.character, 20);
 			});
 		});
 	});
@@ -764,5 +837,56 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(value[0].contents.length, 1);
 			});
 		});
+	});
+
+	// --- selection ranges
+
+	test('Selection Range, back and forth', async function () {
+
+		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges() {
+				return [
+					new types.SelectionRange(new types.Range(0, 10, 0, 18), new types.SelectionRange(new types.Range(0, 2, 0, 20))),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		assert.equal(value.length, 1);
+		assert.ok(value[0].parent);
+	});
+
+	// --- call hierarcht
+
+	test('Call Hierarchy, back and forth', async function () {
+
+		disposables.push(extHost.registerCallHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.CallHierarchyItemProvider {
+			prepareCallHierarchy(document: vscode.TextDocument) {
+				return new types.CallHierarchyItem(types.SymbolKind.Array, 'ROOT', '', document.uri, new types.Range(0, 0, 2, 0), new types.Range(0, 0, 2, 0));
+			}
+			provideCallHierarchyIncomingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyIncomingCall[]> {
+				return [
+					new types.CallHierarchyIncomingCall(new types.CallHierarchyItem(types.SymbolKind.Array, 'IN', '', item.uri, new types.Range(0, 0, 2, 0), new types.Range(0, 0, 2, 0)), [new types.Range(0, 0, 0, 0)]),
+				];
+			}
+			provideCallHierarchyOutgoingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyOutgoingCall[]> {
+				return [
+					new types.CallHierarchyOutgoingCall(new types.CallHierarchyItem(types.SymbolKind.Array, 'OUT', '', item.uri, new types.Range(0, 0, 2, 0), new types.Range(0, 0, 2, 0)), [new types.Range(0, 0, 0, 0)]),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		// let incoming = await commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.executeCallHierarchyProviderIncomingCalls', model.uri, new types.Position(0, 10));
+		// assert.equal(incoming.length, 1);
+		// assert.ok(incoming[0].from instanceof types.CallHierarchyItem);
+		// assert.equal(incoming[0].from.name, 'IN');
+
+		// let outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.executeCallHierarchyProviderOutgoingCalls', model.uri, new types.Position(0, 10));
+		// assert.equal(outgoing.length, 1);
+		// assert.ok(outgoing[0].to instanceof types.CallHierarchyItem);
+		// assert.equal(outgoing[0].to.name, 'OUT');
 	});
 });

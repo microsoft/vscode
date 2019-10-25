@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application } from '../../application';
+import { Application } from '../../../../automation';
 
 export function setup() {
 	describe('Dataloss', () => {
@@ -12,7 +12,7 @@ export function setup() {
 			await app.workbench.editors.newUntitledFile();
 
 			const untitled = 'Untitled-1';
-			const textToTypeInUntitled = 'Hello, Unitled Code';
+			const textToTypeInUntitled = 'Hello, Untitled Code';
 			await app.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
 
 			const readmeMd = 'readme.md';

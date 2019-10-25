@@ -1,4 +1,6 @@
 test/**
 src/**
 tsconfig.json
-OSSREADME.json
+extension.webpack.config.js
+cgmanifest.json
+.vscode

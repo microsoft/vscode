@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Split editor vertical */
+.monaco-workbench .quick-open-sidebyside-vertical {
+	background-image: url("split-editor-vertical-light.svg");
+}
+
+.vs-dark .monaco-workbench .quick-open-sidebyside-vertical {
+	background-image: url("split-editor-vertical-dark.svg");
+}
+
+.hc-black .monaco-workbench .quick-open-sidebyside-vertical {
+	background-image: url("split-editor-vertical-hc.svg");
+}
+
+/* Split editor horizontal */
+.monaco-workbench .quick-open-sidebyside-horizontal {
+	background-image: url("split-editor-horizontal-light.svg");
+}
+
+.vs-dark .monaco-workbench .quick-open-sidebyside-horizontal {
+	background-image: url("split-editor-horizontal-dark.svg");
+}
+
+.hc-black .monaco-workbench .quick-open-sidebyside-horizontal {
+	background-image: url("split-editor-horizontal-hc.svg");
+}
+
+.monaco-workbench .file-editor-action.action-open-preview {
+	background: url("preview-light.svg") center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .file-editor-action.action-open-preview,
+.hc-black .monaco-workbench .file-editor-action.action-open-preview {
+	background: url("preview-dark.svg") center center no-repeat;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
+	content: "\ea71";
+}

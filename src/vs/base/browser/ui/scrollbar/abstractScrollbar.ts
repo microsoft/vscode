@@ -49,7 +49,7 @@ export abstract class AbstractScrollbar extends Widget {
 	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
 	public domNode: FastDomNode<HTMLElement>;
-	public slider: FastDomNode<HTMLElement>;
+	public slider!: FastDomNode<HTMLElement>;
 
 	protected _shouldRender: boolean;
 
@@ -106,6 +106,12 @@ export abstract class AbstractScrollbar extends Widget {
 			if (e.leftButton) {
 				e.preventDefault();
 				this._sliderMouseDown(e, () => { /*nothing to do*/ });
+			}
+		});
+
+		this.onclick(this.slider.domNode, e => {
+			if (e.leftButton) {
+				e.stopPropagation();
 			}
 		});
 	}

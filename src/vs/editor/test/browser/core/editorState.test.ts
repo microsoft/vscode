@@ -92,10 +92,10 @@ suite('Editor Core - Editor State', () => {
 
 		return {
 			getModel: (): ITextModel => <any>mappedModel,
-			getPosition: (): Position => position,
-			getSelection: (): Selection => selection,
-			getScrollLeft: (): number => scroll && scroll.left,
-			getScrollTop: (): number => scroll && scroll.top
+			getPosition: (): Position | undefined => position,
+			getSelection: (): Selection | undefined => selection,
+			getScrollLeft: (): number | undefined => scroll && scroll.left,
+			getScrollTop: (): number | undefined => scroll && scroll.top
 		} as ICodeEditor;
 	}
 

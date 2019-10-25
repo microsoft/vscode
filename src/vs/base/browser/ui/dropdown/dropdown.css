@@ -9,23 +9,8 @@
 	padding: 0;
 }
 
-.monaco-dropdown > .dropdown-label,
-.monaco-dropdown > .dropdown-action {
+.monaco-dropdown > .dropdown-label {
 	display: inline-block;
 	cursor: pointer;
 	height: 100%;
-}
-
-.monaco-dropdown > .dropdown-action {
-	vertical-align: top;
-}
-
-.monaco-dropdown > .dropdown-action > .action-label:hover {
-	color: inherit;
-	text-decoration: none;
-}
-
-.monaco-dropdown > .dropdown-action,
-.monaco-dropdown > .dropdown-action > .action-label {
-	display: inline-block;
 }

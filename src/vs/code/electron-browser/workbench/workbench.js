@@ -14,11 +14,14 @@ const bootstrapWindow = require('../../../../bootstrap-window');
 // Setup shell environment
 process['lazyEnv'] = getLazyEnv();
 
-// Load workbench main
+// Load workbench main JS, CSS and NLS all in parallel. This is an
+// optimization to prevent a waterfall of loading to happen, because
+// we know for a fact that workbench.desktop.main will depend on
+// the related CSS and NLS counterparts.
 bootstrapWindow.load([
-	'vs/workbench/workbench.main',
-	'vs/nls!vs/workbench/workbench.main',
-	'vs/css!vs/workbench/workbench.main'
+	'vs/workbench/workbench.desktop.main',
+	'vs/nls!vs/workbench/workbench.desktop.main',
+	'vs/css!vs/workbench/workbench.desktop.main'
 ],
 	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
@@ -27,44 +30,43 @@ bootstrapWindow.load([
 			perf.mark('main/startup');
 
 			// @ts-ignore
-			return require('vs/workbench/electron-browser/main').startup(configuration);
+			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		});
 	}, {
-		removeDeveloperKeybindingsAfterLoad: true,
-		canModifyDOM: function (windowConfig) {
-			showPartsSplash(windowConfig);
-		},
-		beforeLoaderConfig: function (windowConfig, loaderConfig) {
-			const onNodeCachedData = window['MonacoEnvironment'].onNodeCachedData = [];
-			loaderConfig.onNodeCachedData = function () {
-				onNodeCachedData.push(arguments);
-			};
-
-			loaderConfig.recordStats = !!windowConfig.performance;
-		},
-		beforeRequire: function () {
-			perf.mark('willLoadWorkbenchMain');
-		}
-	});
+	removeDeveloperKeybindingsAfterLoad: true,
+	canModifyDOM: function (windowConfig) {
+		showPartsSplash(windowConfig);
+	},
+	beforeLoaderConfig: function (windowConfig, loaderConfig) {
+		loaderConfig.recordStats = true;
+	},
+	beforeRequire: function () {
+		perf.mark('willLoadWorkbenchMain');
+	}
+});
 
 /**
- * @param {object} configuration
+ * @param {{
+ *	partsSplashPath?: string,
+ *	highContrast?: boolean,
+ *	extensionDevelopmentPath?: string[],
+ *	folderUri?: object,
+ *	workspace?: object
+ * }} configuration
  */
 function showPartsSplash(configuration) {
 	perf.mark('willShowPartsSplash');
 
 	let data;
-	try {
-		// TODO@Ben remove me after a while
-		perf.mark('willReadLocalStorage');
-		let raw = window.localStorage.getItem('storage://global/parts-splash-data');
-		perf.mark('didReadLocalStorage');
-		data = JSON.parse(raw);
-	} catch (e) {
-		// ignore
+	if (typeof configuration.partsSplashPath === 'string') {
+		try {
+			data = JSON.parse(require('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
+		} catch (e) {
+			// ignore
+		}
 	}
 
-	// high contrast mode has been turned on from the outside, e.g OS -> ignore stored colors and layouts
+	// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
 	if (data && configuration.highContrast && data.baseTheme !== 'hc-black') {
 		data = undefined;
 	}
@@ -81,15 +83,26 @@ function showPartsSplash(configuration) {
 	const style = document.createElement('style');
 	style.className = 'initialShellColors';
 	document.head.appendChild(style);
-	document.body.className = `monaco-shell ${baseTheme}`;
-	style.innerHTML = `.monaco-shell { background-color: ${shellBackground}; color: ${shellForeground}; }`;
-
+	document.body.className = baseTheme;
+	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
 	if (data && data.layoutInfo) {
 		// restore parts if possible (we might not always store layout info)
 		const { id, layoutInfo, colorInfo } = data;
 		const splash = document.createElement('div');
 		splash.id = id;
+
+		if (layoutInfo.windowBorder) {
+			splash.style.position = 'relative';
+			splash.style.height = 'calc(100vh - 2px)';
+			splash.style.width = 'calc(100vw - 2px)';
+			splash.style.border = '1px solid var(--window-border-color)';
+			splash.style.setProperty('--window-border-color', colorInfo.windowBorder);
+
+			if (layoutInfo.windowBorderRadius) {
+				splash.style.borderRadius = layoutInfo.windowBorderRadius;
+			}
+		}
 
 		// ensure there is enough space
 		layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));

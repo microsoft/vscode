@@ -5,7 +5,6 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { Uint8Matrix } from 'vs/editor/common/core/uint';
 import { ILink } from 'vs/editor/common/modes';
 
 export interface ILinkComputerTarget {
@@ -13,7 +12,7 @@ export interface ILinkComputerTarget {
 	getLineContent(lineNumber: number): string;
 }
 
-const enum State {
+export const enum State {
 	Invalid = 0,
 	Start = 1,
 	H = 2,
@@ -27,15 +26,42 @@ const enum State {
 	AfterColon = 10,
 	AlmostThere = 11,
 	End = 12,
-	Accept = 13
+	Accept = 13,
+	LastKnownState = 14 // marker, custom states may follow
 }
 
-type Edge = [State, number, State];
+export type Edge = [State, number, State];
 
-class StateMachine {
+export class Uint8Matrix {
 
-	private _states: Uint8Matrix;
-	private _maxCharCode: number;
+	private readonly _data: Uint8Array;
+	public readonly rows: number;
+	public readonly cols: number;
+
+	constructor(rows: number, cols: number, defaultValue: number) {
+		const data = new Uint8Array(rows * cols);
+		for (let i = 0, len = rows * cols; i < len; i++) {
+			data[i] = defaultValue;
+		}
+
+		this._data = data;
+		this.rows = rows;
+		this.cols = cols;
+	}
+
+	public get(row: number, col: number): number {
+		return this._data[row * this.cols + col];
+	}
+
+	public set(row: number, col: number, value: number): void {
+		this._data[row * this.cols + col] = value;
+	}
+}
+
+export class StateMachine {
+
+	private readonly _states: Uint8Matrix;
+	private readonly _maxCharCode: number;
 
 	constructor(edges: Edge[]) {
 		let maxCharCode = 0;
@@ -141,7 +167,7 @@ function getClassifier(): CharacterClassifier<CharacterClass> {
 	return _classifier;
 }
 
-class LinkComputer {
+export class LinkComputer {
 
 	private static _createLink(classifier: CharacterClassifier<CharacterClass>, line: string, lineNumber: number, linkBeginIndex: number, linkEndIndex: number): ILink {
 		// Do not allow to end link in certain characters...
@@ -183,8 +209,7 @@ class LinkComputer {
 		};
 	}
 
-	public static computeLinks(model: ILinkComputerTarget): ILink[] {
-		const stateMachine = getStateMachine();
+	public static computeLinks(model: ILinkComputerTarget, stateMachine: StateMachine = getStateMachine()): ILink[] {
 		const classifier = getClassifier();
 
 		let result: ILink[] = [];
@@ -238,6 +263,10 @@ class LinkComputer {
 							break;
 						case CharCode.BackTick:
 							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote) ? CharacterClass.None : CharacterClass.ForceTermination;
+							break;
+						case CharCode.Asterisk:
+							// `*` terminates a link if the link began with `*`
+							chClass = (linkBeginChCode === CharCode.Asterisk) ? CharacterClass.ForceTermination : CharacterClass.None;
 							break;
 						default:
 							chClass = classifier.get(chCode);
@@ -301,7 +330,7 @@ class LinkComputer {
  * document. *Note* that this operation is computational
  * expensive and should not run in the UI thread.
  */
-export function computeLinks(model: ILinkComputerTarget): ILink[] {
+export function computeLinks(model: ILinkComputerTarget | null): ILink[] {
 	if (!model || typeof model.getLineCount !== 'function' || typeof model.getLineContent !== 'function') {
 		// Unknown caller!
 		return [];

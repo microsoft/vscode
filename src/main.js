@@ -7,16 +7,19 @@
 'use strict';
 
 const perf = require('./vs/base/common/performance');
+const lp = require('./vs/base/node/languagePacks');
+
 perf.mark('main:started');
 
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const bootstrap = require('./bootstrap');
 const paths = require('./paths');
 // @ts-ignore
 const product = require('../product.json');
 // @ts-ignore
-const app = require('electron').app;
+const { app, protocol } = require('electron');
 
 // Enable portable support
 const portable = bootstrap.configurePortable();
@@ -24,33 +27,49 @@ const portable = bootstrap.configurePortable();
 // Enable ASAR support
 bootstrap.enableASARSupport();
 
-// Set userData path before app 'ready' event and call to process.chdir
+// Set userData path before app 'ready' event
 const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
 app.setPath('userData', userDataPath);
 
+// Set logs path before app 'ready' event if running portable
+// to ensure that no 'logs' folder is created on disk at a
+// location outside of the portable directory
+// (https://github.com/microsoft/vscode/issues/56651)
+if (portable.isPortable) {
+	app.setAppLogsPath(path.join(userDataPath, 'logs'));
+}
+
 // Update cwd based on environment and platform
 setCurrentWorkingDirectory();
+
+// Register custom schemes with privileges
+protocol.registerSchemesAsPrivileged([
+	{ scheme: 'vscode-resource', privileges: { secure: true, supportFetchAPI: true, corsEnabled: true } }
+]);
 
 // Global app listeners
 registerListeners();
 
-/**
- * Support user defined locale
- *
- * @type {Promise}
- */
-let nlsConfiguration = undefined;
-const userDefinedLocale = getUserDefinedLocale();
-userDefinedLocale.then((locale) => {
-	if (locale && !nlsConfiguration) {
-		nlsConfiguration = getNLSConfiguration(locale);
-	}
-});
-
-// Configure command line switches
+// Cached data
 const nodeCachedDataDir = getNodeCachedDir();
-configureCommandlineSwitches(args, nodeCachedDataDir);
+
+// Configure static command line arguments
+const argvConfig = configureCommandlineSwitchesSync(args);
+
+/**
+ * Support user defined locale: load it early before app('ready')
+ * to have more things running in parallel.
+ *
+ * @type {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>} nlsConfig | undefined
+ */
+let nlsConfigurationPromise = undefined;
+
+const metaDataFile = path.join(__dirname, 'nls.metadata.json');
+const locale = getUserDefinedLocale(argvConfig);
+if (locale) {
+	nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+}
 
 // Load our code once ready
 app.once('ready', function () {
@@ -69,92 +88,198 @@ app.once('ready', function () {
 	}
 });
 
-function onReady() {
-	perf.mark('main:appReady');
+/**
+ * Main startup routine
+ *
+ * @param {string | undefined} cachedDataDir
+ * @param {import('./vs/base/node/languagePacks').NLSConfiguration} nlsConfig
+ */
+function startup(cachedDataDir, nlsConfig) {
+	nlsConfig._languagePackSupport = true;
 
-	Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]).then(([cachedDataDir, locale]) => {
-		if (locale && !nlsConfiguration) {
-			nlsConfiguration = getNLSConfiguration(locale);
-		}
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+	process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
 
-		if (!nlsConfiguration) {
-			nlsConfiguration = Promise.resolve(undefined);
-		}
-
-		// First, we need to test a user defined locale. If it fails we try the app locale.
-		// If that fails we fall back to English.
-		nlsConfiguration.then((nlsConfig) => {
-
-			const startup = nlsConfig => {
-				nlsConfig._languagePackSupport = true;
-				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
-
-				// Load main in AMD
-				require('./bootstrap-amd').load('vs/code/electron-main/main');
-			};
-
-			// We recevied a valid nlsConfig from a user defined locale
-			if (nlsConfig) {
-				startup(nlsConfig);
-			}
-
-			// Try to use the app locale. Please note that the app locale is only
-			// valid after we have received the app ready event. This is why the
-			// code is here.
-			else {
-				let appLocale = app.getLocale();
-				if (!appLocale) {
-					startup({ locale: 'en', availableLanguages: {} });
-				} else {
-
-					// See above the comment about the loader and case sensitiviness
-					appLocale = appLocale.toLowerCase();
-
-					getNLSConfiguration(appLocale).then((nlsConfig) => {
-						if (!nlsConfig) {
-							nlsConfig = { locale: appLocale, availableLanguages: {} };
-						}
-
-						startup(nlsConfig);
-					});
-				}
-			}
-		});
-	}, console.error);
+	// Load main in AMD
+	perf.mark('willLoadMainBundle');
+	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+		perf.mark('didLoadMainBundle');
+	});
 }
 
-/**
- * @typedef {import('minimist').ParsedArgs} ParsedArgs
- *
- * @param {ParsedArgs} cliArgs
- * @param {{ jsFlags: () => string }} nodeCachedDataDir
- */
-function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
+async function onReady() {
+	perf.mark('main:appReady');
 
-	// TODO@Ben Electron 2.0.x: prevent localStorage migration from SQLite to LevelDB due to issues
-	app.commandLine.appendSwitch('disable-mojo-local-storage');
+	try {
+		const [cachedDataDir, nlsConfig] = await Promise.all([nodeCachedDataDir.ensureExists(), resolveNlsConfiguration()]);
 
-	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-	app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
-
-	// Support JS Flags
-	const jsFlags = resolveJSFlags(cliArgs, nodeCachedDataDir.jsFlags());
-	if (jsFlags) {
-		app.commandLine.appendSwitch('--js-flags', jsFlags);
+		startup(cachedDataDir, nlsConfig);
+	} catch (error) {
+		console.error(error);
 	}
 }
 
 /**
+ * @typedef	 {{ [arg: string]: any; '--'?: string[]; _: string[]; }} ParsedArgs
+ *
  * @param {ParsedArgs} cliArgs
- * @param {string[]} jsFlags
+ */
+function configureCommandlineSwitchesSync(cliArgs) {
+	const SUPPORTED_ELECTRON_SWITCHES = [
+
+		// alias from us for --disable-gpu
+		'disable-hardware-acceleration',
+
+		// provided by Electron
+		'disable-color-correct-rendering'
+	];
+
+	// Read argv config
+	const argvConfig = readArgvConfigSync();
+
+	// Append each flag to Electron
+	Object.keys(argvConfig).forEach(argvKey => {
+		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) === -1) {
+			return; // unsupported argv key
+		}
+
+		const argvValue = argvConfig[argvKey];
+		if (argvValue === true || argvValue === 'true') {
+			if (argvKey === 'disable-hardware-acceleration') {
+				app.disableHardwareAcceleration(); // needs to be called explicitly
+			} else {
+				app.commandLine.appendArgument(argvKey);
+			}
+		} else {
+			app.commandLine.appendSwitch(argvKey, argvValue);
+		}
+	});
+
+	// Support JS Flags
+	const jsFlags = getJSFlags(cliArgs);
+	if (jsFlags) {
+		app.commandLine.appendSwitch('js-flags', jsFlags);
+	}
+
+	return argvConfig;
+}
+
+function readArgvConfigSync() {
+
+	// Read or create the argv.json config file sync before app('ready')
+	const argvConfigPath = getArgvConfigPath();
+	let argvConfig;
+	try {
+		argvConfig = JSON.parse(stripComments(fs.readFileSync(argvConfigPath).toString()));
+	} catch (error) {
+		if (error && error.code === 'ENOENT') {
+			createDefaultArgvConfigSync(argvConfigPath);
+		} else {
+			console.warn(`Unable to read argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+		}
+	}
+
+	// Fallback to default
+	if (!argvConfig) {
+		argvConfig = {
+			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
+		};
+	}
+
+	return argvConfig;
+}
+
+/**
+ * @param {string} argvConfigPath
+ */
+function createDefaultArgvConfigSync(argvConfigPath) {
+	try {
+
+		// Ensure argv config parent exists
+		const argvConfigPathDirname = path.dirname(argvConfigPath);
+		if (!fs.existsSync(argvConfigPathDirname)) {
+			fs.mkdirSync(argvConfigPathDirname);
+		}
+
+		// Migrate over legacy locale
+		const localeConfigPath = path.join(userDataPath, 'User', 'locale.json');
+		const legacyLocale = getLegacyUserDefinedLocaleSync(localeConfigPath);
+		if (legacyLocale) {
+			try {
+				fs.unlinkSync(localeConfigPath);
+			} catch (error) {
+				//ignore
+			}
+		}
+
+		// Default argv content
+		const defaultArgvConfigContent = [
+			'// This configuration file allows to pass permanent command line arguments to VSCode.',
+			'// Only a subset of arguments is currently supported to reduce the likelyhood of breaking',
+			'// the installation.',
+			'//',
+			'// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT',
+			'//',
+			'// If the command line argument does not have any values, simply assign',
+			'// it in the JSON below with a value of \'true\'. Otherwise, put the value',
+			'// directly.',
+			'//',
+			'// If you see rendering issues in VSCode and have a better experience',
+			'// with software rendering, you can configure this by adding:',
+			'//',
+			'// \'disable-hardware-acceleration\': true',
+			'//',
+			'// NOTE: Changing this file requires a restart of VSCode.',
+			'{',
+			'	// Enabled by default by VSCode to resolve color issues in the renderer',
+			'	// See https://github.com/Microsoft/vscode/issues/51791 for details',
+			'	"disable-color-correct-rendering": true'
+		];
+
+		if (legacyLocale) {
+			defaultArgvConfigContent[defaultArgvConfigContent.length - 1] = `${defaultArgvConfigContent[defaultArgvConfigContent.length - 1]},`; // append trailing ","
+
+			defaultArgvConfigContent.push('');
+			defaultArgvConfigContent.push('	// Display language of VSCode');
+			defaultArgvConfigContent.push(`	"locale": "${legacyLocale}"`);
+		}
+
+		defaultArgvConfigContent.push('}');
+
+		// Create initial argv.json with default content
+		fs.writeFileSync(argvConfigPath, defaultArgvConfigContent.join('\n'));
+	} catch (error) {
+		console.error(`Unable to create argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+	}
+}
+
+function getArgvConfigPath() {
+	const vscodePortable = process.env['VSCODE_PORTABLE'];
+	if (vscodePortable) {
+		return path.join(vscodePortable, 'argv.json');
+	}
+
+	let dataFolderName = product.dataFolderName;
+	if (process.env['VSCODE_DEV']) {
+		dataFolderName = `${dataFolderName}-dev`;
+	}
+
+	return path.join(os.homedir(), dataFolderName, 'argv.json');
+}
+
+/**
+ * @param {ParsedArgs} cliArgs
  * @returns {string}
  */
-function resolveJSFlags(cliArgs, ...jsFlags) {
+function getJSFlags(cliArgs) {
+	const jsFlags = [];
+
+	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
+	// Support max-memory flag
 	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
 		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
 	}
@@ -179,7 +304,7 @@ function getUserDataPath(cliArgs) {
  * @returns {ParsedArgs}
  */
 function parseCLIArgs() {
-	const minimist = require('minimist');
+	const minimist = require('vscode-minimist');
 
 	return minimist(process.argv, {
 		string: [
@@ -194,7 +319,7 @@ function parseCLIArgs() {
 function setCurrentWorkingDirectory() {
 	try {
 		if (process.platform === 'win32') {
-			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment letiable
+			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
 			process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
 		} else if (process.env['VSCODE_CWD']) {
 			process.chdir(process.env['VSCODE_CWD']);
@@ -242,7 +367,7 @@ function registerListeners() {
 }
 
 /**
- * @returns {{ jsFlags: () => string; ensureExists: () => Promise<string | void>, _compute: () => string; }}
+ * @returns {{ ensureExists: () => Promise<string | undefined> }}
  */
 function getNodeCachedDir() {
 	return new class {
@@ -251,12 +376,14 @@ function getNodeCachedDir() {
 			this.value = this._compute();
 		}
 
-		jsFlags() {
-			return this.value ? '--nolazy' : undefined;
-		}
+		async ensureExists() {
+			try {
+				await bootstrap.mkdirp(this.value);
 
-		ensureExists() {
-			return mkdirp(this.value).then(() => this.value, () => { /*ignore*/ });
+				return this.value;
+			} catch (error) {
+				// ignore
+			}
 		}
 
 		_compute() {
@@ -282,11 +409,46 @@ function getNodeCachedDir() {
 
 //#region NLS Support
 /**
+ * Resolve the NLS configuration
+ *
+ * @return {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>}
+ */
+async function resolveNlsConfiguration() {
+
+	// First, we need to test a user defined locale. If it fails we try the app locale.
+	// If that fails we fall back to English.
+	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
+	if (!nlsConfiguration) {
+
+		// Try to use the app locale. Please note that the app locale is only
+		// valid after we have received the app ready event. This is why the
+		// code is here.
+		let appLocale = app.getLocale();
+		if (!appLocale) {
+			nlsConfiguration = { locale: 'en', availableLanguages: {} };
+		} else {
+
+			// See above the comment about the loader and case sensitiviness
+			appLocale = appLocale.toLowerCase();
+
+			nlsConfiguration = await lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
+			if (!nlsConfiguration) {
+				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
+			}
+		}
+	} else {
+		// We received a valid nlsConfig from a user defined locale
+	}
+
+	return nlsConfiguration;
+}
+
+/**
  * @param {string} content
  * @returns {string}
  */
 function stripComments(content) {
-	const regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 
 	return content.replace(regexp, function (match, m1, m2, m3, m4) {
 		// Only one of m1, m2, m3, m4 matches
@@ -310,299 +472,35 @@ function stripComments(content) {
 }
 
 /**
- * @param {string} dir
- * @returns {Promise<string>}
+ * Language tags are case insensitive however an amd loader is case sensitive
+ * To make this work on case preserving & insensitive FS we do the following:
+ * the language bundles have lower case language tags and we always lower case
+ * the locale we receive from the user or OS.
+ *
+ * @param {{ locale: string | undefined; }} argvConfig
+ * @returns {string | undefined}
  */
-function mkdir(dir) {
-	return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
-}
-
-/**
- * @param {string} file
- * @returns {Promise<boolean>}
- */
-function exists(file) {
-	return new Promise(c => fs.exists(file, c));
-}
-
-/**
- * @param {string} file
- * @returns {Promise<void>}
- */
-function touch(file) {
-	return new Promise((c, e) => { const d = new Date(); fs.utimes(file, d, d, err => err ? e(err) : c()); });
-}
-
-/**
- * @param {string} file
- * @returns {Promise<object>}
- */
-function lstat(file) {
-	return new Promise((c, e) => fs.lstat(file, (err, stats) => err ? e(err) : c(stats)));
-}
-
-/**
- * @param {string} dir
- * @returns {Promise<string[]>}
- */
-function readdir(dir) {
-	return new Promise((c, e) => fs.readdir(dir, (err, files) => err ? e(err) : c(files)));
-}
-
-/**
- * @param {string} dir
- * @returns {Promise<void>}
- */
-function rmdir(dir) {
-	return new Promise((c, e) => fs.rmdir(dir, err => err ? e(err) : c(undefined)));
-}
-
-/**
- * @param {string} file
- * @returns {Promise<void>}
- */
-function unlink(file) {
-	return new Promise((c, e) => fs.unlink(file, err => err ? e(err) : c(undefined)));
-}
-
-/**
- * @param {string} dir
- * @returns {Promise<string>}
- */
-function mkdirp(dir) {
-	return mkdir(dir).then(null, err => {
-		if (err && err.code === 'ENOENT') {
-			const parent = path.dirname(dir);
-
-			if (parent !== dir) { // if not arrived at root
-				return mkdirp(parent).then(() => mkdir(dir));
-			}
-		}
-
-		throw err;
-	});
-}
-
-/**
- * @param {string} location
- * @returns {Promise<void>}
- */
-function rimraf(location) {
-	return lstat(location).then(stat => {
-		if (stat.isDirectory() && !stat.isSymbolicLink()) {
-			return readdir(location)
-				.then(children => Promise.all(children.map(child => rimraf(path.join(location, child)))))
-				.then(() => rmdir(location));
-		} else {
-			return unlink(location);
-		}
-	}, err => {
-		if (err.code === 'ENOENT') {
-			return void 0;
-		}
-		throw err;
-	});
-}
-
-// Language tags are case insensitive however an amd loader is case sensitive
-// To make this work on case preserving & insensitive FS we do the following:
-// the language bundles have lower case language tags and we always lower case
-// the locale we receive from the user or OS.
-/**
- * @returns {Promise<string>}
- */
-function getUserDefinedLocale() {
+function getUserDefinedLocale(argvConfig) {
 	const locale = args['locale'];
 	if (locale) {
-		return Promise.resolve(locale.toLowerCase());
+		return locale.toLowerCase(); // a directly provided --locale always wins
 	}
 
-	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
-	return exists(localeConfig).then((result) => {
-		if (result) {
-			return bootstrap.readFile(localeConfig).then((content) => {
-				content = stripComments(content);
-				try {
-					const value = JSON.parse(content).locale;
-					return value && typeof value === 'string' ? value.toLowerCase() : undefined;
-				} catch (e) {
-					return undefined;
-				}
-			});
-		} else {
-			return undefined;
-		}
-	});
+	return argvConfig.locale && typeof argvConfig.locale === 'string' ? argvConfig.locale.toLowerCase() : undefined;
 }
 
 /**
- * @returns {object}
+ * @param {string} localeConfigPath
+ * @returns {string | undefined}
  */
-function getLanguagePackConfigurations() {
-	const configFile = path.join(userDataPath, 'languagepacks.json');
+function getLegacyUserDefinedLocaleSync(localeConfigPath) {
 	try {
-		return require(configFile);
-	} catch (err) {
-		// Do nothing. If we can't read the file we have no
-		// language pack config.
-	}
-	return undefined;
-}
+		const content = stripComments(fs.readFileSync(localeConfigPath).toString());
 
-/**
- * @param {object} config
- * @param {string} locale
- */
-function resolveLanguagePackLocale(config, locale) {
-	try {
-		while (locale) {
-			if (config[locale]) {
-				return locale;
-			} else {
-				const index = locale.lastIndexOf('-');
-				if (index > 0) {
-					locale = locale.substring(0, index);
-				} else {
-					return undefined;
-				}
-			}
-		}
-	} catch (err) {
-		console.error('Resolving language pack configuration failed.', err);
-	}
-	return undefined;
-}
-
-/**
- * @param {string} locale
- */
-function getNLSConfiguration(locale) {
-	if (locale === 'pseudo') {
-		return Promise.resolve({ locale: locale, availableLanguages: {}, pseudo: true });
-	}
-
-	if (process.env['VSCODE_DEV']) {
-		return Promise.resolve({ locale: locale, availableLanguages: {} });
-	}
-
-	// We have a built version so we have extracted nls file. Try to find
-	// the right file to use.
-
-	// Check if we have an English or English US locale. If so fall to default since that is our
-	// English translation (we don't ship *.nls.en.json files)
-	if (locale && (locale === 'en' || locale === 'en-us')) {
-		return Promise.resolve({ locale: locale, availableLanguages: {} });
-	}
-
-	const initialLocale = locale;
-
-	perf.mark('nlsGeneration:start');
-
-	const defaultResult = function (locale) {
-		perf.mark('nlsGeneration:end');
-		return Promise.resolve({ locale: locale, availableLanguages: {} });
-	};
-	try {
-		const commit = product.commit;
-		if (!commit) {
-			return defaultResult(initialLocale);
-		}
-		const configs = getLanguagePackConfigurations();
-		if (!configs) {
-			return defaultResult(initialLocale);
-		}
-		locale = resolveLanguagePackLocale(configs, locale);
-		if (!locale) {
-			return defaultResult(initialLocale);
-		}
-		const packConfig = configs[locale];
-		let mainPack;
-		if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
-			return defaultResult(initialLocale);
-		}
-		return exists(mainPack).then((fileExists) => {
-			if (!fileExists) {
-				return defaultResult(initialLocale);
-			}
-			const packId = packConfig.hash + '.' + locale;
-			const cacheRoot = path.join(userDataPath, 'clp', packId);
-			const coreLocation = path.join(cacheRoot, commit);
-			const translationsConfigFile = path.join(cacheRoot, 'tcf.json');
-			const corruptedFile = path.join(cacheRoot, 'corrupted.info');
-			const result = {
-				locale: initialLocale,
-				availableLanguages: { '*': locale },
-				_languagePackId: packId,
-				_translationsConfigFile: translationsConfigFile,
-				_cacheRoot: cacheRoot,
-				_resolvedLanguagePackCoreLocation: coreLocation,
-				_corruptedFile: corruptedFile
-			};
-			return exists(corruptedFile).then((corrupted) => {
-				// The nls cache directory is corrupted.
-				let toDelete;
-				if (corrupted) {
-					toDelete = rimraf(cacheRoot);
-				} else {
-					toDelete = Promise.resolve(undefined);
-				}
-				return toDelete.then(() => {
-					return exists(coreLocation).then((fileExists) => {
-						if (fileExists) {
-							// We don't wait for this. No big harm if we can't touch
-							touch(coreLocation).catch(() => { });
-							perf.mark('nlsGeneration:end');
-							return result;
-						}
-						return mkdirp(coreLocation).then(() => {
-							return Promise.all([bootstrap.readFile(path.join(__dirname, 'nls.metadata.json')), bootstrap.readFile(mainPack)]);
-						}).then((values) => {
-							const metadata = JSON.parse(values[0]);
-							const packData = JSON.parse(values[1]).contents;
-							const bundles = Object.keys(metadata.bundles);
-							const writes = [];
-							for (let bundle of bundles) {
-								const modules = metadata.bundles[bundle];
-								const target = Object.create(null);
-								for (let module of modules) {
-									const keys = metadata.keys[module];
-									const defaultMessages = metadata.messages[module];
-									const translations = packData[module];
-									let targetStrings;
-									if (translations) {
-										targetStrings = [];
-										for (let i = 0; i < keys.length; i++) {
-											const elem = keys[i];
-											const key = typeof elem === 'string' ? elem : elem.key;
-											let translatedMessage = translations[key];
-											if (translatedMessage === undefined) {
-												translatedMessage = defaultMessages[i];
-											}
-											targetStrings.push(translatedMessage);
-										}
-									} else {
-										targetStrings = defaultMessages;
-									}
-									target[module] = targetStrings;
-								}
-								writes.push(bootstrap.writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
-							}
-							writes.push(bootstrap.writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
-							return Promise.all(writes);
-						}).then(() => {
-							perf.mark('nlsGeneration:end');
-							return result;
-						}).catch((err) => {
-							console.error('Generating translation files failed.', err);
-							return defaultResult(locale);
-						});
-					});
-				});
-			});
-		});
-	} catch (err) {
-		console.error('Generating translation files failed.', err);
-		return defaultResult(locale);
+		const value = JSON.parse(content).locale;
+		return value && typeof value === 'string' ? value.toLowerCase() : undefined;
+	} catch (error) {
+		// ignore
 	}
 }
 //#endregion

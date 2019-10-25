@@ -13,6 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
+import { Constants } from 'vs/base/common/uint';
 
 export interface IInsertionPoint {
 	ignore: boolean;
@@ -48,18 +49,20 @@ export const enum Type {
 
 export class LineCommentCommand implements editorCommon.ICommand {
 
-	private _selection: Selection;
-	private _selectionId: string;
+	private readonly _selection: Selection;
+	private _selectionId: string | null;
 	private _deltaColumn: number;
 	private _moveEndPositionDown: boolean;
-	private _tabSize: number;
-	private _type: Type;
+	private readonly _tabSize: number;
+	private readonly _type: Type;
 
 	constructor(selection: Selection, tabSize: number, type: Type) {
 		this._selection = selection;
+		this._selectionId = null;
 		this._tabSize = tabSize;
 		this._type = type;
 		this._deltaColumn = 0;
+		this._moveEndPositionDown = false;
 	}
 
 	/**
@@ -299,8 +302,8 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			}
 		}
 		this._selectionId = builder.trackSelection(s);
-		for (let i = 0; i < ops.length; i++) {
-			builder.addEditOperation(ops[i].range, ops[i].text);
+		for (const op of ops) {
+			builder.addEditOperation(op.range, op.text);
 		}
 	}
 
@@ -323,7 +326,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId);
+		let result = helper.getTrackedSelection(this._selectionId!);
 
 		if (this._moveEndPositionDown) {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);
@@ -390,7 +393,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Adjust insertion points to have them vertically aligned in the add line comment case
 	 */
 	public static _normalizeInsertionPoint(model: ISimpleModel, lines: IInsertionPoint[], startLineNumber: number, tabSize: number): void {
-		let minVisibleColumn = Number.MAX_VALUE;
+		let minVisibleColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 		let j: number;
 		let lenJ: number;
 

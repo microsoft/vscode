@@ -26,10 +26,10 @@ export const enum LanguageType {
 
 export const ILocalizationsService = createDecorator<ILocalizationsService>('localizationsService');
 export interface ILocalizationsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidLanguagesChange: Event<void>;
-	getLanguageIds(type?: LanguageType): Thenable<string[]>;
+	getLanguageIds(type?: LanguageType): Promise<string[]>;
 }
 
 export function isValidLocalization(localization: ILocalization): boolean {

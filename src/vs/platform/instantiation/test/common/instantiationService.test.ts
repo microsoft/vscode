@@ -12,48 +12,48 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 let IService1 = createDecorator<IService1>('service1');
 
 interface IService1 {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	c: number;
 }
 
 class Service1 implements IService1 {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	c = 1;
 }
 
 let IService2 = createDecorator<IService2>('service2');
 
 interface IService2 {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	d: boolean;
 }
 
 class Service2 implements IService2 {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	d = true;
 }
 
 let IService3 = createDecorator<IService3>('service3');
 
 interface IService3 {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	s: string;
 }
 
 class Service3 implements IService3 {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	s = 'farboo';
 }
 
 let IDependentService = createDecorator<IDependentService>('dependentService');
 
 interface IDependentService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	name: string;
 }
 
 class DependentService implements IDependentService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	constructor(@IService1 service: IService1) {
 		assert.equal(service.c, 1);
 	}
@@ -71,7 +71,7 @@ class Service1Consumer {
 
 class Target2Dep {
 
-	constructor(@IService1 service1: IService1, @IService2 service2) {
+	constructor(@IService1 service1: IService1, @IService2 service2: Service2) {
 		assert.ok(service1 instanceof Service1);
 		assert.ok(service2 instanceof Service2);
 	}
@@ -94,12 +94,12 @@ class TargetOptional {
 	constructor(@IService1 service1: IService1, @optional(IService2) service2: IService2) {
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
-		assert.ok(service2 === void 0);
+		assert.ok(service2 === undefined);
 	}
 }
 
 class DependentServiceTarget {
-	constructor(@IDependentService d) {
+	constructor(@IDependentService d: IDependentService) {
 		assert.ok(d);
 		assert.equal(d.name, 'farboo');
 	}
@@ -116,7 +116,7 @@ class DependentServiceTarget2 {
 
 
 class ServiceLoop1 implements IService1 {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	c = 1;
 
 	constructor(@IService2 s: IService2) {
@@ -125,7 +125,7 @@ class ServiceLoop1 implements IService1 {
 }
 
 class ServiceLoop2 implements IService2 {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	d = true;
 
 	constructor(@IService1 s: IService1) {
@@ -137,7 +137,7 @@ suite('Instantiation Service', () => {
 
 	test('service collection, cannot overwrite', function () {
 		let collection = new ServiceCollection();
-		let result = collection.set(IService1, null);
+		let result = collection.set(IService1, null!);
 		assert.equal(result, undefined);
 		result = collection.set(IService1, new Service1());
 		assert.equal(result, null);
@@ -145,10 +145,10 @@ suite('Instantiation Service', () => {
 
 	test('service collection, add/has', function () {
 		let collection = new ServiceCollection();
-		collection.set(IService1, null);
+		collection.set(IService1, null!);
 		assert.ok(collection.has(IService1));
 
-		collection.set(IService2, null);
+		collection.set(IService2, null!);
 		assert.ok(collection.has(IService1));
 		assert.ok(collection.has(IService2));
 	});
@@ -364,7 +364,7 @@ suite('Instantiation Service', () => {
 		let serviceInstanceCount = 0;
 
 		const CtorCounter = class implements Service1 {
-			_serviceBrand: any;
+			_serviceBrand: undefined;
 			c = 1;
 			constructor() {
 				serviceInstanceCount += 1;

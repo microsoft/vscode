@@ -18,7 +18,7 @@ export interface HTMLDocumentRegions {
 	getImportedScripts(): string[];
 }
 
-export var CSS_STYLE_RULE = '__';
+export const CSS_STYLE_RULE = '__';
 
 interface EmbeddedRegion { languageId: string | undefined; start: number; end: number; attributeValue?: boolean; }
 
@@ -56,10 +56,10 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 					}
 					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
-					if (/["'](module|(text|application)\/(java|ecma)script)["']/.test(scanner.getTokenText())) {
+					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'javascript';
 					} else {
-						languageIdFromType = void 0;
+						languageIdFromType = undefined;
 					}
 				} else {
 					let attributeLanguageId = getAttributeLanguage(lastAttributeName!);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Type definitions for sqlite3 3.1
-// Project: https://github.com/mapbox/node-sqlite3
+// Project: http://github.com/mapbox/node-sqlite3
 // Definitions by: Nick Malaguti <https://github.com/nmalaguti>
 //                 Sumant Manne <https://github.com/dpyro>
 //                 Behind The Math <https://github.com/BehindTheMath>
@@ -18,6 +18,9 @@ declare module 'vscode-sqlite3' {
 	export const OPEN_READONLY: number;
 	export const OPEN_READWRITE: number;
 	export const OPEN_CREATE: number;
+	export const OPEN_SHAREDCACHE: number;
+	export const OPEN_PRIVATECACHE: number;
+	export const OPEN_URI: number;
 
 	export const cached: {
 		Database(filename: string, callback?: (this: Database, err: Error | null) => void): Database;
@@ -100,6 +103,9 @@ declare module 'vscode-sqlite3' {
 		OPEN_READONLY: number;
 		OPEN_READWRITE: number;
 		OPEN_CREATE: number;
+		OPEN_SHAREDCACHE: number;
+		OPEN_PRIVATECACHE: number;
+		OPEN_URI: number;
 		cached: typeof cached;
 		RunResult: RunResult;
 		Statement: typeof Statement;

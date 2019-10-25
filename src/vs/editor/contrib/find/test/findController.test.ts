@@ -24,7 +24,6 @@ export class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
-	public delayedUpdateHistoryPromise: Promise<void>;
 
 	private _findInputFocused: IContextKey<boolean>;
 
@@ -37,6 +36,7 @@ export class TestFindController extends CommonFindController {
 		super(editor, contextKeyService, storageService, clipboardService);
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
+		this.hasFocus = false;
 	}
 
 	protected _start(opts: IFindStartOptions): void {
@@ -51,8 +51,8 @@ export class TestFindController extends CommonFindController {
 	}
 }
 
-function fromRange(rng: Range): number[] {
-	return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
+function fromSelection(slc: Selection): number[] {
+	return [slc.startLineNumber, slc.startColumn, slc.endLineNumber, slc.endColumn];
 }
 
 suite('FindController', () => {
@@ -65,10 +65,10 @@ suite('FindController', () => {
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		getInteger: (key: string) => undefined,
+		getNumber: (key: string) => undefined,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => void 0
-	} as IStorageService);
+		remove: () => undefined
+	} as any);
 
 	if (platform.isMacintosh) {
 		serviceCollection.set(IClipboardService, <any>{
@@ -89,7 +89,7 @@ suite('FindController', () => {
 				assert.ok(true);
 				return;
 			}
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let startFindAction = new StartFindAction();
 			// I select ABC on the first line
 			editor.setSelection(new Selection(1, 1, 1, 4));
@@ -115,14 +115,14 @@ suite('FindController', () => {
 				return;
 			}
 
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let findState = findController.getState();
 			let nextMatchFindAction = new NextMatchFindAction();
 
 			nextMatchFindAction.run(null, editor);
 			assert.equal(findState.searchString, 'ABC');
 
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 1, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			findController.dispose();
 		});
@@ -141,7 +141,7 @@ suite('FindController', () => {
 				return;
 			}
 
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let findState = findController.getState();
 
 			findState.change({ searchString: 'ABC' }, true);
@@ -161,7 +161,7 @@ suite('FindController', () => {
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = '';
 			// The cursor is at the very top, of the file, at the first ABC
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let findState = findController.getState();
 			let startFindAction = new StartFindAction();
 			let nextMatchFindAction = new NextMatchFindAction();
@@ -175,14 +175,14 @@ suite('FindController', () => {
 			findState.change({ searchString: 'ABC' }, true);
 
 			// The first ABC is highlighted.
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 1, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			// I hit Esc to exit the Find dialog.
 			findController.closeFindWidget();
 			findController.hasFocus = false;
 
 			// The cursor is now at end of the first line, with ABC on that line highlighted.
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 1, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			// I hit delete to remove it and change the text to XYZ.
 			editor.pushUndoStop();
@@ -195,10 +195,10 @@ suite('FindController', () => {
 			//   ABC
 			//   XYZ
 			//   ABC
-			assert.equal(editor.getModel().getLineContent(1), 'XYZ');
+			assert.equal(editor.getModel()!.getLineContent(1), 'XYZ');
 
 			// The cursor is at end of the first line.
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 4, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 4, 1, 4]);
 
 			// I hit F3 to "Find Next" to find the next occurrence of ABC, but instead it searches for XYZ.
 			nextMatchFindAction.run(null, editor);
@@ -215,7 +215,7 @@ suite('FindController', () => {
 			'import nls = require(\'vs/nls\');'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let nextMatchFindAction = new NextMatchFindAction();
 
 			editor.setPosition({
@@ -224,10 +224,10 @@ suite('FindController', () => {
 			});
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 26, 1, 29]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 26, 1, 29]);
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 8, 1, 11]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 8, 1, 11]);
 
 			findController.dispose();
 		});
@@ -240,7 +240,7 @@ suite('FindController', () => {
 			'var z = (3  * 5)',
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let startFindAction = new StartFindAction();
 			let nextMatchFindAction = new NextMatchFindAction();
 
@@ -250,10 +250,10 @@ suite('FindController', () => {
 			startFindAction.run(null, editor);
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromRange(editor.getSelection()), [2, 9, 2, 13]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 9, 2, 13]);
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 9, 1, 13]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 9, 1, 13]);
 
 			findController.dispose();
 		});
@@ -264,7 +264,7 @@ suite('FindController', () => {
 			'test',
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			let testRegexString = 'tes.';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let nextMatchFindAction = new NextMatchFindAction();
 			let startFindReplaceAction = new StartFindReplaceAction();
 
@@ -294,7 +294,7 @@ suite('FindController', () => {
 			'var z = (3 * 5)',
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			findController.start({
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: false,
@@ -322,7 +322,7 @@ suite('FindController', () => {
 			'HRESULT OnAmbientPropertyChange(DISPID   dispid);'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 
 			let startFindAction = new StartFindAction();
 			startFindAction.run(null, editor);
@@ -330,7 +330,7 @@ suite('FindController', () => {
 			findController.getState().change({ searchString: '\\b\\s{3}\\b', replaceString: ' ', isRegex: true }, false);
 			findController.moveToNextMatch();
 
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
 				[1, 39, 1, 42]
 			]);
 
@@ -349,7 +349,7 @@ suite('FindController', () => {
 			'line3'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 
 			let startFindAction = new StartFindAction();
 			startFindAction.run(null, editor);
@@ -357,7 +357,7 @@ suite('FindController', () => {
 			findController.getState().change({ searchString: '^', replaceString: 'x', isRegex: true }, false);
 			findController.moveToNextMatch();
 
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
 				[2, 1, 2, 1]
 			]);
 
@@ -376,7 +376,7 @@ suite('FindController', () => {
 			'([funny]'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
 
 			// toggle regex
@@ -388,7 +388,7 @@ suite('FindController', () => {
 			// cmd+f3
 			nextSelectionMatchFindAction.run(null, editor);
 
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
 				[3, 1, 3, 9]
 			]);
 
@@ -403,7 +403,7 @@ suite('FindController', () => {
 			'([funny]'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let startFindAction = new StartFindAction();
 			let nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
 
@@ -419,7 +419,7 @@ suite('FindController', () => {
 			// cmd+f3
 			nextSelectionMatchFindAction.run(null, editor);
 
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
 				[3, 1, 3, 9]
 			]);
 
@@ -440,10 +440,10 @@ suite('FindController query options persistence', () => {
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		getInteger: (key: string) => undefined,
+		getNumber: (key: string) => undefined,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => void 0
-	} as IStorageService);
+		remove: () => undefined
+	} as any);
 
 	test('matchCase', () => {
 		withTestCodeEditor([
@@ -454,7 +454,7 @@ suite('FindController query options persistence', () => {
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			queryState = { 'editor.isRegex': false, 'editor.matchCase': true, 'editor.wholeWord': false };
 			// The cursor is at the very top, of the file, at the first ABC
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let findState = findController.getState();
 			let startFindAction = new StartFindAction();
 
@@ -464,7 +464,7 @@ suite('FindController query options persistence', () => {
 			// I type ABC.
 			findState.change({ searchString: 'ABC' }, true);
 			// The second ABC is highlighted as matchCase is true.
-			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 2, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 4]);
 
 			findController.dispose();
 		});
@@ -481,7 +481,7 @@ suite('FindController query options persistence', () => {
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
 			// The cursor is at the very top, of the file, at the first ABC
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			let findState = findController.getState();
 			let startFindAction = new StartFindAction();
 
@@ -491,7 +491,7 @@ suite('FindController query options persistence', () => {
 			// I type AB.
 			findState.change({ searchString: 'AB' }, true);
 			// The second AB is highlighted as wholeWord is true.
-			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 2, 3]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 3]);
 
 			findController.dispose();
 		});
@@ -506,7 +506,7 @@ suite('FindController query options persistence', () => {
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
 			// The cursor is at the very top, of the file, at the first ABC
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 			findController.toggleRegex();
 			assert.equal(queryState['editor.isRegex'], true);
 
@@ -522,7 +522,7 @@ suite('FindController query options persistence', () => {
 		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
 			// clipboardState = '';
 			editor.setSelection(new Range(1, 1, 2, 1));
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 
 			findController.start({
 				forceRevealReplace: false,
@@ -545,7 +545,7 @@ suite('FindController query options persistence', () => {
 		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
 			// clipboardState = '';
 			editor.setSelection(new Range(1, 2, 1, 2));
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 
 			findController.start({
 				forceRevealReplace: false,
@@ -568,7 +568,7 @@ suite('FindController query options persistence', () => {
 		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
 			// clipboardState = '';
 			editor.setSelection(new Range(1, 2, 1, 3));
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
 
 			findController.start({
 				forceRevealReplace: false,

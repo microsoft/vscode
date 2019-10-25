@@ -44,7 +44,7 @@ class SingleLineTestModel implements ISimpleModel {
 
 class TestView {
 
-	private _model: SingleLineTestModel;
+	private readonly _model: SingleLineTestModel;
 
 	constructor(model: SingleLineTestModel) {
 		this._model = model;
@@ -86,8 +86,14 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	let model = new SingleLineTestModel('some  text');
 
 	const textAreaInputHost: ITextAreaInputHost = {
-		getPlainTextToCopy: (): string => '',
-		getHTMLToCopy: (): string => '',
+		getDataToCopy: () => {
+			return {
+				isFromEmptySelection: false,
+				multicursorText: null,
+				text: '',
+				html: undefined
+			};
+		},
 		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
 
 			if (browser.isIPad) {

@@ -17,7 +17,8 @@ export const enum ClassName {
 	EditorWarningDecoration = 'squiggly-warning',
 	EditorErrorDecoration = 'squiggly-error',
 	EditorUnnecessaryDecoration = 'squiggly-unnecessary',
-	EditorUnnecessaryInlineDecoration = 'squiggly-inline-unnecessary'
+	EditorUnnecessaryInlineDecoration = 'squiggly-inline-unnecessary',
+	EditorDeprecatedInlineDecoration = 'squiggly-inline-deprecated'
 }
 
 export const enum NodeColor {
@@ -464,11 +465,9 @@ export function nodeAcceptEdit(node: IntervalNode, start: number, end: number, t
 	const deltaColumn = (insertingCnt - deletingCnt);
 	if (!startDone) {
 		node.start = Math.max(0, nodeStart + deltaColumn);
-		startDone = true;
 	}
 	if (!endDone) {
 		node.end = Math.max(0, nodeEnd + deltaColumn);
-		endDone = true;
 	}
 
 	if (node.start > node.end) {

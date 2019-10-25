@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application } from '../../application';
+import { Application } from '../../../../automation';
 
 export function setup() {
 	describe('Explorer', () => {

@@ -25,14 +25,14 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 
 		if (edit) {
 
-			this.applyEdit(type, editor, edit);
+			this.applyEdit(type, editor.document, edit);
 			return Promise.resolve(true);
 		}
 
-		return editor.edit((edit) => this.applyEdit(type, editor, edit));
+		return editor.edit((edit) => this.applyEdit(type, editor.document, edit));
 	}
 
-	public applyEdit(type: interfaces.CommitType, editor: vscode.TextEditor, edit: vscode.TextEditorEdit): void {
+	public applyEdit(type: interfaces.CommitType, document: vscode.TextDocument, edit: { replace(range: vscode.Range, newText: string): void; }): void {
 
 		// Each conflict is a set of ranges as follows, note placements or newlines
 		// which may not in in spans
@@ -45,24 +45,24 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 		// ]
 		if (type === interfaces.CommitType.Current) {
 			// Replace [ Conflict Range ] with [ Current Content ]
-			let content = editor.document.getText(this.current.content);
+			let content = document.getText(this.current.content);
 			this.replaceRangeWithContent(content, edit);
 		}
 		else if (type === interfaces.CommitType.Incoming) {
-			let content = editor.document.getText(this.incoming.content);
+			let content = document.getText(this.incoming.content);
 			this.replaceRangeWithContent(content, edit);
 		}
 		else if (type === interfaces.CommitType.Both) {
 			// Replace [ Conflict Range ] with [ Current Content ] + \n + [ Incoming Content ]
 
-			const currentContent = editor.document.getText(this.current.content);
-			const incomingContent = editor.document.getText(this.incoming.content);
+			const currentContent = document.getText(this.current.content);
+			const incomingContent = document.getText(this.incoming.content);
 
 			edit.replace(this.range, currentContent.concat(incomingContent));
 		}
 	}
 
-	private replaceRangeWithContent(content: string, edit: vscode.TextEditorEdit) {
+	private replaceRangeWithContent(content: string, edit: { replace(range: vscode.Range, newText: string): void; }) {
 		if (this.isNewlineOnly(content)) {
 			edit.replace(this.range, '');
 			return;

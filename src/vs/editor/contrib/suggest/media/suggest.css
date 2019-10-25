@@ -45,6 +45,17 @@
 	float: right;
 }
 
+/* MarkupContent Layout */
+.monaco-editor .suggest-widget > .details ul {
+	padding-left: 20px;
+}
+.monaco-editor .suggest-widget > .details ol {
+	padding-left: 20px;
+}
+
+.monaco-editor .suggest-widget > .details p code {
+	font-family: var(--monaco-monospace-font);
+}
 
 /* Styles for Message element for when widget is loading or is empty */
 .monaco-editor .suggest-widget > .message {
@@ -56,7 +67,14 @@
 	height: 100%;
 }
 
-
+.monaco-editor .suggest-widget .monaco-list {
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: -moz-none;
+	-ms-user-select: none;
+	-o-user-select: none;
+	user-select: none;
+}
 
 /** Styles for each row in the list element **/
 
@@ -68,6 +86,8 @@
 	background-repeat: no-repeat;
 	background-position: 2px 2px;
 	white-space: nowrap;
+	cursor: pointer;
+	touch-action: none;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents {
@@ -90,26 +110,22 @@
 
 /** Icon styles **/
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .codicon-close,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore::before {
+	color: inherit;
 	opacity: 0.6;
-	background-position: center center;
-	background-repeat: no-repeat;
-	background-size: 70%;
+	font-size: 14px;
+	margin-left: 4px;
 	cursor: pointer;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
-	background-image: url('./close.svg');
-	float: right;
-	margin-right: 5px;
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .codicon-close {
+	position: absolute;
+	top: 2px;
+	right: 2px;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
-	background-image: url('./info.svg');
-}
-
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close:hover,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .codicon-close:hover,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore:hover {
 	opacity: 1;
 }
@@ -144,9 +160,17 @@
 }
 
 /** Styles for each row in the list **/
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.deprecated {
+	opacity: 0.66;
+	text-decoration: unset;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.deprecated > .monaco-icon-label-description-container {
+	text-decoration: line-through;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label::before {
 	height: 100%;
-
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {
@@ -163,45 +187,16 @@
 	display: none;
 }
 
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon {
+	display: flex;
+	align-items: center;
+	margin-right: 4px;
+}
+
 .monaco-editor .suggest-widget.no-icons .monaco-list .monaco-list-row .icon,
-.monaco-editor .suggest-widget.no-icons .monaco-list .monaco-list-row .monaco-icon-label.suggest-icon::before {
+.monaco-editor .suggest-widget.no-icons .monaco-list .monaco-list-row .suggest-icon::before {
 	display: none;
 }
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.suggest-icon::before {
-	content: ' ';
-	background-image: url('Misc_16x.svg');
-	background-repeat: no-repeat;
-	background-position: center;
-	background-size: contain;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.function::before,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.constructor::before { background-image: url('Method_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.field::before { background-image: url('Field_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.event::before { background-image: url('Event_16x_vscode.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.operator::before { background-image: url('Operator_16x_vscode.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.variable::before { background-image: url('LocalVariable_16x_vscode.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.class::before { background-image: url('Class_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.interface::before { background-image: url('Interface_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.struct::before { background-image: url('Structure_16x_vscode.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.type-parameter::before { background-image: url('Template_16x_vscode.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.module::before { background-image: url('Namespace_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.property::before { background-image: url('Property_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.unit::before { background-image: url('Ruler_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.constant::before { background-image: url('Constant_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.value::before,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.enum::before { background-image: url('Enumerator_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.enum-member::before { background-image: url('EnumItem_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.keyword::before { background-image: url('IntelliSenseKeyword_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.text::before { background-image: url('String_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.color::before { background-image: url('ColorPalette_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.file::before { background-image: url('Document_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.reference::before { background-image: url('ImportFile_16x_vscode.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.snippet::before { background-image: url('Snippet_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.customcolor::before { background-image: none; }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.folder::before { background-image: url('Folder_16x.svg'); }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.customcolor .colorspan {
 	margin: 0 0 0 0.3em;
@@ -243,7 +238,7 @@
 	text-overflow: ellipsis;
 	opacity: 0.7;
 	word-break: break-all;
-	margin: 0;
+	margin: 0 24px 0 0;
 	padding: 4px 0 12px 5px;
 }
 
@@ -284,88 +279,3 @@
 	border-radius: 3px;
 	padding: 0 0.4em;
 }
-
-/* High Contrast and Dark Theming */
-
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
-.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
-	background-image: url('./close-dark.svg');
-}
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon::before { background-image: url('Misc_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.function::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.function::before,
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.constructor::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.constructor::before { background-image: url('Method_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.field::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.field::before { background-image: url('Field_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.event::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.event::before { background-image: url('Event_16x_vscode_inverse.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.operator::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.operator::before { background-image: url('Operator_16x_vscode_inverse.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.variable::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.variable::before { background-image: url('LocalVariable_16x_vscode_inverse.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.class::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.class::before { background-image: url('Class_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.interface::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.interface::before { background-image: url('Interface_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.struct::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.struct::before { background-image: url('Structure_16x_vscode_inverse.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.type-parameter::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.type-parameter::before { background-image: url('Template_16x_vscode_inverse.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.module::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.module::before { background-image: url('Namespace_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.property::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.property::before { background-image: url('Property_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.unit::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.unit::before { background-image: url('Ruler_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.constant::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.constant::before { background-image: url('Constant_16x_inverse.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.value::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.value::before,
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.enum::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.enum::before { background-image: url('Enumerator_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.enum-member::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.enum-member::before { background-image: url('EnumItem_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.keyword::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.keyword::before { background-image: url('IntelliSenseKeyword_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.text::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.text::before { background-image: url('String_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.color::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.color::before { background-image: url('ColorPalette_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.file::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.file::before { background-image: url('Document_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.reference::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.reference::before { background-image: url('ImportFile_16x_vscode_inverse.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.snippet::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.snippet::before { background-image: url('Snippet_inverse_16x.svg'); }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.customcolor::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.customcolor::before { background-image: none; }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.folder::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.folder::before { background-image: url('Folder_inverse_16x.svg'); }

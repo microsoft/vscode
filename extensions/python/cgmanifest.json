@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "MagicStack/MagicPython",
+					"repositoryUrl": "https://github.com/MagicStack/MagicPython",
+					"commitHash": "c0f8d514bbe6e9d3899f2b002bcd6971aef5e34b"
+				}
+			},
+			"license": "MIT",
+			"version": "1.1.1"
+		}
+	],
+	"version": 1
+}

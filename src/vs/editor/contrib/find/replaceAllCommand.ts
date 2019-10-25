@@ -15,15 +15,16 @@ interface IEditOperation {
 
 export class ReplaceAllCommand implements editorCommon.ICommand {
 
-	private _editorSelection: Selection;
-	private _trackedEditorSelectionId: string;
-	private _ranges: Range[];
-	private _replaceStrings: string[];
+	private readonly _editorSelection: Selection;
+	private _trackedEditorSelectionId: string | null;
+	private readonly _ranges: Range[];
+	private readonly _replaceStrings: string[];
 
 	constructor(editorSelection: Selection, ranges: Range[], replaceStrings: string[]) {
 		this._editorSelection = editorSelection;
 		this._ranges = ranges;
 		this._replaceStrings = replaceStrings;
+		this._trackedEditorSelectionId = null;
 	}
 
 	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
@@ -57,8 +58,8 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 			}
 			resultOps.push(previousOp);
 
-			for (let i = 0; i < resultOps.length; i++) {
-				builder.addEditOperation(resultOps[i].range, resultOps[i].text);
+			for (const op of resultOps) {
+				builder.addEditOperation(op.range, op.text);
 			}
 		}
 
@@ -66,6 +67,6 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this._trackedEditorSelectionId);
+		return helper.getTrackedSelection(this._trackedEditorSelectionId!);
 	}
 }

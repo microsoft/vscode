@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as browser from 'vs/base/browser/browser';
 import { IframeUtils } from 'vs/base/browser/iframe';
+import * as platform from 'vs/base/common/platform';
 
 export interface IMouseEvent {
 	readonly browserEvent: MouseEvent;
@@ -111,14 +113,37 @@ export class DragMouseEvent extends StandardMouseEvent {
 
 }
 
+export interface IMouseWheelEvent extends MouseEvent {
+	readonly wheelDelta: number;
+	readonly wheelDeltaX: number;
+	readonly wheelDeltaY: number;
+
+	readonly deltaX: number;
+	readonly deltaY: number;
+	readonly deltaZ: number;
+	readonly deltaMode: number;
+}
+
+interface IWebKitMouseWheelEvent {
+	wheelDeltaY: number;
+	wheelDeltaX: number;
+}
+
+interface IGeckoMouseWheelEvent {
+	HORIZONTAL_AXIS: number;
+	VERTICAL_AXIS: number;
+	axis: number;
+	detail: number;
+}
+
 export class StandardWheelEvent {
 
-	public readonly browserEvent: WheelEvent | null;
+	public readonly browserEvent: IMouseWheelEvent | null;
 	public readonly deltaY: number;
 	public readonly deltaX: number;
 	public readonly target: Node;
 
-	constructor(e: WheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
+	constructor(e: IMouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
 
 		this.browserEvent = e || null;
 		this.target = e ? (e.target || (<any>e).targetNode || e.srcElement) : null;
@@ -127,12 +152,53 @@ export class StandardWheelEvent {
 		this.deltaX = deltaX;
 
 		if (e) {
-			if (e.deltaMode === e.DOM_DELTA_LINE) {
-				this.deltaX = -e.deltaX / 3;
-				this.deltaY = -e.deltaY / 3;
-			} else if (e.deltaMode === e.DOM_DELTA_PIXEL) {
-				this.deltaX = -e.deltaX / 120;
-				this.deltaY = -e.deltaY / 120;
+			// Old (deprecated) wheel events
+			let e1 = <IWebKitMouseWheelEvent><any>e;
+			let e2 = <IGeckoMouseWheelEvent><any>e;
+
+			// vertical delta scroll
+			if (typeof e1.wheelDeltaY !== 'undefined') {
+				this.deltaY = e1.wheelDeltaY / 120;
+			} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
+				this.deltaY = -e2.detail / 3;
+			} else if (e.type === 'wheel') {
+				// Modern wheel event
+				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+				const ev = <WheelEvent><unknown>e;
+
+				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
+					// the deltas are expressed in lines
+					this.deltaY = -e.deltaY;
+				} else {
+					this.deltaY = -e.deltaY / 40;
+				}
+			}
+
+			// horizontal delta scroll
+			if (typeof e1.wheelDeltaX !== 'undefined') {
+				if (browser.isSafari && platform.isWindows) {
+					this.deltaX = - (e1.wheelDeltaX / 120);
+				} else {
+					this.deltaX = e1.wheelDeltaX / 120;
+				}
+			} else if (typeof e2.HORIZONTAL_AXIS !== 'undefined' && e2.axis === e2.HORIZONTAL_AXIS) {
+				this.deltaX = -e.detail / 3;
+			} else if (e.type === 'wheel') {
+				// Modern wheel event
+				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+				const ev = <WheelEvent><unknown>e;
+
+				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
+					// the deltas are expressed in lines
+					this.deltaX = -e.deltaX;
+				} else {
+					this.deltaX = -e.deltaX / 40;
+				}
+			}
+
+			// Assume a vertical scroll if nothing else worked
+			if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
+				this.deltaY = e.wheelDelta / 120;
 			}
 		}
 	}

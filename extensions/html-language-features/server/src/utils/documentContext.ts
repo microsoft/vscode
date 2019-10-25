@@ -19,7 +19,7 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 				return folderURI;
 			}
 		}
-		return void 0;
+		return undefined;
 	}
 
 	return {
@@ -32,7 +32,11 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 					}
 				}
 			}
-			return url.resolve(base, ref);
+			try {
+				return url.resolve(base, ref);
+			} catch {
+				return '';
+			}
 		},
 	};
 }

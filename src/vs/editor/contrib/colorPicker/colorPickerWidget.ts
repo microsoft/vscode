@@ -19,11 +19,11 @@ const $ = dom.$;
 
 export class ColorPickerHeader extends Disposable {
 
-	private domNode: HTMLElement;
-	private pickedColorNode: HTMLElement;
+	private readonly domNode: HTMLElement;
+	private readonly pickedColorNode: HTMLElement;
 	private backgroundColor: Color;
 
-	constructor(container: HTMLElement, private model: ColorPickerModel, themeService: IThemeService) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService) {
 		super();
 
 		this.domNode = $('.colorpicker-header');
@@ -32,7 +32,7 @@ export class ColorPickerHeader extends Disposable {
 		this.pickedColorNode = dom.append(this.domNode, $('.picked-color'));
 
 		const colorBox = dom.append(this.domNode, $('.original-color'));
-		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor);
+		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
 
 		this.backgroundColor = themeService.getTheme().getColor(editorHoverBackground) || Color.white;
 		this._register(registerThemingParticipant((theme, collector) => {
@@ -46,12 +46,12 @@ export class ColorPickerHeader extends Disposable {
 		}));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this._register(model.onDidChangePresentation(this.onDidChangePresentation, this));
-		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color);
+		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color) || '';
 		dom.toggleClass(this.pickedColorNode, 'light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
 	}
 
 	private onDidChangeColor(color: Color): void {
-		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color);
+		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color) || '';
 		dom.toggleClass(this.pickedColorNode, 'light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
 		this.onDidChangePresentation();
 	}
@@ -63,12 +63,12 @@ export class ColorPickerHeader extends Disposable {
 
 export class ColorPickerBody extends Disposable {
 
-	private domNode: HTMLElement;
-	private saturationBox: SaturationBox;
-	private hueStrip: Strip;
-	private opacityStrip: Strip;
+	private readonly domNode: HTMLElement;
+	private readonly saturationBox: SaturationBox;
+	private readonly hueStrip: Strip;
+	private readonly opacityStrip: Strip;
 
-	constructor(container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
 		this.domNode = $('.colorpicker-body');
@@ -120,20 +120,20 @@ export class ColorPickerBody extends Disposable {
 
 class SaturationBox extends Disposable {
 
-	private domNode: HTMLElement;
-	private selection: HTMLElement;
-	private canvas: HTMLCanvasElement;
-	private width: number;
-	private height: number;
+	private readonly domNode: HTMLElement;
+	private readonly selection: HTMLElement;
+	private readonly canvas: HTMLCanvasElement;
+	private width!: number;
+	private height!: number;
 
 	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData> | null;
-	private _onDidChange = new Emitter<{ s: number, v: number }>();
+	private readonly _onDidChange = new Emitter<{ s: number, v: number }>();
 	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
 
-	private _onColorFlushed = new Emitter<void>();
+	private readonly _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
-	constructor(container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
 		this.domNode = $('.saturation-wrap');
@@ -235,12 +235,12 @@ abstract class Strip extends Disposable {
 	protected domNode: HTMLElement;
 	protected overlay: HTMLElement;
 	protected slider: HTMLElement;
-	private height: number;
+	private height!: number;
 
-	private _onDidChange = new Emitter<number>();
+	private readonly _onDidChange = new Emitter<number>();
 	readonly onDidChange: Event<number> = this._onDidChange.event;
 
-	private _onColorFlushed = new Emitter<void>();
+	private readonly _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
 	constructor(container: HTMLElement, protected model: ColorPickerModel) {
@@ -335,7 +335,7 @@ export class ColorPickerWidget extends Widget {
 
 	body: ColorPickerBody;
 
-	constructor(container: Node, private model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
+	constructor(container: Node, private readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
 		super();
 
 		this._register(onDidChangeZoomLevel(() => this.layout()));

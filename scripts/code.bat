@@ -24,7 +24,7 @@ if "%1"=="--builtin" goto builtin
 node build\lib\builtInExtensions.js
 
 :: Build
-if not exist out node .\node_modules\gulp\bin\gulp.js compile
+if not exist out yarn compile
 
 :: Configuration
 set NODE_ENV=development
@@ -33,11 +33,9 @@ set VSCODE_CLI=1
 set ELECTRON_DEFAULT_ERROR_MODE=1
 set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
+set VSCODE_LOGS=
 
 :: Launch Code
-
-:: Use the following to get v8 tracing:
-:: %CODE% --js-flags="--trace-hydrogen --trace-phase=Z --trace-deopt --code-comments --hydrogen-track-positions --redirect-code-traces" . %*
 
 %CODE% . %*
 goto end

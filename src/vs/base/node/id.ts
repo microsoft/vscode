@@ -7,11 +7,12 @@ import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { networkInterfaces } from 'os';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { getMac } from 'vs/base/node/macAddress';
 
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
 // VMware ESX 3, Server, Workstation, Player	00-50-56, 00-0C-29, 00-05-69
 // Microsoft Hyper-V, Virtual Server, Virtual PC	00-03-FF
-// Parallells Desktop, Workstation, Server, Virtuozzo	00-1C-42
+// Parallels Desktop, Workstation, Server, Virtuozzo	00-1C-42
 // Virtual Iron 4	00-0F-4B
 // Red Hat Xen	00-16-3E
 // Oracle VM	00-16-3E
@@ -20,8 +21,8 @@ import { TernarySearchTree } from 'vs/base/common/map';
 // Sun xVM VirtualBox	08-00-27
 export const virtualMachineHint: { value(): number } = new class {
 
-	private _virtualMachineOUIs: TernarySearchTree<boolean>;
-	private _value: number;
+	private _virtualMachineOUIs?: TernarySearchTree<boolean>;
+	private _value?: number;
 
 	private _isVirtualMachineMacAdress(mac: string): boolean {
 		if (!this._virtualMachineOUIs) {
@@ -76,29 +77,25 @@ export const virtualMachineHint: { value(): number } = new class {
 };
 
 let machineId: Promise<string>;
-export function getMachineId(): Promise<string> {
-	return machineId || (machineId = getMacMachineId()
-		.then(id => id || uuid.generateUuid())); // fallback, generate a UUID
+export async function getMachineId(): Promise<string> {
+	if (!machineId) {
+		machineId = (async () => {
+			const id = await getMacMachineId();
+
+			return id || uuid.generateUuid(); // fallback, generate a UUID
+		})();
+	}
+
+	return machineId;
 }
 
-function getMacMachineId(): Promise<string> {
-	return new Promise<string>(resolve => {
-		Promise.all([import('crypto'), import('getmac')]).then(([crypto, getmac]) => {
-			try {
-				getmac.getMac((error, macAddress) => {
-					if (!error) {
-						resolve(crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex'));
-					} else {
-						resolve(undefined);
-					}
-				});
-			} catch (err) {
-				errors.onUnexpectedError(err);
-				resolve(undefined);
-			}
-		}, err => {
-			errors.onUnexpectedError(err);
-			resolve(undefined);
-		});
-	});
+async function getMacMachineId(): Promise<string | undefined> {
+	try {
+		const crypto = await import('crypto');
+		const macAddress = await getMac();
+		return crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex');
+	} catch (err) {
+		errors.onUnexpectedError(err);
+		return undefined;
+	}
 }

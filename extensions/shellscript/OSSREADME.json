@@ -1,9 +1,0 @@
-// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
-
-[{
-	"name": "atom/language-shellscript",
-	"version": "0.0.0",
-	"license": "MIT",
-	"repositoryURL": "https://github.com/atom/language-shellscript",
-	"description": "The file syntaxes/shell-unix-bash.tmLanguage.json was derived from the Atom package https://github.com/atom/language-shellscript which was originally converted from the TextMate bundle https://github.com/textmate/shellscript.tmbundle."
-}]

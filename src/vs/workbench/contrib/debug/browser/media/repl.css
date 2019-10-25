@@ -1,0 +1,123 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Debug repl */
+
+.repl {
+	height: 100%;
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.repl .repl-tree .monaco-tl-contents {
+	user-select: text;
+}
+
+.repl .repl-tree.word-wrap .monaco-tl-contents {
+	/* Wrap words but also do not trim whitespace #6275 */
+	word-wrap: break-word;
+	white-space: pre-wrap;
+	/* Break on all #7533 */
+	word-break: break-all;
+}
+
+.monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie.collapsible + .monaco-tl-contents,
+.monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie {
+	cursor: pointer;
+}
+
+
+.repl .repl-tree .output.expression.value-and-source {
+	display: flex;
+}
+
+.repl .repl-tree .output.expression.value-and-source .value {
+	flex: 1;
+}
+
+.repl .repl-tree .output.expression.value-and-source .source {
+	margin-left: 4px;
+	margin-right: 8px;
+	cursor: pointer;
+	text-decoration: underline;
+}
+
+.repl .repl-tree .monaco-list-row {
+	cursor: text;
+}
+
+.repl .repl-tree .output.expression > .value,
+.repl .repl-tree .evaluation-result.expression > .value {
+	margin-left: 0px;
+}
+
+.repl .repl-tree .output.expression > .annotation,
+.repl .repl-tree .evaluation-result.expression > .annotation {
+	font-size: inherit;
+	padding-left: 6px;
+}
+
+.repl .repl-tree .output.expression .name:not(:empty) {
+	margin-right: 6px;
+}
+
+.repl .repl-input-wrapper {
+	padding-left: 20px;
+	border-top: 1px solid rgba(128, 128, 128, 0.35);
+}
+
+/* Only show 'stale expansion' info when the element gets expanded. */
+.repl .repl-tree .evaluation-result > .annotation::before  {
+	content: '';
+}
+
+.hc-black .repl .repl-input-wrapper {
+	border-top-color: #6FC3DF;
+}
+
+.repl .repl-input-wrapper:before {
+	left: 8px;
+	position: absolute;
+	content: '\276f';
+	line-height: 18px;
+}
+
+.monaco-workbench.linux .repl .repl-input-wrapper:before {
+	font-size: 9px;
+}
+
+/* Output coloring  and styling */
+.repl .repl-tree .output.expression > .ignore {
+	font-style: italic;
+}
+
+.vs .repl .repl-tree .output.expression > .warn {
+	color: #cd9731;
+}
+
+.vs-dark .repl .repl-tree .output.expression > .warn {
+	color: #cd9731;
+}
+
+.hc-black .repl .repl-tree .output.expression > .warn {
+	color: #008000;
+}
+
+.vs .repl .repl-tree .output.expression > .annotation {
+	color: #007ACC;
+}
+
+.vs-dark .repl .repl-tree .output.expression > .annotation {
+	color: #1B80B2;
+}
+
+.hc-black .repl .repl-tree .output.expression > .annotation {
+	color: #0000FF;
+}
+
+/* ANSI Codes */
+.monaco-workbench .repl .repl-tree .output.expression .code-bold	{ font-weight: bold; }
+.monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
+.monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline; }

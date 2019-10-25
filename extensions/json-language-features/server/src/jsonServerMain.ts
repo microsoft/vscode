@@ -11,11 +11,10 @@ import {
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import * as fs from 'fs';
-import URI from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import * as URL from 'url';
-import { startsWith } from './utils/strings';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
-import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
+import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
 interface ISchemaAssociations {
@@ -57,59 +56,65 @@ const workspaceContext = {
 		return URL.resolve(resource, relativePath);
 	}
 };
+function getSchemaRequestService(handledSchemas: { [schema: string]: boolean }) {
 
-const schemaRequestService = (uri: string): Thenable<string> => {
-	if (startsWith(uri, 'file://')) {
-		const fsPath = URI.parse(uri).fsPath;
-		return new Promise<string>((c, e) => {
-			fs.readFile(fsPath, 'UTF-8', (err, result) => {
-				err ? e(err.message || err.toString()) : c(result.toString());
-			});
-		});
-	} else if (startsWith(uri, 'vscode://')) {
+	return (uri: string): Thenable<string> => {
+		const protocol = uri.substr(0, uri.indexOf(':'));
+
+		if (!handledSchemas || handledSchemas[protocol]) {
+			if (protocol === 'file') {
+				const fsPath = URI.parse(uri).fsPath;
+				return new Promise<string>((c, e) => {
+					fs.readFile(fsPath, 'UTF-8', (err, result) => {
+						err ? e(err.message || err.toString()) : c(result.toString());
+					});
+				});
+			} else if (protocol === 'http' || protocol === 'https') {
+				if (uri.indexOf('//schema.management.azure.com/') !== -1) {
+					/* __GDPR__
+						"json.schema" : {
+							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					 */
+					connection.telemetry.logEvent({
+						key: 'json.schema',
+						value: {
+							schemaURL: uri
+						}
+					});
+				}
+				const headers = { 'Accept-Encoding': 'gzip, deflate' };
+				return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
+					return response.responseText;
+				}, (error: XHRResponse) => {
+					return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
+				});
+			}
+		}
 		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 			return responseText;
 		}, error => {
 			return Promise.reject(error.message);
 		});
-	}
-	if (uri.indexOf('//schema.management.azure.com/') !== -1) {
-		/* __GDPR__
-			"json.schema" : {
-				"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		 */
-		connection.telemetry.logEvent({
-			key: 'json.schema',
-			value: {
-				schemaURL: uri
-			}
-		});
-	}
-	const headers = { 'Accept-Encoding': 'gzip, deflate' };
-	return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
-		return response.responseText;
-	}, (error: XHRResponse) => {
-		return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
-	});
-};
+	};
+}
 
 // create the JSON language service
 let languageService = getLanguageService({
-	schemaRequestService,
 	workspaceContext,
 	contributions: [],
+	clientCapabilities: ClientCapabilities.LATEST
 });
 
-// Create a simple text document manager. The text document manager
-// supports full document sync only
+// Create a text document manager.
 const documents: TextDocuments = new TextDocuments();
+
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
 
 let clientSnippetSupport = false;
-let clientDynamicRegisterSupport = false;
+let dynamicFormatterRegistration = false;
 let foldingRangeLimit = Number.MAX_VALUE;
 let hierarchicalDocumentSymbolSupport = false;
 
@@ -117,8 +122,10 @@ let hierarchicalDocumentSymbolSupport = false;
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 
+	const handledProtocols = params.initializationOptions && params.initializationOptions['handledSchemaProtocols'];
+
 	languageService = getLanguageService({
-		schemaRequestService,
+		schemaRequestService: getSchemaRequestService(handledProtocols),
 		workspaceContext,
 		contributions: [],
 		clientCapabilities: params.capabilities
@@ -137,18 +144,19 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 
 	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
+	dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof params.initializationOptions.provideFormatter !== 'boolean');
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
-		documentRangeFormattingProvider: false,
+		documentRangeFormattingProvider: params.initializationOptions.provideFormatter === true,
 		colorProvider: {},
-		foldingRangeProvider: true
+		foldingRangeProvider: true,
+		selectionRangeProvider: true
 	};
 
 	return { capabilities };
@@ -174,20 +182,20 @@ interface JSONSchemaSettings {
 	schema?: JSONSchema;
 }
 
-let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = void 0;
-let schemaAssociations: ISchemaAssociations | undefined = void 0;
+let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
+let schemaAssociations: ISchemaAssociations | undefined = undefined;
 let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	var settings = <Settings>change.settings;
+	let settings = <Settings>change.settings;
 	configureHttpRequests(settings.http && settings.http.proxy, settings.http && settings.http.proxyStrictSSL);
 
 	jsonConfigurationSettings = settings.json && settings.json.schemas;
 	updateConfiguration();
 
 	// dynamically enable & disable the formatter
-	if (clientDynamicRegisterSupport) {
+	if (dynamicFormatterRegistration) {
 		const enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
@@ -233,7 +241,7 @@ function updateConfiguration() {
 		schemas: new Array<SchemaConfiguration>()
 	};
 	if (schemaAssociations) {
-		for (var pattern in schemaAssociations) {
+		for (const pattern in schemaAssociations) {
 			const association = schemaAssociations[pattern];
 			if (Array.isArray(association)) {
 				association.forEach(uri => {
@@ -304,7 +312,7 @@ function validateTextDocument(textDocument: TextDocument, callback?: (diagnostic
 	const jsonDocument = getJSONDocument(textDocument);
 	const version = textDocument.version;
 
-	const documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
+	const documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'warning' } : { comments: 'error', trailingCommas: 'error' };
 	languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
 		setTimeout(() => {
 			const currDocument = documents.get(textDocument.uri);
@@ -425,6 +433,18 @@ connection.onFoldingRanges((params, token) => {
 		}
 		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
+});
+
+
+connection.onSelectionRanges((params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			const jsonDocument = getJSONDocument(document);
+			return languageService.getSelectionRanges(document, params.positions, jsonDocument);
+		}
+		return [];
+	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 });
 
 // Listen on the connection

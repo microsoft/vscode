@@ -4,5 +4,5 @@ test/**
 out/**
 tsconfig.json
 extension.webpack.config.js
-OSSREADME.json
+cgmanifest.json
 yarn.lock

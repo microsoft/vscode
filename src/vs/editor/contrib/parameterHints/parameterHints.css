@@ -45,6 +45,10 @@
 	white-space: pre-wrap;
 }
 
+.monaco-editor .parameter-hints-widget .docs.empty {
+	display: none;
+}
+
 .monaco-editor .parameter-hints-widget .docs .markdown-docs {
 	white-space: initial;
 }

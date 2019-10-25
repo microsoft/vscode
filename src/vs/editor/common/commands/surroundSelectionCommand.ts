@@ -9,9 +9,9 @@ import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/ed
 import { ITextModel } from 'vs/editor/common/model';
 
 export class SurroundSelectionCommand implements ICommand {
-	private _range: Selection;
-	private _charBeforeSelection: string;
-	private _charAfterSelection: string;
+	private readonly _range: Selection;
+	private readonly _charBeforeSelection: string;
+	private readonly _charAfterSelection: string;
 
 	constructor(range: Selection, charBeforeSelection: string, charAfterSelection: string) {
 		this._range = range;

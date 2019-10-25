@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, createMatches } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
-	assert(r);
+	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
 	if (highlights) {
 		assert.deepEqual(r, highlights);
 	}
 }
 
-function filterNotOk(filter: IFilter, word: string, suggestion: string) {
-	assert(!filter(word, suggestion));
+function filterNotOk(filter: IFilter, word: string, wordToMatchAgainst: string) {
+	assert(!filter(word, wordToMatchAgainst), `${word} matched ${wordToMatchAgainst}`);
 }
 
 suite('Filters', () => {
@@ -185,37 +185,55 @@ suite('Filters', () => {
 		assert(matchesWords('Debug Console', 'Open: Debug Console'));
 
 		filterOk(matchesWords, 'gp', 'Git: Pull', [{ start: 0, end: 1 }, { start: 5, end: 6 }]);
-		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 4, end: 6 }]);
+		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 3, end: 4 }, { start: 5, end: 6 }]);
 		filterOk(matchesWords, 'gipu', 'Git: Pull', [{ start: 0, end: 2 }, { start: 5, end: 7 }]);
 
 		filterOk(matchesWords, 'gp', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 15, end: 16 }]);
-		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 14, end: 16 }]);
+		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 13, end: 14 }, { start: 15, end: 16 }]);
 		filterOk(matchesWords, 'gipu', 'Category: Git: Pull', [{ start: 10, end: 12 }, { start: 15, end: 17 }]);
 
 		filterNotOk(matchesWords, 'it', 'Git: Pull');
 		filterNotOk(matchesWords, 'll', 'Git: Pull');
 
 		filterOk(matchesWords, 'git: プル', 'git: プル', [{ start: 0, end: 7 }]);
-		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 3 }, { start: 4, end: 7 }]);
+		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 4 }, { start: 5, end: 7 }]);
 
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
 
-		assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
-		assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
+		// assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+
+		filterOk(matchesWords, 'bar', 'foo-bar');
+		filterOk(matchesWords, 'bar test', 'foo-bar test');
+		filterOk(matchesWords, 'fbt', 'foo-bar test');
+		filterOk(matchesWords, 'bar test', 'foo-bar (test)');
+		filterOk(matchesWords, 'foo bar', 'foo (bar)');
+
+		filterNotOk(matchesWords, 'bar est', 'foo-bar test');
+		filterNotOk(matchesWords, 'fo ar', 'foo-bar test');
+		filterNotOk(matchesWords, 'for', 'foo-bar test');
+
+		filterOk(matchesWords, 'foo bar', 'foo-bar');
+		filterOk(matchesWords, 'foo bar', '123 foo-bar 456');
+		filterOk(matchesWords, 'foo+bar', 'foo-bar');
+		filterOk(matchesWords, 'foo-bar', 'foo bar');
+		filterOk(matchesWords, 'foo:bar', 'foo:bar');
 	});
 
-	function assertMatches(pattern: string, word: string, decoratedWord: string, filter: FuzzyScorer, opts: { patternPos?: number, wordPos?: number, firstMatchCanBeWeak?: boolean } = {}) {
+	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number, wordPos?: number, firstMatchCanBeWeak?: boolean } = {}) {
 		let r = filter(pattern, pattern.toLowerCase(), opts.patternPos || 0, word, word.toLowerCase(), opts.wordPos || 0, opts.firstMatchCanBeWeak || false);
-		assert.ok(!decoratedWord === (!r || r[1].length === 0));
+		assert.ok(!decoratedWord === !r);
 		if (r) {
-			const [, matches] = r;
+			let matches = createMatches(r);
+			let actualWord = '';
 			let pos = 0;
-			for (let i = 0; i < matches.length; i++) {
-				let actual = matches[i];
-				let expected = decoratedWord.indexOf('^', pos) - i;
-				assert.equal(actual, expected);
-				pos = expected + 1 + i;
+			for (const match of matches) {
+				actualWord += word.substring(pos, match.start);
+				actualWord += '^' + word.substring(match.start, match.end).split('').join('^');
+				pos = match.end;
 			}
+			actualWord += word.substring(pos);
+			assert.equal(actualWord, decoratedWord);
 		}
 	}
 
@@ -348,6 +366,10 @@ suite('Filters', () => {
 		assertMatches('f', ':foo', ':^foo', fuzzyScore);
 	});
 
+	test('Separator only match should not be weak #79558', function () {
+		assertMatches('.', 'foo.bar', 'foo^.bar', fuzzyScore);
+	});
+
 	test('Cannot set property \'1\' of undefined, #26511', function () {
 		let word = new Array<void>(123).join('a');
 		let pattern = new Array<void>(120).join('a');
@@ -365,6 +387,15 @@ suite('Filters', () => {
 		assertMatches('zz', 'zzGroup', '^z^zGroup', fuzzyScore);
 		assertMatches('zzg', 'zzGroup', '^z^z^Group', fuzzyScore);
 		assertMatches('g', 'zzGroup', 'zz^Group', fuzzyScore);
+	});
+
+	test('patternPos isn\'t working correctly #79815', function () {
+		assertMatches(':p'.substr(1), 'prop', '^prop', fuzzyScore, { patternPos: 0 });
+		assertMatches(':p', 'prop', '^prop', fuzzyScore, { patternPos: 1 });
+		assertMatches(':p', 'prop', undefined, fuzzyScore, { patternPos: 2 });
+		assertMatches(':p', 'proP', 'pro^P', fuzzyScore, { patternPos: 1, wordPos: 1 });
+		assertMatches(':p', 'aprop', 'a^prop', fuzzyScore, { patternPos: 1, firstMatchCanBeWeak: true });
+		assertMatches(':p', 'aprop', undefined, fuzzyScore, { patternPos: 1, firstMatchCanBeWeak: false });
 	});
 
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
@@ -447,5 +478,24 @@ suite('Filters', () => {
 		assertMatches('cno', 'console', '^c^o^nsole', fuzzyScoreGracefulAggressive);
 		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGraceful);
 		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGracefulAggressive);
+	});
+
+	test('List highlight filter: Not all characters from match are highlighterd #66923', () => {
+		assertMatches('foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o', fuzzyScore);
+	});
+
+	test('Autocompletion is matched against truncated filterText to 54 characters #74133', () => {
+		assertMatches(
+			'foo',
+			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o',
+			fuzzyScore
+		);
+		assertMatches(
+			'foo',
+			'Gffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			undefined,
+			fuzzyScore
+		);
 	});
 });

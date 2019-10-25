@@ -1,8 +1,0 @@
-// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
-[{
-	"name": "language-go",
-	"version": "0.39.0",
-	"license": "MIT",
-	"repositoryURL": "https://github.com/atom/language-go",
-	"description": "The file syntaxes/go.json was derived from the Atom package https://atom.io/packages/language-go."
-}]

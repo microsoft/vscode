@@ -42,7 +42,7 @@ suite('Cache', () => {
 		let result = cache.get();
 		assert.equal(counter1, 1);
 		assert.equal(counter2, 0);
-		result.promise.then(null, () => assert(true));
+		result.promise.then(undefined, () => assert(true));
 		result.dispose();
 		assert.equal(counter1, 1);
 		assert.equal(counter2, 0);

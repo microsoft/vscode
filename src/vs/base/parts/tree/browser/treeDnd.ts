@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as _ from 'vs/base/parts/tree/browser/tree';
-import * as Mouse from 'vs/base/browser/mouseEvent';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
-export class ElementsDragAndDropData implements _.IDragAndDropData {
+export class ElementsDragAndDropData implements IDragAndDropData {
 
 	private elements: any[];
 
@@ -14,7 +14,7 @@ export class ElementsDragAndDropData implements _.IDragAndDropData {
 		this.elements = elements;
 	}
 
-	public update(event: Mouse.DragMouseEvent): void {
+	public update(dataTransfer: DataTransfer): void {
 		// no-op
 	}
 
@@ -23,7 +23,7 @@ export class ElementsDragAndDropData implements _.IDragAndDropData {
 	}
 }
 
-export class ExternalElementsDragAndDropData implements _.IDragAndDropData {
+export class ExternalElementsDragAndDropData implements IDragAndDropData {
 
 	private elements: any[];
 
@@ -31,7 +31,7 @@ export class ExternalElementsDragAndDropData implements _.IDragAndDropData {
 		this.elements = elements;
 	}
 
-	public update(event: Mouse.DragMouseEvent): void {
+	public update(dataTransfer: DataTransfer): void {
 		// no-op
 	}
 
@@ -40,7 +40,7 @@ export class ExternalElementsDragAndDropData implements _.IDragAndDropData {
 	}
 }
 
-export class DesktopDragAndDropData implements _.IDragAndDropData {
+export class DesktopDragAndDropData implements IDragAndDropData {
 
 	private types: any[];
 	private files: any[];
@@ -50,15 +50,15 @@ export class DesktopDragAndDropData implements _.IDragAndDropData {
 		this.files = [];
 	}
 
-	public update(event: Mouse.DragMouseEvent): void {
-		if (event.dataTransfer.types) {
+	public update(dataTransfer: DataTransfer): void {
+		if (dataTransfer.types) {
 			this.types = [];
-			Array.prototype.push.apply(this.types, event.dataTransfer.types);
+			Array.prototype.push.apply(this.types, dataTransfer.types as any);
 		}
 
-		if (event.dataTransfer.files) {
+		if (dataTransfer.files) {
 			this.files = [];
-			Array.prototype.push.apply(this.files, event.dataTransfer.files);
+			Array.prototype.push.apply(this.files, dataTransfer.files as any);
 
 			this.files = this.files.filter(f => f.size || f.type);
 		}

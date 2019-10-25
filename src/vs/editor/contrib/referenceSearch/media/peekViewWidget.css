@@ -52,12 +52,8 @@
 	background-position: center center;
 }
 
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label.octicon {
+.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label.codicon {
 	margin: 0;
-}
-
-.monaco-editor .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
-	background: url('close.svg') center center no-repeat;
 }
 
 .monaco-editor .peekview-widget > .body {
@@ -65,11 +61,6 @@
 	position: relative;
 }
 
-/* Dark Theme */
-/* High Contrast Theme */
-
-.monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
-.monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
-	background: url('close-inverse.svg') center center no-repeat;
+.monaco-editor .peekview-widget .head .peekview-title .codicon {
+	margin-right: 4px;
 }
-

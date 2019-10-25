@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AccessibilitySupport } from 'vs/base/common/platform';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export class TestConfiguration extends CommonEditorConfiguration {
 
 	constructor(opts: IEditorOptions) {
-		super(opts);
+		super(false, opts);
 		this._recomputeOptions();
 	}
 
@@ -33,6 +33,7 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			fontFamily: 'mockFont',
 			fontWeight: 'normal',
 			fontSize: 14,
+			fontFeatureSettings: EditorFontLigatures.OFF,
 			lineHeight: 19,
 			letterSpacing: 1.5,
 			isMonospace: true,

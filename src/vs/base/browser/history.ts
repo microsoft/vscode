@@ -5,8 +5,8 @@
 
 export interface IHistoryNavigationWidget {
 
-	showPreviousValue();
+	showPreviousValue(): void;
 
-	showNextValue();
+	showNextValue(): void;
 
 }

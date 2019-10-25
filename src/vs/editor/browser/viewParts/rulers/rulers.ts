@@ -11,11 +11,12 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class Rulers extends ViewPart {
 
 	public domNode: FastDomNode<HTMLElement>;
-	private _renderedRulers: FastDomNode<HTMLElement>[];
+	private readonly _renderedRulers: FastDomNode<HTMLElement>[];
 	private _rulers: number[];
 	private _typicalHalfwidthCharacterWidth: number;
 
@@ -26,8 +27,9 @@ export class Rulers extends ViewPart {
 		this.domNode.setAttribute('aria-hidden', 'true');
 		this.domNode.setClassName('view-rulers');
 		this._renderedRulers = [];
-		this._rulers = this._context.configuration.editor.viewInfo.rulers;
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		const options = this._context.configuration.options;
+		this._rulers = options.get(EditorOption.rulers);
+		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 	}
 
 	public dispose(): void {
@@ -37,12 +39,10 @@ export class Rulers extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo || e.layoutInfo || e.fontInfo) {
-			this._rulers = this._context.configuration.editor.viewInfo.rulers;
-			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
-			return true;
-		}
-		return false;
+		const options = this._context.configuration.options;
+		this._rulers = options.get(EditorOption.rulers);
+		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollHeightChanged;
@@ -64,10 +64,11 @@ export class Rulers extends ViewPart {
 		}
 
 		if (currentCount < desiredCount) {
-			const rulerWidth = this._context.model.getTabSize();
+			const { tabSize } = this._context.model.getOptions();
+			const rulerWidth = tabSize;
 			let addCount = desiredCount - currentCount;
 			while (addCount > 0) {
-				let node = createFastDomNode(document.createElement('div'));
+				const node = createFastDomNode(document.createElement('div'));
 				node.setClassName('view-ruler');
 				node.setWidth(rulerWidth);
 				this.domNode.appendChild(node);
@@ -79,7 +80,7 @@ export class Rulers extends ViewPart {
 
 		let removeCount = currentCount - desiredCount;
 		while (removeCount > 0) {
-			let node = this._renderedRulers.pop()!;
+			const node = this._renderedRulers.pop()!;
 			this.domNode.removeChild(node);
 			removeCount--;
 		}
@@ -90,7 +91,7 @@ export class Rulers extends ViewPart {
 		this._ensureRulersCount();
 
 		for (let i = 0, len = this._rulers.length; i < len; i++) {
-			let node = this._renderedRulers[i];
+			const node = this._renderedRulers[i];
 
 			node.setHeight(Math.min(ctx.scrollHeight, 1000000));
 			node.setLeft(this._rulers[i] * this._typicalHalfwidthCharacterWidth);
