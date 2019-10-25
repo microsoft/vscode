@@ -198,6 +198,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		addClass(treeContainer, 'tree');
 		container.appendChild(treeContainer);
 		const options: IAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
+			sorter: new callHTree.Sorter(),
 			identityProvider: new callHTree.IdentityProvider(() => this._direction),
 			ariaLabel: localize('tree.aria', "Call Hierarchy"),
 			expandOnlyOnTwistieClick: true,
