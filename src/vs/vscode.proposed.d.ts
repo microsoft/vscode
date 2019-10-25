@@ -16,7 +16,7 @@
 
 declare module 'vscode' {
 
-	//#region Joh - call hierarchy
+	//#region Joh - call hierarchy: https://github.com/microsoft/vscode/issues/70231
 
 	/**
 	 * Represents programming constructs like functions or constructors in the context
@@ -98,7 +98,7 @@ declare module 'vscode' {
 		to: CallHierarchyItem;
 
 		/**
-		 * The range at which this item is called. This is the range relative the caller, e.g the item
+		 * The range at which this item is called. This is the range relative to the caller, e.g the item
 		 * passed to [`provideCallHierarchyOutgoingCalls`](#CallHierarchyItemProvider.provideCallHierarchyOutgoingCalls)
 		 * and not [`this.to`](#CallHierarchyOutgoingCall.to).
 		 */
