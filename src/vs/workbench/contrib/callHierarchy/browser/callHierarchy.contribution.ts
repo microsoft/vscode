@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { CallHierarchyProviderRegistry, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
+import { CallHierarchyProviderRegistry, CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyTreePeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
@@ -18,7 +18,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
-import { CallHierarchyRoot } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const _ctxHasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
@@ -66,10 +65,9 @@ class CallHierarchyController implements IEditorContribution {
 			return;
 		}
 
-		const model = this._editor.getModel();
+		const document = this._editor.getModel();
 		const position = this._editor.getPosition();
-		const [provider] = CallHierarchyProviderRegistry.ordered(model);
-		if (!provider) {
+		if (!CallHierarchyProviderRegistry.has(document)) {
 			return;
 		}
 
@@ -80,27 +78,34 @@ class CallHierarchyController implements IEditorContribution {
 			CallHierarchyTreePeekWidget,
 			this._editor,
 			position,
-			provider,
 			direction
 		);
 
 		widget.showLoading();
 		this._ctxIsVisible.set(true);
 
-		const cancel = new CancellationTokenSource();
+		const cts = new CancellationTokenSource();
 
 		this._sessionDisposables.add(widget.onDidClose(() => {
 			this.endCallHierarchy();
 			this._storageService.store(CallHierarchyController._StorageDirection, widget.direction, StorageScope.GLOBAL);
 		}));
-		this._sessionDisposables.add({ dispose() { cancel.cancel(); } });
+		this._sessionDisposables.add({ dispose() { cts.dispose(true); } });
 		this._sessionDisposables.add(widget);
 
-		const root = CallHierarchyRoot.fromEditor(this._editor);
-		if (root) {
-			widget.showItem(root);
-		} else {
-			widget.showMessage(localize('no.item', "No results"));
+		try {
+			const model = await CallHierarchyModel.create(document, position, cts.token);
+			if (cts.token.isCancellationRequested) {
+				return; // nothing
+			} else if (model) {
+				this._sessionDisposables.add(model);
+				widget.showItem(model);
+			} else {
+				widget.showMessage(localize('no.item', "No results"));
+			}
+		} catch (e) {
+			widget.showMessage(localize('error', "Failed to show call hierarchy"));
+			console.error(e);
 		}
 	}
 

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.40.0",
-  "distro": "e8c2fa7c1c2249304102104d56e7cacb37ca27ec",
+  "distro": "879a75db0f86c41ef432c8740266aefced54e9b7",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -41,7 +41,7 @@
     "native-is-elevated": "0.3.0",
     "native-keymap": "2.0.0",
     "native-watchdog": "1.2.0",
-    "node-pty": "0.9.0",
+    "node-pty": "^0.10.0-beta2",
     "nsfw": "1.2.5",
     "onigasm-umd": "^2.2.2",
     "semver-umd": "^5.5.3",
@@ -53,8 +53,8 @@
     "vscode-ripgrep": "^1.5.7",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
-    "xterm": "^4.2.0-beta20",
-    "xterm-addon-search": "0.3.0-beta5",
+    "xterm": "^4.2.0-beta24",
+    "xterm-addon-search": "0.3.0-beta10",
     "xterm-addon-web-links": "0.2.1",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
@@ -129,7 +129,7 @@
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
     "tslint": "^5.16.0",
-    "typescript": "3.7.0-dev.20191017",
+    "typescript": "3.7.1-rc",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
@@ -149,7 +149,7 @@
     "url": "https://github.com/Microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "vscode-windows-ca-certs": "0.1.0",
+    "vscode-windows-ca-certs": "0.2.0",
     "vscode-windows-registry": "1.0.2",
     "windows-foreground-love": "0.2.0",
     "windows-mutex": "0.3.0",

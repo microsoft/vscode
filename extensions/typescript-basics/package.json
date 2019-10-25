@@ -80,10 +80,16 @@
       },
       {
         "scopeName": "documentation.injection",
-        "path": "./syntaxes/jsdoc.injection.tmLanguage.json",
+        "path": "./syntaxes/jsdoc.ts.injection.tmLanguage.json",
         "injectTo": [
           "source.ts",
-          "source.tsx",
+          "source.tsx"
+        ]
+      },
+      {
+        "scopeName": "documentation.injection",
+        "path": "./syntaxes/jsdoc.js.injection.tmLanguage.json",
+        "injectTo": [
           "source.js",
           "source.js.jsx"
         ]

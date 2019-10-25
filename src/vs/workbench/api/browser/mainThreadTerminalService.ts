@@ -12,6 +12,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { ITerminalInstanceService, ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -327,16 +328,23 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
  * listeners are removed.
  */
 class TerminalDataEventTracker extends Disposable {
+	private readonly _bufferer: TerminalDataBufferer;
+
 	constructor(
 		private readonly _callback: (id: number, data: string) => void,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
+
+		this._register(this._bufferer = new TerminalDataBufferer());
+
 		this._terminalService.terminalInstances.forEach(instance => this._registerInstance(instance));
 		this._register(this._terminalService.onInstanceCreated(instance => this._registerInstance(instance)));
+		this._register(this._terminalService.onInstanceDisposed(instance => this._bufferer.stopBuffering(instance.id)));
 	}
 
 	private _registerInstance(instance: ITerminalInstance): void {
-		this._register(instance.onData(e => this._callback(instance.id, e)));
+		// Buffer data events to reduce the amount of messages going to the extension host
+		this._register(this._bufferer.startBuffering(instance.id, instance.onData, this._callback));
 	}
 }

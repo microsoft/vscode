@@ -26,6 +26,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { parseSearchPort } from 'vs/platform/environment/node/environmentService';
 
 export class LocalSearchService extends SearchService {
 	constructor(
@@ -42,7 +43,7 @@ export class LocalSearchService extends SearchService {
 		super(modelService, untitledEditorService, editorService, telemetryService, logService, extensionService, fileService);
 
 
-		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, environmentService.debugSearch);
+		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
 	}
 }
 
