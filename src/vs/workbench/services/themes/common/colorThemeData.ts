@@ -302,6 +302,8 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 			let contentValue = Json.parse(content.value.toString(), errors);
 			if (errors.length > 0) {
 				return Promise.reject(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
+			} else if (Json.getNodeType(contentValue) !== 'object') {
+				return Promise.reject(new Error(nls.localize('error.invalidformat', "Invalid format for JSON theme file: Object expected.")));
 			}
 			let includeCompletes: Promise<any> = Promise.resolve(null);
 			if (contentValue.include) {

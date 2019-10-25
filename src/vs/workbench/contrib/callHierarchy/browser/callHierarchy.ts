@@ -10,7 +10,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
-import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
@@ -105,14 +104,3 @@ export class CallHierarchyModel {
 	}
 }
 
-
-export async function provideIncomingCalls(model: ITextModel, position: IPosition, token: CancellationToken): Promise<IncomingCall[]> {
-	throw new Error();
-}
-
-export async function provideOutgoingCalls(model: ITextModel, position: IPosition, token: CancellationToken): Promise<OutgoingCall[]> {
-	throw new Error();
-}
-
-registerDefaultLanguageCommand('_executeCallHierarchyIncomingCalls', async (model, position) => provideIncomingCalls(model, position, CancellationToken.None));
-registerDefaultLanguageCommand('_executeCallHierarchyOutgoingCalls', async (model, position) => provideOutgoingCalls(model, position, CancellationToken.None));

@@ -2485,6 +2485,12 @@ declare namespace monaco.editor {
 		*/
 		cursorSurroundingLines?: number;
 		/**
+		 * Controls when `cursorSurroundingLines` should be enforced
+		 * Defaults to `default`, `cursorSurroundingLines` is not enforced when cursor position is changed
+		 * by mouse.
+		*/
+		cursorSurroundingLinesStyle?: 'default' | 'all';
+		/**
 		 * Render last line number when the file ends with a newline.
 		 * Defaults to true.
 		*/

@@ -21,7 +21,7 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	get webviewExternalEndpoint(): string {
 		const baseEndpoint = 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
 
-		return baseEndpoint.replace('{{commit}}', product.commit || 'c58aaab8a1cc22a7139b761166a0d4f37d41e998');
+		return baseEndpoint.replace('{{commit}}', product.commit || 'b53811e67e65c6a564a80e1c412ca2b13de02907');
 	}
 
 	@memoize
