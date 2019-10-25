@@ -95,6 +95,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	private _dim!: Dimension;
 	private _layoutInfo!: LayoutInfo;
 
+	private readonly _previewDisposable = new DisposableStore();
+
 	constructor(
 		editor: ICodeEditor,
 		private readonly _where: IPosition,
@@ -111,6 +113,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this._applyTheme(themeService.getTheme());
 		this._disposables.add(themeService.onThemeChange(this._applyTheme, this));
+		this._disposables.add(this._previewDisposable);
 	}
 
 	dispose(): void {
@@ -239,64 +242,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			}
 		}));
 
-		// session state
-		const localDispose = new DisposableStore();
-		this._disposables.add(localDispose);
-
 		// update editor
-		this._disposables.add(this._tree.onDidChangeFocus(async e => {
-			const [element] = e.elements;
-			if (!element) {
-				return;
-			}
-
-			localDispose.clear();
-
-			// update: editor and editor highlights
-			const options: IModelDecorationOptions = {
-				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				className: 'call-decoration',
-				overviewRuler: {
-					color: themeColorFromId(referencesWidget.peekViewEditorMatchHighlight),
-					position: OverviewRulerLane.Center
-				},
-			};
-
-			let previewUri: URI;
-			if (this._direction === CallHierarchyDirection.CallsFrom) {
-				// outgoing calls: show caller and highlight focused calls
-				previewUri = element.parent ? element.parent.item.uri : element.model.root.uri;
-
-			} else {
-				// incoming calls: show caller and highlight focused calls
-				previewUri = element.item.uri;
-			}
-
-			const value = await this._textModelService.createModelReference(previewUri);
-			this._editor.setModel(value.object.textEditorModel);
-
-			// set decorations for caller ranges (if in the same file)
-			let decorations: IModelDeltaDecoration[] = [];
-			let fullRange: IRange | undefined;
-			for (const loc of element.locations) {
-				if (loc.uri.toString() === previewUri.toString()) {
-					decorations.push({ range: loc.range, options });
-					fullRange = !fullRange ? loc.range : Range.plusRange(loc.range, fullRange);
-				}
-			}
-			if (fullRange) {
-				this._editor.revealRangeInCenter(fullRange, ScrollType.Immediate);
-				const ids = this._editor.deltaDecorations([], decorations);
-				localDispose.add(toDisposable(() => this._editor.deltaDecorations(ids, [])));
-			}
-			localDispose.add(value);
-
-			// update: title
-			const title = this._direction === CallHierarchyDirection.CallsFrom
-				? localize('callFrom', "Calls from '{0}'", this._tree.getInput()!.root.name)
-				: localize('callsTo', "Callers of '{0}'", this._tree.getInput()!.root.name);
-			this.setTitle(title);
-		}));
+		this._disposables.add(this._tree.onDidChangeFocus(this._updatePreview, this));
 
 		this._disposables.add(this._editor.onMouseDown(e => {
 			const { event, target } = e;
@@ -342,6 +289,60 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		}));
 	}
 
+	private async _updatePreview() {
+		const [element] = this._tree.getFocus();
+		if (!element) {
+			return;
+		}
+
+		this._previewDisposable.clear();
+
+		// update: editor and editor highlights
+		const options: IModelDecorationOptions = {
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			className: 'call-decoration',
+			overviewRuler: {
+				color: themeColorFromId(referencesWidget.peekViewEditorMatchHighlight),
+				position: OverviewRulerLane.Center
+			},
+		};
+
+		let previewUri: URI;
+		if (this._direction === CallHierarchyDirection.CallsFrom) {
+			// outgoing calls: show caller and highlight focused calls
+			previewUri = element.parent ? element.parent.item.uri : element.model.root.uri;
+
+		} else {
+			// incoming calls: show caller and highlight focused calls
+			previewUri = element.item.uri;
+		}
+
+		const value = await this._textModelService.createModelReference(previewUri);
+		this._editor.setModel(value.object.textEditorModel);
+
+		// set decorations for caller ranges (if in the same file)
+		let decorations: IModelDeltaDecoration[] = [];
+		let fullRange: IRange | undefined;
+		for (const loc of element.locations) {
+			if (loc.uri.toString() === previewUri.toString()) {
+				decorations.push({ range: loc.range, options });
+				fullRange = !fullRange ? loc.range : Range.plusRange(loc.range, fullRange);
+			}
+		}
+		if (fullRange) {
+			this._editor.revealRangeInCenter(fullRange, ScrollType.Immediate);
+			const ids = this._editor.deltaDecorations([], decorations);
+			this._previewDisposable.add(toDisposable(() => this._editor.deltaDecorations(ids, [])));
+		}
+		this._previewDisposable.add(value);
+
+		// update: title
+		const title = this._direction === CallHierarchyDirection.CallsFrom
+			? localize('callFrom', "Calls from '{0}'", this._tree.getInput()!.root.name)
+			: localize('callsTo', "Callers of '{0}'", this._tree.getInput()!.root.name);
+		this.setTitle(title);
+	}
+
 	showLoading(): void {
 		this._parent.dataset['state'] = State.Loading;
 		this.setTitle(localize('title.loading', "Loading..."));
@@ -375,10 +376,11 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 		} else {
 			this._parent.dataset['state'] = State.Data;
-			this._tree.domFocus();
 			if (!viewState) {
 				this._tree.setFocus([root.children[0].element]);
 			}
+			this._tree.domFocus();
+			this._updatePreview();
 		}
 
 		if (!this._changeDirectionAction) {
