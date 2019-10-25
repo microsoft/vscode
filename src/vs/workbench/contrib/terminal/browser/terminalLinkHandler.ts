@@ -95,11 +95,11 @@ export class TerminalLinkHandler {
 			}
 
 			// Get the row bottom up
-			let offsetRow = this._xterm.rows - location.start.row + 1;
+			let offsetRow = this._xterm.rows - location.start.y;
 			let verticalAlignment = WidgetVerticalAlignment.Bottom;
 
 			// Show the tooltip on the top of the next row to avoid obscuring the first row
-			if (location.start.row === 1) {
+			if (location.start.y === 0) {
 				offsetRow--;
 				verticalAlignment = WidgetVerticalAlignment.Top;
 			}
@@ -109,7 +109,7 @@ export class TerminalLinkHandler {
 				const charWidth = font.charWidth;
 				const charHeight = font.charHeight;
 
-				const leftPosition = (location.start.col - 1) * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
+				const leftPosition = location.start.x * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
 				const bottomPosition = offsetRow * (Math.ceil(charHeight! * window.devicePixelRatio) * font.lineHeight) / window.devicePixelRatio;
 
 				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(), verticalAlignment);
@@ -118,7 +118,7 @@ export class TerminalLinkHandler {
 				const colWidth = target.offsetWidth / this._xterm.cols;
 				const rowHeight = target.offsetHeight / this._xterm.rows;
 
-				const leftPosition = (location.start.col - 1) * colWidth;
+				const leftPosition = location.start.x * colWidth;
 				const bottomPosition = offsetRow * rowHeight;
 				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(), verticalAlignment);
 			}
