@@ -16,7 +16,8 @@ export class Call {
 	constructor(
 		readonly item: CallHierarchyItem,
 		readonly locations: Location[],
-		readonly model: CallHierarchyModel
+		readonly model: CallHierarchyModel,
+		readonly parent: Call | undefined
 	) { }
 }
 
@@ -32,41 +33,32 @@ export class DataSource implements IAsyncDataSource<CallHierarchyModel, Call> {
 
 	async getChildren(element: CallHierarchyModel | Call): Promise<Call[]> {
 		if (element instanceof CallHierarchyModel) {
-			return [new Call(element.root, [], element)];
+			return [new Call(element.root, [], element, undefined)];
 		}
 
-		const results: Call[] = [];
+		const { model, item } = element;
+
 		if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
-			await this._getOutgoingCalls(element.model, element.item, results);
+			return (await model.resolveOutgoingCalls(item, CancellationToken.None)).map(call => {
+				return new Call(
+					call.to,
+					call.fromRanges.map(range => ({ range, uri: item.uri })),
+					model,
+					element
+				);
+			});
+
 		} else {
-			await this._getIncomingCalls(element.model, element.item, results);
-		}
-		return results;
-	}
-
-	private async _getOutgoingCalls(model: CallHierarchyModel, item: CallHierarchyItem, bucket: Call[]): Promise<void> {
-
-		const outgoingCalls = await model.resolveOutgoingCalls(item, CancellationToken.None);
-		for (const call of outgoingCalls) {
-			bucket.push(new Call(
-				call.to,
-				call.fromRanges.map(range => ({ range, uri: item.uri })),
-				model
-			));
+			return (await model.resolveIncomingCalls(item, CancellationToken.None)).map(call => {
+				return new Call(
+					call.from,
+					call.fromRanges.map(range => ({ range, uri: call.from.uri })),
+					model,
+					element
+				);
+			});
 		}
 	}
-
-	private async _getIncomingCalls(model: CallHierarchyModel, item: CallHierarchyItem, bucket: Call[]): Promise<void> {
-		const incomingCalls = await model.resolveIncomingCalls(item, CancellationToken.None);
-		for (const call of incomingCalls) {
-			bucket.push(new Call(
-				call.from,
-				call.fromRanges.map(range => ({ range, uri: call.from.uri })),
-				model
-			));
-		}
-	}
-
 }
 
 

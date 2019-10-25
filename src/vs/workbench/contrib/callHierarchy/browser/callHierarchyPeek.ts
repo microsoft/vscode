@@ -269,12 +269,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			let previewUri: URI;
 			if (this._direction === CallHierarchyDirection.CallsFrom) {
 				// outgoing calls: show caller and highlight focused calls
-				const parent = this._tree.getParentElement(element);
-				if (parent instanceof callHTree.Call) {
-					previewUri = parent.item.uri;
-				} else {
-					previewUri = parent.root.uri;
-				}
+				previewUri = element.parent ? element.parent.item.uri : element.model.root.uri;
+
 			} else {
 				// incoming calls: show caller and highlight focused calls
 				previewUri = element.item.uri;
