@@ -38,6 +38,8 @@ class CallHierarchyController implements IEditorContribution {
 	private readonly _dispoables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 
+	private _widget?: CallHierarchyTreePeekWidget;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -74,24 +76,24 @@ class CallHierarchyController implements IEditorContribution {
 		const direction = this._storageService.getNumber(CallHierarchyController._StorageDirection, StorageScope.GLOBAL, <number>CallHierarchyDirection.CallsFrom);
 
 		Event.any<any>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDisposables);
-		const widget = this._instantiationService.createInstance(
+		this._widget = this._instantiationService.createInstance(
 			CallHierarchyTreePeekWidget,
 			this._editor,
 			position,
 			direction
 		);
 
-		widget.showLoading();
+		this._widget.showLoading();
 		this._ctxIsVisible.set(true);
 
 		const cts = new CancellationTokenSource();
 
-		this._sessionDisposables.add(widget.onDidClose(() => {
+		this._sessionDisposables.add(this._widget.onDidClose(() => {
 			this.endCallHierarchy();
-			this._storageService.store(CallHierarchyController._StorageDirection, widget.direction, StorageScope.GLOBAL);
+			this._storageService.store(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.GLOBAL);
 		}));
 		this._sessionDisposables.add({ dispose() { cts.dispose(true); } });
-		this._sessionDisposables.add(widget);
+		this._sessionDisposables.add(this._widget);
 
 		try {
 			const model = await CallHierarchyModel.create(document, position, cts.token);
@@ -99,13 +101,19 @@ class CallHierarchyController implements IEditorContribution {
 				return; // nothing
 			} else if (model) {
 				this._sessionDisposables.add(model);
-				widget.showModel(model);
+				this._widget.showModel(model);
 			} else {
-				widget.showMessage(localize('no.item', "No results"));
+				this._widget.showMessage(localize('no.item', "No results"));
 			}
 		} catch (e) {
-			widget.showMessage(localize('error', "Failed to show call hierarchy"));
+			this._widget.showMessage(localize('error', "Failed to show call hierarchy"));
 			console.error(e);
+		}
+	}
+
+	toggleCallHierarchyDirection(): void {
+		if (this._widget) {
+			this._widget.toggleDirection();
 		}
 	}
 
@@ -135,14 +143,35 @@ registerEditorAction(class extends EditorAction {
 				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H
 			},
 			precondition: ContextKeyExpr.and(
+				_ctxCallHierarchyVisible.negate(),
 				_ctxHasCompletionItemProvider,
 				PeekContext.notInPeekEditor
 			)
 		});
 	}
 
-	async run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		return CallHierarchyController.get(editor).startCallHierarchy();
+	}
+});
+
+registerEditorAction(class extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.toggleCallHierarchy',
+			label: localize('title.toggle', "Toggle Call Hierarchy"),
+			alias: 'Toggle Call Hierarchy',
+			kbOpts: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H
+			},
+			precondition: _ctxCallHierarchyVisible
+		});
+	}
+
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		return CallHierarchyController.get(editor).toggleCallHierarchyDirection();
 	}
 });
 

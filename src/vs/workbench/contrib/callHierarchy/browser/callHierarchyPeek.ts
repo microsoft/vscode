@@ -42,19 +42,14 @@ const enum State {
 
 class ChangeHierarchyDirectionAction extends Action {
 
-	constructor(direction: CallHierarchyDirection, updateDirection: (direction: CallHierarchyDirection) => void) {
+	constructor(getDirection: () => CallHierarchyDirection, toggleDirection: () => void) {
 		super('', undefined, '', true, () => {
-			if (direction === CallHierarchyDirection.CallsTo) {
-				direction = CallHierarchyDirection.CallsFrom;
-			} else {
-				direction = CallHierarchyDirection.CallsTo;
-			}
-			updateDirection(direction);
+			toggleDirection();
 			update();
 			return Promise.resolve();
 		});
 		const update = () => {
-			if (direction === CallHierarchyDirection.CallsFrom) {
+			if (getDirection() === CallHierarchyDirection.CallsFrom) {
 				this.label = localize('toggle.from', "Showing Calls");
 				this.class = 'calls-from';
 			} else {
@@ -387,16 +382,19 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		}
 
 		if (!this._changeDirectionAction) {
-			const changeDirection = async (newDirection: CallHierarchyDirection) => {
-				if (this._direction !== newDirection) {
-					this._treeViewStates.set(this._direction, this._tree.getViewState());
-					this._direction = newDirection;
-					await this.showModel(model);
-				}
-			};
-			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
+			this._changeDirectionAction = new ChangeHierarchyDirectionAction(() => this._direction, () => this.toggleDirection());
 			this._disposables.add(this._changeDirectionAction);
 			this._actionbarWidget!.push(this._changeDirectionAction, { icon: true, label: false });
+		}
+	}
+
+	async toggleDirection(): Promise<void> {
+		const model = this._tree.getInput();
+		if (model) {
+			const newDirection = this._direction === CallHierarchyDirection.CallsTo ? CallHierarchyDirection.CallsFrom : CallHierarchyDirection.CallsTo;
+			this._treeViewStates.set(this._direction, this._tree.getViewState());
+			this._direction = newDirection;
+			await this.showModel(model);
 		}
 	}
 
