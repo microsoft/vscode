@@ -118,7 +118,7 @@ declare module 'vscode' {
 	 * and the call hierarchy feature which allows to browse calls and caller of function,
 	 * methods, constructor etc.
 	 */
-	export interface CallHierarchyItemProvider {
+	export interface CallHierarchyProvider {
 
 		/**
 		 * Bootstraps call hierarchy by returning the item that is denoted by the given document
@@ -159,7 +159,7 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
-		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyItemProvider): Disposable;
+		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyProvider): Disposable;
 	}
 
 	//#endregion
