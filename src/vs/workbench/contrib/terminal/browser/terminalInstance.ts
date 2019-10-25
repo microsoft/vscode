@@ -239,6 +239,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused = new Emitter<ITerminalInstance>();
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
+	private readonly _onProcessCreated = new Emitter<void>();
+	public get onProcessCreated(): Event<void> { return this._onProcessCreated.event; }
 	private readonly _onProcessIdReady = new Emitter<ITerminalInstance>();
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
 	private readonly _onTitleChanged = new Emitter<ITerminalInstance>();
@@ -945,6 +947,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	protected _createProcess(): void {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
+		const processCreatedListener = this._processManager.onProcessStateChange(state => {
+			if (state === ProcessState.LAUNCHING) {
+				this._onProcessCreated.fire();
+				processCreatedListener.dispose();
+			}
+		});
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(data => this._onData.fire(data));
@@ -983,8 +991,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		}
 
-		// Create the process asynchronously to allow the terminal's container
-		// to be created so dimensions are accurate
+		// Create the process asynchronously to allow the terminal's container to be created so
+		// dimensions are accurate. This also ensures that process manager listeners are ready for
+		// `onProcessStateChange` events.
 		setTimeout(() => {
 			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._isScreenReaderOptimized());
 		}, 0);
