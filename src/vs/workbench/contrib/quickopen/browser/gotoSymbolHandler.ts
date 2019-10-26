@@ -16,15 +16,15 @@ import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecorati
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentSymbol, symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
-import { IRange } from 'vs/editor/common/core/range';
+import { DocumentSymbolProviderRegistry, DocumentSymbol, SymbolKinds, SymbolKind, SymbolTag } from 'vs/editor/common/modes';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { asPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -73,10 +73,8 @@ class OutlineModel extends QuickOpenModel {
 	applyFilter(searchValue: string): void {
 
 		// Normalize search
-		let normalizedSearchValue = searchValue;
-		if (searchValue.indexOf(SCOPE_PREFIX) === 0) {
-			normalizedSearchValue = normalizedSearchValue.substr(SCOPE_PREFIX.length);
-		}
+		const searchValueLow = searchValue.toLowerCase();
+		const searchValuePos = searchValue.indexOf(SCOPE_PREFIX) === 0 ? 1 : 0;
 
 		// Check for match and update visibility and group label
 		this.entries.forEach((entry: SymbolEntry) => {
@@ -84,34 +82,26 @@ class OutlineModel extends QuickOpenModel {
 			// Clear all state first
 			entry.setGroupLabel(undefined);
 			entry.setShowBorder(false);
-			entry.setHighlights([]);
+			entry.setScore(undefined);
 			entry.setHidden(false);
 
 			// Filter by search
-			if (normalizedSearchValue) {
-				const highlights = filters.matchesFuzzy2(normalizedSearchValue, entry.getLabel());
-				if (highlights) {
-					entry.setHighlights(highlights);
-					entry.setHidden(false);
-				} else if (!entry.isHidden()) {
-					entry.setHidden(true);
-				}
+			if (searchValue.length > searchValuePos) {
+				const score = filters.fuzzyScore(
+					searchValue, searchValueLow, searchValuePos,
+					entry.getLabel(), entry.getLabel().toLowerCase(), 0,
+					true
+				);
+				entry.setScore(score);
+				entry.setHidden(!score);
 			}
 		});
 
-		// Sort properly if actually searching
-		if (searchValue) {
-			if (searchValue.indexOf(SCOPE_PREFIX) === 0) {
-				this.entries.sort(this.sortScoped.bind(this, searchValue.toLowerCase()));
-			} else {
-				this.entries.sort(this.sortNormal.bind(this, searchValue.toLowerCase()));
-			}
-		}
-
-		// Otherwise restore order as appearing in outline
-		else {
-			this.entries.sort((a: SymbolEntry, b: SymbolEntry) => a.getIndex() - b.getIndex());
-		}
+		// select comparator based on the presence of the colon-prefix
+		this.entries.sort(searchValuePos === 0
+			? SymbolEntry.compareByRank
+			: SymbolEntry.compareByKindAndRank
+		);
 
 		// Mark all type groups
 		const visibleResults = <SymbolEntry[]>this.getEntries(true);
@@ -156,74 +146,6 @@ class OutlineModel extends QuickOpenModel {
 		}
 	}
 
-	private sortNormal(searchValue: string, elementA: SymbolEntry, elementB: SymbolEntry): number {
-
-		// Handle hidden elements
-		if (elementA.isHidden() && elementB.isHidden()) {
-			return 0;
-		} else if (elementA.isHidden()) {
-			return 1;
-		} else if (elementB.isHidden()) {
-			return -1;
-		}
-
-		const elementAName = elementA.getLabel().toLowerCase();
-		const elementBName = elementB.getLabel().toLowerCase();
-
-		// Compare by name
-		const r = elementAName.localeCompare(elementBName);
-		if (r !== 0) {
-			return r;
-		}
-
-		// If name identical sort by range instead
-		const elementARange = elementA.getRange();
-		const elementBRange = elementB.getRange();
-
-		return elementARange.startLineNumber - elementBRange.startLineNumber;
-	}
-
-	private sortScoped(searchValue: string, elementA: SymbolEntry, elementB: SymbolEntry): number {
-
-		// Handle hidden elements
-		if (elementA.isHidden() && elementB.isHidden()) {
-			return 0;
-		} else if (elementA.isHidden()) {
-			return 1;
-		} else if (elementB.isHidden()) {
-			return -1;
-		}
-
-		// Remove scope char
-		searchValue = searchValue.substr(SCOPE_PREFIX.length);
-
-		// Sort by type first if scoped search
-		const elementATypeLabel = NLS_SYMBOL_KIND_CACHE[elementA.getKind()] || FALLBACK_NLS_SYMBOL_KIND;
-		const elementBTypeLabel = NLS_SYMBOL_KIND_CACHE[elementB.getKind()] || FALLBACK_NLS_SYMBOL_KIND;
-		let r = elementATypeLabel.localeCompare(elementBTypeLabel);
-		if (r !== 0) {
-			return r;
-		}
-
-		// Special sort when searching in scoped mode
-		if (searchValue) {
-			const elementAName = elementA.getLabel().toLowerCase();
-			const elementBName = elementB.getLabel().toLowerCase();
-
-			// Compare by name
-			r = elementAName.localeCompare(elementBName);
-			if (r !== 0) {
-				return r;
-			}
-		}
-
-		// Default to sort by range
-		const elementARange = elementA.getRange();
-		const elementBRange = elementB.getRange();
-
-		return elementARange.startLineNumber - elementBRange.startLineNumber;
-	}
-
 	private renderGroupLabel(type: SymbolKind, count: number): string {
 		let pattern = NLS_SYMBOL_KIND_CACHE[type];
 		if (!pattern) {
@@ -235,33 +157,26 @@ class OutlineModel extends QuickOpenModel {
 }
 
 class SymbolEntry extends EditorQuickOpenEntryGroup {
-	private editorService: IEditorService;
-	private index: number;
-	private name: string;
-	private kind: SymbolKind;
-	private icon: string;
-	private description: string;
-	private range: IRange;
-	private revealRange: IRange;
-	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, kind: SymbolKind, description: string, icon: string, range: IRange, revealRange: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
+	private score?: filters.FuzzyScore;
+
+	constructor(
+		private readonly index: number,
+		private readonly name: string,
+		private readonly kind: SymbolKind,
+		private readonly description: string,
+		private readonly icon: string,
+		private readonly deprecated: boolean,
+		private readonly range: IRange,
+		private readonly revealRange: IRange,
+		private readonly editorService: IEditorService,
+		private readonly handler: GotoSymbolHandler
+	) {
 		super();
-
-		this.index = index;
-		this.name = name;
-		this.kind = kind;
-		this.icon = icon;
-		this.description = description;
-		this.range = range;
-		this.revealRange = revealRange || range;
-		this.setHighlights(highlights);
-		this.editorService = editorService;
-		this.handler = handler;
 	}
 
-	getIndex(): number {
-		return this.index;
+	setScore(score: filters.FuzzyScore | undefined): void {
+		this.score = score;
 	}
 
 	getLabel(): string {
@@ -274,6 +189,18 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	getIcon(): string {
 		return this.icon;
+	}
+
+	getLabelOptions(): IIconLabelValueOptions | undefined {
+		return this.deprecated ? { extraClasses: ['deprecated'] } : undefined;
+	}
+
+	getHighlights(): [IHighlight[] | undefined, IHighlight[] | undefined, IHighlight[] | undefined] {
+		return [
+			this.deprecated ? [] : filters.createMatches(this.score),
+			undefined,
+			undefined
+		];
 	}
 
 	getDescription(): string {
@@ -294,7 +221,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	getOptions(pinned?: boolean): ITextEditorOptions {
 		return {
-			selection: this.toSelection(),
+			selection: Range.collapseToStart(this.revealRange),
 			pinned
 		};
 	}
@@ -317,7 +244,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 		// Apply selection and focus
 		else {
-			const range = this.toSelection();
+			const range = Range.collapseToStart(this.revealRange);
 			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 			if (activeTextEditorWidget) {
 				activeTextEditorWidget.setSelection(range);
@@ -331,7 +258,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private runPreview(): boolean {
 
 		// Select Outline Position
-		const range = this.toSelection();
+		const range = Range.collapseToStart(this.revealRange);
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (activeTextEditorWidget) {
 			activeTextEditorWidget.revealRangeInCenter(range, ScrollType.Smooth);
@@ -345,13 +272,36 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return false;
 	}
 
-	private toSelection(): IRange {
-		return {
-			startLineNumber: this.revealRange.startLineNumber,
-			startColumn: this.revealRange.startColumn || 1,
-			endLineNumber: this.revealRange.startLineNumber,
-			endColumn: this.revealRange.startColumn || 1
-		};
+	static compareByRank(a: SymbolEntry, b: SymbolEntry): number {
+		if (!a.score && b.score) {
+			return 1;
+		} else if (a.score && !b.score) {
+			return -1;
+		}
+		if (a.score && b.score) {
+			if (a.score[0] > b.score[0]) {
+				return -1;
+			} else if (a.score[0] < b.score[0]) {
+				return 1;
+			}
+		}
+		if (a.index < b.index) {
+			return -1;
+		} else if (a.index > b.index) {
+			return 1;
+		}
+		return 0;
+	}
+
+	static compareByKindAndRank(a: SymbolEntry, b: SymbolEntry): number {
+		// Sort by type first if scoped search
+		const kindA = NLS_SYMBOL_KIND_CACHE[a.getKind()] || FALLBACK_NLS_SYMBOL_KIND;
+		const kindB = NLS_SYMBOL_KIND_CACHE[b.getKind()] || FALLBACK_NLS_SYMBOL_KIND;
+		let r = kindA.localeCompare(kindB);
+		if (r === 0) {
+			r = SymbolEntry.compareByRank(a, b);
+		}
+		return r;
 	}
 }
 
@@ -466,21 +416,21 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		};
 	}
 
-	private toQuickOpenEntries(flattened: DocumentSymbol[]): SymbolEntry[] {
+	private toQuickOpenEntries(symbols: DocumentSymbol[]): SymbolEntry[] {
 		const results: SymbolEntry[] = [];
 
-		for (let i = 0; i < flattened.length; i++) {
-			const element = flattened[i];
+		for (let i = 0; i < symbols.length; i++) {
+			const element = symbols[i];
 			const label = strings.trim(element.name);
 
 			// Show parent scope as description
 			const description = element.containerName || '';
-			const icon = symbolKindToCssClass(element.kind);
+			const icon = SymbolKinds.toCssClassName(element.kind);
 
 			// Add
 			results.push(new SymbolEntry(i,
-				label, element.kind, description, `symbol-icon ${icon}`,
-				element.range, element.selectionRange, [], this.editorService, this
+				label, element.kind, description, `symbol-icon ${icon}`, element.tags && element.tags.indexOf(SymbolTag.Deprecated) >= 0,
+				element.range, element.selectionRange, this.editorService, this
 			));
 		}
 
@@ -504,7 +454,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 
 			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
-				const entries = await asPromise(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest!.token));
+				const entries = await getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest!.token);
 
 				return new OutlineModel(this.toQuickOpenEntries(entries));
 			}

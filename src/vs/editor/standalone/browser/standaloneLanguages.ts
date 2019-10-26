@@ -483,6 +483,20 @@ export function registerFoldingRangeProvider(languageId: string, provider: modes
 }
 
 /**
+ * Register a declaration provider
+ */
+export function registerDeclarationProvider(languageId: string, provider: modes.DeclarationProvider): IDisposable {
+	return modes.DeclarationProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a selection range provider
+ */
+export function registerSelectionRangeProvider(languageId: string, provider: modes.SelectionRangeProvider): IDisposable {
+	return modes.SelectionRangeRegistry.register(languageId, provider);
+}
+
+/**
  * Contains additional diagnostic information about the context in which
  * a [code action](#CodeActionProvider.provideCodeActions) is run.
  */
@@ -542,12 +556,16 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerLinkProvider: <any>registerLinkProvider,
 		registerColorProvider: <any>registerColorProvider,
 		registerFoldingRangeProvider: <any>registerFoldingRangeProvider,
+		registerDeclarationProvider: <any>registerDeclarationProvider,
+		registerSelectionRangeProvider: <any>registerSelectionRangeProvider,
 
 		// enums
 		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,
 		CompletionItemKind: standaloneEnums.CompletionItemKind,
+		CompletionItemTag: standaloneEnums.CompletionItemTag,
 		CompletionItemInsertTextRule: standaloneEnums.CompletionItemInsertTextRule,
 		SymbolKind: standaloneEnums.SymbolKind,
+		SymbolTag: standaloneEnums.SymbolTag,
 		IndentAction: standaloneEnums.IndentAction,
 		CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,

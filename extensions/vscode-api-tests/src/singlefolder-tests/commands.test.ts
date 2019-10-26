@@ -6,7 +6,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import { join } from 'path';
-import { commands, workspace, window, Uri, ViewColumn, Range, Position } from 'vscode';
+import { commands, workspace, window, Uri, Range, Position, ViewColumn } from 'vscode';
 
 suite('commands namespace tests', () => {
 
@@ -112,32 +112,5 @@ suite('commands namespace tests', () => {
 		let d = commands.executeCommand('vscode.open', uri, true).then(() => assert.ok(false), () => assert.ok(true));
 
 		return Promise.all([a, b, c, d]);
-	});
-
-	test('onDidExecuteCommand', async function () {
-		let args: any[];
-		let d1 = commands.registerCommand('t1', function () {
-			args = [...arguments];
-		});
-
-
-		const p = new Promise((resolve, reject) => {
-
-			let d2 = commands.onDidExecuteCommand(event => {
-				d2.dispose();
-				d1.dispose();
-
-				try {
-					assert.equal(event.command, 't1');
-					assert.deepEqual(args, event.arguments);
-					resolve();
-				} catch (e) {
-					reject(e);
-				}
-			});
-		});
-
-		await commands.executeCommand('t1', { foo: 1 });
-		await p;
 	});
 });

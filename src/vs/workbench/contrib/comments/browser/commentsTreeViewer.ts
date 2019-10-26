@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -56,8 +56,8 @@ interface ICommentThreadTemplateData {
 }
 
 export class CommentsModelVirualDelegate implements IListVirtualDelegate<any> {
-	private static RESOURCE_ID = 'resource-with-comments';
-	private static COMMENT_ID = 'comment-node';
+	private static readonly RESOURCE_ID = 'resource-with-comments';
+	private static readonly COMMENT_ID = 'comment-node';
 
 
 	getHeight(element: any): number {
@@ -175,6 +175,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 		];
 
 		super(
+			'CommentsTree',
 			container,
 			delegate,
 			renderers,

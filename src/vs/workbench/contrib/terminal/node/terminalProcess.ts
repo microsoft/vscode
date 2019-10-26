@@ -82,21 +82,23 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 		});
 
-		const exectuableVerification = stat(shellLaunchConfig.executable!).then(async stat => {
+		const executableVerification = stat(shellLaunchConfig.executable!).then(async stat => {
 			if (!stat.isFile() && !stat.isSymbolicLink()) {
 				return Promise.reject(stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE);
 			}
 		}, async (err) => {
 			if (err && err.code === 'ENOENT') {
 				let cwd = shellLaunchConfig.cwd instanceof URI ? shellLaunchConfig.cwd.path : shellLaunchConfig.cwd!;
-				const executable = await findExecutable(shellLaunchConfig.executable!, cwd);
+				// Try to get path
+				const envPaths: string[] | undefined = (shellLaunchConfig.env && shellLaunchConfig.env.PATH) ? shellLaunchConfig.env.PATH.split(path.delimiter) : undefined;
+				const executable = await findExecutable(shellLaunchConfig.executable!, cwd, envPaths);
 				if (!executable) {
 					return Promise.reject(SHELL_PATH_INVALID_EXIT_CODE);
 				}
 			}
 		});
 
-		Promise.all([cwdVerification, exectuableVerification]).then(() => {
+		Promise.all([cwdVerification, executableVerification]).then(() => {
 			this.setupPtyProcess(shellLaunchConfig, options);
 		}).catch((exitCode: number) => {
 			return this._launchFailed(exitCode);
@@ -235,7 +237,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			cols = Math.max(cols, 1);
 			rows = Math.max(rows, 1);
 			this._logService.trace('IPty#resize', cols, rows);
-			this._ptyProcess.resize(cols, rows);
+			try {
+				this._ptyProcess.resize(cols, rows);
+			} catch (e) {
+				// Swallow error if the pty has already exited
+				if (this._exitCode !== undefined) {
+					throw e;
+				}
+			}
 		}
 	}
 
@@ -251,7 +260,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return;
 				}
 				this._logService.trace('IPty#pid');
-				exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+				exec('lsof -OPl -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 					if (stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 					}

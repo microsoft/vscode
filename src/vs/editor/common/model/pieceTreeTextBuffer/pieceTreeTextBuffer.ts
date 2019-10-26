@@ -106,6 +106,37 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		return endOffset - startOffset;
 	}
 
+	public getCharacterCountInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): number {
+		if (this._mightContainNonBasicASCII) {
+			// we must count by iterating
+
+			let result = 0;
+
+			const fromLineNumber = range.startLineNumber;
+			const toLineNumber = range.endLineNumber;
+			for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
+				const lineContent = this.getLineContent(lineNumber);
+				const fromOffset = (lineNumber === fromLineNumber ? range.startColumn - 1 : 0);
+				const toOffset = (lineNumber === toLineNumber ? range.endColumn - 1 : lineContent.length);
+
+				for (let offset = fromOffset; offset < toOffset; offset++) {
+					if (strings.isHighSurrogate(lineContent.charCodeAt(offset))) {
+						result = result + 1;
+						offset = offset + 1;
+					} else {
+						result = result + 1;
+					}
+				}
+			}
+
+			result += this._getEndOfLine(eol).length * (toLineNumber - fromLineNumber);
+
+			return result;
+		}
+
+		return this.getValueLengthInRange(range, eol);
+	}
+
 	public getLength(): number {
 		return this._pieceTree.getLength();
 	}

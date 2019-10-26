@@ -23,19 +23,19 @@ function getFileEventsExcludes(configurationService: IConfigurationService, root
 	const scope = root ? { resource: root } : undefined;
 	const configuration = scope ? configurationService.getValue<IFilesConfiguration>(scope) : configurationService.getValue<IFilesConfiguration>();
 
-	return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+	return configuration?.files?.exclude || Object.create(null);
 }
 
 export class ExplorerService implements IExplorerService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
-	private _onDidChangeRoots = new Emitter<void>();
-	private _onDidChangeItem = new Emitter<{ item?: ExplorerItem, recursive: boolean }>();
-	private _onDidChangeEditable = new Emitter<ExplorerItem>();
-	private _onDidSelectResource = new Emitter<{ resource?: URI, reveal?: boolean }>();
-	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
+	private readonly _onDidChangeRoots = new Emitter<void>();
+	private readonly _onDidChangeItem = new Emitter<{ item?: ExplorerItem, recursive: boolean }>();
+	private readonly _onDidChangeEditable = new Emitter<ExplorerItem>();
+	private readonly _onDidSelectResource = new Emitter<{ resource?: URI, reveal?: boolean }>();
+	private readonly _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
 	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
@@ -140,6 +140,10 @@ export class ExplorerService implements IExplorerService {
 		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
 	}
 
+	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined {
+		return this.editable;
+	}
+
 	getEditableData(stat: ExplorerItem): IEditableData | undefined {
 		return this.editable && this.editable.stat === stat ? this.editable.data : undefined;
 	}
@@ -158,7 +162,11 @@ export class ExplorerService implements IExplorerService {
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === 'modified' };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
-		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
+		if (workspaceFolder === null) {
+			return Promise.resolve(undefined);
+		}
+		const rootUri = workspaceFolder.uri;
+
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
 
 		try {
@@ -369,7 +377,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+		const configSortOrder = configuration?.explorer?.sortOrder || 'default';
 		if (this._sortOrder !== configSortOrder) {
 			const shouldRefresh = this._sortOrder !== undefined;
 			this._sortOrder = configSortOrder;

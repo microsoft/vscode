@@ -20,10 +20,12 @@
 	padding-right: 6px;
 	width: 16px;
 	height: 22px;
+	line-height: inherit !important;
 	display: inline-block;
 
 	/* fonts icons */
 	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 	vertical-align: top;
 
 	flex-shrink: 0; /* fix for https://github.com/Microsoft/vscode/issues/13787 */
@@ -55,7 +57,7 @@
 	opacity: 0.75;
 	font-size: 90%;
 	font-weight: 600;
-	padding: 0 12px 0 5px;
+	padding: 0 16px 0 5px;
 	margin-left: auto;
 	text-align: center;
 }

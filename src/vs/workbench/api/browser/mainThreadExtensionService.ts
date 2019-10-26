@@ -14,10 +14,11 @@ import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -25,7 +26,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	private readonly _extensionService: IExtensionService;
 	private readonly _notificationService: INotificationService;
 	private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService;
-	private readonly _windowService: IWindowService;
+	private readonly _hostService: IHostService;
 	private readonly _extensionEnablementService: IExtensionEnablementService;
 
 	constructor(
@@ -33,27 +34,27 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		@IExtensionService extensionService: IExtensionService,
 		@INotificationService notificationService: INotificationService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWindowService windowService: IWindowService,
+		@IHostService hostService: IHostService,
 		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService
 	) {
 		this._extensionService = extensionService;
 		this._notificationService = notificationService;
 		this._extensionsWorkbenchService = extensionsWorkbenchService;
-		this._windowService = windowService;
+		this._hostService = hostService;
 		this._extensionEnablementService = extensionEnablementService;
 	}
 
 	public dispose(): void {
 	}
 
-	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
-		return this._extensionService._activateById(extensionId, activationEvent);
+	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
+		return this._extensionService._activateById(extensionId, reason);
 	}
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): void {
 		this._extensionService._onWillActivateExtension(extensionId);
 	}
-	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
-		this._extensionService._onDidActivateExtension(extensionId, startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
+	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
+		this._extensionService._onDidActivateExtension(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime, activationReason);
 	}
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, data: SerializedError): void {
 		const error = new Error();
@@ -92,7 +93,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 				severity: Severity.Error,
 				message: localize('reload window', "Cannot activate the '{0}' extension because it depends on the '{1}' extension, which is not loaded. Would you like to reload the window to load the extension?", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
 				actions: {
-					primary: [new Action('reload', localize('reload', "Reload Window"), '', true, () => this._windowService.reloadWindow())]
+					primary: [new Action('reload', localize('reload', "Reload Window"), '', true, () => this._hostService.reload())]
 				}
 			});
 		} else {
@@ -103,7 +104,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 				actions: {
 					primary: [new Action('enable', localize('enable dep', "Enable and Reload"), '', true,
 						() => this._extensionEnablementService.setEnablement([missingInstalledDependency], enablementState === EnablementState.DisabledGlobally ? EnablementState.EnabledGlobally : EnablementState.EnabledWorkspace)
-							.then(() => this._windowService.reloadWindow(), e => this._notificationService.error(e)))]
+							.then(() => this._hostService.reload(), e => this._notificationService.error(e)))]
 				}
 			});
 		}
@@ -119,7 +120,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 				actions: {
 					primary: [new Action('install', localize('install missing dep', "Install and Reload"), '', true,
 						() => this._extensionsWorkbenchService.install(dependencyExtension)
-							.then(() => this._windowService.reloadWindow(), e => this._notificationService.error(e)))]
+							.then(() => this._hostService.reload(), e => this._notificationService.error(e)))]
 				}
 			});
 		} else {

@@ -6,14 +6,13 @@
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 const emptyDialogService = new class implements IDialogService {
-	_serviceBrand: 'dialogService';
+	_serviceBrand: undefined;
 	show(): never {
 		throw new Error('not implemented');
 	}
@@ -21,19 +20,23 @@ const emptyDialogService = new class implements IDialogService {
 	confirm(): never {
 		throw new Error('not implemented');
 	}
+
+	about(): never {
+		throw new Error('not implemented');
+	}
 };
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
-	onWillExecuteCommand: () => ({ dispose: () => { } }),
-	onDidExecuteCommand: () => ({ dispose: () => { } }),
+	onWillExecuteCommand: () => Disposable.None,
+	onDidExecuteCommand: () => Disposable.None,
 	executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 		return Promise.resolve(undefined);
 	}
 };
 
 const emptyNotificationService = new class implements INotificationService {
-	_serviceBrand: ServiceIdentifier<INotificationService>;
+	_serviceBrand: undefined;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
@@ -52,10 +55,13 @@ const emptyNotificationService = new class implements INotificationService {
 	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
+	setFilter(filter: NotificationsFilter): void {
+		throw new Error('not implemented.');
+	}
 };
 
 class EmptyNotificationService implements INotificationService {
-	_serviceBrand: ServiceIdentifier<INotificationService>;
+	_serviceBrand: undefined;
 
 	constructor(private withNotify: (notification: INotification) => void) {
 	}
@@ -75,10 +81,13 @@ class EmptyNotificationService implements INotificationService {
 		throw new Error('Method not implemented.');
 	}
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		throw new Error('not implemented');
+		throw new Error('Method not implemented');
 	}
 	status(message: string, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
+	}
+	setFilter(filter: NotificationsFilter): void {
+		throw new Error('Method not implemented.');
 	}
 }
 
@@ -103,7 +112,7 @@ suite('ExtHostMessageService', function () {
 					assert.equal(message, 'h');
 					assert.equal(buttons.length, 2);
 					assert.equal(buttons[1], 'Cancel');
-					return Promise.resolve(0);
+					return Promise.resolve({ choice: 0 });
 				}
 			} as IDialogService);
 
@@ -114,7 +123,7 @@ suite('ExtHostMessageService', function () {
 		test('returns undefined when cancelled', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				show() {
-					return Promise.resolve(1);
+					return Promise.resolve({ choice: 1 });
 				}
 			} as IDialogService);
 
@@ -126,7 +135,7 @@ suite('ExtHostMessageService', function () {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				show(severity: Severity, message: string, buttons: string[]) {
 					assert.equal(buttons.length, 1);
-					return Promise.resolve(0);
+					return Promise.resolve({ choice: 0 });
 				}
 			} as IDialogService);
 

@@ -16,9 +16,15 @@ import { RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { TestRPCProtocol } from './testRPCProtocol';
+import { ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
-	const result = new ExtHostWorkspace(mainContext, logService);
+	const result = new ExtHostWorkspace(
+		new ExtHostRpcService(mainContext),
+		new class extends mock<IExtHostInitDataService>() { workspace = data; },
+		logService
+	);
 	result.$initializeWorkspace(data);
 	return result;
 }
@@ -288,8 +294,8 @@ suite('ExtHostWorkspace', function () {
 
 		const protocol: IMainContext = {
 			getProxy: () => { return undefined!; },
-			set: undefined!,
-			assertRegistered: undefined!
+			set: () => { return undefined!; },
+			assertRegistered: () => { }
 		};
 
 		const ws = createExtHostWorkspace(protocol, { id: 'foo', name: 'Test', folders: [] }, new NullLogService());

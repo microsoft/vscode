@@ -17,8 +17,7 @@ import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
-import { CurrentLineHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
-import { CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineMarginHighlight/currentLineMarginHighlight';
+import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { GlyphMarginOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
@@ -48,6 +47,8 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -218,7 +219,7 @@ export class View extends ViewEventHandler {
 		this.domNode.appendChild(this.overflowGuardContainer);
 		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
 
-		this._setLayout();
+		this._applyLayout();
 
 		// Pointer handler
 		this.pointerHandler = this._register(new PointerHandler(this._context, viewController, this.createPointerHandlerHelper()));
@@ -248,7 +249,7 @@ export class View extends ViewEventHandler {
 			getLastViewCursorsRenderData: () => {
 				return this.viewCursors.getLastRenderData() || [];
 			},
-			shouldSuppressMouseDownOnViewZone: (viewZoneId: number) => {
+			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
 				return this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
 			},
 			shouldSuppressMouseDownOnWidget: (widgetId: string) => {
@@ -259,7 +260,7 @@ export class View extends ViewEventHandler {
 				return this.viewLines.getPositionFromDOMInfo(spanNode, offset);
 			},
 
-			visibleRangeForPosition2: (lineNumber: number, column: number) => {
+			visibleRangeForPosition: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
 				return this.viewLines.visibleRangeForPosition(new Position(lineNumber, column));
 			},
@@ -280,8 +281,10 @@ export class View extends ViewEventHandler {
 		};
 	}
 
-	private _setLayout(): void {
-		const layoutInfo = this._context.configuration.editor.layoutInfo;
+	private _applyLayout(): void {
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
 		this.domNode.setWidth(layoutInfo.width);
 		this.domNode.setHeight(layoutInfo.height);
 
@@ -290,23 +293,18 @@ export class View extends ViewEventHandler {
 
 		this.linesContent.setWidth(1000000);
 		this.linesContent.setHeight(1000000);
-
 	}
 
 	private getEditorClassName() {
 		const focused = this._textAreaHandler.isFocused() ? ' focused' : '';
-		return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
+		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.editorClassName) {
-			this.domNode.setClassName(this.getEditorClassName());
-		}
-		if (e.layoutInfo) {
-			this._setLayout();
-		}
+		this.domNode.setClassName(this.getEditorClassName());
+		this._applyLayout();
 		return false;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -473,17 +471,17 @@ export class View extends ViewEventHandler {
 
 		this._renderOnce(() => {
 			const changeAccessor: editorBrowser.IViewZoneChangeAccessor = {
-				addZone: (zone: editorBrowser.IViewZone): number => {
+				addZone: (zone: editorBrowser.IViewZone): string => {
 					zonesHaveChanged = true;
 					return this.viewZones.addZone(zone);
 				},
-				removeZone: (id: number): void => {
+				removeZone: (id: string): void => {
 					if (!id) {
 						return;
 					}
 					zonesHaveChanged = this.viewZones.removeZone(id) || zonesHaveChanged;
 				},
-				layoutZone: (id: number): void => {
+				layoutZone: (id: string): void => {
 					if (!id) {
 						return;
 					}

@@ -19,7 +19,7 @@ import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, WillSaveStateReason, StorageScope, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -50,11 +50,11 @@ export class Workbench extends Layout {
 	private readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
 	readonly onBeforeShutdown: Event<BeforeShutdownEvent> = this._onBeforeShutdown.event;
 
-	private readonly _onShutdown = this._register(new Emitter<void>());
-	readonly onShutdown: Event<void> = this._onShutdown.event;
-
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	readonly onWillShutdown: Event<WillShutdownEvent> = this._onWillShutdown.event;
+
+	private readonly _onShutdown = this._register(new Emitter<void>());
+	readonly onShutdown: Event<void> = this._onShutdown.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -157,7 +157,7 @@ export class Workbench extends Layout {
 				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
 
 				// Workbench Layout
-				this.createWorkbenchLayout(instantiationService);
+				this.createWorkbenchLayout();
 
 				// Layout
 				this.layout();
@@ -185,7 +185,7 @@ export class Workbench extends Layout {
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
+		// CONTRIBUTE IT VIA WORKBENCH.DESKTOP.MAIN.TS AND registerSingleton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services
@@ -227,6 +227,20 @@ export class Workbench extends Layout {
 		configurationService: IConfigurationService
 	): void {
 
+		// Configuration changes
+		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
+
+		// Font Info
+		if (isNative) {
+			this._register(storageService.onWillSaveState(e => {
+				if (e.reason === WillSaveStateReason.SHUTDOWN) {
+					this.storeFontInfo(storageService);
+				}
+			}));
+		} else {
+			this._register(lifecycleService.onWillShutdown(() => this.storeFontInfo(storageService)));
+		}
+
 		// Lifecycle
 		this._register(lifecycleService.onBeforeShutdown(event => this._onBeforeShutdown.fire(event)));
 		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
@@ -234,12 +248,6 @@ export class Workbench extends Layout {
 			this._onShutdown.fire();
 			this.dispose();
 		}));
-
-		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
-
-		// Storage
-		this._register(storageService.onWillSaveState(e => this.storeFontInfo(e, storageService)));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
@@ -279,13 +287,19 @@ export class Workbench extends Layout {
 		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
 	}
 
-	private storeFontInfo(e: IWillSaveStateEvent, storageService: IStorageService): void {
-		if (e.reason === WillSaveStateReason.SHUTDOWN) {
-			const serializedFontInfo = serializeFontInfo();
-			if (serializedFontInfo) {
-				const serializedFontInfoRaw = JSON.stringify(serializedFontInfo);
+	private storeFontInfo(storageService: IStorageService): void {
+		const serializedFontInfo = serializeFontInfo();
+		if (serializedFontInfo) {
+			const serializedFontInfoRaw = JSON.stringify(serializedFontInfo);
 
-				isNative ? storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL) : window.localStorage.setItem('editorFontInfo', serializedFontInfoRaw);
+			// Font info is very specific to the machine the workbench runs
+			// on. As such, in the web, we prefer to store this info in
+			// local storage and not global storage because it would not make
+			// much sense to synchronize to other machines.
+			if (isNative) {
+				storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL);
+			} else {
+				window.localStorage.setItem('editorFontInfo', serializedFontInfoRaw);
 			}
 		}
 	}
@@ -324,13 +338,6 @@ export class Workbench extends Layout {
 			{ id: Parts.STATUSBAR_PART, role: 'contentinfo', classes: ['statusbar'] }
 		].forEach(({ id, role, classes, options }) => {
 			const partContainer = this.createPart(id, role, classes);
-
-			if (!configurationService.getValue('workbench.useExperimentalGridLayout')) {
-				// TODO@Ben cleanup once moved to grid
-				// Insert all workbench parts at the beginning. Issue #52531
-				// This is primarily for the title bar to allow overriding -webkit-app-region
-				this.container.insertBefore(partContainer, this.container.lastChild);
-			}
 
 			this.getPart(id).create(partContainer, options);
 		});
@@ -429,7 +436,7 @@ export class Workbench extends Layout {
 
 		// Restore Editor Center Mode
 		if (this.state.editor.restoreCentered) {
-			this.centerEditorLayout(true);
+			this.centerEditorLayout(true, true);
 		}
 
 		// Emit a warning after 10s if restore does not complete

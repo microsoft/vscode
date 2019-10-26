@@ -176,6 +176,7 @@ class XLF {
         this.buffer.push(line.toString());
     }
 }
+exports.XLF = XLF;
 XLF.parsePseudo = function (xlfString) {
     return new Promise((resolve) => {
         let parser = new xml2js.Parser();
@@ -248,7 +249,6 @@ XLF.parse = function (xlfString) {
         });
     });
 };
-exports.XLF = XLF;
 class Limiter {
     constructor(maxDegreeOfParalellism) {
         this.maxDegreeOfParalellism = maxDegreeOfParalellism;
@@ -580,7 +580,7 @@ function createXlfFilesForExtensions() {
             }
             return _xlf;
         }
-        gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(event_stream_1.through(function (file) {
+        gulp.src([`.build/extensions/${extensionName}/package.nls.json`, `.build/extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(event_stream_1.through(function (file) {
             if (file.isBuffer()) {
                 const buffer = file.contents;
                 const basename = path.basename(file.path);
@@ -603,7 +603,7 @@ function createXlfFilesForExtensions() {
                 }
                 else if (basename === 'nls.metadata.json') {
                     const json = JSON.parse(buffer.toString('utf8'));
-                    const relPath = path.relative(`./extensions/${extensionName}`, path.dirname(file.path));
+                    const relPath = path.relative(`.build/extensions/${extensionName}`, path.dirname(file.path));
                     for (let file in json) {
                         const fileContent = json[file];
                         getXlf().addFile(`extensions/${extensionName}/${relPath}/${file}`, fileContent.keys, fileContent.messages);
@@ -906,8 +906,8 @@ function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language
         _coreAndExtensionResources.push(...json.workbench);
         // extensions
         let extensionsToLocalize = Object.create(null);
-        glob.sync('./extensions/**/*.nls.json').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
-        glob.sync('./extensions/*/node_modules/vscode-nls').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+        glob.sync('.build/extensions/**/*.nls.json').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+        glob.sync('.build/extensions/*/node_modules/vscode-nls').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
         Object.keys(extensionsToLocalize).forEach(extension => {
             _coreAndExtensionResources.push({ name: extension, project: extensionsProject });
         });
@@ -1080,7 +1080,7 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
             resultingTranslationPaths.push({ id: 'vscode', resourceName: 'main.i18n.json' });
             this.queue(translatedMainFile);
             for (let extension in extensionsPacks) {
-                const translatedExtFile = createI18nFile(`./extensions/${extension}`, extensionsPacks[extension]);
+                const translatedExtFile = createI18nFile(`extensions/${extension}`, extensionsPacks[extension]);
                 this.queue(translatedExtFile);
                 const externalExtensionId = externalExtensions[extension];
                 if (externalExtensionId) {

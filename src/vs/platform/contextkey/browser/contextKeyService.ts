@@ -87,7 +87,7 @@ class NullContext extends Context {
 
 class ConfigAwareContextValuesContainer extends Context {
 
-	private static _keyPrefix = 'config.';
+	private static readonly _keyPrefix = 'config.';
 
 	private readonly _values = new Map<string, any>();
 	private readonly _listener: IDisposable;
@@ -225,7 +225,7 @@ class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 }
 
 export abstract class AbstractContextKeyService implements IContextKeyService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	protected _isDisposed: boolean;
 	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });

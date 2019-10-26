@@ -7,13 +7,14 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence, getSequenceIterator } from 'vs/base/common/iterator';
 import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { Event } from 'vs/base/common/event';
-import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { mergeSort } from 'vs/base/common/arrays';
 
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 
 export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
-	setChildren(element: T | null, children: ISequence<ITreeElement<T>> | undefined): Iterator<ITreeElement<T>>;
+	setChildren(element: T | null, children: ISequence<ITreeElement<T>> | undefined): void;
 	resort(element?: T | null, recursive?: boolean): void;
 }
 
@@ -38,8 +39,12 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	get size(): number { return this.nodes.size; }
 
-	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeModelOptions<T, TFilterData> = {}) {
-		this.model = new IndexTreeModel(list, null, options);
+	constructor(
+		private user: string,
+		list: ISpliceable<ITreeNode<T, TFilterData>>,
+		options: IObjectTreeModelOptions<T, TFilterData> = {}
+	) {
+		this.model = new IndexTreeModel(user, list, null, options);
 		this.onDidSplice = this.model.onDidSplice;
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState as Event<ICollapseStateChangeEvent<T, TFilterData>>;
 		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount as Event<ITreeNode<T, TFilterData>>;
@@ -60,9 +65,9 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
 		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
-	): Iterator<ITreeElement<T>> {
+	): void {
 		const location = this.getElementLocation(element);
-		return this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
+		this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
 	}
 
 	private _setChildren(
@@ -70,7 +75,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
 		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
-	): Iterator<ITreeElement<T>> {
+	): void {
 		const insertedElements = new Set<T | null>();
 		const insertedElementIds = new Set<string>();
 
@@ -106,22 +111,20 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			}
 		};
 
-		const result = this.model.splice(
+		this.model.splice(
 			[...location, 0],
 			Number.MAX_VALUE,
 			children,
 			_onDidCreateNode,
 			_onDidDeleteNode
 		);
-
-		return result as Iterator<ITreeElement<T>>;
 	}
 
 	private preserveCollapseState(elements: ISequence<ITreeElement<T>> | undefined): ISequence<ITreeElement<T>> {
 		let iterator = elements ? getSequenceIterator(elements) : Iterator.empty<ITreeElement<T>>();
 
 		if (this.sorter) {
-			iterator = Iterator.fromArray(Iterator.collect(iterator).sort(this.sorter.compare.bind(this.sorter)));
+			iterator = Iterator.fromArray(mergeSort(Iterator.collect(iterator), this.sorter.compare.bind(this.sorter)));
 		}
 
 		return Iterator.map(iterator, treeElement => {
@@ -182,11 +185,6 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		}));
 	}
 
-	getParentElement(ref: T | null = null): T | null {
-		const location = this.getElementLocation(ref);
-		return this.model.getParentElement(location);
-	}
-
 	getFirstElementChild(ref: T | null = null): T | null | undefined {
 		const location = this.getElementLocation(ref);
 		return this.model.getFirstElementChild(location);
@@ -210,6 +208,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	isCollapsible(element: T | null): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.isCollapsible(location);
+	}
+
+	setCollapsible(element: T | null, collapsible?: boolean): boolean {
+		const location = this.getElementLocation(element);
+		return this.model.setCollapsible(location, collapsible);
 	}
 
 	isCollapsed(element: T | null): boolean {
@@ -239,7 +242,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		const node = this.nodes.get(element);
 
 		if (!node) {
-			throw new Error(`Tree element not found: ${element}`);
+			throw new TreeError(this.user, `Tree element not found: ${element}`);
 		}
 
 		return node;
@@ -251,16 +254,20 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	getParentNodeLocation(element: T | null): T | null {
 		if (element === null) {
-			throw new Error(`Invalid getParentNodeLocation call`);
+			throw new TreeError(this.user, `Invalid getParentNodeLocation call`);
 		}
 
 		const node = this.nodes.get(element);
 
 		if (!node) {
-			throw new Error(`Tree element not found: ${element}`);
+			throw new TreeError(this.user, `Tree element not found: ${element}`);
 		}
 
-		return node.parent!.element;
+		const location = this.model.getNodeLocation(node);
+		const parentLocation = this.model.getParentNodeLocation(location);
+		const parent = this.model.getNode(parentLocation);
+
+		return parent.element;
 	}
 
 	private getElementLocation(element: T | null): number[] {
@@ -271,7 +278,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		const node = this.nodes.get(element);
 
 		if (!node) {
-			throw new Error(`Tree element not found: ${element}`);
+			throw new TreeError(this.user, `Tree element not found: ${element}`);
 		}
 
 		return this.model.getNodeLocation(node);

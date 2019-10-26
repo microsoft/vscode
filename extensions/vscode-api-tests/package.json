@@ -6,8 +6,10 @@
 	"license": "MIT",
 	"enableProposedApi": true,
 	"private": true,
-	"main": "horse",
-	"activationEvents": [],
+	"activationEvents": [
+		"onFileSystem:memfs"
+	],
+	"main": "./out/extension",
 	"engines": {
 		"vscode": "^1.25.0"
 	},

@@ -99,25 +99,40 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 	private isDisposed: boolean;
 	private options: IQuickOpenOptions;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private element: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private tree: ITree;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private inputBox: InputBox;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private inputContainer: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private helpText: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private resultCount: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private treeContainer: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private progressBar: ProgressBar;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private visible: boolean;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private isLoosingFocus: boolean;
 	private callbacks: IQuickOpenCallbacks;
 	private quickNavigateConfiguration: IQuickNavigateConfiguration | undefined;
 	private container: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private treeElement: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private inputElement: HTMLElement;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private layoutDimensions: DOM.Dimension;
 	private model: IModel<any> | null;
 	private inputChangingTimeoutHandle: any;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private styles: IQuickOpenStyles;
+	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private renderer: Renderer;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions) {
@@ -258,15 +273,15 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			filter: new Filter(this),
 			accessibilityProvider: new AccessibilityProvider(this)
 		}, {
-				twistiePixels: 11,
-				indentPixels: 0,
-				alwaysFocused: true,
-				verticalScrollMode: ScrollbarVisibility.Visible,
-				horizontalScrollMode: ScrollbarVisibility.Hidden,
-				ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
-				keyboardSupport: this.options.keyboardSupport,
-				preventRootFocus: false
-			}));
+			twistiePixels: 11,
+			indentPixels: 0,
+			alwaysFocused: true,
+			verticalScrollMode: ScrollbarVisibility.Visible,
+			horizontalScrollMode: ScrollbarVisibility.Hidden,
+			ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
+			keyboardSupport: this.options.keyboardSupport,
+			preventRootFocus: false
+		}));
 
 		this.treeElement = this.tree.getHTMLElement();
 
@@ -381,16 +396,16 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	protected applyStyles(): void {
 		if (this.element) {
 			const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
-			const background = this.styles.background ? this.styles.background.toString() : null;
-			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : null;
-			const widgetShadow = this.styles.widgetShadow ? this.styles.widgetShadow.toString() : null;
+			const background = this.styles.background ? this.styles.background.toString() : '';
+			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : '';
+			const widgetShadow = this.styles.widgetShadow ? this.styles.widgetShadow.toString() : '';
 
 			this.element.style.color = foreground;
 			this.element.style.backgroundColor = background;
 			this.element.style.borderColor = borderColor;
-			this.element.style.borderWidth = borderColor ? '1px' : null;
-			this.element.style.borderStyle = borderColor ? 'solid' : null;
-			this.element.style.boxShadow = widgetShadow ? `0 5px 8px ${widgetShadow}` : null;
+			this.element.style.borderWidth = borderColor ? '1px' : '';
+			this.element.style.borderStyle = borderColor ? 'solid' : '';
+			this.element.style.boxShadow = widgetShadow ? `0 5px 8px ${widgetShadow}` : '';
 		}
 
 		if (this.progressBar) {

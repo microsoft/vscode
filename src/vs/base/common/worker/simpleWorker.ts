@@ -16,7 +16,7 @@ export interface IWorker extends IDisposable {
 }
 
 export interface IWorkerCallback {
-	(message: string): void;
+	(message: any): void;
 }
 
 export interface IWorkerFactory {

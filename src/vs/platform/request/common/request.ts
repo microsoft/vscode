@@ -8,40 +8,20 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { VSBufferReadableStream, streamToBuffer } from 'vs/base/common/buffer';
+import { streamToBuffer } from 'vs/base/common/buffer';
+import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
-export interface IHeaders {
-	[header: string]: string;
-}
-
-export interface IRequestOptions {
-	type?: string;
-	url?: string;
-	user?: string;
-	password?: string;
-	headers?: IHeaders;
-	timeout?: number;
-	data?: string;
-	followRedirects?: number;
-}
-
-export interface IRequestContext {
-	res: {
-		headers: IHeaders;
-		statusCode?: number;
-	};
-	stream: VSBufferReadableStream;
-}
-
 export interface IRequestService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
+
+	resolveProxy(url: string): Promise<string | undefined>;
 }
 
-function isSuccess(context: IRequestContext): boolean {
+export function isSuccess(context: IRequestContext): boolean {
 	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
 }
 
@@ -89,7 +69,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 		properties: {
 			'http.proxy': {
 				type: 'string',
-				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+)(:\\d+)?/?$|^$',
+				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
 				markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables.")
 			},
 			'http.proxyStrictSSL': {

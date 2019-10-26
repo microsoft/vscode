@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "c6a08e5368de4352903e702cde750b33239a50ab"
+					"commitHash": "91f08db83c2ce8c722ddf0911ead8f7c473bedfa"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "69.0.3497.128"
+			"version": "76.0.3809.146"
 		},
 		{
 			"component": {
@@ -48,11 +48,11 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "8c70b2084ce5f76ea1e3b3c4ccdeee4483fe338b"
+					"commitHash": "64219741218aa87e259cf8257596073b8e747f0a"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "10.11.0"
+			"version": "12.4.0"
 		},
 		{
 			"component": {
@@ -60,12 +60,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "36ea114ac0616e469e75ae94e6d53af48925e036"
+					"commitHash": "dabaa7557a165cc107f89fd7c3e3c3210f9b5758"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "4.2.7"
+			"version": "6.1.2"
 		},
 		{
 			"component": {
@@ -96,25 +96,13 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "vscode-octicons-font",
-					"repositoryUrl": "https://github.com/Microsoft/vscode-octicons-font",
-					"commitHash": "415cd5b42ab699b6b46c0bf011ada0a2ae50bfb4"
+					"name": "vscode-codicons",
+					"repositoryUrl": "https://github.com/microsoft/vscode-codicons",
+					"commitHash": "3e404025e1ce19702f5363ef6dd3339bfc6d9115"
 				}
 			},
-			"license": "MIT",
-			"version": "1.3.1"
-		},
-		{
-			"component": {
-				"type": "git",
-				"git": {
-					"name": "octicons",
-					"repositoryUrl": "https://github.com/primer/octicons",
-					"commitHash": "d120bf97bc9a12fb415f69fedaf31fe58427ca56"
-				}
-			},
-			"license": "MIT",
-			"version": "8.3.0"
+			"license": "MIT and Creative Commons Attribution 4.0",
+			"version": "0.0.1"
 		},
 		{
 			"component": {

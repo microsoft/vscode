@@ -8,10 +8,11 @@ import * as modes from 'vs/editor/common/modes';
 import { MainContext, MainThreadEditorInsetsShape, IExtHostContext, ExtHostEditorInsetsShape, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { isEqual } from 'vs/base/common/resources';
 
 // todo@joh move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {
@@ -21,7 +22,7 @@ class EditorWebviewZone implements IViewZone {
 	readonly afterColumn: number;
 	readonly heightInLines: number;
 
-	private _id?: number;
+	private _id?: string;
 	// suppressMouseDown?: boolean | undefined;
 	// heightInPx?: number | undefined;
 	// minWidthInPx?: number | undefined;
@@ -75,7 +76,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		id = id.substr(0, id.indexOf(',')); //todo@joh HACK
 
 		for (const candidate of this._editorService.listCodeEditors()) {
-			if (candidate.getId() === id && candidate.hasModel() && candidate.getModel()!.uri.toString() === URI.revive(uri).toString()) {
+			if (candidate.getId() === id && candidate.hasModel() && isEqual(candidate.getModel().uri, URI.revive(uri))) {
 				editor = candidate;
 				break;
 			}
@@ -90,12 +91,11 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 		const webview = this._webviewService.createWebview('' + handle, {
 			enableFindWidget: false,
-			allowSvgs: false,
-			extension: { id: extensionId, location: URI.revive(extensionLocation) }
 		}, {
-				allowScripts: options.enableScripts,
-				localResourceRoots: options.localResourceRoots ? options.localResourceRoots.map(uri => URI.revive(uri)) : undefined
-			});
+			allowScripts: options.enableScripts,
+			localResourceRoots: options.localResourceRoots ? options.localResourceRoots.map(uri => URI.revive(uri)) : undefined
+		});
+		webview.extension = { id: extensionId, location: URI.revive(extensionLocation) };
 
 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
 

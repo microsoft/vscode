@@ -25,7 +25,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
-	static INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
+	static readonly INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
 
 	constructor(
 		envVariables: IProcessEnvironment,
@@ -55,7 +55,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				if (activeEditor instanceof DiffEditorInput) {
 					activeEditor = activeEditor.modifiedInput;
 				}
-				const fileResource = toResource(activeEditor, { filterByScheme: Schemas.file });
+				const fileResource = toResource(activeEditor, { filterByScheme: [Schemas.file, Schemas.userData] });
 				if (!fileResource) {
 					return undefined;
 				}
@@ -86,8 +86,8 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		}, envVariables);
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
-		// resolve any non-interactive variables
+	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
+		// resolve any non-interactive variables and any contributed variables
 		config = this.resolveAny(folder, config);
 
 		// resolve input variables in the order in which they are encountered
@@ -103,9 +103,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		});
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
-		// resolve any non-interactive variables
-		const resolved = this.resolveAnyMap(folder, config);
+	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
+		// resolve any non-interactive variables and any contributed variables
+		const resolved = await this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
 		const allVariableMapping: Map<string, string> = resolved.resolvedVariables;
 
@@ -180,6 +180,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						throw new Error(nls.localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
 					}
 					break;
+				default:
+					// Try to resolve it as a contributed variable
+					if (this._contributedVariables.has(variable)) {
+						result = await this._contributedVariables.get(variable)!();
+					}
 			}
 
 			if (typeof result === 'string') {
@@ -208,6 +213,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					}
 				}
 			}
+			this._contributedVariables.forEach((value, contributed: string) => {
+				if ((variables.indexOf(contributed) < 0) && (object.indexOf('${' + contributed + '}') >= 0)) {
+					variables.push(contributed);
+				}
+			});
 		} else if (Types.isArray(object)) {
 			object.forEach(value => {
 				this.findVariables(value, variables);
@@ -250,7 +260,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						inputOptions.value = info.default;
 					}
 					return this.quickInputService.input(inputOptions).then(resolvedInput => {
-						return resolvedInput ? resolvedInput : undefined;
+						return resolvedInput;
 					});
 				}
 

@@ -23,7 +23,7 @@ export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry
 export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 
 export interface IExtensionsViewlet extends IViewlet {
-	search(text: string): void;
+	search(text: string, refresh?: boolean): void;
 }
 
 export const enum ExtensionState {
@@ -74,7 +74,7 @@ export const SERVICE_ID = 'extensionsWorkbenchService';
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
 
 export interface IExtensionsWorkbenchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
 	installed: IExtension[];
@@ -91,7 +91,6 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	open(extension: IExtension, sideByside?: boolean): Promise<any>;
 	checkForUpdates(): Promise<void>;
-	allowedBadgeProviders: string[];
 }
 
 export const ConfigurationKey = 'extensions';

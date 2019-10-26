@@ -6,7 +6,7 @@
 import 'vs/css!./codelensWidget';
 import * as dom from 'vs/base/browser/dom';
 import { coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { escape } from 'vs/base/common/strings';
+import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -16,6 +16,7 @@ import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegis
 import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
 
@@ -80,7 +81,9 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	}
 
 	updateHeight(): void {
-		const { fontInfo, lineHeight } = this._editor.getConfiguration();
+		const options = this._editor.getOptions();
+		const fontInfo = options.get(EditorOption.fontInfo);
+		const lineHeight = options.get(EditorOption.lineHeight);
 		this._domNode.style.height = `${Math.round(lineHeight * 1.1)}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * 0.9)}px`;
@@ -101,7 +104,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		for (let i = 0; i < symbols.length; i++) {
 			const command = symbols[i].command;
 			if (command) {
-				const title = escape(command.title);
+				const title = renderCodicons(command.title);
 				let part: string;
 				if (command.id) {
 					part = `<a id=${i}>${title}</a>`;
@@ -193,7 +196,7 @@ export class CodeLensWidget {
 
 	private readonly _editor: editorBrowser.ICodeEditor;
 	private readonly _viewZone!: CodeLensViewZone;
-	private readonly _viewZoneId!: number;
+	private readonly _viewZoneId!: string;
 	private readonly _contentWidget!: CodeLensContentWidget;
 	private _decorationIds: string[];
 	private _data: CodeLensItem[];

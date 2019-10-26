@@ -25,7 +25,7 @@ suite('ObjectTreeModel', function () {
 
 	test('ctor', () => {
 		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>(toSpliceable(list));
+		const model = new ObjectTreeModel<number>('test', toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
 		assert.equal(model.size, 0);
@@ -33,7 +33,7 @@ suite('ObjectTreeModel', function () {
 
 	test('flat', () => {
 		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>(toSpliceable(list));
+		const model = new ObjectTreeModel<number>('test', toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
 			{ element: 0 },
@@ -60,7 +60,7 @@ suite('ObjectTreeModel', function () {
 
 	test('nested', () => {
 		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>(toSpliceable(list));
+		const model = new ObjectTreeModel<number>('test', toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
 			{
@@ -96,7 +96,7 @@ suite('ObjectTreeModel', function () {
 
 	test('setChildren on collapsed node', () => {
 		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>(toSpliceable(list));
+		const model = new ObjectTreeModel<number>('test', toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
 			{ element: 0, collapsed: true }
@@ -117,7 +117,7 @@ suite('ObjectTreeModel', function () {
 
 	test('setChildren on expanded, unrevealed node', () => {
 		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>(toSpliceable(list));
+		const model = new ObjectTreeModel<number>('test', toSpliceable(list));
 
 		model.setChildren(null, [
 			{
@@ -143,7 +143,7 @@ suite('ObjectTreeModel', function () {
 
 	test('collapse state is preserved with strict identity', () => {
 		const list: ITreeNode<string>[] = [];
-		const model = new ObjectTreeModel<string>(toSpliceable(list), { collapseByDefault: true });
+		const model = new ObjectTreeModel<string>('test', toSpliceable(list), { collapseByDefault: true });
 		const data = [{ element: 'father', children: [{ element: 'child' }] }];
 
 		model.setChildren(null, data);
@@ -173,7 +173,7 @@ suite('ObjectTreeModel', function () {
 		let compare: (a: string, b: string) => number = (a, b) => a < b ? -1 : 1;
 
 		const list: ITreeNode<string>[] = [];
-		const model = new ObjectTreeModel<string>(toSpliceable(list), { sorter: { compare(a, b) { return compare(a, b); } } });
+		const model = new ObjectTreeModel<string>('test', toSpliceable(list), { sorter: { compare(a, b) { return compare(a, b); } } });
 		const data = [
 			{ element: 'cars', children: [{ element: 'sedan' }, { element: 'convertible' }, { element: 'compact' }] },
 			{ element: 'airplanes', children: [{ element: 'passenger' }, { element: 'jet' }] },
@@ -188,7 +188,7 @@ suite('ObjectTreeModel', function () {
 		let compare: (a: string, b: string) => number = () => 0;
 
 		const list: ITreeNode<string>[] = [];
-		const model = new ObjectTreeModel<string>(toSpliceable(list), { sorter: { compare(a, b) { return compare(a, b); } } });
+		const model = new ObjectTreeModel<string>('test', toSpliceable(list), { sorter: { compare(a, b) { return compare(a, b); } } });
 		const data = [
 			{ element: 'cars', children: [{ element: 'sedan' }, { element: 'convertible' }, { element: 'compact' }] },
 			{ element: 'airplanes', children: [{ element: 'passenger' }, { element: 'jet' }] },
@@ -223,7 +223,7 @@ suite('ObjectTreeModel', function () {
 
 	test('expandTo', () => {
 		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>(toSpliceable(list), { collapseByDefault: true });
+		const model = new ObjectTreeModel<number>('test', toSpliceable(list), { collapseByDefault: true });
 
 		model.setChildren(null, [
 			{

@@ -6,7 +6,7 @@
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
-import URI from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { TextDocument, CompletionList, Position } from 'vscode-languageserver-types';
 import { stat as fsStat } from 'fs';
 
@@ -75,9 +75,9 @@ const fileSystemProvider: FileSystemProvider = {
 				let type = FileType.Unknown;
 				if (stats.isFile()) {
 					type = FileType.File;
-				} else if (stats.isDirectory) {
+				} else if (stats.isDirectory()) {
 					type = FileType.Directory;
-				} else if (stats.isSymbolicLink) {
+				} else if (stats.isSymbolicLink()) {
 					type = FileType.SymbolicLink;
 				}
 
@@ -103,7 +103,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
-	const dataPaths: string[] = params.initializationOptions.dataPaths;
+	const dataPaths: string[] = params.initializationOptions.dataPaths || [];
 	const customDataProviders = getDataProviders(dataPaths);
 
 	function getClientCapability<T>(name: string, def: T) {
@@ -128,7 +128,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/'] } : undefined,
+		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/', '-'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		referencesProvider: true,

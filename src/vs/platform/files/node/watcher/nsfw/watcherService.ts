@@ -12,9 +12,10 @@ import { IWatcherRequest } from 'vs/platform/files/node/watcher/nsfw/watcher';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class FileWatcher extends Disposable {
+
 	private static readonly MAX_RESTARTS = 5;
 
-	private service: WatcherChannelClient;
+	private service: WatcherChannelClient | undefined;
 	private isDisposed: boolean;
 	private restartCounter: number;
 
@@ -77,7 +78,7 @@ export class FileWatcher extends Disposable {
 
 	setVerboseLogging(verboseLogging: boolean): void {
 		this.verboseLogging = verboseLogging;
-		if (!this.isDisposed) {
+		if (!this.isDisposed && this.service) {
 			this.service.setVerboseLogging(verboseLogging);
 		}
 	}
@@ -89,7 +90,9 @@ export class FileWatcher extends Disposable {
 	setFolders(folders: IWatcherRequest[]): void {
 		this.folders = folders;
 
-		this.service.setRoots(folders);
+		if (this.service) {
+			this.service.setRoots(folders);
+		}
 	}
 
 	dispose(): void {

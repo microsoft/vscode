@@ -4,25 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Activity Bar */
-.monaco-workbench .activitybar .monaco-action-bar .action-label.debug {
-	-webkit-mask: url('debug-activity-bar.svg') no-repeat 50% 50%;
-}
-
 .monaco-editor .debug-top-stack-frame-column::before {
 	background: url('current-arrow.svg') center center no-repeat;
 }
 
 .debug-breakpoint-hint {
 	background: url('breakpoint-hint.svg') center center no-repeat;
+	cursor: pointer;
 }
 
 .debug-breakpoint-disabled,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-disabled-column::before {
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-disabled {
 	background: url('breakpoint-disabled.svg') center center no-repeat;
 }
 
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-disabled:hover {
+	background: url('breakpoint-hint.svg') center center no-repeat;
+}
+
+.monaco-editor .inline-breakpoint-widget.line-start {
+	left: -0.45em !important;
+}
+
 .debug-breakpoint-unverified,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-unverified-column::before {
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-unverified {
 	background: url('breakpoint-unverified.svg') center center no-repeat;
 }
 
@@ -35,19 +40,34 @@
 }
 
 .debug-breakpoint,
-.monaco-editor .debug-breakpoint-column::before {
+.monaco-editor .inline-breakpoint-widget {
 	background: url('breakpoint.svg') center center no-repeat;
 }
 
-.monaco-editor .debug-breakpoint-column::before,
+.monaco-editor .debug-breakpoint-placeholder::before,
 .monaco-editor .debug-top-stack-frame-column::before {
 	content: " ";
-	width: 1.3em;
-	height: 1.3em;
+	width: 0.9em;
 	display: inline-block;
 	vertical-align: text-bottom;
 	margin-right: 2px;
 	margin-left: 2px;
+}
+
+/* Do not show call stack decoration when we plan to show breakpoint and top stack frame in one decoration */
+.monaco-editor .debug-breakpoint-placeholder ~ .debug-top-stack-frame-column::before {
+	width: 0em;
+	content: "";
+	margin-right: 0px;
+	margin-left: 0px;
+}
+
+.monaco-editor .debug-top-stack-frame-column::before {
+	height: 1.3em;
+}
+
+.monaco-editor .inline-breakpoint-widget {
+	cursor: pointer;
 }
 
 .debug-function-breakpoint {
@@ -62,35 +82,44 @@
 	background: url('breakpoint-function-disabled.svg') center center no-repeat;
 }
 
+.debug-data-breakpoint {
+	background: url('breakpoint-data.svg') center center no-repeat;
+}
+
+.debug-data-breakpoint-unverified {
+	background: url('breakpoint-data-unverified.svg') center center no-repeat;
+}
+
+.debug-data-breakpoint-disabled {
+	background: url('breakpoint-data-disabled.svg') center center no-repeat;
+}
+
 .debug-breakpoint-conditional,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-conditional-column::before {
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-conditional {
 	background: url('breakpoint-conditional.svg') center center no-repeat;
 }
 
 .debug-breakpoint-log,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-log-column::before {
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-log {
 	background: url('breakpoint-log.svg') center center no-repeat;
 }
 
 .debug-breakpoint-log-disabled,
-.monaco-editor .debug-breakpoint-log-disabled-column::before {
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-log-disabled {
 	background: url('breakpoint-log-disabled.svg') center center no-repeat;
 }
 
 .debug-breakpoint-log-unverified,
-.monaco-editor .debug-breakpoint-log-unverified-column::before {
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-log-unverified {
 	background: url('breakpoint-log-unverified.svg') center center no-repeat;
 }
 
 .debug-breakpoint-unsupported,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-unsupported-column::before {
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-unsupported {
 	background: url('breakpoint-unsupported.svg') center center no-repeat;
 }
 
-.monaco-editor .debug-top-stack-frame.debug-breakpoint,
-.monaco-editor .debug-top-stack-frame.debug-breakpoint-conditional,
-.monaco-editor .debug-top-stack-frame.debug-breakpoint-log,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-column.debug-top-stack-frame-column::before {
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-and-top-stack-frame {
 	background: url('current-and-breakpoint.svg') center center no-repeat;
 }
 
@@ -135,10 +164,20 @@
 	margin-left: 6px;
 }
 
+/* Links */
+
+.monaco-workbench .monaco-list-row .expression .value a.link {
+	text-decoration: underline;
+}
+
+.monaco-workbench .monaco-list-row .expression .value a.link.pointer {
+	cursor: pointer;
+}
+
 /* White color when element is selected and list is focused. White looks better on blue selection background. */
 .monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .name,
 .monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .value {
-	color: white;
+	color: inherit;
 }
 
 .monaco-workbench .monaco-list-row .expression .name {

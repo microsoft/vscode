@@ -664,17 +664,21 @@ export class SnippetParser {
 	}
 
 	private _until(type: TokenType): false | string {
-		if (this._token.type === TokenType.EOF) {
-			return false;
-		}
-		let start = this._token;
+		const start = this._token;
 		while (this._token.type !== type) {
-			this._token = this._scanner.next();
 			if (this._token.type === TokenType.EOF) {
 				return false;
+			} else if (this._token.type === TokenType.Backslash) {
+				const nextToken = this._scanner.next();
+				if (nextToken.type !== TokenType.Dollar
+					&& nextToken.type !== TokenType.CurlyClose
+					&& nextToken.type !== TokenType.Backslash) {
+					return false;
+				}
 			}
+			this._token = this._scanner.next();
 		}
-		let value = this._scanner.value.substring(start.pos, this._token.pos);
+		const value = this._scanner.value.substring(start.pos, this._token.pos).replace(/\\(\$|}|\\)/g, '$1');
 		this._token = this._scanner.next();
 		return value;
 	}

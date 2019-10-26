@@ -29,8 +29,8 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
-	static MAX_SOURCE_PREVIEW_LINES = 8;
+	public static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
+	static readonly MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private readonly editor: ICodeEditor;
 	private readonly toUnhook = new DisposableStore();
@@ -220,7 +220,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 				brackets.push(currentBracket);
 			} else {
 				const lastBracket = brackets[brackets.length - 1];
-				if (lastBracket.open === currentBracket.open && lastBracket.isOpen && !currentBracket.isOpen) {
+				if (lastBracket.open[0] === currentBracket.open[0] && lastBracket.isOpen && !currentBracket.isOpen) {
 					brackets.pop();
 				} else {
 					brackets.push(currentBracket);
@@ -295,16 +295,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}
 
-	public getId(): string {
-		return GotoDefinitionWithMouseEditorContribution.ID;
-	}
-
 	public dispose(): void {
 		this.toUnhook.dispose();
 	}
 }
 
-registerEditorContribution(GotoDefinitionWithMouseEditorContribution);
+registerEditorContribution(GotoDefinitionWithMouseEditorContribution.ID, GotoDefinitionWithMouseEditorContribution);
 
 registerThemingParticipant((theme, collector) => {
 	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);

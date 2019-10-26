@@ -15,10 +15,10 @@ import * as vscode from 'vscode';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
-	private _onDidAddDocument = new Emitter<vscode.TextDocument>();
-	private _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
-	private _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>();
-	private _onDidSaveDocument = new Emitter<vscode.TextDocument>();
+	private readonly _onDidAddDocument = new Emitter<vscode.TextDocument>();
+	private readonly _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
+	private readonly _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>();
+	private readonly _onDidSaveDocument = new Emitter<vscode.TextDocument>();
 
 	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
 	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;

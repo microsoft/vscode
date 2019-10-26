@@ -25,11 +25,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Emitter } from 'vs/base/common/event';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -56,28 +56,27 @@ export class VariablesView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		// Use scheduler to prevent unnecessary flashing
-		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
+		this.onFocusStackFrameScheduler = new RunOnceScheduler(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 
 			this.needsRefresh = false;
 			if (stackFrame && this.savedViewState) {
-				this.tree.setInput(this.debugService.getViewModel(), this.savedViewState).then(null, onUnexpectedError);
+				await this.tree.setInput(this.debugService.getViewModel(), this.savedViewState);
 				this.savedViewState = undefined;
 			} else {
 				if (!stackFrame) {
 					// We have no stackFrame, save tree state before it is cleared
 					this.savedViewState = this.tree.getViewState();
 				}
-				this.tree.updateChildren().then(() => {
-					if (stackFrame) {
-						stackFrame.getScopes().then(scopes => {
-							// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
-							if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
-								this.tree.expand(scopes[0]).then(undefined, onUnexpectedError);
-							}
-						});
+				await this.tree.updateChildren();
+				if (stackFrame) {
+					const scopes = await stackFrame.getScopes();
+					// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
+					if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
+						this.tree.expand(scopes[0]);
 					}
-				}, onUnexpectedError);
+				}
+
 			}
 		}, 400);
 	}
@@ -86,21 +85,23 @@ export class VariablesView extends ViewletPanel {
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new VariablesDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
 			new VariablesDataSource(), {
-				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
-				accessibilityProvider: new VariablesAccessibilityProvider(),
-				identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e }
-			});
+			ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
+			accessibilityProvider: new VariablesAccessibilityProvider(),
+			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e }
+		});
 
-		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
+		this.tree.setInput(this.debugService.getViewModel());
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
-		const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
-		this.toolbar.setActions([collapseAction])();
+		if (this.toolbar) {
+			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
+			this.toolbar.setActions([collapseAction])();
+		}
 		this.tree.updateChildren();
 
 		this._register(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
@@ -123,7 +124,7 @@ export class VariablesView extends ViewletPanel {
 			this.tree.updateChildren();
 		}));
 		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.tree.onContextMenu(async e => await this.onContextMenu(e)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
@@ -152,7 +153,7 @@ export class VariablesView extends ViewletPanel {
 		}
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): void {
+	private async onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): Promise<void> {
 		const variable = e.element;
 		if (variable instanceof Variable && !!variable.value) {
 			const actions: IAction[] = [];
@@ -174,11 +175,22 @@ export class VariablesView extends ViewletPanel {
 					return Promise.resolve(undefined);
 				}));
 			}
+			if (session && session.capabilities.supportsDataBreakpoints) {
+				const response = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
+				const dataid = response.dataId;
+				if (dataid) {
+					actions.push(new Separator());
+					actions.push(new Action('debug.breakWhenValueChanges', nls.localize('breakWhenValueChanges', "Break When Value Changes"), undefined, true, () => {
+						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist);
+					}));
+				}
+			}
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
-				getActionsContext: () => variable
+				getActionsContext: () => variable,
+				onHide: () => dispose(actions)
 			});
 		}
 	}

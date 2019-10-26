@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export const IExtensionHostDebugService = createDecorator<IExtensionHostDebugService>('extensionHostDebugService');
 
@@ -34,20 +35,22 @@ export interface ICloseSessionEvent {
 }
 
 export interface IExtensionHostDebugService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	reload(sessionId: string): void;
-	onReload: Event<IReloadSessionEvent>;
+	readonly onReload: Event<IReloadSessionEvent>;
 
 	close(sessionId: string): void;
-	onClose: Event<ICloseSessionEvent>;
+	readonly onClose: Event<ICloseSessionEvent>;
 
 	attachSession(sessionId: string, port: number, subId?: string): void;
-	onAttachSession: Event<IAttachSessionEvent>;
+	readonly onAttachSession: Event<IAttachSessionEvent>;
 
 	logToSession(sessionId: string, log: IRemoteConsoleLog): void;
-	onLogToSession: Event<ILogToSessionEvent>;
+	readonly onLogToSession: Event<ILogToSessionEvent>;
 
 	terminateSession(sessionId: string, subId?: string): void;
-	onTerminateSession: Event<ITerminateSessionEvent>;
+	readonly onTerminateSession: Event<ITerminateSessionEvent>;
+
+	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void>;
 }

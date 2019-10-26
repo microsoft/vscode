@@ -8,8 +8,15 @@ import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
 import { readFile } from 'vs/base/node/pfs';
 
-export async function resolveCommonProperties(commit: string | undefined, version: string | undefined, machineId: string | undefined, installSourcePath: string, product?: string): Promise<{ [name: string]: string | undefined; }> {
-	const result: { [name: string]: string | undefined; } = Object.create(null);
+export async function resolveCommonProperties(
+	commit: string | undefined,
+	version: string | undefined,
+	machineId: string | undefined,
+	msftInternalDomains: string[] | undefined,
+	installSourcePath: string,
+	product?: string
+): Promise<{ [name: string]: string | boolean | undefined; }> {
+	const result: { [name: string]: string | boolean | undefined; } = Object.create(null);
 
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;
@@ -29,6 +36,12 @@ export async function resolveCommonProperties(commit: string | undefined, versio
 	result['common.nodeArch'] = process.arch;
 	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.product'] = product || 'desktop';
+
+	const msftInternal = verifyMicrosoftInternalDomain(msftInternalDomains || []);
+	if (msftInternal) {
+		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		result['common.msftInternal'] = msftInternal;
+	}
 
 	// dynamic properties which value differs on each call
 	let seq = 0;
@@ -66,4 +79,13 @@ export async function resolveCommonProperties(commit: string | undefined, versio
 	}
 
 	return result;
+}
+
+function verifyMicrosoftInternalDomain(domainList: readonly string[]): boolean {
+	if (!process || !process.env || !process.env['USERDNSDOMAIN']) {
+		return false;
+	}
+
+	const domain = process.env['USERDNSDOMAIN']!.toLowerCase();
+	return domainList.some(msftDomain => domain === msftDomain);
 }

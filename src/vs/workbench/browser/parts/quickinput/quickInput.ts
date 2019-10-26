@@ -8,7 +8,7 @@ import { Component } from 'vs/workbench/common/component';
 import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import * as dom from 'vs/base/browser/dom';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { QUICK_INPUT_BACKGROUND, QUICK_INPUT_FOREGROUND } from 'vs/workbench/common/theme';
@@ -44,6 +44,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
 const $ = dom.$;
 
@@ -51,8 +52,8 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
 	iconPath: {
-		dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/arrow-left-dark.svg')),
-		light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/arrow-left-light.svg'))
+		dark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/quickinput/media/arrow-left-dark.svg')),
+		light: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/quickinput/media/arrow-left-light.svg'))
 	},
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
@@ -304,8 +305,8 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.ui.inputBox.showDecoration(severity);
 		if (severity === Severity.Error) {
 			const styles = this.ui.inputBox.stylesForType(severity);
-			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : null;
-			this.ui.message.style.border = styles.border ? `1px solid ${styles.border}` : null;
+			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : '';
+			this.ui.message.style.border = styles.border ? `1px solid ${styles.border}` : '';
 			this.ui.message.style.paddingBottom = '4px';
 		} else {
 			this.ui.message.style.backgroundColor = '';
@@ -322,7 +323,7 @@ class QuickInput extends Disposable implements IQuickInput {
 
 class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPick<T> {
 
-	private static INPUT_BOX_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
+	private static readonly INPUT_BOX_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 	private _value = '';
 	private _placeholder: string;
@@ -761,7 +762,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 class InputBox extends QuickInput implements IInputBox {
 
-	private static noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
+	private static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 	private _value = '';
 	private _valueSelection: Readonly<[number, number]>;
@@ -880,7 +881,7 @@ class InputBox extends QuickInput implements IInputBox {
 
 export class QuickInputService extends Component implements IQuickInputService {
 
-	public _serviceBrand!: ServiceIdentifier<any>;
+	public _serviceBrand: undefined;
 
 	private static readonly ID = 'workbench.component.quickinput';
 	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
@@ -1122,7 +1123,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const selectors = ['.action-label.icon'];
+						const selectors = ['.action-label.codicon'];
 						if (container.classList.contains('show-checkboxes')) {
 							selectors.push('input');
 						} else {
@@ -1510,16 +1511,16 @@ export class QuickInputService extends Component implements IQuickInputService {
 		if (this.ui) {
 			// TODO
 			const titleColor = { dark: 'rgba(255, 255, 255, 0.105)', light: 'rgba(0,0,0,.06)', hc: 'black' }[theme.type];
-			this.titleBar.style.backgroundColor = titleColor ? titleColor.toString() : null;
+			this.titleBar.style.backgroundColor = titleColor ? titleColor.toString() : '';
 			this.ui.inputBox.style(theme);
 			const quickInputBackground = theme.getColor(QUICK_INPUT_BACKGROUND);
-			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : null;
+			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
 			const quickInputForeground = theme.getColor(QUICK_INPUT_FOREGROUND);
 			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : null;
 			const contrastBorderColor = theme.getColor(contrastBorder);
-			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : null;
+			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : '';
 			const widgetShadowColor = theme.getColor(widgetShadow);
-			this.ui.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
+			this.ui.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : '';
 		}
 	}
 

@@ -17,13 +17,15 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { Emitter } from 'vs/base/common/event';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export abstract class AbstractRemoteAgentService extends Disposable {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
@@ -68,6 +70,26 @@ export abstract class AbstractRemoteAgentService extends Disposable {
 
 		return Promise.resolve(undefined);
 	}
+
+	logTelemetry(eventName: string, data: ITelemetryData): Promise<void> {
+		const connection = this.getConnection();
+		if (connection) {
+			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
+			return client.logTelemetry(eventName, data);
+		}
+
+		return Promise.resolve(undefined);
+	}
+
+	flushTelemetry(): Promise<void> {
+		const connection = this.getConnection();
+		if (connection) {
+			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
+			return client.flushTelemetry();
+		}
+
+		return Promise.resolve(undefined);
+	}
 }
 
 export class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
@@ -86,7 +108,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 		private readonly _commit: string | undefined,
 		private readonly _socketFactory: ISocketFactory,
 		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		private readonly _signService: ISignService
+		private readonly _signService: ISignService,
+		private readonly _logService: ILogService
 	) {
 		super();
 		this.remoteAuthority = remoteAuthority;
@@ -124,7 +147,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 					return { host: authority.host, port: authority.port };
 				}
 			},
-			signService: this._signService
+			signService: this._signService,
+			logService: this._logService
 		};
 		const connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
 		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));

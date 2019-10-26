@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
-import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView, CollapseExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
@@ -68,6 +68,7 @@ export class ExplorerView extends ViewletPanel {
 	private shouldRefresh = true;
 	private dragHandler!: DelayedDragHandler;
 	private autoReveal = false;
+	private actions: IAction[] | undefined;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -100,7 +101,7 @@ export class ExplorerView extends ViewletPanel {
 		this.resourceMoveableToTrash = ExplorerResourceMoveableToTrash.bindTo(contextKeyService);
 
 		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
-		decorationService.registerDecorationsProvider(decorationProvider);
+		this._register(decorationService.registerDecorationsProvider(decorationProvider));
 		this._register(decorationProvider);
 		this._register(this.resourceContext);
 	}
@@ -170,7 +171,12 @@ export class ExplorerView extends ViewletPanel {
 		}));
 
 		this._register(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
-		this._register(this.explorerService.onDidChangeItem(e => this.refresh(e.recursive, e.item)));
+		this._register(this.explorerService.onDidChangeItem(e => {
+			if (this.explorerService.isEditable(undefined)) {
+				this.tree.domFocus();
+			}
+			this.refresh(e.recursive, e.item);
+		}));
 		this._register(this.explorerService.onDidChangeEditable(async e => {
 			const isEditing = !!this.explorerService.getEditableData(e);
 
@@ -218,14 +224,16 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	getActions(): IAction[] {
-		const actions: Action[] = [];
-
-		actions.push(this.instantiationService.createInstance(NewFileAction));
-		actions.push(this.instantiationService.createInstance(NewFolderAction));
-		actions.push(this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL));
-		actions.push(this.instantiationService.createInstance(CollapseExplorerView, CollapseExplorerView.ID, CollapseExplorerView.LABEL));
-
-		return actions;
+		if (!this.actions) {
+			this.actions = [
+				this.instantiationService.createInstance(NewFileAction),
+				this.instantiationService.createInstance(NewFolderAction),
+				this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL),
+				this.instantiationService.createInstance(CollapseExplorerView, CollapseExplorerView.ID, CollapseExplorerView.LABEL)
+			];
+			this.actions.forEach(a => this._register(a));
+		}
+		return this.actions;
 	}
 
 	focus(): void {
@@ -240,8 +248,7 @@ export class ExplorerView extends ViewletPanel {
 			const activeFile = this.getActiveFile();
 			if (!activeFile && !focused[0].isDirectory) {
 				// Open the focused element in the editor if there is currently no file opened #67708
-				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } })
-					.then(undefined, onUnexpectedError);
+				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } });
 			}
 		}
 	}
@@ -275,34 +282,35 @@ export class ExplorerView extends ViewletPanel {
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, container, new ExplorerDelegate(), [filesRenderer],
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), [filesRenderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
-				accessibilityProvider: new ExplorerAccessibilityProvider(),
-				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
-				identityProvider: {
-					getId: (stat: ExplorerItem) => {
-						if (stat instanceof NewExplorerItem) {
-							return `new:${stat.resource}`;
-						}
-
-						return stat.resource;
+			accessibilityProvider: new ExplorerAccessibilityProvider(),
+			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
+			identityProvider: {
+				getId: (stat: ExplorerItem) => {
+					if (stat instanceof NewExplorerItem) {
+						return `new:${stat.resource}`;
 					}
-				},
-				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (stat: ExplorerItem) => {
-						if (this.explorerService.isEditable(stat)) {
-							return undefined;
-						}
 
-						return stat.name;
+					return stat.resource;
+				}
+			},
+			keyboardNavigationLabelProvider: {
+				getKeyboardNavigationLabel: (stat: ExplorerItem) => {
+					if (this.explorerService.isEditable(stat)) {
+						return undefined;
 					}
-				},
-				multipleSelectionSupport: true,
-				filter: this.filter,
-				sorter: this.instantiationService.createInstance(FileSorter),
-				dnd: this.instantiationService.createInstance(FileDragAndDrop),
-				autoExpandSingleChildren: true
-			});
+
+					return stat.name;
+				}
+			},
+			multipleSelectionSupport: true,
+			filter: this.filter,
+			sorter: this.instantiationService.createInstance(FileSorter),
+			dnd: this.instantiationService.createInstance(FileDragAndDrop),
+			autoExpandSingleChildren: true,
+			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT
+		});
 		this._register(this.tree);
 
 		// Bind context keys
@@ -315,7 +323,7 @@ export class ExplorerView extends ViewletPanel {
 		const explorerNavigator = new TreeResourceNavigator2(this.tree);
 		this._register(explorerNavigator);
 		// Open when selecting via keyboard
-		this._register(explorerNavigator.onDidOpenResource(e => {
+		this._register(explorerNavigator.onDidOpenResource(async e => {
 			const selection = this.tree.getSelection();
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
@@ -327,12 +335,18 @@ export class ExplorerView extends ViewletPanel {
 					return;
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
-					.then(undefined, onUnexpectedError);
+				await this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			}
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+
+		this._register(this.tree.onDidScroll(e => {
+			let editable = this.explorerService.getEditable();
+			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
+				editable.data.onFinish('', false);
+			}
+		}));
 
 		// save view state on shutdown
 		this._register(this.storageService.onWillSaveState(() => {
@@ -343,7 +357,7 @@ export class ExplorerView extends ViewletPanel {
 	// React on events
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
+		this.autoReveal = configuration?.explorer?.autoReveal;
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
@@ -509,7 +523,12 @@ export class ExplorerView extends ViewletPanel {
 		return withNullAsUndefined(toResource(input, { supportSideBySide: SideBySideEditor.MASTER }));
 	}
 
-	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal): Promise<void> {
+	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
+		// do no retry more than once to prevent inifinite loops in cases of inconsistent model
+		if (retry === 2) {
+			return;
+		}
+
 		if (!resource || !this.isBodyVisible()) {
 			return;
 		}
@@ -520,12 +539,18 @@ export class ExplorerView extends ViewletPanel {
 			.sort((first, second) => second.resource.path.length - first.resource.path.length)[0];
 
 		while (item && item.resource.toString() !== resource.toString()) {
+			if (item.isDisposed) {
+				return this.onSelectResource(resource, reveal, retry + 1);
+			}
 			await this.tree.expand(item);
 			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
 		}
 
 		if (item && item.parent) {
 			if (reveal) {
+				if (item.isDisposed) {
+					return this.onSelectResource(resource, reveal, retry + 1);
+				}
 				this.tree.reveal(item, 0.5);
 			}
 

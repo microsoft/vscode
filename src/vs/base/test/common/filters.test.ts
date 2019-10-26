@@ -366,6 +366,10 @@ suite('Filters', () => {
 		assertMatches('f', ':foo', ':^foo', fuzzyScore);
 	});
 
+	test('Separator only match should not be weak #79558', function () {
+		assertMatches('.', 'foo.bar', 'foo^.bar', fuzzyScore);
+	});
+
 	test('Cannot set property \'1\' of undefined, #26511', function () {
 		let word = new Array<void>(123).join('a');
 		let pattern = new Array<void>(120).join('a');
@@ -383,6 +387,15 @@ suite('Filters', () => {
 		assertMatches('zz', 'zzGroup', '^z^zGroup', fuzzyScore);
 		assertMatches('zzg', 'zzGroup', '^z^z^Group', fuzzyScore);
 		assertMatches('g', 'zzGroup', 'zz^Group', fuzzyScore);
+	});
+
+	test('patternPos isn\'t working correctly #79815', function () {
+		assertMatches(':p'.substr(1), 'prop', '^prop', fuzzyScore, { patternPos: 0 });
+		assertMatches(':p', 'prop', '^prop', fuzzyScore, { patternPos: 1 });
+		assertMatches(':p', 'prop', undefined, fuzzyScore, { patternPos: 2 });
+		assertMatches(':p', 'proP', 'pro^P', fuzzyScore, { patternPos: 1, wordPos: 1 });
+		assertMatches(':p', 'aprop', 'a^prop', fuzzyScore, { patternPos: 1, firstMatchCanBeWeak: true });
+		assertMatches(':p', 'aprop', undefined, fuzzyScore, { patternPos: 1, firstMatchCanBeWeak: false });
 	});
 
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {

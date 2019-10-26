@@ -1,0 +1,40 @@
+{
+  "name": "vscode-automation",
+  "version": "1.39.0",
+  "description": "VS Code UI automation driver",
+  "author": {
+    "name": "Microsoft Corporation"
+  },
+  "license": "MIT",
+  "main": "./out/index.js",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm run compile",
+    "compile": "npm run copy-driver && npm run copy-driver-definition && tsc",
+    "watch": "concurrently \"npm run watch-driver\" \"npm run watch-driver-definition\" \"tsc --watch\"",
+    "copy-driver": "cpx src/driver.js out/",
+    "watch-driver": "cpx src/driver.js out/ -w",
+    "copy-driver-definition": "node tools/copy-driver-definition.js",
+    "watch-driver-definition": "watch \"node tools/copy-driver-definition.js\" ../../src/vs/platform/driver/node",
+    "copy-package-version": "node tools/copy-package-version.js",
+    "prepublishOnly": "npm run copy-package-version"
+  },
+  "devDependencies": {
+    "@types/mkdirp": "0.5.1",
+    "@types/ncp": "2.0.1",
+    "@types/node": "8.0.33",
+    "@types/puppeteer": "^1.19.0",
+    "@types/tmp": "0.1.0",
+    "concurrently": "^3.5.1",
+    "cpx": "^1.5.0",
+    "typescript": "2.9.2",
+    "watch": "^1.0.2"
+  },
+  "dependencies": {
+    "mkdirp": "^0.5.1",
+    "ncp": "^2.0.0",
+    "puppeteer": "^1.19.0",
+    "tmp": "0.1.0",
+    "vscode-uri": "^2.0.3"
+  }
+}

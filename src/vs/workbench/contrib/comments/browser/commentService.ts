@@ -33,7 +33,7 @@ export interface IWorkspaceCommentThreadsEvent {
 }
 
 export interface ICommentService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
@@ -60,7 +60,7 @@ export interface ICommentService {
 }
 
 export class CommentService extends Disposable implements ICommentService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidSetDataProvider: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidSetDataProvider: Event<void> = this._onDidSetDataProvider.event;
@@ -160,9 +160,7 @@ export class CommentService extends Disposable implements ICommentService {
 			return this._commentMenus.get(owner)!;
 		}
 
-		let controller = this._commentControls.get(owner);
-
-		let menu = this.instantiationService.createInstance(CommentMenus, controller!);
+		let menu = this.instantiationService.createInstance(CommentMenus);
 		this._commentMenus.set(owner, menu);
 		return menu;
 	}

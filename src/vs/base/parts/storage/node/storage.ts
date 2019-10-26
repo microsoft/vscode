@@ -32,12 +32,12 @@ export interface ISQLiteStorageDatabaseLoggingOptions {
 
 export class SQLiteStorageDatabase implements IStorageDatabase {
 
-	static IN_MEMORY_PATH = ':memory:';
+	static readonly IN_MEMORY_PATH = ':memory:';
 
 	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return Event.None; } // since we are the only client, there can be no external changes
 
-	private static BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
-	private static MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
+	private static readonly BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
+	private static readonly MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
 
 	private path: string;
 	private name: string;
@@ -82,16 +82,18 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		}
 
 		return this.transaction(connection, () => {
+			const toInsert = request.insert;
+			const toDelete = request.delete;
 
 			// INSERT
-			if (request.insert && request.insert.size > 0) {
+			if (toInsert && toInsert.size > 0) {
 				const keysValuesChunks: (string[])[] = [];
 				keysValuesChunks.push([]); // seed with initial empty chunk
 
 				// Split key/values into chunks of SQLiteStorageDatabase.MAX_HOST_PARAMETERS
 				// so that we can efficiently run the INSERT with as many HOST parameters as possible
 				let currentChunkIndex = 0;
-				request.insert.forEach((value, key) => {
+				toInsert.forEach((value, key) => {
 					let keyValueChunk = keysValuesChunks[currentChunkIndex];
 
 					if (keyValueChunk.length > SQLiteStorageDatabase.MAX_HOST_PARAMETERS) {
@@ -107,7 +109,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 					this.prepare(connection, `INSERT INTO ItemTable VALUES ${fill(keysValuesChunk.length / 2, '(?,?)').join(',')}`, stmt => stmt.run(keysValuesChunk), () => {
 						const keys: string[] = [];
 						let length = 0;
-						request.insert!.forEach((value, key) => {
+						toInsert.forEach((value, key) => {
 							keys.push(key);
 							length += value.length;
 						});
@@ -118,7 +120,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			}
 
 			// DELETE
-			if (request.delete && request.delete.size) {
+			if (toDelete && toDelete.size) {
 				const keysChunks: (string[])[] = [];
 				keysChunks.push([]); // seed with initial empty chunk
 
@@ -126,7 +128,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				// so that we can efficiently run the DELETE with as many HOST parameters
 				// as possible
 				let currentChunkIndex = 0;
-				request.delete.forEach(key => {
+				toDelete.forEach(key => {
 					let keyChunk = keysChunks[currentChunkIndex];
 
 					if (keyChunk.length > SQLiteStorageDatabase.MAX_HOST_PARAMETERS) {
@@ -141,7 +143,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				keysChunks.forEach(keysChunk => {
 					this.prepare(connection, `DELETE FROM ItemTable WHERE key IN (${fill(keysChunk.length, '?').join(',')})`, stmt => stmt.run(keysChunk), () => {
 						const keys: string[] = [];
-						request.delete!.forEach(key => {
+						toDelete.forEach(key => {
 							keys.push(key);
 						});
 
@@ -206,7 +208,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 							return this.doUpdateItems(recoveryConnection, { insert: recovery() }).then(() => closeRecoveryConnection(), error => {
 
 								// In case of an error updating items, still ensure to close the connection
-								// to prevent SQLITE_BUSY errors when the connection is restablished
+								// to prevent SQLITE_BUSY errors when the connection is reestablished
 								closeRecoveryConnection();
 
 								return Promise.reject(error);
@@ -420,8 +422,8 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 }
 
 class SQLiteStorageDatabaseLogger {
-	private readonly logTrace: (msg: string) => void;
-	private readonly logError: (error: string | Error) => void;
+	private readonly logTrace: ((msg: string) => void) | undefined;
+	private readonly logError: ((error: string | Error) => void) | undefined;
 
 	constructor(options?: ISQLiteStorageDatabaseLoggingOptions) {
 		if (options && typeof options.logTrace === 'function') {

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as jsonc from 'jsonc-parser';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { isTsConfigFileName } from '../utils/languageDescription';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
@@ -74,7 +75,7 @@ export default class TscTaskProvider implements vscode.TaskProvider {
 		const badTsconfig = /\\tsconfig.*\.json/;
 		if (badTsconfig.exec(definition.tsconfig) !== null) {
 			// Warn that the task has the wrong slash type
-			vscode.window.showWarningMessage(localize('badTsConfig', "Typescript Task in tasks.json contains \"\\\\\". Typescript tasks tsconfig must use \"/\""));
+			vscode.window.showWarningMessage(localize('badTsConfig', "TypeScript Task in tasks.json contains \"\\\\\". TypeScript tasks tsconfig must use \"/\""));
 			return undefined;
 		}
 
@@ -113,7 +114,7 @@ export default class TscTaskProvider implements vscode.TaskProvider {
 	private async getTsConfigForActiveFile(token: vscode.CancellationToken): Promise<TSConfig[]> {
 		const editor = vscode.window.activeTextEditor;
 		if (editor) {
-			if (path.basename(editor.document.fileName).match(/^tsconfig\.(.\.)?json$/)) {
+			if (isTsConfigFileName(editor.document.fileName)) {
 				const uri = editor.document.uri;
 				return [{
 					path: uri.fsPath,

@@ -9,6 +9,7 @@ import { TestView, nodesToArrays } from './util';
 import { deepClone } from 'vs/base/common/objects';
 
 // Simple example:
+//
 //  +-----+---------------+
 //  |  4  |      2        |
 //  +-----+---------+-----+
@@ -16,6 +17,16 @@ import { deepClone } from 'vs/base/common/objects';
 //  +---------------+  3  |
 //  |        5      |     |
 //  +---------------+-----+
+//
+//  V
+//  +-H
+//  | +-4
+//  | +-2
+//  +-H
+//    +-V
+//    | +-1
+//    | +-5
+//    +-3
 
 suite('Grid', function () {
 	let container: HTMLElement;
@@ -511,7 +522,8 @@ suite('SerializableGrid', function () {
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 
-		assert.deepEqual(grid.serialize(), {
+		const actual = grid.serialize();
+		assert.deepEqual(actual, {
 			orientation: 0,
 			width: 800,
 			height: 600,
@@ -676,10 +688,10 @@ suite('SerializableGrid', function () {
 
 		grid2.layout(400, 800); // [/2, *4/3]
 		assert.deepEqual(view1Copy.size, [300, 400]);
-		assert.deepEqual(view2Copy.size, [300, 266]);
-		assert.deepEqual(view3Copy.size, [100, 534]);
-		assert.deepEqual(view4Copy.size, [100, 266]);
-		assert.deepEqual(view5Copy.size, [300, 134]);
+		assert.deepEqual(view2Copy.size, [300, 267]);
+		assert.deepEqual(view3Copy.size, [100, 533]);
+		assert.deepEqual(view4Copy.size, [100, 267]);
+		assert.deepEqual(view5Copy.size, [300, 133]);
 	});
 
 	test('deserialize 4 view layout (ben issue #2)', function () {
@@ -833,6 +845,24 @@ suite('SerializableGrid', function () {
 		assert.deepEqual(view3.size, [200, 400]);
 		assert.deepEqual(view4.size, [200, 200]);
 		assert.deepEqual(view5.size, [600, 0]);
+
+		grid.setViewVisible(view5, true);
+
+		assert.deepEqual(view1.size, [600, 300]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(view5.size, [600, 100]);
+
+		grid.setViewVisible(view5, false);
+
+		assert.deepEqual(view1.size, [600, 400]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(view5.size, [600, 0]);
+
+		grid.setViewVisible(view5, false);
 
 		const json = grid.serialize();
 		assert.deepEqual(json, {

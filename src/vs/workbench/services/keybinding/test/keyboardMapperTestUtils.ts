@@ -68,7 +68,7 @@ export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMa
 		let expected = buff.toString();
 		const actual = mapper.dumpDebugInfo();
 		if (actual !== expected && writeFileIfDifferent) {
-			const destPath = filePath.replace(/vscode\/out\/vs/, 'vscode/src/vs');
+			const destPath = filePath.replace(/vscode[\/\\]out[\/\\]vs/, 'vscode/src/vs');
 			writeFile(destPath, actual);
 		}
 

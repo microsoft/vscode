@@ -9,12 +9,14 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
 import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
+import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
+import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { isWindows } from 'vs/base/common/platform';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -135,35 +137,25 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 	});
 }
 
-export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, textFileService: ITextFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
-	const path = workspaceUri.path;
-	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-	return fileService.exists(uri).then(exists => {
-		if (!exists) {
-			return [];
-		}
-		return textFileService.read(uri, { acceptTextOnly: true }).then(
-			content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
-			err => [] // ignore missing or binary file
-		);
-	});
-}
-
 export class WorkspaceStats implements IWorkbenchContribution {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IRequestService private readonly requestService: IRequestService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IWorkspaceStatsService private readonly workspaceStatsService: IWorkspaceStatsService
 	) {
-		this.report();
+		if (this.telemetryService.isOptedIn) {
+			this.report();
+		}
 	}
 
-	private report(): void {
+	private async report(): Promise<void> {
+		// Windows-only Edition Event
+		this.reportWindowsEdition();
 
 		// Workspace Stats
 		this.workspaceStatsService.getTags()
@@ -175,10 +167,42 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportProxyStats();
 
 		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
-		diagnosticsChannel.call('reportWorkspaceStats', this.contextService.getWorkspace());
+		this.getWorkspaceInformation().then(stats => diagnosticsChannel.call('reportWorkspaceStats', stats));
 	}
 
+	async reportWindowsEdition(): Promise<void> {
+		if (!isWindows) {
+			return;
+		}
 
+		const Registry = await import('vscode-windows-registry');
+
+		let value;
+		try {
+			value = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', 'EditionID');
+		} catch { }
+
+		if (value === undefined) {
+			value = 'Unknown';
+		}
+
+		this.telemetryService.publicLog2<{ edition: string }, { edition: { classification: 'SystemMetaData', purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
+	}
+
+	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {
+		const workspace = this.contextService.getWorkspace();
+		const state = this.contextService.getWorkbenchState();
+		const telemetryId = this.workspaceStatsService.getTelemetryWorkspaceId(workspace, state);
+		return this.telemetryService.getTelemetryInfo().then(info => {
+			return {
+				id: workspace.id,
+				telemetryId,
+				rendererSessionId: info.sessionId,
+				folders: workspace.folders,
+				configuration: workspace.configuration
+			};
+		});
+	}
 
 	private reportWorkspaceTags(tags: Tags): void {
 		/* __GDPR__
@@ -219,7 +243,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private reportRemotes(workspaceUris: URI[]): void {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
-			return getHashedRemotesFromUri(workspaceUri, this.fileService, this.textFileService, true);
+			return this.workspaceStatsService.getHashedRemotesFromUri(workspaceUri, true);
 		})).then(hashedRemotes => {
 			/* __GDPR__
 					"workspace.hashedRemotes" : {
@@ -313,7 +337,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	}
 
 	private reportProxyStats() {
-		this.windowService.resolveProxy('https://www.example.com/')
+		this.requestService.resolveProxy('https://www.example.com/')
 			.then(proxy => {
 				let type = proxy ? String(proxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
 				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {

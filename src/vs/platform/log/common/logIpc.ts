@@ -7,7 +7,7 @@ import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { LogLevel, ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { Event } from 'vs/base/common/event';
 
-export class LogLevelSetterChannel implements IServerChannel {
+export class LoggerChannel implements IServerChannel {
 
 	onDidChangeLogLevel: Event<LogLevel>;
 
@@ -26,13 +26,32 @@ export class LogLevelSetterChannel implements IServerChannel {
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'setLevel': this.service.setLevel(arg); return Promise.resolve();
+			case 'consoleLog': this.consoleLog(arg[0], arg[1]); return Promise.resolve();
 		}
 
 		throw new Error(`Call not found: ${command}`);
 	}
+
+	private consoleLog(severity: string, args: string[]): void {
+		let consoleFn = console.log;
+
+		switch (severity) {
+			case 'error':
+				consoleFn = console.error;
+				break;
+			case 'warn':
+				consoleFn = console.warn;
+				break;
+			case 'info':
+				consoleFn = console.info;
+				break;
+		}
+
+		consoleFn.call(console, ...args);
+	}
 }
 
-export class LogLevelSetterChannelClient {
+export class LoggerChannelClient {
 
 	constructor(private channel: IChannel) { }
 
@@ -43,12 +62,16 @@ export class LogLevelSetterChannelClient {
 	setLevel(level: LogLevel): void {
 		this.channel.call('setLevel', level);
 	}
+
+	consoleLog(severity: string, args: string[]): void {
+		this.channel.call('consoleLog', [severity, args]);
+	}
 }
 
 export class FollowerLogService extends DelegatedLogService implements ILogService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	constructor(private master: LogLevelSetterChannelClient, logService: ILogService) {
+	constructor(private master: LoggerChannelClient, logService: ILogService) {
 		super(logService);
 		this._register(master.onDidChangeLogLevel(level => logService.setLevel(level)));
 	}

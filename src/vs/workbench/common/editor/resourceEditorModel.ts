@@ -9,7 +9,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 /**
- * An editor model whith an in-memory, readonly content that is backed by an existing editor model.
+ * An editor model for in-memory, readonly content that is backed by an existing editor model.
  */
 export class ResourceEditorModel extends BaseTextEditorModel {
 

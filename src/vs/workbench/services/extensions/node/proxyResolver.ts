@@ -17,11 +17,11 @@ import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorksp
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ProxyAgent } from 'vscode-proxy-agent';
 import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { promisify } from 'util';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface ConnectionResult {
 	proxy: string;
@@ -34,7 +34,7 @@ export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
 	extensionService: ExtHostExtensionService,
-	extHostLogService: ExtHostLogService,
+	extHostLogService: ILogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
 	const resolveProxy = setupProxyResolution(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
@@ -47,7 +47,7 @@ const maxCacheEntries = 5000; // Cache can grow twice that much due to 'oldCache
 function setupProxyResolution(
 	extHostWorkspace: IExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
-	extHostLogService: ExtHostLogService,
+	extHostLogService: ILogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
 	const env = process.env;
@@ -421,7 +421,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 		});
 }
 
-function useSystemCertificates(extHostLogService: ExtHostLogService, useSystemCertificates: boolean, opts: http.RequestOptions, callback: () => void) {
+function useSystemCertificates(extHostLogService: ILogService, useSystemCertificates: boolean, opts: http.RequestOptions, callback: () => void) {
 	if (useSystemCertificates) {
 		getCaCertificates(extHostLogService)
 			.then(caCertificates => {
@@ -443,7 +443,7 @@ function useSystemCertificates(extHostLogService: ExtHostLogService, useSystemCe
 }
 
 let _caCertificates: ReturnType<typeof readCaCertificates> | Promise<undefined>;
-async function getCaCertificates(extHostLogService: ExtHostLogService) {
+async function getCaCertificates(extHostLogService: ILogService) {
 	if (!_caCertificates) {
 		_caCertificates = readCaCertificates()
 			.then(res => res && res.certs.length ? res : undefined)

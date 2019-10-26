@@ -17,7 +17,7 @@ arguments=(
 	'--telemetry[show all telemetry events which VS code collects]'
 	'--extensions-dir[set the root path for extensions]:root path:_directories'
 	'--list-extensions[list the installed extensions]'
-	'--category[filters instaled extension list by category, when using --list-extension]'
+	'--category[filters installed extension list by category, when using --list-extension]'
 	'--show-versions[show versions of installed extensions, when using --list-extension]'
 	'--install-extension[install an extension]:id or path:_files -g "*.vsix(-.)"'
 	'--uninstall-extension[uninstall an extension]:id or path:_files -g "*.vsix(-.)"'

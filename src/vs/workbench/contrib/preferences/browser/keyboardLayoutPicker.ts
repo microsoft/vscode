@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IKeymapService, areKeyboardLayoutsEqual, parseKeyboardLayoutDescription, getKeyboardLayoutId, IKeyboardLayoutInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -13,7 +13,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KEYBOARD_LAYOUT_OPEN_PICKER } from 'vs/workbench/contrib/preferences/common/preferences';
 import { Action } from 'vs/base/common/actions';
-import { isWeb, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { QuickPickInput, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -99,9 +99,7 @@ export class KeyboardLayoutPickerAction extends Action {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IEditorService private readonly editorService: IEditorService
 	) {
-		super(actionId, actionLabel);
-
-		this.enabled = isWeb;
+		super(actionId, actionLabel, undefined, true);
 	}
 
 	async run(): Promise<void> {
@@ -158,9 +156,9 @@ export class KeyboardLayoutPickerAction extends Action {
 
 			await this.fileService.resolve(file).then(undefined, (error) => {
 				return this.fileService.createFile(file, VSBuffer.fromString(KeyboardLayoutPickerAction.DEFAULT_CONTENT));
-			}).then((stat): Promise<IEditor | null> | null => {
+			}).then((stat): Promise<IEditor | undefined> | undefined => {
 				if (!stat) {
-					return null;
+					return undefined;
 				}
 				return this.editorService.openEditor({
 					resource: stat.resource,

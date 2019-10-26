@@ -5,7 +5,8 @@
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { IRequestService, IRequestOptions, IRequestContext, IHeaders } from 'vs/platform/request/common/request';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSBuffer, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
 
@@ -39,7 +40,7 @@ export class RequestChannel implements IServerChannel {
 
 export class RequestChannelClient {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) { }
 

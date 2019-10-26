@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClasses, createCSSRule, removeClasses, asDomUri } from 'vs/base/browser/dom';
+import { addClasses, createCSSRule, removeClasses, asCSSUrl } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
@@ -205,19 +205,20 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	}
 
 	updateLabel(): void {
-		if (this.options.label) {
+		if (this.options.label && this.label) {
 			this.label.textContent = this._commandAction.label;
 		}
 	}
 
 	updateTooltip(): void {
-		const element = this.label;
-		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
-		const keybindingLabel = keybinding && keybinding.getLabel();
+		if (this.label) {
+			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
+			const keybindingLabel = keybinding && keybinding.getLabel();
 
-		element.title = keybindingLabel
-			? localize('titleAndKb', "{0} ({1})", this._commandAction.label, keybindingLabel)
-			: this._commandAction.label;
+			this.label.title = keybindingLabel
+				? localize('titleAndKb', "{0} ({1})", this._commandAction.label, keybindingLabel)
+				: this._commandAction.label;
+		}
 	}
 
 	updateClass(): void {
@@ -244,13 +245,19 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				iconClass = MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
 			} else {
 				iconClass = ids.nextId();
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${asDomUri(item.iconLocation.light || item.iconLocation.dark).toString()}")`);
-				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${asDomUri(item.iconLocation.dark).toString()}")`);
+				createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.light || item.iconLocation.dark)}`);
+				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.dark)}`);
 				MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 			}
 
-			addClasses(this.label, 'icon', iconClass);
-			this._itemClassDispose.value = toDisposable(() => removeClasses(this.label, 'icon', iconClass));
+			if (this.label) {
+				addClasses(this.label, 'icon', iconClass);
+				this._itemClassDispose.value = toDisposable(() => {
+					if (this.label) {
+						removeClasses(this.label, 'icon', iconClass);
+					}
+				});
+			}
 		}
 	}
 }

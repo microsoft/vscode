@@ -102,11 +102,11 @@ async function goToProjectConfig(
 			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
 			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
 		), {
-			title: isTypeScriptProject
-				? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
-				: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
-			id: ProjectConfigAction.CreateConfig,
-		});
+		title: isTypeScriptProject
+			? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
+			: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
+		id: ProjectConfigAction.CreateConfig,
+	});
 
 	switch (selected && selected.id) {
 		case ProjectConfigAction.CreateConfig:

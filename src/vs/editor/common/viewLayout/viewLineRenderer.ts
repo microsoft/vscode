@@ -783,7 +783,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			if (!fontIsMonospace) {
 				const partIsOnlyWhitespace = (partType === 'vs-whitespace');
 				if (partIsOnlyWhitespace || !containsForeignElements) {
-					sb.appendASCIIString(' style="width:');
+					sb.appendASCIIString(' style="display:inline-block;width:');
 					sb.appendASCIIString(String(spaceWidth * partContentCnt));
 					sb.appendASCIIString('px"');
 				}

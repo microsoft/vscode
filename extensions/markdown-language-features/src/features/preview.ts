@@ -25,7 +25,7 @@ interface WebviewMessage {
 
 interface CacheImageSizesMessage extends WebviewMessage {
 	readonly type: 'cacheImageSizes';
-	readonly body: { id: string, width: number, height: number }[];
+	readonly body: { id: string, width: number, height: number; }[];
 }
 
 interface RevealLineMessage extends WebviewMessage {
@@ -43,10 +43,9 @@ interface DidClickMessage extends WebviewMessage {
 }
 
 interface ClickLinkMessage extends WebviewMessage {
-	readonly type: 'clickLink';
+	readonly type: 'openLink';
 	readonly body: {
-		readonly path: string;
-		readonly fragment?: string;
+		readonly href: string;
 	};
 }
 
@@ -88,7 +87,8 @@ export class MarkdownPreview extends Disposable {
 	private forceUpdate = false;
 	private isScrolling = false;
 	private _disposed: boolean = false;
-	private imageInfo: { id: string, width: number, height: number }[] = [];
+	private imageInfo: { id: string, width: number, height: number; }[] = [];
+	private scrollToFragment: string | undefined;
 
 	public static async revive(
 		webview: vscode.WebviewPanel,
@@ -139,9 +139,9 @@ export class MarkdownPreview extends Disposable {
 			MarkdownPreview.viewType,
 			MarkdownPreview.getPreviewTitle(resource, locked),
 			previewColumn, {
-				enableFindWidget: true,
-				...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
-			});
+			enableFindWidget: true,
+			...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
+		});
 
 		return new MarkdownPreview(
 			webview,
@@ -171,19 +171,19 @@ export class MarkdownPreview extends Disposable {
 		this._locked = locked;
 		this.editor = webview;
 
-		this.editor.onDidDispose(() => {
+		this._register(this.editor.onDidDispose(() => {
 			this.dispose();
-		}, null, this._disposables);
+		}));
 
-		this.editor.onDidChangeViewState(e => {
+		this._register(this.editor.onDidChangeViewState(e => {
 			this._onDidChangeViewStateEmitter.fire(e);
-		}, null, this._disposables);
+		}));
 
-		_contributionProvider.onContributionsChanged(() => {
+		this._register(_contributionProvider.onContributionsChanged(() => {
 			setImmediate(() => this.refresh());
-		}, null, this._disposables);
+		}));
 
-		this.editor.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
+		this._register(this.editor.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
 			if (e.source !== this._resource.toString()) {
 				return;
 			}
@@ -201,8 +201,8 @@ export class MarkdownPreview extends Disposable {
 					this.onDidClickPreview(e.body.line);
 					break;
 
-				case 'clickLink':
-					this.onDidClickPreviewLink(e.body.path, e.body.fragment);
+				case 'openLink':
+					this.onDidClickPreviewLink(e.body.href);
 					break;
 
 				case 'showPreviewSecuritySelector':
@@ -213,21 +213,21 @@ export class MarkdownPreview extends Disposable {
 					vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", e.body.unloadedStyles.join(', ')));
 					break;
 			}
-		}, null, this._disposables);
+		}));
 
-		vscode.workspace.onDidChangeTextDocument(event => {
+		this._register(vscode.workspace.onDidChangeTextDocument(event => {
 			if (this.isPreviewOf(event.document.uri)) {
 				this.refresh();
 			}
-		}, null, this._disposables);
+		}));
 
-		topmostLineMonitor.onDidChangeTopmostLine(event => {
+		this._register(topmostLineMonitor.onDidChangeTopmostLine(event => {
 			if (this.isPreviewOf(event.resource)) {
 				this.updateForView(event.resource, event.line);
 			}
-		}, null, this._disposables);
+		}));
 
-		vscode.window.onDidChangeTextEditorSelection(event => {
+		this._register(vscode.window.onDidChangeTextEditorSelection(event => {
 			if (this.isPreviewOf(event.textEditor.document.uri)) {
 				this.postMessage({
 					type: 'onDidChangeTextEditorSelection',
@@ -235,19 +235,19 @@ export class MarkdownPreview extends Disposable {
 					source: this.resource.toString()
 				});
 			}
-		}, null, this._disposables);
+		}));
 
-		vscode.window.onDidChangeActiveTextEditor(editor => {
+		this._register(vscode.window.onDidChangeActiveTextEditor(editor => {
 			if (editor && isMarkdownFile(editor.document) && !this._locked) {
 				this.update(editor.document.uri);
 			}
-		}, null, this._disposables);
+		}));
 	}
 
-	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
+	private readonly _onDisposeEmitter = this._register(new vscode.EventEmitter<void>());
 	public readonly onDispose = this._onDisposeEmitter.event;
 
-	private readonly _onDidChangeViewStateEmitter = new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>();
+	private readonly _onDidChangeViewStateEmitter = this._register(new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
 	public readonly onDidChangeViewState = this._onDidChangeViewStateEmitter.event;
 
 	public get resource(): vscode.Uri {
@@ -264,12 +264,12 @@ export class MarkdownPreview extends Disposable {
 			locked: this._locked,
 			line: this.line,
 			resourceColumn: this.resourceColumn,
-			imageInfo: this.imageInfo
+			imageInfo: this.imageInfo,
+			fragment: this.scrollToFragment
 		};
 	}
 
 	public dispose() {
-		super.dispose();
 		if (this._disposed) {
 			return;
 		}
@@ -280,13 +280,23 @@ export class MarkdownPreview extends Disposable {
 
 		this._onDidChangeViewStateEmitter.dispose();
 		this.editor.dispose();
+		super.dispose();
 	}
 
-	public update(resource: vscode.Uri) {
+	public update(resource: vscode.Uri, isRefresh = true) {
+		// Reposition scroll preview, position scroll to the top if active text editor
+		// doesn't corresponds with preview
 		const editor = vscode.window.activeTextEditor;
-		if (editor && editor.document.uri.fsPath === resource.fsPath) {
-			this.line = getVisibleLine(editor);
+		if (editor) {
+			if (!isRefresh || this._previewConfigurations.loadAndCacheConfiguration(this._resource).scrollEditorWithPreview) {
+				if (editor.document.uri.fsPath === resource.fsPath) {
+					this.line = getVisibleLine(editor);
+				} else {
+					this.line = 0;
+				}
+			}
 		}
+
 
 		// If we have changed resources, cancel any pending updates
 		const isResourceChange = resource.fsPath !== this._resource.fsPath;
@@ -311,7 +321,7 @@ export class MarkdownPreview extends Disposable {
 
 	public refresh() {
 		this.forceUpdate = true;
-		this.update(this._resource);
+		this.update(this._resource, true);
 	}
 
 	public updateConfiguration() {
@@ -433,8 +443,8 @@ export class MarkdownPreview extends Disposable {
 		if (this._resource === markdownResource) {
 			const self = this;
 			const resourceProvider: WebviewResourceProvider = {
-				toWebviewResource: (resource) => {
-					return this.editor.webview.toWebviewResource(normalizeResource(markdownResource, resource));
+				asWebviewUri: (resource) => {
+					return this.editor.webview.asWebviewUri(normalizeResource(markdownResource, resource));
 				},
 				get cspSource() { return self.editor.webview.cspSource; }
 			};
@@ -475,6 +485,12 @@ export class MarkdownPreview extends Disposable {
 
 	private onDidScrollPreview(line: number) {
 		this.line = line;
+
+		const config = this._previewConfigurations.loadAndCacheConfiguration(this._resource);
+		if (!config.scrollEditorWithPreview) {
+			return;
+		}
+
 		for (const editor of vscode.window.visibleTextEditors) {
 			if (!this.isPreviewOf(editor.document.uri)) {
 				continue;
@@ -519,21 +535,32 @@ export class MarkdownPreview extends Disposable {
 		this.editor.webview.html = html;
 	}
 
-	private async onDidClickPreviewLink(path: string, fragment: string | undefined) {
+	private async onDidClickPreviewLink(href: string) {
+		let [hrefPath, fragment] = decodeURIComponent(href).split('#');
+
+		// We perviously already resolve absolute paths.
+		// Now make sure we handle relative file paths
+		if (hrefPath[0] !== '/') {
+			hrefPath = path.join(path.dirname(this.resource.path), hrefPath);
+		}
+
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
-			const markdownLink = await resolveLinkToMarkdownFile(path);
+			const markdownLink = await resolveLinkToMarkdownFile(hrefPath);
 			if (markdownLink) {
+				if (fragment) {
+					this.scrollToFragment = fragment;
+				}
 				this.update(markdownLink);
 				return;
 			}
 		}
 
-		vscode.commands.executeCommand('_markdown.openDocumentLink', { path, fragment });
+		vscode.commands.executeCommand('_markdown.openDocumentLink', { path: hrefPath, fragment, fromResource: this.resource });
 	}
 
-	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number }[]) {
+	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number; }[]) {
 		this.imageInfo = imageInfo;
 	}
 }

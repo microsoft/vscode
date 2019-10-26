@@ -11,7 +11,15 @@ import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import { ncp } from 'ncp';
-import { Application, Quality, ApplicationOptions } from './application';
+import {
+	Application,
+	Quality,
+	ApplicationOptions,
+	MultiLogger,
+	Logger,
+	ConsoleLogger,
+	FileLogger,
+} from '../../automation';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
@@ -28,7 +36,6 @@ import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
-import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
 
 if (!/^v10/.test(process.version)) {
 	console.error('Error: Smoketest must be run using Node 10. Currently running', process.version);
@@ -51,7 +58,9 @@ const opts = minimist(args, {
 	],
 	boolean: [
 		'verbose',
-		'remote'
+		'remote',
+		'web',
+		'headless'
 	],
 	default: {
 		verbose: false
@@ -132,7 +141,7 @@ if (testCodePath) {
 	process.env.VSCODE_CLI = '1';
 }
 
-if (!fs.existsSync(electronPath || '')) {
+if (!opts.web && !fs.existsSync(electronPath || '')) {
 	fail(`Can't find Code at ${electronPath}.`);
 }
 
@@ -211,7 +220,9 @@ function createOptions(): ApplicationOptions {
 		verbose: opts.verbose,
 		log,
 		screenshotsPath,
-		remote: opts.remote
+		remote: opts.remote,
+		web: opts.web,
+		headless: opts.headless
 	};
 }
 
@@ -234,12 +245,14 @@ after(async function () {
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-setupDataMigrationTests(stableCodePath, testDataPath);
+if (!opts.web) {
+	setupDataMigrationTests(stableCodePath, testDataPath);
+}
 
 describe('Running Code', () => {
 	before(async function () {
 		const app = new Application(this.defaultOptions);
-		await app!.start();
+		await app!.start(opts.web ? false : undefined);
 		this.app = app;
 	});
 
@@ -268,19 +281,21 @@ describe('Running Code', () => {
 		});
 	}
 
-	setupDataLossTests();
+	if (!opts.web) { setupDataLossTests(); }
 	setupDataExplorerTests();
-	setupDataPreferencesTests();
+	if (!opts.web) { setupDataPreferencesTests(); }
 	setupDataSearchTests();
 	setupDataCSSTests();
 	setupDataEditorTests();
-	setupDataDebugTests();
+	if (!opts.web) { setupDataDebugTests(); }
 	setupDataGitTests();
 	setupDataStatusbarTests();
 	setupDataExtensionTests();
 	setupTerminalTests();
-	setupDataMultirootTests();
+	if (!opts.web) { setupDataMultirootTests(); }
 	setupDataLocalizationTests();
 });
 
-setupLaunchTests();
+if (!opts.web) {
+	setupLaunchTests();
+}

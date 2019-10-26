@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
@@ -27,7 +27,7 @@ export class ExtHostApiCommands {
 	}
 
 	private _commands: ExtHostCommands;
-	private _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
 	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
@@ -135,7 +135,7 @@ export class ExtHostApiCommands {
 			description: 'Execute code action provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'range', description: 'Range in a text document', constraint: types.Range },
+				{ name: 'rangeOrSelection', description: 'Range in a text document. Some refactoring provider requires Selection object.', constraint: types.Range },
 				{ name: 'kind', description: '(optional) Code action kind to return code actions for', constraint: (value: any) => !value || typeof value.value === 'string' },
 			],
 			returns: 'A promise that resolves to an array of Command-instances.'
@@ -223,7 +223,7 @@ export class ExtHostApiCommands {
 		this._register(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute), {
 			description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
 			args: [
-				{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || value instanceof URI },
+				{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || URI.isUri(value) },
 				{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Whether the opened URI will appear in the \'Open Recent\' list. Defaults to true. Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
 			]
 		});
@@ -272,7 +272,7 @@ export class ExtHostApiCommands {
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
 		const disposable = this._commands.registerCommand(false, id, handler, this, description);
-		this._disposables.push(disposable);
+		this._disposables.add(disposable);
 	}
 
 	/**
@@ -480,10 +480,12 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
+	private _executeCodeActionProvider(resource: URI, rangeOrSelection: types.Range | types.Selection, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
 		const args = {
 			resource,
-			range: typeConverters.Range.from(range),
+			rangeOrSelection: types.Selection.isSelection(rangeOrSelection)
+				? typeConverters.Selection.from(rangeOrSelection)
+				: typeConverters.Range.from(rangeOrSelection),
 			kind
 		};
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
@@ -504,6 +506,7 @@ export class ExtHostApiCommands {
 					if (codeAction.command) {
 						ret.command = this._commands.converter.fromInternal(codeAction.command);
 					}
+					ret.isPreferred = codeAction.isPreferred;
 					return ret;
 				}
 			}));

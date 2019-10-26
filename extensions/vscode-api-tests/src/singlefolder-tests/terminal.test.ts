@@ -152,22 +152,6 @@ suite('window namespace tests', () => {
 		// });
 
 		suite('hideFromUser', () => {
-			// test('should fire onDidWriteData correctly', done => {
-			// 	const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
-			// 	let data = '';
-			// 	terminal.onDidWriteData(e => {
-			// 		data += e;
-			// 		if (data.indexOf('foo') !== -1) {
-			// 			const reg3 = window.onDidCloseTerminal(() => {
-			// 				reg3.dispose();
-			// 				done();
-			// 			});
-			// 			terminal.dispose();
-			// 		}
-			// 	});
-			// 	terminal.sendText('foo');
-			// });
-
 			test('should be available to terminals API', done => {
 				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
 				window.onDidOpenTerminal(t => {
@@ -189,13 +173,27 @@ suite('window namespace tests', () => {
 				const dataEvents: { name: string, data: string }[] = [];
 				const closeEvents: string[] = [];
 				const reg1 = window.onDidOpenTerminal(e => openEvents.push(e.name));
-				const reg2 = window.onDidWriteTerminalData(e => dataEvents.push({ name: e.terminal.name, data: e.data }));
+
+				let resolveOnceDataWritten: (() => void) | undefined;
+
+				const reg2 = window.onDidWriteTerminalData(e => {
+					dataEvents.push({ name: e.terminal.name, data: e.data });
+
+					resolveOnceDataWritten!();
+				});
+
 				const reg3 = window.onDidCloseTerminal(e => {
 					closeEvents.push(e.name);
-					if (closeEvents.length === 2) {
-						deepEqual(openEvents, [ 'test1', 'test2' ]);
-						deepEqual(dataEvents, [ { name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' } ]);
-						deepEqual(closeEvents, [ 'test1', 'test2' ]);
+
+					if (closeEvents.length === 1) {
+						deepEqual(openEvents, ['test1']);
+						deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }]);
+						deepEqual(closeEvents, ['test1']);
+					} else if (closeEvents.length === 2) {
+						deepEqual(openEvents, ['test1', 'test2']);
+						deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
+						deepEqual(closeEvents, ['test1', 'test2']);
+
 						reg1.dispose();
 						reg2.dispose();
 						reg3.dispose();
@@ -208,22 +206,30 @@ suite('window namespace tests', () => {
 				window.createTerminal({ name: 'test1', pty: {
 					onDidWrite: term1Write.event,
 					onDidClose: term1Close.event,
-					open: () => {
+					open: async () => {
 						term1Write.fire('write1');
+
+						// Wait until the data is written
+						await new Promise(resolve => { resolveOnceDataWritten = resolve; });
 						term1Close.fire();
+
 						const term2Write = new EventEmitter<string>();
 						const term2Close = new EventEmitter<void>();
 						window.createTerminal({ name: 'test2', pty: {
 							onDidWrite: term2Write.event,
 							onDidClose: term2Close.event,
-							open: () => {
+							open: async () => {
 								term2Write.fire('write2');
+
+								// Wait until the data is written
+								await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
+
 								term2Close.fire();
 							},
-							close: () => {}
+							close: () => { }
 						}});
 					},
-					close: () => {}
+					close: () => { }
 				}});
 			});
 		});
@@ -241,37 +247,10 @@ suite('window namespace tests', () => {
 				});
 				const pty: Pseudoterminal = {
 					onDidWrite: new EventEmitter<string>().event,
-					open: () => {},
-					close: () => {}
+					open: () => { },
+					close: () => { }
 				};
 				window.createTerminal({ name: 'c', pty });
-			});
-
-			test('should fire Terminal.onData on write', (done) => {
-				const reg1 = window.onDidOpenTerminal(async term => {
-					equal(terminal, term);
-					reg1.dispose();
-					const reg2 = terminal.onDidWriteData(data => {
-						equal(data, 'bar');
-						reg2.dispose();
-						const reg3 = window.onDidCloseTerminal(() => {
-							reg3.dispose();
-							done();
-						});
-						terminal.dispose();
-					});
-					await startPromise;
-					writeEmitter.fire('bar');
-				});
-				let startResolve: () => void;
-				const startPromise: Promise<void> = new Promise<void>(r => startResolve = r);
-				const writeEmitter = new EventEmitter<string>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					open: () => startResolve(),
-					close: () => {}
-				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
 
 			// The below tests depend on global UI state and each other
@@ -346,7 +325,7 @@ suite('window namespace tests', () => {
 					open: () => {
 						overrideDimensionsEmitter.fire({ columns: 10, rows: 5 });
 					},
-					close: () => {}
+					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
 			});

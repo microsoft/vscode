@@ -134,7 +134,7 @@ export class OutOfProcessWin32FolderWatcher {
 	public dispose(): void {
 		if (this.handle) {
 			this.handle.kill();
-			this.handle = null!; // StrictNullOverride: nulling out ok in dispose
+			this.handle = undefined;
 		}
 	}
 }

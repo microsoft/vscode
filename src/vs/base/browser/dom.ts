@@ -15,7 +15,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import * as platform from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
+import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -203,16 +203,16 @@ export const toggleClass: (node: HTMLElement | SVGElement, className: string, sh
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;
-	private _node: Element | Window | Document;
+	private _node: EventTarget;
 	private readonly _type: string;
-	private readonly _useCapture: boolean;
+	private readonly _options: boolean | AddEventListenerOptions;
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture?: boolean) {
+	constructor(node: EventTarget, type: string, handler: (e: any) => void, options?: boolean | AddEventListenerOptions) {
 		this._node = node;
 		this._type = type;
 		this._handler = handler;
-		this._useCapture = (useCapture || false);
-		this._node.addEventListener(this._type, this._handler, this._useCapture);
+		this._options = (options || false);
+		this._node.addEventListener(this._type, this._handler, this._options);
 	}
 
 	public dispose(): void {
@@ -221,7 +221,7 @@ class DomListener implements IDisposable {
 			return;
 		}
 
-		this._node.removeEventListener(this._type, this._handler, this._useCapture);
+		this._node.removeEventListener(this._type, this._handler, this._options);
 
 		// Prevent leakers from holding on to the dom or handler func
 		this._node = null!;
@@ -229,9 +229,10 @@ class DomListener implements IDisposable {
 	}
 }
 
-export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: Element | Window | Document, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture: AddEventListenerOptions): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean | AddEventListenerOptions): IDisposable {
 	return new DomListener(node, type, handler, useCapture);
 }
 
@@ -559,13 +560,11 @@ class SizeUtils {
 // Position & Dimension
 
 export class Dimension {
-	public width: number;
-	public height: number;
 
-	constructor(width: number, height: number) {
-		this.width = width;
-		this.height = height;
-	}
+	constructor(
+		public readonly width: number,
+		public readonly height: number,
+	) { }
 
 	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
@@ -782,6 +781,12 @@ export function createStyleSheet(container: HTMLElement = document.getElementsBy
 	return style;
 }
 
+export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
+	let meta = document.createElement('meta');
+	container.appendChild(meta);
+	return meta;
+}
+
 let _sharedStyleSheet: HTMLStyleElement | null = null;
 function getSharedStyleSheet(): HTMLStyleElement {
 	if (!_sharedStyleSheet) {
@@ -855,6 +860,7 @@ export const EventType = {
 	KEY_UP: 'keyup',
 	// HTML Document
 	LOAD: 'load',
+	BEFORE_UNLOAD: 'beforeunload',
 	UNLOAD: 'unload',
 	ABORT: 'abort',
 	ERROR: 'error',
@@ -1185,22 +1191,39 @@ export function animate(fn: () => void): IDisposable {
 	return toDisposable(() => stepDisposable.dispose());
 }
 
-
-
-const _location = URI.parse(window.location.href);
+RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
 
 export function asDomUri(uri: URI): URI {
 	if (!uri) {
 		return uri;
 	}
-	if (!platform.isWeb) {
-		//todo@joh remove this once we have sw in electron going
-		return uri;
-	}
 	if (Schemas.vscodeRemote === uri.scheme) {
-		// rewrite vscode-remote-uris to uris of the window location
-		// so that they can be intercepted by the service worker
-		return _location.with({ path: '/vscode-remote', query: JSON.stringify(uri) });
+		return RemoteAuthorities.rewrite(uri);
 	}
 	return uri;
+}
+
+/**
+ * returns url('...')
+ */
+export function asCSSUrl(uri: URI): string {
+	if (!uri) {
+		return `url('')`;
+	}
+	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
+}
+
+export function triggerDownload(uri: URI, name: string): void {
+	// In order to download from the browser, the only way seems
+	// to be creating a <a> element with download attribute that
+	// points to the file to download.
+	// See also https://developers.google.com/web/updates/2011/08/Downloading-resources-in-HTML5-a-download
+	const anchor = document.createElement('a');
+	document.body.appendChild(anchor);
+	anchor.download = name;
+	anchor.href = uri.toString(true);
+	anchor.click();
+
+	// Ensure to remove the element from DOM eventually
+	setTimeout(() => document.body.removeChild(anchor));
 }

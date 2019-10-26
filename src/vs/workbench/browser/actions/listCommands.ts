@@ -17,6 +17,11 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+
+function isLegacyTree(widget: ListWidget): widget is ITree {
+	return widget instanceof Tree;
+}
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -320,6 +325,38 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focusParent',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	handler: (accessor) => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		if (!focused || focused instanceof List || focused instanceof PagedList) {
+			return;
+		}
+
+		if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			const focusedElements = tree.getFocus();
+			if (focusedElements.length === 0) {
+				return;
+			}
+			const focus = focusedElements[0];
+			const parent = tree.getParentElement(focus);
+			if (parent) {
+				const fakeKeyboardEvent = new KeyboardEvent('keydown');
+				tree.setFocus([parent], fakeKeyboardEvent);
+				tree.reveal(parent);
+			}
+		} else {
+			const tree = focused;
+			tree.focusParent({ origin: 'keyboard' });
+		}
+	}
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.expand',
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -520,7 +557,7 @@ function listFocusFirst(accessor: ServicesAccessor, options?: { fromFocused: boo
 	else if (focused) {
 		const tree = focused;
 
-		tree.focusFirst({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : undefined);
+		tree.focusFirst({ origin: 'keyboard' }, options?.fromFocused ? tree.getFocus() : undefined);
 		tree.reveal(tree.getFocus());
 	}
 }
@@ -572,7 +609,7 @@ function listFocusLast(accessor: ServicesAccessor, options?: { fromFocused: bool
 	else if (focused) {
 		const tree = focused;
 
-		tree.focusLast({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : undefined);
+		tree.focusLast({ origin: 'keyboard' }, options?.fromFocused ? tree.getFocus() : undefined);
 		tree.reveal(tree.getFocus());
 	}
 }
@@ -669,14 +706,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			if (!start) {
 				scope = undefined;
 			} else {
-				const selectedNode = tree.getNode(start);
-				const parentNode = selectedNode.parent;
-
-				if (!parentNode || !parentNode.parent) { // root
-					scope = undefined;
-				} else {
-					scope = parentNode.element;
-				}
+				scope = tree.getParentElement(start);
 			}
 
 			const newSelection: unknown[] = [];
@@ -749,11 +779,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (focused instanceof List || focused instanceof PagedList) {
 			const list = focused;
 
-			if (list.getSelection().length > 0) {
-				list.setSelection([]);
-			} else if (list.getFocus().length > 0) {
-				list.setFocus([]);
-			}
+			list.setSelection([]);
+			list.setFocus([]);
 		}
 
 		// ObjectTree
@@ -761,22 +788,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const list = focused;
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
 
-			if (list.getSelection().length > 0) {
-				list.setSelection([], fakeKeyboardEvent);
-			} else if (list.getFocus().length > 0) {
-				list.setFocus([], fakeKeyboardEvent);
-			}
+			list.setSelection([], fakeKeyboardEvent);
+			list.setFocus([], fakeKeyboardEvent);
 		}
 
 		// Tree
 		else if (focused) {
 			const tree = focused;
 
-			if (tree.getSelection().length) {
-				tree.clearSelection({ origin: 'keyboard' });
-			} else if (tree.getFocus()) {
-				tree.clearFocus({ origin: 'keyboard' });
-			}
+			tree.clearSelection({ origin: 'keyboard' });
+			tree.clearFocus({ origin: 'keyboard' });
 		}
 	}
 });
@@ -815,5 +836,69 @@ CommandsRegistry.registerCommand({
 			const tree = focused;
 			tree.updateOptions({ filterOnType: !tree.filterOnType });
 		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.scrollUp',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+	handler: accessor => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		if (!focused || isLegacyTree(focused)) {
+			return;
+		}
+
+		focused.scrollTop -= 10;
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.scrollDown',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+	handler: accessor => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		if (!focused || isLegacyTree(focused)) {
+			return;
+		}
+
+		focused.scrollTop += 10;
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.scrollLeft',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+	handler: accessor => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		if (!focused || isLegacyTree(focused)) {
+			return;
+		}
+
+		focused.scrollLeft -= 10;
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.scrollRight',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+	handler: accessor => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		if (!focused || isLegacyTree(focused)) {
+			return;
+		}
+
+		focused.scrollLeft += 10;
 	}
 });

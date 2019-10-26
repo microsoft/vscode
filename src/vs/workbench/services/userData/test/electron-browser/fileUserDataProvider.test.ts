@@ -23,6 +23,15 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 
+class TestBrowserWorkbenchEnvironmentService extends BrowserWorkbenchEnvironmentService {
+
+	testUserRoamingDataHome!: URI;
+
+	get userRoamingDataHome(): URI {
+		return this.testUserRoamingDataHome;
+	}
+}
+
 suite('FileUserDataProvider', () => {
 
 	let testObject: IFileService;
@@ -47,8 +56,8 @@ suite('FileUserDataProvider', () => {
 		userDataResource = URI.file(userDataPath).with({ scheme: Schemas.userData });
 		await Promise.all([pfs.mkdirp(userDataPath), pfs.mkdirp(backupsPath)]);
 
-		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: 'workspaceId' });
-		environmentService.userRoamingDataHome = userDataResource;
+		const environmentService = new TestBrowserWorkbenchEnvironmentService({ remoteAuthority: 'remote', workspaceId: 'workspaceId', logsPath: URI.file('logFile') });
+		environmentService.testUserRoamingDataHome = userDataResource;
 
 		const userDataFileSystemProvider = new FileUserDataProvider(URI.file(userDataPath), URI.file(backupsPath), diskFileSystemProvider, environmentService);
 		disposables.add(userDataFileSystemProvider);
@@ -277,7 +286,7 @@ suite('FileUserDataProvider', () => {
 
 class TestFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
 
-	constructor(readonly onDidChangeFile: Event<IFileChange[]>) { }
+	constructor(readonly onDidChangeFile: Event<readonly IFileChange[]>) { }
 
 	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.FileReadWrite;
 
@@ -309,7 +318,7 @@ suite('FileUserDataProvider - Watching', () => {
 	let userDataResource: URI;
 	const disposables = new DisposableStore();
 
-	const fileEventEmitter: Emitter<IFileChange[]> = new Emitter<IFileChange[]>();
+	const fileEventEmitter: Emitter<readonly IFileChange[]> = new Emitter<readonly IFileChange[]>();
 	disposables.add(fileEventEmitter);
 
 	setup(() => {
@@ -321,8 +330,8 @@ suite('FileUserDataProvider - Watching', () => {
 		localUserDataResource = URI.file(userDataPath);
 		userDataResource = localUserDataResource.with({ scheme: Schemas.userData });
 
-		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: 'workspaceId' });
-		environmentService.userRoamingDataHome = userDataResource;
+		const environmentService = new TestBrowserWorkbenchEnvironmentService({ remoteAuthority: 'remote', workspaceId: 'workspaceId', logsPath: URI.file('logFile') });
+		environmentService.testUserRoamingDataHome = userDataResource;
 
 		const userDataFileSystemProvider = new FileUserDataProvider(localUserDataResource, localBackupsResource, new TestFileSystemProvider(fileEventEmitter.event), environmentService);
 		disposables.add(userDataFileSystemProvider);

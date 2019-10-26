@@ -123,8 +123,7 @@
 			"request": "launch",
 			"name": "Launch VS Code",
 			"windows": {
-				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
-				"timeout": 20000
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
 			"osx": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
@@ -132,6 +131,7 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
+			"timeout": 20000,
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
 			},
@@ -157,6 +157,22 @@
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Launch VS Code (Web)",
+			"runtimeExecutable": "yarn",
+			"runtimeArgs": [
+				"web"
+			],
+		},
+		{
+			"type": "chrome",
+			"request": "launch",
+			"name": "Launch VS Code (Web, Chrome)",
+			"url": "http://localhost:8080",
+			"preLaunchTask": "Run web"
 		},
 		{
 			"type": "node",
@@ -216,7 +232,10 @@
 			"cwd": "${workspaceFolder}",
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"env": {
+				"MOCHA_COLORS": "true"
+			}
 		},
 		{
 			"type": "node",

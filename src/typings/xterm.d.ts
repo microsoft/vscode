@@ -83,6 +83,16 @@ declare module 'xterm' {
 		drawBoldTextInBrightColors?: boolean;
 
 		/**
+		 * The modifier key hold to multiply scroll speed.
+		 */
+		fastScrollModifier?: 'alt' | 'ctrl' | 'shift' | undefined;
+
+		/**
+		 * The scroll speed multiplier used for fast scrolling.
+		 */
+		fastScrollSensitivity?: number;
+
+		/**
 		 * The font size used to render text.
 		 */
 		fontSize?: number;
@@ -174,6 +184,11 @@ declare module 'xterm' {
 		scrollback?: number;
 
 		/**
+		 * The scrolling speed multiplier used for adjusting normal scrolling speed.
+		 */
+		scrollSensitivity?: number;
+
+		/**
 		 * The size of tab stops in the terminal.
 		 */
 		tabStopWidth?: number;
@@ -207,47 +222,47 @@ declare module 'xterm' {
 	 */
 	export interface ITheme {
 		/** The default foreground color */
-		foreground?: string,
+		foreground?: string;
 		/** The default background color */
-		background?: string,
+		background?: string;
 		/** The cursor color */
-		cursor?: string,
+		cursor?: string;
 		/** The accent color of the cursor (fg color for a block cursor) */
-		cursorAccent?: string,
+		cursorAccent?: string;
 		/** The selection background color (can be transparent) */
-		selection?: string,
+		selection?: string;
 		/** ANSI black (eg. `\x1b[30m`) */
-		black?: string,
+		black?: string;
 		/** ANSI red (eg. `\x1b[31m`) */
-		red?: string,
+		red?: string;
 		/** ANSI green (eg. `\x1b[32m`) */
-		green?: string,
+		green?: string;
 		/** ANSI yellow (eg. `\x1b[33m`) */
-		yellow?: string,
+		yellow?: string;
 		/** ANSI blue (eg. `\x1b[34m`) */
-		blue?: string,
+		blue?: string;
 		/** ANSI magenta (eg. `\x1b[35m`) */
-		magenta?: string,
+		magenta?: string;
 		/** ANSI cyan (eg. `\x1b[36m`) */
-		cyan?: string,
+		cyan?: string;
 		/** ANSI white (eg. `\x1b[37m`) */
-		white?: string,
+		white?: string;
 		/** ANSI bright black (eg. `\x1b[1;30m`) */
-		brightBlack?: string,
+		brightBlack?: string;
 		/** ANSI bright red (eg. `\x1b[1;31m`) */
-		brightRed?: string,
+		brightRed?: string;
 		/** ANSI bright green (eg. `\x1b[1;32m`) */
-		brightGreen?: string,
+		brightGreen?: string;
 		/** ANSI bright yellow (eg. `\x1b[1;33m`) */
-		brightYellow?: string,
+		brightYellow?: string;
 		/** ANSI bright blue (eg. `\x1b[1;34m`) */
-		brightBlue?: string,
+		brightBlue?: string;
 		/** ANSI bright magenta (eg. `\x1b[1;35m`) */
-		brightMagenta?: string,
+		brightMagenta?: string;
 		/** ANSI bright cyan (eg. `\x1b[1;36m`) */
-		brightCyan?: string,
+		brightCyan?: string;
 		/** ANSI bright white (eg. `\x1b[1;37m`) */
-		brightWhite?: string
+		brightWhite?: string;
 	}
 
 	/**
@@ -269,7 +284,7 @@ declare module 'xterm' {
 		/**
 		 * A callback that fires when the mouse hovers over a link for a moment.
 		 */
-		tooltipCallback?: (event: MouseEvent, uri: string) => boolean | void;
+		tooltipCallback?: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void;
 
 		/**
 		 * A callback that fires when the mouse leaves a link. Note that this can
@@ -310,7 +325,8 @@ declare module 'xterm' {
 
 	/**
 	 * Represents a specific line in the terminal that is tracked when scrollback
-	 * is trimmed and lines are added or removed.
+	 * is trimmed and lines are added or removed. This is a single line that may
+	 * be part of a larger wrapped line.
 	 */
 	export interface IMarker extends IDisposable {
 		/**
@@ -324,7 +340,8 @@ declare module 'xterm' {
 		readonly isDisposed: boolean;
 
 		/**
-		 * The actual line index in the buffer at this point in time.
+		 * The actual line index in the buffer at this point in time. This is set to
+		 * -1 if the marker has been disposed.
 		 */
 		readonly line: number;
 	}
@@ -352,12 +369,12 @@ declare module 'xterm' {
 		/**
 		 * The element containing the terminal.
 		 */
-		readonly element: HTMLElement;
+		readonly element: HTMLElement | undefined;
 
 		/**
 		 * The textarea that accepts input for the terminal.
 		 */
-		readonly textarea: HTMLTextAreaElement;
+		readonly textarea: HTMLTextAreaElement | undefined;
 
 		/**
 		 * The number of rows in the terminal's viewport. Use
@@ -385,6 +402,12 @@ declare module 'xterm' {
 		 * buffer is active this will always return [].
 		 */
 		readonly markers: ReadonlyArray<IMarker>;
+
+		/**
+		 * (EXPERIMENTAL) Get the parser interface to register
+		 * custom escape sequence handlers.
+		 */
+		readonly parser: IParser;
 
 		/**
 		 * Natural language strings that can be localized.
@@ -428,7 +451,7 @@ declare module 'xterm' {
 		onLineFeed: IEvent<void>;
 
 		/**
-		 * Adds an event listener for when a scroll occurs. The  event value is the
+		 * Adds an event listener for when a scroll occurs. The event value is the
 		 * new position of the viewport.
 		 * @returns an `IDisposable` to stop listening.
 		 */
@@ -499,32 +522,6 @@ declare module 'xterm' {
 		 * whether the event should be processed by xterm.js.
 		 */
 		attachCustomKeyEventHandler(customKeyEventHandler: (event: KeyboardEvent) => boolean): void;
-
-		/**
-		 * (EXPERIMENTAL) Adds a handler for CSI escape sequences.
-		 * @param flag The flag should be one-character string, which specifies the
-		 * final character (e.g "m" for SGR) of the CSI sequence.
-		 * @param callback The function to handle the escape sequence. The callback
-		 * is called with the numerical params, as well as the special characters
-		 * (e.g. "$" for DECSCPP). If the sequence has subparams the array will
-		 * contain subarrays with their numercial values.
-		 * Return true if the sequence was handled; false if
-		 * we should try a previous handler (set by addCsiHandler or setCsiHandler).
-		 * The most recently-added handler is tried first.
-		 * @return An IDisposable you can call to remove this handler.
-		 */
-		addCsiHandler(flag: string, callback: (params: (number | number[])[], collect: string) => boolean): IDisposable;
-
-		/**
-		 * (EXPERIMENTAL) Adds a handler for OSC escape sequences.
-		 * @param ident The number (first parameter) of the sequence.
-		 * @param callback The function to handle the escape sequence. The callback
-		 * is called with OSC data string. Return true if the sequence was handled;
-		 * false if we should try a previous handler (set by addOscHandler or
-		 * setOscHandler). The most recently-added handler is tried first.
-		 * @return An IDisposable you can call to remove this handler.
-		 */
-		addOscHandler(ident: number, callback: (data: string) => boolean): IDisposable;
 
 		/**
 		 * (EXPERIMENTAL) Registers a link matcher, allowing custom link patterns to
@@ -670,24 +667,38 @@ declare module 'xterm' {
 		clear(): void;
 
 		/**
-		 * Writes text to the terminal.
-		 * @param data The text to write to the terminal.
+		 * Write data to the terminal.
+		 * @param data The data to write to the terminal. This can either be raw
+		 * bytes given as Uint8Array from the pty or a string. Raw bytes will always
+		 * be treated as UTF-8 encoded, string data as UTF-16.
+		 * @param callback Optional callback that fires when the data was processed
+		 * by the parser.
 		 */
-		write(data: string): void;
+		write(data: string | Uint8Array, callback?: () => void): void;
 
 		/**
-		 * Writes text to the terminal, followed by a break line character (\n).
-		 * @param data The text to write to the terminal.
+		 * Writes data to the terminal, followed by a break line character (\n).
+		 * @param data The data to write to the terminal. This can either be raw
+		 * bytes given as Uint8Array from the pty or a string. Raw bytes will always
+		 * be treated as UTF-8 encoded, string data as UTF-16.
+		 * @param callback Optional callback that fires when the data was processed
+		 * by the parser.
 		 */
-		writeln(data: string): void;
+		writeln(data: string | Uint8Array, callback?: () => void): void;
 
 		/**
-		 * Writes UTF8 data to the terminal. This has a slight performance advantage
-		 * over the string based write method due to lesser data conversions needed
-		 * on the way from the pty to xterm.js.
+		 * Write UTF8 data to the terminal.
 		 * @param data The data to write to the terminal.
+		 * @param callback Optional callback when data was processed.
+		 * @deprecated use `write` instead
 		 */
-		writeUtf8(data: Uint8Array): void;
+		writeUtf8(data: Uint8Array, callback?: () => void): void;
+
+		/**
+		 * Writes text to the terminal, performing the necessary transformations for pasted text.
+		 * @param data The text to write to the terminal.
+		 */
+		paste(data: string): void;
 
 		/**
 		 * Retrieves an option's value from the terminal.
@@ -804,18 +815,10 @@ declare module 'xterm' {
 		/**
 		 * Perform a full reset (RIS, aka '\x1bc').
 		 */
-		reset(): void
+		reset(): void;
 
 		/**
-		 * Applies an addon to the Terminal prototype, making it available to all
-		 * newly created Terminals.
-		 * @param addon The addon to apply.
-		 * @deprecated Use the new loadAddon API/addon format.
-		 */
-		static applyAddon(addon: any): void;
-
-		/**
-		 * (EXPERIMENTAL) Loads an addon into this instance of xterm.js.
+		 * Loads an addon into this instance of xterm.js.
 		 * @param addon The addon to load.
 		 */
 		loadAddon(addon: ITerminalAddon): void;
@@ -826,7 +829,7 @@ declare module 'xterm' {
 	 */
 	export interface ITerminalAddon extends IDisposable {
 		/**
-		 * (EXPERIMENTAL) This is called when the addon is activated.
+		 * This is called when the addon is activated.
 		 */
 		activate(terminal: Terminal): void;
 	}
@@ -854,6 +857,41 @@ declare module 'xterm' {
 		 * The end row of the selection.
 		 */
 		endRow: number;
+	}
+
+	/**
+	 * An object representing a range within the viewport of the terminal.
+	 */
+	export interface IViewportRange {
+		/**
+		 * The start of the range.
+		 */
+		start: IViewportRangePosition;
+
+		/**
+		 * The end of the range.
+		 */
+		end: IViewportRangePosition;
+	}
+
+	/**
+	 * An object representing a cell position within the viewport of the terminal.
+	 */
+	interface IViewportRangePosition {
+		/**
+		 * The x position of the cell. This is a 0-based index that refers to the
+		 * space in between columns, not the column itself. Index 0 refers to the
+		 * left side of the viewport, index `Terminal.cols` refers to the right side
+		 * of the viewport. This can be thought of as how a cursor is positioned in
+		 * a text editor.
+		 */
+		x: number;
+
+		/**
+		 * The y position of the cell. This is a 0-based index that refers to a
+		 * specific row.
+		 */
+		y: number;
 	}
 
 	/**
@@ -951,40 +989,117 @@ declare module 'xterm' {
 		 */
 		readonly width: number;
 	}
-}
 
-
-
-
-
-// Modifications to official .d.ts below
-declare module 'xterm' {
-	interface TerminalCore {
-		_onScroll: IEventEmitter<number>;
-		_onKey: IEventEmitter<{ key: string }>;
-
-		_charSizeService: {
-			width: number;
-			height: number;
-		};
-
-		_coreService: {
-			triggerDataEvent(data: string, wasUserInput?: boolean): void;
-		}
-
-		_renderService: {
-			_renderer: {
-				_renderLayers: any[];
-			};
-			_onIntersectionChange: any;
-		};
+	/**
+	 * (EXPERIMENTAL) Data type to register a CSI, DCS or ESC callback in the parser
+	 * in the form:
+	 *    ESC I..I F
+	 *    CSI Prefix P..P I..I F
+	 *    DCS Prefix P..P I..I F data_bytes ST
+	 *
+	 * with these rules/restrictions:
+	 * - prefix can only be used with CSI and DCS
+	 * - only one leading prefix byte is recognized by the parser
+	 *   before any other parameter bytes (P..P)
+	 * - intermediate bytes are recognized up to 2
+	 *
+	 * For custom sequences make sure to read ECMA-48 and the resources at
+	 * vt100.net to not clash with existing sequences or reserved address space.
+	 * General recommendations:
+	 * - use private address space (see ECMA-48)
+	 * - use max one intermediate byte (technically not limited by the spec,
+	 *   in practice there are no sequences with more than one intermediate byte,
+	 *   thus parsers might get confused with more intermediates)
+	 * - test against other common emulators to check whether they escape/ignore
+	 *   the sequence correctly
+	 *
+	 * Notes: OSC command registration is handled differently (see addOscHandler)
+	 *        APC, PM or SOS is currently not supported.
+	 */
+	export interface IFunctionIdentifier {
+		/**
+		 * Optional prefix byte, must be in range \x3c .. \x3f.
+		 * Usable in CSI and DCS.
+		 */
+		prefix?: string;
+		/**
+		 * Optional intermediate bytes, must be in range \x20 .. \x2f.
+		 * Usable in CSI, DCS and ESC.
+		 */
+		intermediates?: string;
+		/**
+		 * Final byte, must be in range \x40 .. \x7e for CSI and DCS,
+		 * \x30 .. \x7e for ESC.
+		 */
+		final: string;
 	}
 
-	interface IEventEmitter<T> {
-		fire(e: T): void;
-	}
+	/**
+	 * (EXPERIMENTAL) Parser interface.
+	 */
+	export interface IParser {
+		/**
+		 * Adds a handler for CSI escape sequences.
+		 * @param id Specifies the function identifier under which the callback
+		 * gets registered, e.g. {final: 'm'} for SGR.
+		 * @param callback The function to handle the sequence. The callback is
+		 * called with the numerical params. If the sequence has subparams the
+		 * array will contain subarrays with their numercial values.
+		 * Return true if the sequence was handled; false if we should try
+		 * a previous handler (set by addCsiHandler or setCsiHandler).
+		 * The most recently-added handler is tried first.
+		 * @return An IDisposable you can call to remove this handler.
+		 */
+		addCsiHandler(id: IFunctionIdentifier, callback: (params: (number | number[])[]) => boolean): IDisposable;
 
-	interface Terminal {
-		_core: TerminalCore;
+		/**
+		 * Adds a handler for DCS escape sequences.
+		 * @param id Specifies the function identifier under which the callback
+		 * gets registered, e.g. {intermediates: '$' final: 'q'} for DECRQSS.
+		 * @param callback The function to handle the sequence. Note that the
+		 * function will only be called once if the sequence finished sucessfully.
+		 * There is currently no way to intercept smaller data chunks, data chunks
+		 * will be stored up until the sequence is finished. Since DCS sequences
+		 * are not limited by the amount of data this might impose a problem for
+		 * big payloads. Currently xterm.js limits DCS payload to 10 MB
+		 * which should give enough room for most use cases.
+		 * The function gets the payload and numerical parameters as arguments.
+		 * Return true if the sequence was handled; false if we should try
+		 * a previous handler (set by addDcsHandler or setDcsHandler).
+		 * The most recently-added handler is tried first.
+		 * @return An IDisposable you can call to remove this handler.
+		 */
+		addDcsHandler(id: IFunctionIdentifier, callback: (data: string, param: (number | number[])[]) => boolean): IDisposable;
+
+		/**
+		 * Adds a handler for ESC escape sequences.
+		 * @param id Specifies the function identifier under which the callback
+		 * gets registered, e.g. {intermediates: '%' final: 'G'} for
+		 * default charset selection.
+		 * @param callback The function to handle the sequence.
+		 * Return true if the sequence was handled; false if we should try
+		 * a previous handler (set by addEscHandler or setEscHandler).
+		 * The most recently-added handler is tried first.
+		 * @return An IDisposable you can call to remove this handler.
+		 */
+		addEscHandler(id: IFunctionIdentifier, handler: () => boolean): IDisposable;
+
+		/**
+		 * Adds a handler for OSC escape sequences.
+		 * @param ident The number (first parameter) of the sequence.
+		 * @param callback The function to handle the sequence. Note that the
+		 * function will only be called once if the sequence finished sucessfully.
+		 * There is currently no way to intercept smaller data chunks, data chunks
+		 * will be stored up until the sequence is finished. Since OSC sequences
+		 * are not limited by the amount of data this might impose a problem for
+		 * big payloads. Currently xterm.js limits OSC payload to 10 MB
+		 * which should give enough room for most use cases.
+		 * The callback is called with OSC data string.
+		 * Return true if the sequence was handled; false if we should try
+		 * a previous handler (set by addOscHandler or setOscHandler).
+		 * The most recently-added handler is tried first.
+		 * @return An IDisposable you can call to remove this handler.
+		 */
+		addOscHandler(ident: number, callback: (data: string) => boolean): IDisposable;
 	}
 }

@@ -18,8 +18,9 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface IFeedback {
 	feedback: string;
@@ -27,7 +28,7 @@ export interface IFeedback {
 }
 
 export interface IFeedbackDelegate {
-	submitFeedback(feedback: IFeedback): void;
+	submitFeedback(feedback: IFeedback, openerService: IOpenerService): void;
 	getCharacterLimit(sentiment: number): number;
 }
 
@@ -66,7 +67,8 @@ export class FeedbackDropdown extends Dropdown {
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(container, options);
 
@@ -140,7 +142,7 @@ export class FeedbackDropdown extends Dropdown {
 		}));
 
 		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OUT, () => {
-			closeBtn.style.backgroundColor = null;
+			closeBtn.style.backgroundColor = '';
 		}));
 
 		this.invoke(closeBtn, disposables, () => this.hide());
@@ -274,17 +276,17 @@ export class FeedbackDropdown extends Dropdown {
 
 		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, editorWidgetForeground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
 			if (this.feedbackForm) {
-				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : null;
+				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : '';
 				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : null;
-				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null;
+				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : '';
 			}
 			if (this.feedbackDescriptionInput) {
-				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
+				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
 				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
 				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
 			}
 
-			contactUsContainer.style.backgroundColor = colors.editorBackground ? colors.editorBackground.toString() : null;
+			contactUsContainer.style.backgroundColor = colors.editorBackground ? colors.editorBackground.toString() : '';
 			contactUsContainer.style.border = `1px solid ${colors.contrastBorder || 'transparent'}`;
 		}));
 
@@ -415,7 +417,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.feedbackDelegate.submitFeedback({
 			feedback: this.feedbackDescriptionInput.value,
 			sentiment: this.sentiment
-		});
+		}, this.openerService);
 
 		this.hide();
 	}

@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -21,7 +22,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcesses = new Map<number, Promise<ITerminalProcessExtHostProxy>>();
 	private readonly _terminalProcessesReady = new Map<number, (proxy: ITerminalProcessExtHostProxy) => void>();
-	private readonly _terminalOnDidWriteDataListeners = new Map<number, IDisposable>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
 
 	constructor(
@@ -36,13 +36,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 		// ITerminalService listeners
 		this._toDispose.add(_terminalService.onInstanceCreated((instance) => {
-			// Delay this message so the TerminalInstance constructor has a chance to finish and
-			// return the ID normally to the extension host. The ID that is passed here will be
-			// used to register non-extension API terminals in the extension host.
-			setTimeout(() => {
-				this._onTerminalOpened(instance);
-				this._onInstanceDimensionsChanged(instance);
-			}, EXT_HOST_CREATION_DELAY);
+			this._onTerminalOpened(instance);
+			this._onInstanceDimensionsChanged(instance);
 		}));
 
 		this._toDispose.add(_terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
@@ -131,30 +126,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	/** @deprecated */
-	public $registerOnDataListener(terminalId: number): void {
-		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
-		if (!terminalInstance) {
-			return;
-		}
-
-		// Listener already registered
-		if (this._terminalOnDidWriteDataListeners.has(terminalId)) {
-			return;
-		}
-
-		// Register
-		const listener = terminalInstance.onData(data => {
-			this._onTerminalData(terminalId, data);
-		});
-		this._terminalOnDidWriteDataListeners.set(terminalId, listener);
-		terminalInstance.addDisposable(listener);
-	}
-
 	public $startSendingDataEvents(): void {
 		if (!this._dataEventTracker) {
 			this._dataEventTracker = this._instantiationService.createInstance(TerminalDataEventTracker, (id, data) => {
-				this._onTerminalData2(id, data);
+				this._onTerminalData(id, data);
 			});
 		}
 	}
@@ -170,13 +145,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptActiveTerminalChanged(terminalId);
 	}
 
-	/** @deprecated */
 	private _onTerminalData(terminalId: number, data: string): void {
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
-	}
-
-	private _onTerminalData2(terminalId: number, data: string): void {
-		this._proxy.$acceptTerminalProcessData2(terminalId, data);
 	}
 
 	private _onTitleChanged(terminalId: number, name: string): void {
@@ -335,7 +305,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onRequestDefaultShellAndArgs(request: IDefaultShellAndArgsRequest): void {
 		if (this._isPrimaryExtHost()) {
-			this._proxy.$requestDefaultShellAndArgs().then(e => request(e.shell, e.args));
+			this._proxy.$requestDefaultShellAndArgs(request.useAutomationShell).then(e => request.callback(e.shell, e.args));
 		}
 	}
 
@@ -353,16 +323,23 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
  * listeners are removed.
  */
 class TerminalDataEventTracker extends Disposable {
+	private readonly _bufferer: TerminalDataBufferer;
+
 	constructor(
 		private readonly _callback: (id: number, data: string) => void,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
+
+		this._register(this._bufferer = new TerminalDataBufferer());
+
 		this._terminalService.terminalInstances.forEach(instance => this._registerInstance(instance));
 		this._register(this._terminalService.onInstanceCreated(instance => this._registerInstance(instance)));
+		this._register(this._terminalService.onInstanceDisposed(instance => this._bufferer.stopBuffering(instance.id)));
 	}
 
 	private _registerInstance(instance: ITerminalInstance): void {
-		this._register(instance.onData(e => this._callback(instance.id, e)));
+		// Buffer data events to reduce the amount of messages going to the extension host
+		this._register(this._bufferer.startBuffering(instance.id, instance.onData, this._callback));
 	}
 }

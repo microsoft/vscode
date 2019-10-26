@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { Application } from '../../application';
+import { Application } from '../../../../automation';
 
 const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-insert';
 const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-item[title$="Synchronize Changes"]';
@@ -51,6 +51,7 @@ export function setup() {
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
 
 			await app.workbench.scm.stage('app.js');
+			await app.workbench.scm.openChange('app.js');
 			await app.workbench.scm.unstage('app.js');
 		});
 
@@ -60,6 +61,7 @@ export function setup() {
 			await app.workbench.scm.openSCMViewlet();
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
 
+			await app.workbench.scm.openChange('app.js');
 			await app.workbench.scm.stage('app.js');
 
 			await app.workbench.scm.commit('first commit');

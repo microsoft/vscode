@@ -10,7 +10,6 @@ import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { compareAnything } from 'vs/base/common/comparers';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import * as DOM from 'vs/base/browser/dom';
@@ -54,7 +53,7 @@ export const QuickOpenItemAccessor = new QuickOpenItemAccessorClass();
 
 export class QuickOpenEntry {
 	private id: string;
-	private labelHighlights: IHighlight[];
+	private labelHighlights?: IHighlight[];
 	private descriptionHighlights?: IHighlight[];
 	private detailHighlights?: IHighlight[];
 	private hidden: boolean | undefined;
@@ -161,7 +160,7 @@ export class QuickOpenEntry {
 	/**
 	 * Allows to set highlight ranges that should show up for the entry label and optionally description if set.
 	 */
-	setHighlights(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[], detailHighlights?: IHighlight[]): void {
+	setHighlights(labelHighlights?: IHighlight[], descriptionHighlights?: IHighlight[], detailHighlights?: IHighlight[]): void {
 		this.labelHighlights = labelHighlights;
 		this.descriptionHighlights = descriptionHighlights;
 		this.detailHighlights = detailHighlights;
@@ -170,7 +169,7 @@ export class QuickOpenEntry {
 	/**
 	 * Allows to return highlight ranges that should show up for the entry label and description.
 	 */
-	getHighlights(): [IHighlight[] /* Label */, IHighlight[] | undefined /* Description */, IHighlight[] | undefined /* Detail */] {
+	getHighlights(): [IHighlight[] | undefined /* Label */, IHighlight[] | undefined /* Description */, IHighlight[] | undefined /* Detail */] {
 		return [this.labelHighlights, this.descriptionHighlights, this.detailHighlights];
 	}
 
@@ -261,7 +260,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry;
 	}
 
-	getHighlights(): [IHighlight[], IHighlight[] | undefined, IHighlight[] | undefined] {
+	getHighlights(): [IHighlight[] | undefined, IHighlight[] | undefined, IHighlight[] | undefined] {
 		return this.entry ? this.entry.getHighlights() : super.getHighlights();
 	}
 
@@ -269,7 +268,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.isHidden() : super.isHidden();
 	}
 
-	setHighlights(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[], detailHighlights?: IHighlight[]): void {
+	setHighlights(labelHighlights?: IHighlight[], descriptionHighlights?: IHighlight[], detailHighlights?: IHighlight[]): void {
 		this.entry ? this.entry.setHighlights(labelHighlights, descriptionHighlights, detailHighlights) : super.setHighlights(labelHighlights, descriptionHighlights, detailHighlights);
 	}
 
@@ -352,7 +351,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		row1.appendChild(icon);
 
 		// Label
-		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true });
+		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportCodicons: true });
 
 		// Keybinding
 		const keybindingContainer = document.createElement('span');
@@ -435,7 +434,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 				}
 			} else {
 				DOM.removeClass(groupData.container, 'results-group-separator');
-				groupData.container.style.borderTopColor = null;
+				groupData.container.style.borderTopColor = '';
 			}
 
 			// Group Label
@@ -575,38 +574,4 @@ export class QuickOpenModel implements
 	run(entry: QuickOpenEntry, mode: Mode, context: IEntryRunContext): boolean {
 		return entry.run(mode, context);
 	}
-}
-
-/**
- * A good default sort implementation for quick open entries respecting highlight information
- * as well as associated resources.
- */
-export function compareEntries(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
-
-	// Give matches with label highlights higher priority over
-	// those with only description highlights
-	const labelHighlightsA = elementA.getHighlights()[0] || [];
-	const labelHighlightsB = elementB.getHighlights()[0] || [];
-	if (labelHighlightsA.length && !labelHighlightsB.length) {
-		return -1;
-	}
-
-	if (!labelHighlightsA.length && labelHighlightsB.length) {
-		return 1;
-	}
-
-	// Fallback to the full path if labels are identical and we have associated resources
-	let nameA = elementA.getLabel()!;
-	let nameB = elementB.getLabel()!;
-	if (nameA === nameB) {
-		const resourceA = elementA.getResource();
-		const resourceB = elementB.getResource();
-
-		if (resourceA && resourceB) {
-			nameA = resourceA.fsPath;
-			nameB = resourceB.fsPath;
-		}
-	}
-
-	return compareAnything(nameA, nameB, lookFor);
 }

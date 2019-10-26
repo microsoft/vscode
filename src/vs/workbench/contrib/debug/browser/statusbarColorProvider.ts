@@ -12,6 +12,7 @@ import { IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
 import { addClass, removeClass, createStyleSheet } from 'vs/base/browser/dom';
+import { assertIsDefined } from 'vs/base/common/types';
 
 // colors for theming
 
@@ -56,7 +57,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 	protected updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.layoutService.getContainer(Parts.STATUSBAR_PART);
+		const container = assertIsDefined(this.layoutService.getContainer(Parts.STATUSBAR_PART));
 		if (isStatusbarInDebugMode(this.debugService)) {
 			addClass(container, 'debugging');
 		} else {
@@ -65,14 +66,18 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 
 		// Container Colors
 		const backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
-		container.style.backgroundColor = backgroundColor;
+		container.style.backgroundColor = backgroundColor || '';
 		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND));
 
 		// Border Color
 		const borderColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_DEBUGGING_BORDER, STATUS_BAR_BORDER)) || this.getColor(contrastBorder);
-		container.style.borderTopWidth = borderColor ? '1px' : null;
-		container.style.borderTopStyle = borderColor ? 'solid' : null;
-		container.style.borderTopColor = borderColor;
+		if (borderColor) {
+			addClass(container, 'status-border-top');
+			container.style.setProperty('--status-border-top-color', borderColor.toString());
+		} else {
+			removeClass(container, 'status-border-top');
+			container.style.removeProperty('--status-border-top-color');
+		}
 
 		// Notification Beak
 		if (!this.styleElement) {
@@ -104,7 +109,7 @@ export function isStatusbarInDebugMode(debugService: IDebugService): boolean {
 	}
 
 	const session = debugService.getViewModel().focusedSession;
-	const isRunningWithoutDebug = session && session.configuration && session.configuration.noDebug;
+	const isRunningWithoutDebug = session?.configuration?.noDebug;
 	if (isRunningWithoutDebug) {
 		return false;
 	}

@@ -91,7 +91,7 @@ class ReplacePreviewModel extends Disposable {
 
 export class ReplaceService implements IReplaceService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -130,7 +130,7 @@ export class ReplaceService implements IReplaceService {
 			this.updateReplacePreview(fileMatch).then(() => {
 				if (editor) {
 					const editorControl = editor.getControl();
-					if (element instanceof Match) {
+					if (element instanceof Match && editorControl) {
 						editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 					}
 				}

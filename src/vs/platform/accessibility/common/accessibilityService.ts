@@ -10,7 +10,7 @@ import { AbstractAccessibilityService } from 'vs/platform/accessibility/common/a
 
 export class BrowserAccessibilityService extends AbstractAccessibilityService implements IAccessibilityService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _accessibilitySupport = AccessibilitySupport.Unknown;
 
