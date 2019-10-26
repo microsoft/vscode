@@ -410,8 +410,4 @@ export class FindInput extends Widget {
 	private clearValidation(): void {
 		this.inputBox.hideMessage();
 	}
-
-	public dispose(): void {
-		super.dispose();
-	}
 }
