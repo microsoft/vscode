@@ -141,6 +141,24 @@ const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<Contribute
 	}
 });
 
+const NUMPAD_PRINTABLE_SCANCODES = [
+	ScanCode.NumpadDivide,
+	ScanCode.NumpadMultiply,
+	ScanCode.NumpadSubtract,
+	ScanCode.NumpadAdd,
+	ScanCode.Numpad1,
+	ScanCode.Numpad2,
+	ScanCode.Numpad3,
+	ScanCode.Numpad4,
+	ScanCode.Numpad5,
+	ScanCode.Numpad6,
+	ScanCode.Numpad7,
+	ScanCode.Numpad8,
+	ScanCode.Numpad9,
+	ScanCode.Numpad0,
+	ScanCode.NumpadDecimal
+];
+
 export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _keyboardMapper: IKeyboardMapper;
@@ -533,47 +551,33 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}
 		const code = ScanCodeUtils.toEnum(event.code);
 
-		const NUMPAD_PRINTABLE_SCANCODES = [
-			ScanCode.NumpadDivide,
-			ScanCode.NumpadMultiply,
-			ScanCode.NumpadSubtract,
-			ScanCode.NumpadAdd,
-			ScanCode.Numpad1,
-			ScanCode.Numpad2,
-			ScanCode.Numpad3,
-			ScanCode.Numpad4,
-			ScanCode.Numpad5,
-			ScanCode.Numpad6,
-			ScanCode.Numpad7,
-			ScanCode.Numpad8,
-			ScanCode.Numpad9,
-			ScanCode.Numpad0,
-			ScanCode.NumpadDecimal
-		];
-		const immutableScanCode = IMMUTABLE_KEY_CODE_TO_CODE[event.keyCode];
-		if (NUMPAD_PRINTABLE_SCANCODES.indexOf(code) >= 0 && code === immutableScanCode) {
-			// code === immutableScanCode when NumLock is enabled
-			return true;
+		if (NUMPAD_PRINTABLE_SCANCODES.indexOf(code) === -1) {
+			const keycode = IMMUTABLE_CODE_TO_KEY_CODE[code];
+			if (keycode !== -1) {
+				// https://github.com/microsoft/vscode/issues/74934
+				return false;
+			}
+			// consult the KeyboardMapperFactory to check the given event for
+			// a printable value.
+			const mapping = this.keymapService.getRawKeyboardMapping();
+			if (!mapping) {
+				return false;
+			}
+			const keyInfo = mapping[event.code];
+			if (!keyInfo) {
+				return false;
+			}
+			if (!keyInfo.value || /\s/.test(keyInfo.value)) {
+				return false;
+			}
+		} else {
+			const immutableScanCode = IMMUTABLE_KEY_CODE_TO_CODE[event.keyCode];
+			if (code !== immutableScanCode) {
+				// NumLock is disabled
+				return false;
+			}
 		}
 
-		const keycode = IMMUTABLE_CODE_TO_KEY_CODE[code];
-		if (keycode !== -1) {
-			// https://github.com/microsoft/vscode/issues/74934
-			return false;
-		}
-		// consult the KeyboardMapperFactory to check the given event for
-		// a printable value.
-		const mapping = this.keymapService.getRawKeyboardMapping();
-		if (!mapping) {
-			return false;
-		}
-		const keyInfo = mapping[event.code];
-		if (!keyInfo) {
-			return false;
-		}
-		if (!keyInfo.value || /\s/.test(keyInfo.value)) {
-			return false;
-		}
 		return true;
 	}
 }
