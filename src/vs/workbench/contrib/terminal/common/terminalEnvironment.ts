@@ -11,7 +11,6 @@ import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/t
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -75,12 +74,12 @@ function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnv
 	}
 }
 
-function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
+function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | undefined): ITerminalEnvironment {
 	Object.keys(env).forEach((key) => {
 		const value = env[key];
 		if (typeof value === 'string') {
 			try {
-				env[key] = configurationResolverService.resolve(withNullAsUndefined(lastActiveWorkspaceRoot), value);
+				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
 			} catch (e) {
 				env[key] = value;
 			}
@@ -339,7 +338,7 @@ function getShellSetting(
 
 export function createTerminalEnvironment(
 	shellLaunchConfig: IShellLaunchConfig,
-	lastActiveWorkspace: IWorkspaceFolder | null,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	envFromConfig: { user: ITerminalEnvironment | undefined, value: ITerminalEnvironment | undefined, default: ITerminalEnvironment | undefined },
 	configurationResolverService: IConfigurationResolverService | undefined,
 	isWorkspaceShellAllowed: boolean,
