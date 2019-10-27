@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDebugService, IExpression, IExpressionContainer, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IExpression, IExpressionContainer, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { renderExpressionValue, replaceWhitespace } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -182,7 +182,11 @@ export class DebugHoverWidget implements IContentWidget {
 			return Promise.resolve(this.hide());
 		}
 
-		const expression = await this.showRegularHoverEvaluation(range, pos, this.editor.getModel(), session);
+		let expression: IExpression | undefined;
+		const evaluateSelectionText = this.configurationService.getValue<IDebugConfiguration>('debug').evaluateSelectedText;
+		if (!evaluateSelectionText) {
+			expression = await this.showRegularHoverEvaluation(range, pos, this.editor.getModel(), session);
+		}
 
 		if (!expression) {
 			this.hide();
