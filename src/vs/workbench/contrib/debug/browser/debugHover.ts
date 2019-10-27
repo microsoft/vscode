@@ -30,6 +30,7 @@ import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { coalesce } from 'vs/base/common/arrays';
 import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;
@@ -57,6 +58,7 @@ export class DebugHoverWidget implements IContentWidget {
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.toDispose = [];
 
