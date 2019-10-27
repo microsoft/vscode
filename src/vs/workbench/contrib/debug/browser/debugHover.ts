@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IExpression, IExpressionContainer, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { renderExpressionValue, replaceWhitespace } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -31,6 +31,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextModel } from 'vs/editor/common/model';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;
@@ -144,20 +145,13 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	async showAt(range: Range, focus: boolean): Promise<void> {
-		const pos = range.getStartPosition();
-
-		const session = this.debugService.getViewModel().focusedSession;
-		if (!session || !this.editor.hasModel()) {
-			return Promise.resolve(this.hide());
-		}
-
-		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
+	private async showRegularHoverEvaluation(range: Range, pos: Position, model: ITextModel, session: IDebugSession): Promise<IExpression | undefined> {
+		const lineContent = model.getLineContent(pos.lineNumber);
 		const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(start - 1, end);
 		if (!matchingExpression) {
-			return Promise.resolve(this.hide());
+			return undefined;
 		}
 
 		let expression;
@@ -169,7 +163,6 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		if (!expression || (expression instanceof Expression && !expression.available)) {
-			this.hide();
 			return undefined;
 		}
 
@@ -178,7 +171,25 @@ export class DebugHoverWidget implements IContentWidget {
 			options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 		}]);
 
-		return this.doShow(pos, expression, focus);
+		return expression;
+	}
+
+	async showAt(range: Range, focus: boolean): Promise<void> {
+		const pos = range.getStartPosition();
+
+		const session = this.debugService.getViewModel().focusedSession;
+		if (!session || !this.editor.hasModel()) {
+			return Promise.resolve(this.hide());
+		}
+
+		const expression = await this.showRegularHoverEvaluation(range, pos, this.editor.getModel(), session);
+
+		if (!expression) {
+			this.hide();
+			return undefined;
+		} else {
+			return this.doShow(pos, expression, focus);
+		}
 	}
 
 	private static readonly _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
