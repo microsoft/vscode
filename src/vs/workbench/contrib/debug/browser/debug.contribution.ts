@@ -196,6 +196,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open the explorer view at the end of a debug session."),
 			default: false
 		},
+		'debug.evaluateSelectedText': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'evaluateSelectedText' }, "Evaluate and show the selected text when hovered, just like it was in the Watch Window."),
+			default: false
+		},
 		'debug.inlineValues': {
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging."),
