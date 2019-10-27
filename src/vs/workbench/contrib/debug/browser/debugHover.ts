@@ -185,6 +185,22 @@ export class DebugHoverWidget implements IContentWidget {
 		return expression;
 	}
 
+	private async showSelectionEvaluation(selection: Selection, model: ITextModel, session: IDebugSession): Promise<IExpression | undefined> {
+		if (!session.capabilities.supportsEvaluateForHovers) {
+			return undefined;
+		}
+
+		const selectedText = model.getValueInRange(selection);
+		const expression = new Expression(selectedText);
+		await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover');
+
+		if (!expression || (expression instanceof Expression && !expression.available)) {
+			return undefined;
+		}
+
+		return expression;
+	}
+
 	async showAt(range: Range, focus: boolean): Promise<void> {
 		const pos = range.getStartPosition();
 
@@ -201,6 +217,8 @@ export class DebugHoverWidget implements IContentWidget {
 			const selection = this.getSelectionUnder(range);
 			if (!selection) {
 				expression = await this.showRegularHoverEvaluation(range, pos, this.editor.getModel(), session);
+			} else {
+				expression = await this.showSelectionEvaluation(selection, this.editor.getModel(), session);
 			}
 		}
 
