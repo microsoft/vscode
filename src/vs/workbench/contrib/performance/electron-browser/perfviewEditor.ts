@@ -177,10 +177,10 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			if (!times) {
 				continue;
 			}
-			if (times.startup) {
-				eager.push([id, times.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationEvent]);
+			if (times.activationReason.startup) {
+				eager.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationReason.activationEvent, times.activationReason.extensionId.value]);
 			} else {
-				normal.push([id, times.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationEvent]);
+				normal.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationReason.activationEvent, times.activationReason.extensionId.value]);
 			}
 		}
 
@@ -188,7 +188,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		if (table.length > 0) {
 			md.heading(2, 'Extension Activation Stats');
 			md.table(
-				['Extension', 'Eager', 'Load Code', 'Call Activate', 'Finish Activate', 'Event'],
+				['Extension', 'Eager', 'Load Code', 'Call Activate', 'Finish Activate', 'Event', 'By'],
 				table
 			);
 		}

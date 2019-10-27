@@ -16,12 +16,12 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 export class ExecuteCommandAction extends Action {
 
@@ -467,7 +467,7 @@ export class CloseEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'close-editor-action');
+		super(id, label, 'codicon-close');
 	}
 
 	run(context?: IEditorCommandsContext): Promise<any> {
@@ -485,7 +485,7 @@ export class CloseOneEditorAction extends Action {
 		label: string,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, 'close-editor-action');
+		super(id, label, 'codicon-close');
 	}
 
 	run(context?: IEditorCommandsContext): Promise<any> {
@@ -495,7 +495,7 @@ export class CloseOneEditorAction extends Action {
 			group = this.editorGroupService.getGroup(context.groupId);
 
 			if (group) {
-				editorIndex = context.editorIndex!; // only allow editor at index if group is valid
+				editorIndex = context.editorIndex; // only allow editor at index if group is valid
 			}
 		}
 
@@ -669,7 +669,7 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, 'action-close-all-files', textFileService, editorGroupService);
+		super(id, label, 'codicon-close-all', textFileService, editorGroupService);
 	}
 
 	protected doCloseAll(): Promise<any> {
@@ -1218,7 +1218,7 @@ export class ClearRecentFilesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private readonly windowsService: IWindowsService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IHistoryService private readonly historyService: IHistoryService
 	) {
 		super(id, label);
@@ -1227,7 +1227,7 @@ export class ClearRecentFilesAction extends Action {
 	run(): Promise<any> {
 
 		// Clear global recently opened
-		this.windowsService.clearRecentlyOpened();
+		this.workspacesService.clearRecentlyOpened();
 
 		// Clear workspace specific recently opened
 		this.historyService.clearRecentlyOpened();

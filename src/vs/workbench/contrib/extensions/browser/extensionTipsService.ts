@@ -80,7 +80,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _allIgnoredRecommendations: string[] = [];
 	private _globallyIgnoredRecommendations: string[] = [];
 	private _workspaceIgnoredRecommendations: string[] = [];
-	private _extensionsRecommendationsUrl: string;
+	private _extensionsRecommendationsUrl: string | undefined;
 	public loadWorkspaceConfigPromise: Promise<void>;
 	private proactiveRecommendationsFetched: boolean = false;
 
@@ -113,6 +113,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		super();
 
 		if (!this.isEnabled()) {
+			this.sessionSeed = 0;
+			this.loadWorkspaceConfigPromise = Promise.resolve();
 			return;
 		}
 
@@ -513,9 +515,26 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return false;
 		}
 
-		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		let recommendationsToSuggest = Object.keys(this._importantExeBasedRecommendations);
-		recommendationsToSuggest = this.filterAllIgnoredInstalledAndNotAllowed(recommendationsToSuggest, installed);
+
+		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		recommendationsToSuggest = this.filterInstalled(recommendationsToSuggest, installed, (extensionId) => {
+			const tip = this._importantExeBasedRecommendations[extensionId];
+
+			/* __GDPR__
+			"exeExtensionRecommendations:alreadyInstalled" : {
+				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"exeName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+			}
+			*/
+			this.telemetryService.publicLog('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: tip.exeFriendlyName || basename(tip.windowsPath!) });
+
+		});
+		if (recommendationsToSuggest.length === 0) {
+			return false;
+		}
+
+		recommendationsToSuggest = this.filterIgnoredOrNotAllowed(recommendationsToSuggest);
 		if (recommendationsToSuggest.length === 0) {
 			return false;
 		}
@@ -747,7 +766,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private async promptRecommendedExtensionForFileType(recommendationsToSuggest: string[], installed: ILocalExtension[]): Promise<boolean> {
 
-		recommendationsToSuggest = this.filterAllIgnoredInstalledAndNotAllowed(recommendationsToSuggest, installed);
+		recommendationsToSuggest = this.filterIgnoredOrNotAllowed(recommendationsToSuggest);
+		if (recommendationsToSuggest.length === 0) {
+			return false;
+		}
+
+		recommendationsToSuggest = this.filterInstalled(recommendationsToSuggest, installed);
 		if (recommendationsToSuggest.length === 0) {
 			return false;
 		}
@@ -903,10 +927,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		);
 	}
 
-	private filterAllIgnoredInstalledAndNotAllowed(recommendationsToSuggest: string[], installed: ILocalExtension[]): string[] {
-
+	private filterIgnoredOrNotAllowed(recommendationsToSuggest: string[]): string[] {
 		const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
-		const installedExtensionsIds = installed.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
 		return recommendationsToSuggest.filter(id => {
 			if (importantRecommendationsIgnoreList.indexOf(id) !== -1) {
 				return false;
@@ -914,7 +936,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			if (!this.isExtensionAllowedToBeRecommended(id)) {
 				return false;
 			}
+			return true;
+		});
+	}
+
+	private filterInstalled(recommendationsToSuggest: string[], installed: ILocalExtension[], onAlreadyInstalled?: (id: string) => void): string[] {
+		const installedExtensionsIds = installed.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
+		return recommendationsToSuggest.filter(id => {
 			if (installedExtensionsIds.has(id.toLowerCase())) {
+				if (onAlreadyInstalled) {
+					onAlreadyInstalled(id);
+				}
 				return false;
 			}
 			return true;

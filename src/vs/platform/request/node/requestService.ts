@@ -141,7 +141,9 @@ export class RequestService extends Disposable implements IRequestService {
 				e(canceled());
 			});
 		});
-
 	}
 
+	async resolveProxy(url: string): Promise<string | undefined> {
+		return undefined; // currently not implemented in node
+	}
 }

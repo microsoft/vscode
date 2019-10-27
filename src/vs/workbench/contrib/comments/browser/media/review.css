@@ -34,7 +34,7 @@
 	width: 100%;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title .action-label.octicon {
+.monaco-editor .review-widget .body .review-comment .comment-title .action-label.codicon {
 	line-height: 18px;
 }
 
@@ -78,6 +78,7 @@
 .monaco-editor .review-widget .body .review-comment .review-comment-contents {
 	padding-left: 20px;
 	user-select: text;
+	-webkit-user-select: text;
 	width: 100%;
 	overflow: hidden;
 }
@@ -134,6 +135,7 @@
 	width: 16px;
 	height: 12px;
 	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 	display: inline-block;
 	margin-top: 3px;
 	margin-right: 4px;
@@ -144,16 +146,16 @@
 	margin-right: 4px;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
 	background-image: url("./close-light.svg");
 	background-size: 16px;
 }
 
-.monaco-editor.vs-dark .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
+.monaco-editor.vs-dark .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
 	background-image: url("./close-dark.svg");
 }
 
-.monaco-editor.hc-black .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
+.monaco-editor.hc-black .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
 	background-image: url("./close-hc.svg");
 }
 
@@ -274,10 +276,6 @@
 	text-align: left;
 	width: 100%;
 	box-sizing: border-box;
-	-webkit-box-sizing: border-box;
-	-o-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	-ms-box-sizing: border-box;
 	padding: 0.4em;
 	font-size: 12px;
 	line-height: 17px;
@@ -362,10 +360,6 @@
 }
 
 .monaco-editor .review-widget .head {
-	-webkit-box-sizing: border-box;
-	-o-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	-ms-box-sizing: border-box;
 	box-sizing: border-box;
 	display: flex;
 	height: 100%;
@@ -413,11 +407,11 @@
 	background-position: center center;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label.octicon {
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label.codicon {
 	margin: 0;
 }
 
-.monaco-editor .review-widget .head .review-actions .action-label.icon.close-review-action {
+.monaco-editor .review-widget .head .review-actions .action-label.codicon.close-review-action {
 	background: url("./close.svg") center center no-repeat;
 }
 

@@ -159,6 +159,7 @@ suite('CompletionModel', function () {
 			leadingLineContent: 's',
 			characterCountDelta: 0
 		}, WordDistance.None, {
+			overwriteOnAccept: false,
 			snippetsPreventQuickSuggestions: true,
 			filterGraceful: true,
 			localityBonus: false,
@@ -186,6 +187,7 @@ suite('CompletionModel', function () {
 			leadingLineContent: 's',
 			characterCountDelta: 0
 		}, WordDistance.None, {
+			overwriteOnAccept: false,
 			snippetsPreventQuickSuggestions: true,
 			filterGraceful: true,
 			localityBonus: false,
@@ -212,6 +214,7 @@ suite('CompletionModel', function () {
 			leadingLineContent: 's',
 			characterCountDelta: 0
 		}, WordDistance.None, {
+			overwriteOnAccept: false,
 			snippetsPreventQuickSuggestions: true,
 			filterGraceful: true,
 			localityBonus: false,

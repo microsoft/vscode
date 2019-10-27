@@ -90,7 +90,7 @@ export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
 }
 
 export class SettingsTreeSettingElement extends SettingsTreeElement {
-	private static MAX_DESC_LINES = 20;
+	private static readonly MAX_DESC_LINES = 20;
 
 	setting: ISetting;
 
@@ -273,13 +273,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return false;
 		}
 
-		for (let extensionId of extensionFilters) {
-			if (extensionId.toLowerCase() === this.setting.extensionInfo.id.toLowerCase()) {
-				return true;
-			}
-		}
-
-		return false;
+		return Array.from(extensionFilters).some(extensionId => extensionId.toLowerCase() === this.setting.extensionInfo!.id.toLowerCase());
 	}
 }
 
@@ -409,7 +403,7 @@ function sanitizeId(id: string): string {
 	return id.replace(/[\.\/]/, '_');
 }
 
-export function settingKeyToDisplayFormat(key: string, groupId = ''): { category: string, label: string } {
+export function settingKeyToDisplayFormat(key: string, groupId = ''): { category: string, label: string; } {
 	const lastDotIdx = key.lastIndexOf('.');
 	let category = '';
 	if (lastDotIdx >= 0) {
@@ -542,10 +536,16 @@ export class SearchResultModel extends SettingsTreeModel {
 
 	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
 		this.cachedUniqueSearchResults = null;
+		this.newExtensionSearchResults = null;
+
 		this.rawSearchResults = this.rawSearchResults || [];
 		if (!result) {
 			delete this.rawSearchResults[order];
 			return;
+		}
+
+		if (result.exactMatch) {
+			this.rawSearchResults = [];
 		}
 
 		this.rawSearchResults[order] = result;

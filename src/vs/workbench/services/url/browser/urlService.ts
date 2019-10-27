@@ -54,7 +54,7 @@ export class BrowserURLService extends AbstractURLService {
 
 	private registerListeners(): void {
 		if (this.provider) {
-			this._register(this.provider.onCallback(uri => this.open(uri)));
+			this._register(this.provider.onCallback(uri => this.open(uri, { trusted: true })));
 		}
 	}
 

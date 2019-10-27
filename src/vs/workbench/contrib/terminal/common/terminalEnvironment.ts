@@ -282,7 +282,6 @@ export function getDefaultShell(
 			executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
 		} catch (e) {
 			logService.error(`Could not resolve shell`, e);
-			executable = executable;
 		}
 	}
 

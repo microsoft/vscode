@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as marked from 'vs/base/common/marked/marked';
 import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -19,7 +17,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
@@ -27,6 +25,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { generateUuid } from 'vs/base/common/uuid';
+import { renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
 
 export class ReleaseNotesManager {
 
@@ -44,7 +43,7 @@ export class ReleaseNotesManager {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IProductService private readonly _productService: IProductService
 	) {
@@ -72,9 +71,9 @@ export class ReleaseNotesManager {
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
 			this._currentReleaseNotes.webview.html = html;
-			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : this._editorGroupService.activeGroup, false);
+			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : this._editorGroupService.activeGroup, false);
 		} else {
-			this._currentReleaseNotes = this._webviewEditorService.createWebview(
+			this._currentReleaseNotes = this._webviewWorkbenchService.createWebview(
 				generateUuid(),
 				'releaseNotes',
 				title,
@@ -179,7 +178,7 @@ export class ReleaseNotesManager {
 	}
 
 	private async renderBody(text: string) {
-		const content = await this.renderContent(text);
+		const content = await renderMarkdownDocument(text, this._extensionService, this._modeService);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
@@ -194,34 +193,5 @@ export class ReleaseNotesManager {
 			</head>
 			<body>${content}</body>
 		</html>`;
-	}
-
-	private async renderContent(text: string): Promise<string> {
-		const renderer = await this.getRenderer(text);
-		return marked(text, { renderer });
-	}
-
-	private async getRenderer(text: string): Promise<marked.Renderer> {
-		let result: Promise<ITokenizationSupport | null>[] = [];
-		const renderer = new marked.Renderer();
-		renderer.code = (_code, lang) => {
-			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			if (modeId) {
-				result.push(this._extensionService.whenInstalledExtensionsRegistered().then<ITokenizationSupport | null>(() => {
-					this._modeService.triggerMode(modeId);
-					return TokenizationRegistry.getPromise(modeId);
-				}));
-			}
-			return '';
-		};
-
-		marked(text, { renderer });
-		await Promise.all(result);
-
-		renderer.code = (code, lang) => {
-			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, modeId ? TokenizationRegistry.get(modeId)! : undefined)}</code>`;
-		};
-		return renderer;
 	}
 }

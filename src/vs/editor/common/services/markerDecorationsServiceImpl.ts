@@ -95,7 +95,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		return markerDecorations ? markerDecorations.getMarkers() : [];
 	}
 
-	private _handleMarkerChange(changedResources: URI[]): void {
+	private _handleMarkerChange(changedResources: readonly URI[]): void {
 		changedResources.forEach((resource) => {
 			const markerDecorations = this._markerDecorations.get(MODEL_ID(resource));
 			if (markerDecorations) {

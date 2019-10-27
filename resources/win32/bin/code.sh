@@ -34,7 +34,7 @@ if grep -qi Microsoft /proc/version; then
 			WSL_EXT_WLOC=$(cmd.exe /C type %TEMP%\\remote-wsl-loc.txt)
 			cd "$CWD"
 		else
-			ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" --locate-extension $WSL_EXT_ID >/tmp/remote-wsl-loc.txt
+			ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" --locate-extension $WSL_EXT_ID >/tmp/remote-wsl-loc.txt 2>/dev/null
 			WSL_EXT_WLOC=$(cat /tmp/remote-wsl-loc.txt)
 		fi
 		if [ -n "$WSL_EXT_WLOC" ]; then

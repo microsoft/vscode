@@ -12,8 +12,8 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class OpenLogsFolderAction extends Action {
 
-	static ID = 'workbench.action.openLogsFolder';
-	static LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
+	static readonly ID = 'workbench.action.openLogsFolder';
+	static readonly LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
 
 	constructor(id: string, label: string,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,

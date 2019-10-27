@@ -28,9 +28,9 @@ export class BackupMainService implements IBackupMainService {
 	protected backupHome: string;
 	protected workspacesJsonPath: string;
 
-	private rootWorkspaces: IWorkspaceBackupInfo[];
-	private folderWorkspaces: URI[];
-	private emptyWorkspaces: IEmptyWindowBackupInfo[];
+	private rootWorkspaces: IWorkspaceBackupInfo[] = [];
+	private folderWorkspaces: URI[] = [];
+	private emptyWorkspaces: IEmptyWindowBackupInfo[] = [];
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -55,8 +55,6 @@ export class BackupMainService implements IBackupMainService {
 		} else if (Array.isArray(backups.emptyWorkspaces)) {
 			// read legacy entries
 			this.emptyWorkspaces = await this.validateEmptyWorkspaces(backups.emptyWorkspaces.map(backupFolder => ({ backupFolder })));
-		} else {
-			this.emptyWorkspaces = [];
 		}
 
 		// read workspace backups
@@ -70,6 +68,7 @@ export class BackupMainService implements IBackupMainService {
 		} catch (e) {
 			// ignore URI parsing exceptions
 		}
+
 		this.rootWorkspaces = await this.validateWorkspaces(rootWorkspaces);
 
 		// read folder backups
@@ -131,7 +130,7 @@ export class BackupMainService implements IBackupMainService {
 	private getHotExitConfig(): string {
 		const config = this.configurationService.getValue<IFilesConfiguration>();
 
-		return (config && config.files && config.files.hotExit) || HotExitConfiguration.ON_EXIT;
+		return config?.files?.hotExit || HotExitConfiguration.ON_EXIT;
 	}
 
 	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] {
@@ -213,14 +212,11 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	registerEmptyWindowBackupSync(backupFolder?: string, remoteAuthority?: string): string {
+	registerEmptyWindowBackupSync(backupFolderCandidate?: string, remoteAuthority?: string): string {
 
 		// Generate a new folder if this is a new empty workspace
-		if (!backupFolder) {
-			backupFolder = this.getRandomEmptyWindowId();
-		}
-
-		if (!this.emptyWorkspaces.some(window => !!window.backupFolder && isEqual(window.backupFolder, backupFolder!, !platform.isLinux))) {
+		const backupFolder = backupFolderCandidate || this.getRandomEmptyWindowId();
+		if (!this.emptyWorkspaces.some(window => !!window.backupFolder && isEqual(window.backupFolder, backupFolder, !platform.isLinux))) {
 			this.emptyWorkspaces.push({ backupFolder, remoteAuthority });
 			this.saveSync();
 		}

@@ -7,11 +7,12 @@ import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { isObject } from 'vs/base/common/types';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { IDimension } from 'vs/editor/common/editorCommon';
 
 //#region typed options
 
@@ -70,6 +71,12 @@ export interface IEditorOptions {
 	 * Defaults to 0.
 	*/
 	cursorSurroundingLines?: number;
+	/**
+	 * Controls when `cursorSurroundingLines` should be enforced
+	 * Defaults to `default`, `cursorSurroundingLines` is not enforced when cursor position is changed
+	 * by mouse.
+	*/
+	cursorSurroundingLinesStyle?: 'default' | 'all';
 	/**
 	 * Render last line number when the file ends with a newline.
 	 * Defaults to true.
@@ -136,7 +143,7 @@ export interface IEditorOptions {
 	fixedOverflowWidgets?: boolean;
 	/**
 	 * The number of vertical lanes the overview ruler should render.
-	 * Defaults to 2.
+	 * Defaults to 3.
 	 */
 	overviewRulerLanes?: number;
 	/**
@@ -177,7 +184,7 @@ export interface IEditorOptions {
 	 * Enable font ligatures.
 	 * Defaults to false.
 	 */
-	fontLigatures?: boolean;
+	fontLigatures?: boolean | string;
 	/**
 	 * Disable the use of `will-change` for the editor margin and lines layers.
 	 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
@@ -516,6 +523,13 @@ export interface IEditorOptions {
 	showUnused?: boolean;
 }
 
+export interface IEditorConstructionOptions extends IEditorOptions {
+	/**
+	 * The initial editor dimension (to avoid measuring the container).
+	 */
+	dimension?: IDimension;
+}
+
 /**
  * Configuration options for the diff editor.
  */
@@ -530,6 +544,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to true.
 	 */
 	renderSideBySide?: boolean;
+	/**
+	 * Timeout in milliseconds after which diff computation is cancelled.
+	 * Defaults to 5000.
+	 */
+	maxComputationTime?: number;
 	/**
 	 * Compute the diff by ignoring leading/trailing whitespace
 	 * Defaults to true.
@@ -633,6 +652,9 @@ export interface IEditorOption<K1 extends EditorOption, V> {
 type PossibleKeyName0<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
 type PossibleKeyName<V> = NonNullable<PossibleKeyName0<V>>;
 
+/**
+ * @internal
+ */
 abstract class BaseEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1, V> {
 
 	public readonly id: K1;
@@ -1036,7 +1058,7 @@ function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'l
 class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName, string> {
 
 	constructor() {
-		super(EditorOption.editorClassName, [EditorOption.mouseStyle, EditorOption.fontLigatures, EditorOption.extraEditorClassName]);
+		super(EditorOption.editorClassName, [EditorOption.mouseStyle, EditorOption.extraEditorClassName]);
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: string): string {
@@ -1046,9 +1068,6 @@ class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName,
 		}
 		if (env.extraEditorClassName) {
 			className += ' ' + env.extraEditorClassName;
-		}
-		if (options.get(EditorOption.fontLigatures)) {
-			className += ' enable-ligatures';
 		}
 		if (options.get(EditorOption.mouseStyle) === 'default') {
 			className += ' mouse-default';
@@ -1090,9 +1109,9 @@ export interface IEditorFindOptions {
 	 */
 	seedSearchStringFromSelection?: boolean;
 	/**
-	 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
+	 * Controls if Find in Selection flag is turned on in the editor.
 	 */
-	autoFindInSelection?: boolean;
+	autoFindInSelection?: 'never' | 'always' | 'multiline';
 	/*
 	 * Controls whether the Find Widget should add extra lines on top of the editor.
 	 */
@@ -1111,7 +1130,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 	constructor() {
 		const defaults: EditorFindOptions = {
 			seedSearchStringFromSelection: true,
-			autoFindInSelection: false,
+			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true
 		};
@@ -1124,8 +1143,14 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					description: nls.localize('find.seedSearchStringFromSelection', "Controls whether the search string in the Find Widget is seeded from the editor selection.")
 				},
 				'editor.find.autoFindInSelection': {
-					type: 'boolean',
+					type: 'string',
+					enum: ['never', 'always', 'multiline'],
 					default: defaults.autoFindInSelection,
+					enumDescriptions: [
+						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default)'),
+						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically'),
+						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
+					],
 					description: nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried out on selected text or the entire file in the editor.")
 				},
 				'editor.find.globalFindClipboard': {
@@ -1150,10 +1175,63 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 		const input = _input as IEditorFindOptions;
 		return {
 			seedSearchStringFromSelection: EditorBooleanOption.boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
-			autoFindInSelection: EditorBooleanOption.boolean(input.autoFindInSelection, this.defaultValue.autoFindInSelection),
+			autoFindInSelection: typeof _input.autoFindInSelection === 'boolean'
+				? (_input.autoFindInSelection ? 'always' : 'never')
+				: EditorStringEnumOption.stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
 			globalFindClipboard: EditorBooleanOption.boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop)
 		};
+	}
+}
+
+//#endregion
+
+//#region fontLigatures
+
+/**
+ * @internal
+ */
+export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigatures, string> {
+
+	public static OFF = '"liga" off, "calt" off';
+	public static ON = '"liga" on, "calt" on';
+
+	constructor() {
+		super(
+			EditorOption.fontLigatures, 'fontLigatures', EditorFontLigatures.OFF,
+			{
+				anyOf: [
+					{
+						type: 'boolean',
+						description: nls.localize('fontLigatures', "Enables/Disables font ligatures."),
+					},
+					{
+						type: 'string',
+						description: nls.localize('fontFeatureSettings', "Explicit font-feature-settings.")
+					}
+				],
+				default: false
+			}
+		);
+	}
+
+	public validate(input: any): string {
+		if (typeof input === 'undefined') {
+			return this.defaultValue;
+		}
+		if (typeof input === 'string') {
+			if (input === 'false') {
+				return EditorFontLigatures.OFF;
+			}
+			if (input === 'true') {
+				return EditorFontLigatures.ON;
+			}
+			return input;
+		}
+		if (Boolean(input)) {
+			return EditorFontLigatures.ON;
+		}
+		return EditorFontLigatures.OFF;
 	}
 }
 
@@ -1194,7 +1272,7 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
 		}
-		return EditorFloatOption.clamp(r, 8, 100);
+		return EditorFloatOption.clamp(r, 6, 100);
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The final fontSize respects the editor zoom level.
@@ -1350,10 +1428,8 @@ export interface OverviewRulerPosition {
 
 export const enum RenderMinimap {
 	None = 0,
-	Small = 1,
-	Large = 2,
-	SmallBlocks = 3,
-	LargeBlocks = 4,
+	Text = 1,
+	Blocks = 2,
 }
 
 /**
@@ -1509,6 +1585,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const minimapEnabled = minimap.enabled;
 		const minimapSide = minimap.side;
 		const minimapRenderCharacters = minimap.renderCharacters;
+		const minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
 		const minimapMaxColumn = minimap.maxColumn | 0;
 
 		const scrollbar = options.get(EditorOption.scrollbar);
@@ -1559,14 +1636,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			renderMinimap = RenderMinimap.None;
 			contentWidth = remainingWidth;
 		} else {
-			let minimapCharWidth: number;
-			if (pixelRatio >= 2) {
-				renderMinimap = minimapRenderCharacters ? RenderMinimap.Large : RenderMinimap.LargeBlocks;
-				minimapCharWidth = 2 / pixelRatio;
-			} else {
-				renderMinimap = minimapRenderCharacters ? RenderMinimap.Small : RenderMinimap.SmallBlocks;
-				minimapCharWidth = 1 / pixelRatio;
-			}
+			// The minimapScale is also the pixel width of each character. Adjust
+			// for the pixel ratio of the screen.
+			const minimapCharWidth = minimapScale / pixelRatio;
+			renderMinimap = minimapRenderCharacters ? RenderMinimap.Text : RenderMinimap.Blocks;
 
 			// Given:
 			// (leaving 2px for the cursor to have space after the last character)
@@ -1742,6 +1815,11 @@ export interface IEditorMinimapOptions {
 	 * Defaults to 120.
 	 */
 	maxColumn?: number;
+
+	/**
+	 * Relative size of the font in the minimap. Defaults to 1.
+	 */
+	scale?: number;
 }
 
 export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
@@ -1755,6 +1833,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 			showSlider: 'mouseover',
 			renderCharacters: true,
 			maxColumn: 120,
+			scale: 1,
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
@@ -1774,7 +1853,14 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'string',
 					enum: ['always', 'mouseover'],
 					default: defaults.showSlider,
-					description: nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
+					description: nls.localize('minimap.showSlider', "Controls when the minimap slider is shown.")
+				},
+				'editor.minimap.scale': {
+					type: 'number',
+					default: defaults.scale,
+					minimum: 1,
+					maximum: 3,
+					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap.")
 				},
 				'editor.minimap.renderCharacters': {
 					type: 'boolean',
@@ -1800,6 +1886,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
 			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),
+			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 3),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 		};
 	}
@@ -1946,6 +2033,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				description: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
 			}
 		);
+		this.defaultValue = defaults;
 	}
 
 	public validate(_input: any): ValidQuickSuggestionsOptions {
@@ -2213,6 +2301,10 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
  */
 export interface ISuggestOptions {
 	/**
+	 * Overwrite word ends on accept. Default to false.
+	 */
+	overwriteOnAccept?: boolean;
+	/**
 	 * Enable graceful matching. Defaults to true.
 	 */
 	filterGraceful?: boolean;
@@ -2248,6 +2340,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 
 	constructor() {
 		const defaults: InternalSuggestOptions = {
+			overwriteOnAccept: false,
 			filterGraceful: true,
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
@@ -2259,6 +2352,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		super(
 			EditorOption.suggest, 'suggest', defaults,
 			{
+				'editor.suggest.overwriteOnAccept': {
+					type: 'boolean',
+					default: defaults.overwriteOnAccept,
+					description: nls.localize('suggest.overwriteOnAccept', "Controls whether words are overwritten when accepting completions.")
+				},
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
 					default: defaults.filterGraceful,
@@ -2291,142 +2389,135 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					maximum: 15,
 					description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
 				},
-				'editor.suggest.filteredTypes': {
-					type: 'object',
-					default: { keyword: true, snippet: true },
-					markdownDescription: nls.localize('suggest.filtered', "Controls whether some suggestion types should be filtered from IntelliSense. A list of suggestion types can be found here: https://code.visualstudio.com/docs/editor/intellisense#_types-of-completions."),
-					properties: {
-						method: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.method', "When set to `false` IntelliSense never shows `method` suggestions.")
-						},
-						function: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.function', "When set to `false` IntelliSense never shows `function` suggestions.")
-						},
-						constructor: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.constructor', "When set to `false` IntelliSense never shows `constructor` suggestions.")
-						},
-						field: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.field', "When set to `false` IntelliSense never shows `field` suggestions.")
-						},
-						variable: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.variable', "When set to `false` IntelliSense never shows `variable` suggestions.")
-						},
-						class: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.class', "When set to `false` IntelliSense never shows `class` suggestions.")
-						},
-						struct: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.struct', "When set to `false` IntelliSense never shows `struct` suggestions.")
-						},
-						interface: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.interface', "When set to `false` IntelliSense never shows `interface` suggestions.")
-						},
-						module: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.module', "When set to `false` IntelliSense never shows `module` suggestions.")
-						},
-						property: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.property', "When set to `false` IntelliSense never shows `property` suggestions.")
-						},
-						event: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.event', "When set to `false` IntelliSense never shows `event` suggestions.")
-						},
-						operator: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.operator', "When set to `false` IntelliSense never shows `operator` suggestions.")
-						},
-						unit: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.unit', "When set to `false` IntelliSense never shows `unit` suggestions.")
-						},
-						value: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.value', "When set to `false` IntelliSense never shows `value` suggestions.")
-						},
-						constant: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.constant', "When set to `false` IntelliSense never shows `constant` suggestions.")
-						},
-						enum: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.enum', "When set to `false` IntelliSense never shows `enum` suggestions.")
-						},
-						enumMember: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.enumMember', "When set to `false` IntelliSense never shows `enumMember` suggestions.")
-						},
-						keyword: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.keyword', "When set to `false` IntelliSense never shows `keyword` suggestions.")
-						},
-						text: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.text', "When set to `false` IntelliSense never shows `text` suggestions.")
-						},
-						color: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.color', "When set to `false` IntelliSense never shows `color` suggestions.")
-						},
-						file: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.file', "When set to `false` IntelliSense never shows `file` suggestions.")
-						},
-						reference: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.reference', "When set to `false` IntelliSense never shows `reference` suggestions.")
-						},
-						customcolor: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.customcolor', "When set to `false` IntelliSense never shows `customcolor` suggestions.")
-						},
-						folder: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.folder', "When set to `false` IntelliSense never shows `folder` suggestions.")
-						},
-						typeParameter: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.typeParameter', "When set to `false` IntelliSense never shows `typeParameter` suggestions.")
-						},
-						snippet: {
-							type: 'boolean',
-							default: true,
-							markdownDescription: nls.localize('suggest.filtered.snippet', "When set to `false` IntelliSense never shows `snippet` suggestions.")
-						},
-					}
+				'editor.suggest.filteredTypes.method': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.method', "When set to `false` IntelliSense never shows `method` suggestions.")
+				},
+				'editor.suggest.filteredTypes.function': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.function', "When set to `false` IntelliSense never shows `function` suggestions.")
+				},
+				'editor.suggest.filteredTypes.constructor': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.constructor', "When set to `false` IntelliSense never shows `constructor` suggestions.")
+				},
+				'editor.suggest.filteredTypes.field': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.field', "When set to `false` IntelliSense never shows `field` suggestions.")
+				},
+				'editor.suggest.filteredTypes.variable': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.variable', "When set to `false` IntelliSense never shows `variable` suggestions.")
+				},
+				'editor.suggest.filteredTypes.class': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.class', "When set to `false` IntelliSense never shows `class` suggestions.")
+				},
+				'editor.suggest.filteredTypes.struct': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.struct', "When set to `false` IntelliSense never shows `struct` suggestions.")
+				},
+				'editor.suggest.filteredTypes.interface': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.interface', "When set to `false` IntelliSense never shows `interface` suggestions.")
+				},
+				'editor.suggest.filteredTypes.module': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.module', "When set to `false` IntelliSense never shows `module` suggestions.")
+				},
+				'editor.suggest.filteredTypes.property': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.property', "When set to `false` IntelliSense never shows `property` suggestions.")
+				},
+				'editor.suggest.filteredTypes.event': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.event', "When set to `false` IntelliSense never shows `event` suggestions.")
+				},
+				'editor.suggest.filteredTypes.operator': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.operator', "When set to `false` IntelliSense never shows `operator` suggestions.")
+				},
+				'editor.suggest.filteredTypes.unit': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.unit', "When set to `false` IntelliSense never shows `unit` suggestions.")
+				},
+				'editor.suggest.filteredTypes.value': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.value', "When set to `false` IntelliSense never shows `value` suggestions.")
+				},
+				'editor.suggest.filteredTypes.constant': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.constant', "When set to `false` IntelliSense never shows `constant` suggestions.")
+				},
+				'editor.suggest.filteredTypes.enum': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.enum', "When set to `false` IntelliSense never shows `enum` suggestions.")
+				},
+				'editor.suggest.filteredTypes.enumMember': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.enumMember', "When set to `false` IntelliSense never shows `enumMember` suggestions.")
+				},
+				'editor.suggest.filteredTypes.keyword': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.keyword', "When set to `false` IntelliSense never shows `keyword` suggestions.")
+				},
+				'editor.suggest.filteredTypes.text': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.text', "When set to `false` IntelliSense never shows `text` suggestions.")
+				},
+				'editor.suggest.filteredTypes.color': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.color', "When set to `false` IntelliSense never shows `color` suggestions.")
+				},
+				'editor.suggest.filteredTypes.file': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.file', "When set to `false` IntelliSense never shows `file` suggestions.")
+				},
+				'editor.suggest.filteredTypes.reference': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.reference', "When set to `false` IntelliSense never shows `reference` suggestions.")
+				},
+				'editor.suggest.filteredTypes.customcolor': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.customcolor', "When set to `false` IntelliSense never shows `customcolor` suggestions.")
+				},
+				'editor.suggest.filteredTypes.folder': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.folder', "When set to `false` IntelliSense never shows `folder` suggestions.")
+				},
+				'editor.suggest.filteredTypes.typeParameter': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.typeParameter', "When set to `false` IntelliSense never shows `typeParameter` suggestions.")
+				},
+				'editor.suggest.filteredTypes.snippet': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.snippet', "When set to `false` IntelliSense never shows `snippet` suggestions.")
 				},
 			}
 		);
@@ -2438,6 +2529,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		}
 		const input = _input as ISuggestOptions;
 		return {
+			overwriteOnAccept: EditorBooleanOption.boolean(input.overwriteOnAccept, this.defaultValue.overwriteOnAccept),
 			filterGraceful: EditorBooleanOption.boolean(input.filterGraceful, this.defaultValue.filterGraceful),
 			snippetsPreventQuickSuggestions: EditorBooleanOption.boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
@@ -2644,6 +2736,7 @@ export const enum EditorOption {
 	cursorSmoothCaretAnimation,
 	cursorStyle,
 	cursorSurroundingLines,
+	cursorSurroundingLinesStyle,
 	cursorWidth,
 	disableLayerHinting,
 	disableMonospaceOptimizations,
@@ -2858,6 +2951,18 @@ export const EditorOptions = {
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or `scrollOffset` in some other editors.") }
 	)),
+	cursorSurroundingLinesStyle: register(new EditorStringEnumOption(
+		EditorOption.cursorSurroundingLinesStyle, 'cursorSurroundingLinesStyle',
+		'default' as 'default' | 'all',
+		['default', 'all'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered from keyboard and api"),
+				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
+			],
+			description: nls.localize('cursorSurroundingLinesStyle', "Controls when `cursorSurroundingLines` should be enforced")
+		}
+	)),
 	cursorWidth: register(new EditorIntOption(
 		EditorOption.cursorWidth, 'cursorWidth',
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
@@ -2901,10 +3006,7 @@ export const EditorOptions = {
 		{ description: nls.localize('fontFamily', "Controls the font family.") }
 	)),
 	fontInfo: register(new EditorFontInfo()),
-	fontLigatures: register(new EditorBooleanOption(
-		EditorOption.fontLigatures, 'fontLigatures', false,
-		{ description: nls.localize('fontLigatures', "Enables/Disables font ligatures.") }
-	)),
+	fontLigatures2: register(new EditorFontLigatures()),
 	fontSize: register(new EditorFontSize()),
 	fontWeight: register(new EditorStringOption(
 		EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight,
@@ -3019,8 +3121,7 @@ export const EditorOptions = {
 	)),
 	overviewRulerLanes: register(new EditorIntOption(
 		EditorOption.overviewRulerLanes, 'overviewRulerLanes',
-		3, 0, 3,
-		{ description: nls.localize('overviewRulerLanes', "Controls the number of decorations that can show up at the same position in the overview ruler.") }
+		3, 0, 3
 	)),
 	parameterHints: register(new EditorParameterHints()),
 	quickSuggestions: register(new EditorQuickSuggestions()),

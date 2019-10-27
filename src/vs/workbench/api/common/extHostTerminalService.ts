@@ -9,9 +9,10 @@ import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShap
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { EXT_HOST_CREATION_DELAY, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -286,9 +287,13 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
+	private readonly _bufferer: TerminalDataBufferer;
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
+		this._bufferer = new TerminalDataBufferer();
+
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
@@ -407,22 +412,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 	}
 
-	public performTerminalIdAction(id: number, callback: (terminal: ExtHostTerminal) => void): void {
-		// TODO: Use await this._getTerminalByIdEventually(id);
-		let terminal = this._getTerminalById(id);
-		if (terminal) {
-			callback(terminal);
-		} else {
-			// Retry one more time in case the terminal has not yet been initialized.
-			setTimeout(() => {
-				terminal = this._getTerminalById(id);
-				if (terminal) {
-					callback(terminal);
-				}
-			}, EXT_HOST_CREATION_DELAY * 2);
-		}
-	}
-
 	public async $startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
 		// Make sure the ExtHostTerminal exists so onDidOpenTerminal has fired before we call
 		// Pseudoterminal.start
@@ -464,8 +453,11 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
 		p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
-		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
+
+		// Buffer data events to reduce the amount of messages going to the renderer
+		this._bufferer.startBuffering(id, p.onProcessData, this._proxy.$sendProcessData);
 		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
+
 		if (p.onProcessOverrideDimensions) {
 			p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e));
 		}
@@ -504,6 +496,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
+		this._bufferer.stopBuffering(id);
+
 		// Remove process reference
 		delete this._terminalProcesses[id];
 

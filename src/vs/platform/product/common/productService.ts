@@ -56,8 +56,6 @@ export interface IProductConfiguration {
 		readonly productName: string;
 	};
 
-	readonly welcomePage?: string;
-
 	readonly enableTelemetry?: boolean;
 	readonly aiConfig?: {
 		readonly asimovKey: string;
@@ -103,6 +101,7 @@ export interface IProductConfiguration {
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
+
 	readonly settingsSyncStoreUrl?: string;
 }
 

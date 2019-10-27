@@ -690,4 +690,38 @@ suite('IndexTreeModel', function () {
 			assert.deepEqual(model.getNodeLocation(list[3]), [0, 5]);
 		});
 	});
+
+	test('refilter with filtered out nodes', function () {
+		const list: ITreeNode<string>[] = [];
+		let query = new RegExp('');
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): boolean {
+				return query.test(element);
+			}
+		};
+
+		const model = new IndexTreeModel<string>('test', toSpliceable(list), 'root', { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{ element: 'silver' },
+			{ element: 'gold' },
+			{ element: 'platinum' }
+		]));
+
+		assert.deepEqual(toArray(list), ['silver', 'gold', 'platinum']);
+
+		query = /platinum/;
+		model.refilter();
+		assert.deepEqual(toArray(list), ['platinum']);
+
+		model.splice([0], Number.POSITIVE_INFINITY, Iterator.fromArray([
+			{ element: 'silver' },
+			{ element: 'gold' },
+			{ element: 'platinum' }
+		]));
+		assert.deepEqual(toArray(list), ['platinum']);
+
+		model.refilter();
+		assert.deepEqual(toArray(list), ['platinum']);
+	});
 });

@@ -72,4 +72,6 @@ export class ExtHostLogService extends AbstractLogService implements ILogService
 			this._proxy.$log(this._logFile, LogLevel.Critical, Array.from(arguments));
 		}
 	}
+
+	flush(): void { }
 }

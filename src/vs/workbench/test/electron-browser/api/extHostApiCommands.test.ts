@@ -412,11 +412,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(values.length, 4);
 				let [first, second, third, fourth] = values;
 				assert.equal(first.label, 'item1');
-				assert.equal(first.textEdit!.newText, 'item1');
-				assert.equal(first.textEdit!.range.start.line, 0);
-				assert.equal(first.textEdit!.range.start.character, 0);
-				assert.equal(first.textEdit!.range.end.line, 0);
-				assert.equal(first.textEdit!.range.end.character, 4);
+				assert.equal(first.textEdit, undefined);// no text edit, default ranges
+				assert.ok(!types.Range.isRange(first.range));
 
 				assert.equal(second.label, 'item2');
 				assert.equal(second.textEdit!.newText, 'foo');
@@ -434,10 +431,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 				assert.equal(fourth.label, 'item4');
 				assert.equal(fourth.textEdit, undefined);
-				assert.equal(fourth.range!.start.line, 0);
-				assert.equal(fourth.range!.start.character, 1);
-				assert.equal(fourth.range!.end.line, 0);
-				assert.equal(fourth.range!.end.character, 4);
+
+				const range: any = fourth.range!;
+				assert.ok(types.Range.isRange(range));
+				assert.equal(range.start.line, 0);
+				assert.equal(range.start.character, 1);
+				assert.equal(range.end.line, 0);
+				assert.equal(range.end.character, 4);
 				assert.ok(fourth.insertText instanceof types.SnippetString);
 				assert.equal((<types.SnippetString>fourth.insertText).value, 'foo$0bar');
 			});
@@ -855,35 +855,5 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
 		assert.equal(value.length, 1);
 		assert.ok(value[0].parent);
-	});
-
-	// --- call hierarcht
-
-	test('Call Hierarchy, back and forth', async function () {
-
-		disposables.push(extHost.registerCallHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.CallHierarchyItemProvider {
-			provideCallHierarchyIncomingCalls(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyIncomingCall[]> {
-				return [
-					new types.CallHierarchyIncomingCall(new types.CallHierarchyItem(types.SymbolKind.Array, 'IN', '', document.uri, new types.Range(0, 0, 2, 0), new types.Range(0, 0, 2, 0)), [new types.Range(0, 0, 0, 0)]),
-				];
-			}
-			provideCallHierarchyOutgoingCalls(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyOutgoingCall[]> {
-				return [
-					new types.CallHierarchyOutgoingCall(new types.CallHierarchyItem(types.SymbolKind.Array, 'OUT', '', document.uri, new types.Range(0, 0, 2, 0), new types.Range(0, 0, 2, 0)), [new types.Range(0, 0, 0, 0)]),
-				];
-			}
-		}));
-
-		await rpcProtocol.sync();
-
-		let incoming = await commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.executeCallHierarchyProviderIncomingCalls', model.uri, new types.Position(0, 10));
-		assert.equal(incoming.length, 1);
-		assert.ok(incoming[0].source instanceof types.CallHierarchyItem);
-		assert.equal(incoming[0].source.name, 'IN');
-
-		let outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.executeCallHierarchyProviderOutgoingCalls', model.uri, new types.Position(0, 10));
-		assert.equal(outgoing.length, 1);
-		assert.ok(outgoing[0].target instanceof types.CallHierarchyItem);
-		assert.equal(outgoing[0].target.name, 'OUT');
 	});
 });

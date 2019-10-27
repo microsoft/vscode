@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -39,13 +40,8 @@ export interface IWebviewService {
 	): WebviewEditorOverlay;
 }
 
-export const WebviewResourceScheme = 'vscode-resource';
-
 export interface WebviewOptions {
-	readonly extension?: {
-		readonly location: URI;
-		readonly id?: ExtensionIdentifier;
-	};
+	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
@@ -58,10 +54,16 @@ export interface WebviewContentOptions {
 	readonly enableCommandUris?: boolean;
 }
 
+export interface WebviewExtensionDescription {
+	readonly location: URI;
+	readonly id: ExtensionIdentifier;
+}
+
 export interface Webview extends IDisposable {
 
 	html: string;
 	contentOptions: WebviewContentOptions;
+	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;
 
@@ -73,19 +75,16 @@ export interface Webview extends IDisposable {
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
 	sendMessage(data: any): void;
-	update(
-		html: string,
-		options: WebviewContentOptions,
-		retainContextWhenHidden: boolean
-	): void;
 
-	layout(): void;
 	focus(): void;
 	reload(): void;
 
 	showFind(): void;
 	hideFind(): void;
 	runFindAction(previous: boolean): void;
+
+	windowDidDragStart(): void;
+	windowDidDragEnd(): void;
 }
 
 export interface WebviewElement extends Webview {
@@ -94,12 +93,14 @@ export interface WebviewElement extends Webview {
 
 export interface WebviewEditorOverlay extends Webview {
 	readonly container: HTMLElement;
-	readonly options: WebviewOptions;
+	options: WebviewOptions;
 
 	claim(owner: any): void;
 	release(owner: any): void;
 
 	getInnerWebview(): Webview | undefined;
+
+	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
 }
 
 export const webviewDeveloperCategory = nls.localize('developer', "Developer");

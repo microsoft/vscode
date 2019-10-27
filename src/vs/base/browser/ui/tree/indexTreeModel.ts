@@ -62,17 +62,17 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private root: IIndexTreeNode<T, TFilterData>;
 	private eventBufferer = new EventBufferer();
 
-	private _onDidChangeCollapseState = new Emitter<ICollapseStateChangeEvent<T, TFilterData>>();
+	private readonly _onDidChangeCollapseState = new Emitter<ICollapseStateChangeEvent<T, TFilterData>>();
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeCollapseState.event);
 
-	private _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
+	private readonly _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeRenderNodeCount.event);
 
 	private collapseByDefault: boolean;
 	private filter?: ITreeFilter<T, TFilterData>;
 	private autoExpandSingleChildren: boolean;
 
-	private _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
+	private readonly _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
 	readonly onDidSplice = this._onDidSplice.event;
 
 	constructor(
@@ -169,7 +169,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		parentNode.visibleChildrenCount += insertedVisibleChildrenCount - deletedVisibleChildrenCount;
 
 		if (revealed && visible) {
-			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + node.renderNodeCount, 0);
+			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + (node.visible ? node.renderNodeCount : 0), 0);
 
 			this._updateAncestorsRenderNodeCount(parentNode, renderNodeCount - visibleDeleteCount);
 			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);

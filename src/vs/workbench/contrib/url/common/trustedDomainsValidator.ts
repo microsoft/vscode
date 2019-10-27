@@ -37,9 +37,10 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		}
 
 		const domainToOpen = `${scheme}://${authority}`;
-		const trustedDomains = readTrustedDomains(this._storageService, this._productService);
+		const { defaultTrustedDomains, trustedDomains } = readTrustedDomains(this._storageService, this._productService);
+		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains];
 
-		if (isURLDomainTrusted(resource, trustedDomains)) {
+		if (isURLDomainTrusted(resource, allTrustedDomains)) {
 			return true;
 		} else {
 			const { choice } = await this._dialogService.show(
@@ -78,7 +79,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					return true;
 				}
 				// Trust current domain
-				if (pickedDomains.indexOf(domainToOpen) !== -1) {
+				if (isURLDomainTrusted(resource, pickedDomains)) {
 					return true;
 				}
 				return false;
@@ -120,25 +121,37 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 			return true;
 		}
 
-		if (trustedDomains[i].indexOf('*') !== -1) {
-			const parsedTrustedDomain = URI.parse(trustedDomains[i]);
-			if (url.scheme === parsedTrustedDomain.scheme) {
-				let reversedAuthoritySegments = url.authority.split('.').reverse();
-				const reversedTrustedDomainAuthoritySegments = parsedTrustedDomain.authority.split('.').reverse();
-				if (
-					reversedTrustedDomainAuthoritySegments.length < reversedAuthoritySegments.length &&
-					reversedTrustedDomainAuthoritySegments[reversedTrustedDomainAuthoritySegments.length - 1] === '*'
-				) {
-					reversedAuthoritySegments = reversedAuthoritySegments.slice(0, reversedTrustedDomainAuthoritySegments.length);
-				}
+		let parsedTrustedDomain;
+		if (/^https?:\/\//.test(trustedDomains[i])) {
+			parsedTrustedDomain = URI.parse(trustedDomains[i]);
+			if (url.scheme !== parsedTrustedDomain.scheme) {
+				continue;
+			}
+		} else {
+			parsedTrustedDomain = URI.parse('https://' + trustedDomains[i]);
+		}
 
-				if (
-					reversedAuthoritySegments.every((val, i) => {
-						return reversedTrustedDomainAuthoritySegments[i] === '*' || val === reversedTrustedDomainAuthoritySegments[i];
-					})
-				) {
-					return true;
-				}
+		if (url.authority === parsedTrustedDomain.authority) {
+			return true;
+		}
+
+		if (trustedDomains[i].indexOf('*') !== -1) {
+			let reversedAuthoritySegments = url.authority.split('.').reverse();
+			const reversedTrustedDomainAuthoritySegments = parsedTrustedDomain.authority.split('.').reverse();
+
+			if (
+				reversedTrustedDomainAuthoritySegments.length < reversedAuthoritySegments.length &&
+				reversedTrustedDomainAuthoritySegments[reversedTrustedDomainAuthoritySegments.length - 1] === '*'
+			) {
+				reversedAuthoritySegments = reversedAuthoritySegments.slice(0, reversedTrustedDomainAuthoritySegments.length);
+			}
+
+			if (
+				reversedAuthoritySegments.every((val, i) => {
+					return reversedTrustedDomainAuthoritySegments[i] === '*' || val === reversedTrustedDomainAuthoritySegments[i];
+				})
+			) {
+				return true;
 			}
 		}
 	}

@@ -7,7 +7,8 @@ import * as crypto from 'crypto';
 import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService, NeverShowAgainScope, INeverShowAgainOptions } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -20,6 +21,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
 import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const ModulesToLookFor = [
 	// Packages that suggest a node server
@@ -97,7 +99,8 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IProductService private readonly productService: IProductService,
+		@IHostService private readonly hostService: IHostService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextFileService private readonly textFileService: ITextFileService
@@ -259,7 +262,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
 		tags['workspace.empty'] = isEmpty;
 
-		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
+		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.productService.quality !== 'stable' && this.findFolders(configuration);
 		if (!folders || !folders.length || !this.fileService) {
 			return Promise.resolve(tags);
 		}
@@ -453,7 +456,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 
 			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.windowService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
+				run: () => this.hostService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
 			}], { neverShowAgain });
 		}
 
@@ -466,7 +469,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
 						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
 							if (pick) {
-								this.windowService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
+								this.hostService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
 							}
 						});
 				}

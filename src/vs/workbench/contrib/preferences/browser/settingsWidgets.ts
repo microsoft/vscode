@@ -57,6 +57,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${checkboxBackgroundColor} !important; }`);
 	}
 
+	const checkboxForegroundColor = theme.getColor(settingsCheckboxForeground);
+	if (checkboxForegroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { color: ${checkboxForegroundColor} !important; }`);
+	}
+
 	const checkboxBorderColor = theme.getColor(settingsCheckboxBorder);
 	if (checkboxBorderColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { border-color: ${checkboxBorderColor} !important; }`);
@@ -352,7 +357,7 @@ export class ListSettingWidget extends Disposable {
 
 	private createDeleteAction(key: string, idx: number): IAction {
 		return <IAction>{
-			class: 'setting-listAction-remove',
+			class: 'codicon-close',
 			enabled: true,
 			id: 'workbench.action.removeListItem',
 			tooltip: this.getLocalizedStrings().deleteActionTooltip,
@@ -362,7 +367,7 @@ export class ListSettingWidget extends Disposable {
 
 	private createEditAction(idx: number): IAction {
 		return <IAction>{
-			class: 'setting-listAction-edit',
+			class: 'codicon-edit',
 			enabled: true,
 			id: 'workbench.action.editListItem',
 			tooltip: this.getLocalizedStrings().editActionTooltip,

@@ -9,9 +9,28 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
+type OpenInternalOptions = {
+
+	/**
+	 * Signals that the intent is to open an editor to the side
+	 * of the currently active editor.
+	 */
+	readonly openToSide?: boolean;
+
+	/**
+	 * Signals that the editor to open was triggered through a user
+	 * action, such as keyboard or mouse usage.
+	 */
+	readonly fromUserGesture?: boolean;
+};
+
+type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
+
+export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
+
 export interface IOpener {
-	open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean>;
-	open(resource: URI, options?: { openExternal?: boolean }): Promise<boolean>;
+	open(resource: URI, options?: OpenInternalOptions): Promise<boolean>;
+	open(resource: URI, options?: OpenExternalOptions): Promise<boolean>;
 }
 
 export interface IValidator {
@@ -19,7 +38,7 @@ export interface IValidator {
 }
 
 export interface IExternalUriResolver {
-	resolveExternalUri(resource: URI): Promise<URI>;
+	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<{ resolved: URI, dispose(): void } | undefined>;
 }
 
 export interface IOpenerService {
@@ -48,8 +67,10 @@ export interface IOpenerService {
 	 * @param resource A resource
 	 * @return A promise that resolves when the opening is done.
 	 */
-	open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean>;
-	open(resource: URI, options?: { openExternal?: boolean }): Promise<boolean>;
+	open(resource: URI, options?: OpenInternalOptions): Promise<boolean>;
+	open(resource: URI, options?: OpenExternalOptions): Promise<boolean>;
+
+	resolveExternalUri(resource: URI, options?: { readonly allowTunneling?: boolean }): Promise<{ resolved: URI, dispose(): void }>;
 }
 
 export const NullOpenerService: IOpenerService = Object.freeze({
@@ -58,4 +79,5 @@ export const NullOpenerService: IOpenerService = Object.freeze({
 	registerValidator() { return Disposable.None; },
 	registerExternalUriResolver() { return Disposable.None; },
 	open() { return Promise.resolve(false); },
+	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
 });

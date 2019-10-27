@@ -5,11 +5,11 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -38,6 +38,7 @@ export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated()
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false);
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
+export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true);
 
 /**
  * Text diff editor id.
@@ -117,7 +118,7 @@ export interface ITextEditor extends IEditor {
 	/**
 	 * Returns the underlying text editor widget of this editor.
 	 */
-	getControl(): ICodeEditor;
+	getControl(): ICodeEditor | undefined;
 }
 
 export interface ITextDiffEditor extends IEditor {
@@ -125,7 +126,7 @@ export interface ITextDiffEditor extends IEditor {
 	/**
 	 * Returns the underlying text editor widget of this editor.
 	 */
-	getControl(): IDiffEditor;
+	getControl(): IDiffEditor | undefined;
 }
 
 export interface ITextSideBySideEditor extends IEditor {
@@ -499,7 +500,7 @@ export interface IEncodingSupport {
 	/**
 	 * Gets the encoding of the input if known.
 	 */
-	getEncoding(): string;
+	getEncoding(): string | undefined;
 
 	/**
 	 * Sets the encoding for the input for saving.
@@ -776,6 +777,18 @@ export class EditorOptions implements IEditorOptions {
 	ignoreOverrides: boolean | undefined;
 
 	/**
+	 * A optional hint to signal in which context the editor opens.
+	 *
+	 * If configured to be `EditorOpenContext.USER`, this hint can be
+	 * used in various places to control the experience. For example,
+	 * if the editor to open fails with an error, a notification could
+	 * inform about this in a modal dialog. If the editor opened through
+	 * some background task, the notification would show in the background,
+	 * not as a modal dialog.
+	 */
+	context: EditorOpenContext | undefined;
+
+	/**
 	 * Overwrites option values from the provided bag.
 	 */
 	overwrite(options: IEditorOptions): EditorOptions {
@@ -819,6 +832,10 @@ export class EditorOptions implements IEditorOptions {
 			this.ignoreOverrides = options.ignoreOverrides;
 		}
 
+		if (typeof options.context === 'number') {
+			this.context = options.context;
+		}
+
 		return this;
 	}
 }
@@ -827,13 +844,13 @@ export class EditorOptions implements IEditorOptions {
  * Base Text Editor Options.
  */
 export class TextEditorOptions extends EditorOptions {
-	private startLineNumber: number;
-	private startColumn: number;
-	private endLineNumber: number;
-	private endColumn: number;
+	private startLineNumber: number | undefined;
+	private startColumn: number | undefined;
+	private endLineNumber: number | undefined;
+	private endColumn: number | undefined;
 
-	private revealInCenterIfOutsideViewport: boolean;
-	private editorViewState: IEditorViewState | null;
+	private revealInCenterIfOutsideViewport: boolean | undefined;
+	private editorViewState: IEditorViewState | undefined;
 
 	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
@@ -901,7 +918,7 @@ export class TextEditorOptions extends EditorOptions {
 		const options = TextEditorOptions.create(settings);
 
 		// View state
-		options.editorViewState = editor.saveViewState();
+		options.editorViewState = withNullAsUndefined(editor.saveViewState());
 
 		return options;
 	}
@@ -1025,6 +1042,7 @@ interface IEditorPartConfiguration {
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
+	splitSizing?: 'split' | 'distribute';
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
@@ -1046,7 +1064,7 @@ export function toResource(editor: IEditorInput | undefined, options?: IResource
 		return undefined;
 	}
 
-	if (options && options.supportSideBySide && editor instanceof SideBySideEditorInput) {
+	if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
 		editor = options.supportSideBySide === SideBySideEditor.MASTER ? editor.master : editor.details;
 	}
 
@@ -1084,23 +1102,23 @@ export interface IEditorMemento<T> {
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
-	private instantiationService: IInstantiationService;
-	private fileInputFactory: IFileInputFactory;
+	private instantiationService: IInstantiationService | undefined;
+	private fileInputFactory: IFileInputFactory | undefined;
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
 
 	start(accessor: ServicesAccessor): void {
-		this.instantiationService = accessor.get(IInstantiationService);
+		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
 
 		this.editorInputFactoryConstructors.forEach((ctor, key) => {
-			this.createEditorInputFactory(key, ctor);
+			this.createEditorInputFactory(key, ctor, instantiationService);
 		});
 
 		this.editorInputFactoryConstructors.clear();
 	}
 
-	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
-		const instance = this.instantiationService.createInstance(ctor);
+	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>, instantiationService: IInstantiationService): void {
+		const instance = instantiationService.createInstance(ctor);
 		this.editorInputFactoryInstances.set(editorInputId, instance);
 	}
 
@@ -1109,14 +1127,14 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	}
 
 	getFileInputFactory(): IFileInputFactory {
-		return this.fileInputFactory;
+		return assertIsDefined(this.fileInputFactory);
 	}
 
 	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
 		if (!this.instantiationService) {
 			this.editorInputFactoryConstructors.set(editorInputId, ctor);
 		} else {
-			this.createEditorInputFactory(editorInputId, ctor);
+			this.createEditorInputFactory(editorInputId, ctor, this.instantiationService);
 		}
 	}
 

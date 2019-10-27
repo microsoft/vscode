@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
+import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/async';
@@ -17,9 +17,9 @@ export abstract class AbstractURLService extends Disposable implements IURLServi
 
 	abstract create(options?: Partial<UriComponents>): URI;
 
-	open(uri: URI): Promise<boolean> {
+	open(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		const handlers = values(this.handlers);
-		return first(handlers.map(h => () => h.handleURL(uri)), undefined, false).then(val => val || false);
+		return first(handlers.map(h => () => h.handleURL(uri, options)), undefined, false).then(val => val || false);
 	}
 
 	registerHandler(handler: IURLHandler): IDisposable {

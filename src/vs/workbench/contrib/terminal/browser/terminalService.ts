@@ -11,13 +11,12 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { IBrowserTerminalConfigHelper, ITerminalService, ITerminalInstance, ITerminalTab } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, ITerminalInstance, ITerminalTab } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
@@ -29,6 +28,7 @@ import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/termi
 import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { find } from 'vs/base/common/arrays';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -54,7 +54,7 @@ export class TerminalService implements ITerminalService {
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 	public get terminalTabs(): ITerminalTab[] { return this._terminalTabs; }
 
-	private _configHelper: IBrowserTerminalConfigHelper;
+	private _configHelper: TerminalConfigHelper;
 	private _terminalContainer: HTMLElement | undefined;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
@@ -91,7 +91,6 @@ export class TerminalService implements ITerminalService {
 		@IPanelService private _panelService: IPanelService,
 		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@INotificationService private _notificationService: INotificationService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IExtensionService private _extensionService: IExtensionService,
@@ -135,7 +134,7 @@ export class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined);
 	}
 
-	public requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
+	public requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
 		this._extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			// Wait for the remoteAuthority to be ready (and listening for events) before firing
 			// the event to spawn the ext host process
@@ -392,12 +391,7 @@ export class TerminalService implements ITerminalService {
 			return null;
 		}
 
-		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
-		if (!instance) {
-			this._showNotEnoughSpaceToast();
-			return null;
-		}
-
+		const instance = tab.split(shellLaunchConfig);
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
 
@@ -414,13 +408,8 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 	}
 
-	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | null {
-		for (const tab of this._terminalTabs) {
-			if (tab.terminalInstances.indexOf(instance) !== -1) {
-				return tab;
-			}
-		}
-		return null;
+	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {
+		return find(this._terminalTabs, tab => tab.terminalInstances.indexOf(instance) !== -1);
 	}
 
 	public showPanel(focus?: boolean): Promise<void> {
@@ -497,10 +486,6 @@ export class TerminalService implements ITerminalService {
 			type: 'warning',
 		});
 		return !res.confirmed;
-	}
-
-	protected _showNotEnoughSpaceToast(): void {
-		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
 	}
 
 	protected _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
@@ -591,7 +576,10 @@ export class TerminalService implements ITerminalService {
 
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalFocusContextKey, this._configHelper, container, shellLaunchConfig);
-		this._onInstanceCreated.fire(instance);
+		// This event must fire after the process has been created, otherwise terminals created via
+		// the extension API do not have a change to have their ID returned to them which will
+		// result in 2 terminal objects for a single terminal on the extension host.
+		instance.onProcessCreated(() => this._onInstanceCreated.fire(instance));
 		return instance;
 	}
 

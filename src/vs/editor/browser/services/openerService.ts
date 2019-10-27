@@ -13,7 +13,8 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IOpener, IOpenerService, IValidator, IExternalUriResolver } from 'vs/platform/opener/common/opener';
+import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions } from 'vs/platform/opener/common/opener';
+import { EditorOpenContext } from 'vs/platform/editor/common/editor';
 
 export class OpenerService extends Disposable implements IOpenerService {
 
@@ -32,20 +33,24 @@ export class OpenerService extends Disposable implements IOpenerService {
 
 	registerOpener(opener: IOpener): IDisposable {
 		const remove = this._openers.push(opener);
+
 		return { dispose: remove };
 	}
 
 	registerValidator(validator: IValidator): IDisposable {
 		const remove = this._validators.push(validator);
+
 		return { dispose: remove };
 	}
 
 	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable {
 		const remove = this._resolvers.push(resolver);
+
 		return { dispose: remove };
 	}
 
-	async open(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
+	async open(resource: URI, options?: OpenOptions): Promise<boolean> {
+
 		// no scheme ?!?
 		if (!resource.scheme) {
 			return Promise.resolve(false);
@@ -65,23 +70,36 @@ export class OpenerService extends Disposable implements IOpenerService {
 				return true;
 			}
 		}
+
 		// use default openers
 		return this._doOpen(resource, options);
 	}
 
-	private _doOpen(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
+	async resolveExternalUri(resource: URI, options?: { readonly allowTunneling?: boolean }): Promise<{ resolved: URI, dispose(): void }> {
+		for (const resolver of this._resolvers.toArray()) {
+			const result = await resolver.resolveExternalUri(resource, options);
+			if (result) {
+				return result;
+			}
+		}
 
+		return { resolved: resource, dispose: () => { } };
+	}
+
+	private async _doOpen(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
 		const { scheme, path, query, fragment } = resource;
 
-		if (equalsIgnoreCase(scheme, Schemas.mailto) || (options && options.openExternal)) {
+		if (equalsIgnoreCase(scheme, Schemas.mailto) || options?.openExternal) {
 			// open default mail application
-			return this._doOpenExternal(resource);
+			return this._doOpenExternal(resource, options);
 		}
 
 		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
 			// open link in default browser
-			return this._doOpenExternal(resource);
-		} else if (equalsIgnoreCase(scheme, Schemas.command)) {
+			return this._doOpenExternal(resource, options);
+		}
+
+		if (equalsIgnoreCase(scheme, Schemas.command)) {
 			// run command or bail out if command isn't known
 			if (!CommandsRegistry.getCommand(path)) {
 				return Promise.reject(`command '${path}' NOT known`);
@@ -94,44 +112,46 @@ export class OpenerService extends Disposable implements IOpenerService {
 					args = [args];
 				}
 			} catch (e) {
-				//
-			}
-			return this._commandService.executeCommand(path, ...args).then(() => true);
-
-		} else {
-			let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
-			const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
-			if (match) {
-				// support file:///some/file.js#73,84
-				// support file:///some/file.js#L73
-				selection = {
-					startLineNumber: parseInt(match[1]),
-					startColumn: match[2] ? parseInt(match[2]) : 1
-				};
-				// remove fragment
-				resource = resource.with({ fragment: '' });
+				// ignore error
 			}
 
-			if (resource.scheme === Schemas.file) {
-				resource = resources.normalizePath(resource); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
-			}
+			await this._commandService.executeCommand(path, ...args);
 
-			return this._editorService.openCodeEditor(
-				{ resource, options: { selection, } },
-				this._editorService.getFocusedCodeEditor(),
-				options && options.openToSide
-			).then(() => true);
+			return true;
 		}
+
+		// finally open in editor
+		let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
+		const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
+		if (match) {
+			// support file:///some/file.js#73,84
+			// support file:///some/file.js#L73
+			selection = {
+				startLineNumber: parseInt(match[1]),
+				startColumn: match[2] ? parseInt(match[2]) : 1
+			};
+			// remove fragment
+			resource = resource.with({ fragment: '' });
+		}
+
+		if (resource.scheme === Schemas.file) {
+			resource = resources.normalizePath(resource); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
+		}
+
+		await this._editorService.openCodeEditor(
+			{ resource, options: { selection, context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API } },
+			this._editorService.getFocusedCodeEditor(),
+			options?.openToSide
+		);
+
+		return true;
 	}
 
-	private async _doOpenExternal(resource: URI): Promise<boolean> {
-		for (const resolver of this._resolvers.toArray()) {
-			resource = await resolver.resolveExternalUri(resource);
-		}
+	private async _doOpenExternal(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
+		const { resolved } = await this.resolveExternalUri(resource, options);
+		dom.windowOpenNoOpener(resolved.toString());
 
-		dom.windowOpenNoOpener(encodeURI(resource.toString(true)));
-
-		return Promise.resolve(true);
+		return true;
 	}
 
 	dispose() {

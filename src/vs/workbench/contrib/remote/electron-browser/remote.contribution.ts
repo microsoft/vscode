@@ -12,13 +12,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
@@ -34,13 +34,13 @@ import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteA
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { RemoteConnectionState, Deprecated_RemoteAuthorityContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/remoteFileDialog';
+import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 
-const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
-const CLOSE_REMOTE_COMMAND_ID = 'remote.closeRemote';
+const WINDOW_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
+const CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
 
 export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -61,20 +61,39 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		@IExtensionService extensionService: IExtensionService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IWindowsService windowService: IWindowsService
+		@IHostService hostService: IHostService
 	) {
 		super();
 
 		this.windowCommandMenu = this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService);
 		this._register(this.windowCommandMenu);
 
-		this._register(CommandsRegistry.registerCommand(WINDOW_ACTIONS_COMMAND_ID, _ => this.showIndicatorActions(this.windowCommandMenu)));
-		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && windowService.openNewWindow({ reuseWindow: true })));
+		const category = nls.localize('remote.category', "Remote");
+
+		registerAction({
+			id: WINDOW_ACTIONS_COMMAND_ID,
+			category,
+			title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
+			menu: {
+				menuId: MenuId.CommandPalette
+			},
+			handler: (_accessor) => this.showIndicatorActions(this.windowCommandMenu)
+		});
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.remoteAuthority || '');
 
 		if (this.remoteAuthority) {
+			registerAction({
+				id: CLOSE_REMOTE_COMMAND_ID,
+				category,
+				title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
+				menu: {
+					menuId: MenuId.CommandPalette
+				},
+				handler: (_accessor) => this.remoteAuthority && hostService.openWindow({ forceReuseWindow: true })
+			});
+
 			// Pending entry until extensions are ready
 			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
 			this.connectionState = 'initializing';
@@ -304,6 +323,7 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 		return Promise.resolve();
 	}
 }
+
 
 class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchContribution {
 	constructor(

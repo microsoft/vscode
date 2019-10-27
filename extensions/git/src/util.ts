@@ -160,7 +160,7 @@ export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 			if (err.code === 'EEXIST') {
 				const stat = await nfcall<fs.Stats>(fs.stat, path);
 
-				if (stat.isDirectory) {
+				if (stat.isDirectory()) {
 					return;
 				}
 

@@ -27,7 +27,7 @@ This project incorporates components from the projects listed below. The origina
 20.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
 21.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
 22.	jeff-hykin/cpp-textmate-grammar version 1.12.11 (https://github.com/jeff-hykin/cpp-textmate-grammar)
-23.	jeff-hykin/cpp-textmate-grammar version 1.13.2 (https://github.com/jeff-hykin/cpp-textmate-grammar)
+23.	jeff-hykin/cpp-textmate-grammar version 1.14.6 (https://github.com/jeff-hykin/cpp-textmate-grammar)
 24.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
 25.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 26.	language-docker (https://github.com/moby/moby)
@@ -65,7 +65,7 @@ This project incorporates components from the projects listed below. The origina
 58.	TypeScript-TmLanguage version 1.0.0 (https://github.com/Microsoft/TypeScript-TmLanguage)
 59.	Unicode version 12.0.0 (http://www.unicode.org/)
 60.	vscode-logfile-highlighter version 2.4.1 (https://github.com/emilast/vscode-logfile-highlighter)
-61.	vscode-octicons-font version 1.3.1 (https://github.com/Microsoft/vscode-octicons-font)
+61.	vscode-octicons-font version 1.3.2 (https://github.com/Microsoft/vscode-octicons-font)
 62.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 63.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
 

@@ -341,11 +341,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			markerFocusContextKey.set(focus.elements.some(e => e instanceof Marker));
 			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
 		}));
-		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
-		this._register(focusTracker.onDidBlur(() => {
-			markerFocusContextKey.set(false);
-			relatedInformationFocusContextKey.set(false);
-		}));
 
 		const markersNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
 		this._register(Event.debounce(markersNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {

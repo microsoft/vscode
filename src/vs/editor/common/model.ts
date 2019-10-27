@@ -459,8 +459,8 @@ export class FindMatch {
  */
 export interface IFoundBracket {
 	range: Range;
-	open: string;
-	close: string;
+	open: string[];
+	close: string[];
 	isOpen: boolean;
 }
 
@@ -607,6 +607,12 @@ export interface ITextModel {
 	 * @return The text length.
 	 */
 	getValueLengthInRange(range: IRange): number;
+
+	/**
+	 * Get the character count of text in a certain range.
+	 * @param range The range describing what text length to get.
+	 */
+	getCharacterCountInRange(range: IRange): number;
 
 	/**
 	 * Splits characters in two buckets. First bucket (A) is of characters that
@@ -880,6 +886,13 @@ export interface ITextModel {
 	 * @internal
 	 */
 	findNextBracket(position: IPosition): IFoundBracket | null;
+
+	/**
+	 * Find the enclosing brackets that contain `position`.
+	 * @param position The position at which to start the search.
+	 * @internal
+	 */
+	findEnclosingBrackets(position: IPosition): [Range, Range] | null;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,
@@ -1182,6 +1195,13 @@ export interface ITextBufferFactory {
 /**
  * @internal
  */
+export const enum ModelConstants {
+	FIRST_LINE_DETECTION_LENGTH_LIMIT = 1000
+}
+
+/**
+ * @internal
+ */
 export interface ITextBuffer {
 	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;
@@ -1196,6 +1216,7 @@ export interface ITextBuffer {
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	createSnapshot(preserveBOM: boolean): ITextSnapshot;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getCharacterCountInRange(range: Range, eol: EndOfLinePreference): number;
 	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];

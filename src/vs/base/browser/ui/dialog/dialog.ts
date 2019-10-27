@@ -142,7 +142,9 @@ export class Dialog extends Disposable {
 				let eventHandled = false;
 				if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
 					if (!this.checkboxHasFocus && focusedButton === 0) {
-						this.checkbox!.domNode.focus();
+						if (this.checkbox) {
+							this.checkbox.domNode.focus();
+						}
 						this.checkboxHasFocus = true;
 					} else {
 						focusedButton = (this.checkboxHasFocus ? 0 : focusedButton) + buttonGroup.buttons.length - 1;
@@ -154,7 +156,9 @@ export class Dialog extends Disposable {
 					eventHandled = true;
 				} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
 					if (!this.checkboxHasFocus && focusedButton === buttonGroup.buttons.length - 1) {
-						this.checkbox!.domNode.focus();
+						if (this.checkbox) {
+							this.checkbox.domNode.focus();
+						}
 						this.checkboxHasFocus = true;
 					} else {
 						focusedButton = this.checkboxHasFocus ? 0 : focusedButton + 1;
@@ -237,10 +241,10 @@ export class Dialog extends Disposable {
 		if (this.styles) {
 			const style = this.styles;
 
-			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : null;
-			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : null;
-			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : null;
-			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : null;
+			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : '';
+			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : '';
+			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
+			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
 
 			if (this.element) {
 				this.element.style.color = fgColor;

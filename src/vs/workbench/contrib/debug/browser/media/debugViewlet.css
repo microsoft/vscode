@@ -224,6 +224,7 @@
 	flex: 1;
 	flex-shrink: 0;
 	min-width: fit-content;
+	min-width: -moz-fit-content;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame.subtle {
@@ -445,7 +446,8 @@
 	background: url('add-dark.svg') center center no-repeat;
 }
 
-.hc-black .debug-viewlet .debug-action.add-watch-expression {
+.hc-black .debug-viewlet .debug-action.add-watch-expression,
+.hc-black .debug-viewlet .debug-action.add-function-breakpoint {
 	background: url('add-hc.svg') center center no-repeat;
 }
 

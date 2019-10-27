@@ -6,7 +6,7 @@
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
-import URI from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { TextDocument, CompletionList, Position } from 'vscode-languageserver-types';
 import { stat as fsStat } from 'fs';
 
@@ -75,9 +75,9 @@ const fileSystemProvider: FileSystemProvider = {
 				let type = FileType.Unknown;
 				if (stats.isFile()) {
 					type = FileType.File;
-				} else if (stats.isDirectory) {
+				} else if (stats.isDirectory()) {
 					type = FileType.Directory;
-				} else if (stats.isSymbolicLink) {
+				} else if (stats.isSymbolicLink()) {
 					type = FileType.SymbolicLink;
 				}
 

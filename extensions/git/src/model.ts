@@ -190,7 +190,7 @@ export class Model {
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
-	private async onDidChangeVisibleTextEditors(editors: TextEditor[]): Promise<void> {
+	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
 
