@@ -154,7 +154,8 @@ suite('window namespace tests', () => {
 		suite('hideFromUser', () => {
 			test('should be available to terminals API', done => {
 				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
-				window.onDidOpenTerminal(t => {
+				const toDispose1 = window.onDidOpenTerminal(t => {
+					toDispose1.dispose();
 					equal(t, terminal);
 					equal(t.name, 'bg');
 					ok(window.terminals.indexOf(terminal) !== -1);
