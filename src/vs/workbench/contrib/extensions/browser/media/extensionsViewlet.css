@@ -191,6 +191,7 @@
 	font-size: 80%;
 	padding-left: 6px;
 	min-width: fit-content;
+	min-width: -moz-fit-content;
 }
 
 .extensions-viewlet:not(.narrow) > .extensions .extension > .details > .header-container > .header > .version {

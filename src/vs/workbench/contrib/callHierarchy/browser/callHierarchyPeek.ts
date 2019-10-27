@@ -338,8 +338,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 		// update: title
 		const title = this._direction === CallHierarchyDirection.CallsFrom
-			? localize('callFrom', "Calls from '{0}'", this._tree.getInput()!.root.name)
-			: localize('callsTo', "Callers of '{0}'", this._tree.getInput()!.root.name);
+			? localize('callFrom', "Calls from '{0}'", element.model.root.name)
+			: localize('callsTo', "Callers of '{0}'", element.model.root.name);
 		this.setTitle(title);
 	}
 
@@ -388,6 +388,14 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			this._disposables.add(this._changeDirectionAction);
 			this._actionbarWidget!.push(this._changeDirectionAction, { icon: true, label: false });
 		}
+	}
+
+	getModel(): CallHierarchyModel | undefined {
+		return this._tree.getInput();
+	}
+
+	getFocused(): callHTree.Call | undefined {
+		return this._tree.getFocus()[0];
 	}
 
 	async toggleDirection(): Promise<void> {

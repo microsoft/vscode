@@ -38,7 +38,8 @@
           "tasks.json",
           "keybindings.json",
           "extensions.json",
-          "argv.json"
+          "argv.json",
+          "profiles.json"
         ]
       }
     ],

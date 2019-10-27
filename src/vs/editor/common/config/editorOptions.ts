@@ -1109,9 +1109,9 @@ export interface IEditorFindOptions {
 	 */
 	seedSearchStringFromSelection?: boolean;
 	/**
-	 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
+	 * Controls if Find in Selection flag is turned on in the editor.
 	 */
-	autoFindInSelection?: boolean;
+	autoFindInSelection?: 'never' | 'always' | 'multiline';
 	/*
 	 * Controls whether the Find Widget should add extra lines on top of the editor.
 	 */
@@ -1130,7 +1130,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 	constructor() {
 		const defaults: EditorFindOptions = {
 			seedSearchStringFromSelection: true,
-			autoFindInSelection: false,
+			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true
 		};
@@ -1143,8 +1143,14 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					description: nls.localize('find.seedSearchStringFromSelection', "Controls whether the search string in the Find Widget is seeded from the editor selection.")
 				},
 				'editor.find.autoFindInSelection': {
-					type: 'boolean',
+					type: 'string',
+					enum: ['never', 'always', 'multiline'],
 					default: defaults.autoFindInSelection,
+					enumDescriptions: [
+						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default)'),
+						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically'),
+						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
+					],
 					description: nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried out on selected text or the entire file in the editor.")
 				},
 				'editor.find.globalFindClipboard': {
@@ -1169,7 +1175,9 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 		const input = _input as IEditorFindOptions;
 		return {
 			seedSearchStringFromSelection: EditorBooleanOption.boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
-			autoFindInSelection: EditorBooleanOption.boolean(input.autoFindInSelection, this.defaultValue.autoFindInSelection),
+			autoFindInSelection: typeof _input.autoFindInSelection === 'boolean'
+				? (_input.autoFindInSelection ? 'always' : 'never')
+				: EditorStringEnumOption.stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
 			globalFindClipboard: EditorBooleanOption.boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop)
 		};
