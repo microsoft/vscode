@@ -148,7 +148,7 @@ export class DebugHoverWidget implements IContentWidget {
 		const pos = range.getStartPosition();
 
 		const session = this.debugService.getViewModel().focusedSession;
-		if (!this.editor.hasModel()) {
+		if (!session || !this.editor.hasModel()) {
 			return Promise.resolve(this.hide());
 		}
 
@@ -156,7 +156,7 @@ export class DebugHoverWidget implements IContentWidget {
 		const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(start - 1, end);
-		if (!matchingExpression || !session) {
+		if (!matchingExpression) {
 			return Promise.resolve(this.hide());
 		}
 
