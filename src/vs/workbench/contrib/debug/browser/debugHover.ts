@@ -32,6 +32,7 @@ import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextModel } from 'vs/editor/common/model';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;
@@ -145,6 +146,16 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
+	private getSelectionUnder(range: Range): Selection | null {
+		const selections = this.editor.getSelections();
+		if (!selections) {
+			return null;
+		}
+
+		const result = selections.filter(selection => null !== selection.intersectRanges(range));
+		return 0 === result.length ? null : result[0];
+	}
+
 	private async showRegularHoverEvaluation(range: Range, pos: Position, model: ITextModel, session: IDebugSession): Promise<IExpression | undefined> {
 		const lineContent = model.getLineContent(pos.lineNumber);
 		const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
@@ -186,6 +197,11 @@ export class DebugHoverWidget implements IContentWidget {
 		const evaluateSelectionText = this.configurationService.getValue<IDebugConfiguration>('debug').evaluateSelectedText;
 		if (!evaluateSelectionText) {
 			expression = await this.showRegularHoverEvaluation(range, pos, this.editor.getModel(), session);
+		} else {
+			const selection = this.getSelectionUnder(range);
+			if (!selection) {
+				expression = await this.showRegularHoverEvaluation(range, pos, this.editor.getModel(), session);
+			}
 		}
 
 		if (!expression) {
