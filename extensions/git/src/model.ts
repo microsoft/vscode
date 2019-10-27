@@ -216,12 +216,12 @@ export class Model {
 	}
 
 	@sequentialize
-	async openRepository(path: string): Promise<void> {
-		if (this.getRepository(path)) {
+	async openRepository(folderPath: string): Promise<void> {
+		if (this.getRepository(folderPath)) {
 			return;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(path));
+		const config = workspace.getConfiguration('git', Uri.file(folderPath));
 		const enabled = config.get<boolean>('enabled') === true;
 
 		if (!enabled) {
@@ -229,9 +229,9 @@ export class Model {
 		}
 
 		try {
-			const rawRoot = await this.git.getRepositoryRoot(path);
+			const rawRoot = await this.git.getRepositoryRoot(folderPath);
 
-			// This can happen whenever `path` has the wrong case sensitivity in
+			// This can happen whenever `folderPath` has the wrong case sensitivity in
 			// case insensitive file systems
 			// https://github.com/Microsoft/vscode/issues/33498
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
@@ -241,10 +241,19 @@ export class Model {
 			}
 
 			const config = workspace.getConfiguration('git');
-			const ignoredRepos = new Set(config.get<Array<string>>('ignoredRepositories'));
 
-			if (ignoredRepos.has(rawRoot)) {
+			const ignoredRepos = (config.get<Array<string>>('ignoredRepositories') || []).map(x => Uri.file(x).fsPath);
+
+			if (ignoredRepos.includes(repositoryRoot)) {
 				return;
+			}
+
+			for (const ignoredRepo of ignoredRepos) {
+				for (const workspaceFolder of workspace.workspaceFolders || []) {
+					if (path.join(workspaceFolder.uri.fsPath, ignoredRepo) === repositoryRoot) {
+						return;
+					}
+				}
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
