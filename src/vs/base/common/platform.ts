@@ -189,7 +189,7 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 				id: myId,
 				callback: callback
 			});
-			globals.postMessage({ vscodeSetImmediateId: myId });
+			globals.postMessage({ vscodeSetImmediateId: myId }, '*');
 		};
 	}
 	if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {

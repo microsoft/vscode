@@ -17,8 +17,7 @@ import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
-import { CurrentLineHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
-import { CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineMarginHighlight/currentLineMarginHighlight';
+import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { GlyphMarginOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
@@ -261,7 +260,7 @@ export class View extends ViewEventHandler {
 				return this.viewLines.getPositionFromDOMInfo(spanNode, offset);
 			},
 
-			visibleRangeForPosition2: (lineNumber: number, column: number) => {
+			visibleRangeForPosition: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
 				return this.viewLines.visibleRangeForPosition(new Position(lineNumber, column));
 			},

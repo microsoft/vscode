@@ -369,8 +369,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerSelectionRangeProvider(selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerSelectionRangeProvider(extension, selector, provider);
 			},
-			registerCallHierarchyProvider(selector: vscode.DocumentSelector, provider: vscode.CallHierarchyItemProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension);
+			registerCallHierarchyProvider(selector: vscode.DocumentSelector, provider: vscode.CallHierarchyProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerCallHierarchyProvider(extension, selector, provider);
 			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {

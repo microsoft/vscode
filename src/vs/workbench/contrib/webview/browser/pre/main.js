@@ -91,6 +91,24 @@
 		border-color: var(--vscode-textBlockQuote-border);
 	}
 
+	kbd {
+		color: var(--vscode-editor-foreground);
+		border-radius: 3px;
+		vertical-align: middle;
+		padding: 1px 3px;
+
+		background-color: hsla(0,0%,50%,.17);
+		border: 1px solid rgba(71,71,71,.4);
+		border-bottom-color: rgba(88,88,88,.4);
+		box-shadow: inset 0 -1px 0 rgba(88,88,88,.4);
+	}
+	.vscode-light kbd {
+		background-color: hsla(0,0%,87%,.5);
+		border: 1px solid hsla(0,0%,80%,.7);
+		border-bottom-color: hsla(0,0%,73%,.7);
+		box-shadow: inset 0 -1px 0 hsla(0,0%,73%,.7);
+	}
+
 	::-webkit-scrollbar {
 		width: 10px;
 		height: 10px;
@@ -213,7 +231,8 @@
 		/**
 		 * @param {MouseEvent} event
 		 */
-		const handleAuxClick = (event) => {
+		const handleAuxClick =
+		(event) => {
 			// Prevent middle clicks opening a broken link in the browser
 			if (!event.view || !event.view.document) {
 				return;
@@ -308,7 +327,12 @@
 			} else {
 				// Rewrite vscode-resource in csp
 				if (data.endpoint) {
-					csp.setAttribute('content', csp.getAttribute('content').replace(/vscode-resource:/g, data.endpoint));
+					try {
+						const endpointUrl = new URL(data.endpoint);
+						csp.setAttribute('content', csp.getAttribute('content').replace(/vscode-resource:(?=(\s|;|$))/g, endpointUrl.origin));
+					} catch (e) {
+						console.error('Could not rewrite csp');
+					}
 				}
 			}
 
@@ -479,6 +503,7 @@
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
 					newFrame.contentWindow.addEventListener('auxclick', handleAuxClick);
 					newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+					newFrame.contentWindow.addEventListener('contextmenu', e => e.preventDefault());
 
 					if (host.onIframeLoaded) {
 						host.onIframeLoaded(newFrame);

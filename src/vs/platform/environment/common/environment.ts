@@ -112,8 +112,6 @@ export interface IEnvironmentService {
 	userHome: string;
 	userDataPath: string;
 
-	appNameLong: string;
-	appQuality?: string;
 	appSettingsHome: URI;
 
 	// user roaming data
@@ -144,6 +142,7 @@ export interface IEnvironmentService {
 	extensionsPath?: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
+	logExtensionHostCommunication?: boolean;
 
 	debugExtensionHost: IExtensionHostDebugParams;
 

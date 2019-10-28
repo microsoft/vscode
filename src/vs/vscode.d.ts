@@ -1236,8 +1236,8 @@ declare module 'vscode' {
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
 		 * *Note* that for a while uris without a `scheme` were accepted. That is not correct
-		 * as all uris should have a scheme. To avoid breakage of existing code the optional
-		 * `strict`-argument has been added. We *strongly* advise to use it, e.g. `Uri.parse('my:uri', true)`
+		 * as all uris should have a scheme. When missing the `file`-scheme is being used unless
+		 * the  `strict`-argument is `true` in which case an error is thrown.
 		 *
 		 * @see [Uri.toString](#Uri.toString)
 		 * @param value The string value of an Uri.
@@ -3878,6 +3878,149 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents programming constructs like functions or constructors in the context
+	 * of call hierarchy.
+	 */
+	export class CallHierarchyItem {
+		/**
+		 * The name of this item.
+		 */
+		name: string;
+
+		/**
+		 * The kind of this item.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * Tags for this item.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
+
+		/**
+		 * More detail for this item, e.g. the signature of a function.
+		 */
+		detail?: string;
+
+		/**
+		 * The resource identifier of this item.
+		 */
+		uri: Uri;
+
+		/**
+		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
+		 */
+		range: Range;
+
+		/**
+		 * The range that should be selected and revealed when this symbol is being picked, e.g. the name of a function.
+		 * Must be contained by the [`range`](#CallHierarchyItem.range).
+		 */
+		selectionRange: Range;
+
+		/**
+		 * Creates a new call hierarchy item.
+		 */
+		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
+	}
+
+	/**
+	 * Represents an incoming call, e.g. a caller of a method or constructor.
+	 */
+	export class CallHierarchyIncomingCall {
+
+		/**
+		 * The item that makes the call.
+		 */
+		from: CallHierarchyItem;
+
+		/**
+		 * The range at which at which the calls appears. This is relative to the caller
+		 * denoted by [`this.from`](#CallHierarchyIncomingCall.from).
+		 */
+		fromRanges: Range[];
+
+		/**
+		 * Create a new call object.
+		 *
+		 * @param item The item making the call.
+		 * @param fromRanges The ranges at which the calls appear.
+		 */
+		constructor(item: CallHierarchyItem, fromRanges: Range[]);
+	}
+
+	/**
+	 * Represents an outgoing call, e.g. calling a getter from a method or a method from a constructor etc.
+	 */
+	export class CallHierarchyOutgoingCall {
+
+		/**
+		 * The item that is called.
+		 */
+		to: CallHierarchyItem;
+
+		/**
+		 * The range at which this item is called. This is the range relative to the caller, e.g the item
+		 * passed to [`provideCallHierarchyOutgoingCalls`](#CallHierarchyItemProvider.provideCallHierarchyOutgoingCalls)
+		 * and not [`this.to`](#CallHierarchyOutgoingCall.to).
+		 */
+		fromRanges: Range[];
+
+		/**
+		 * Create a new call object.
+		 *
+		 * @param item The item being called
+		 * @param fromRanges The ranges at which the calls appear.
+		 */
+		constructor(item: CallHierarchyItem, fromRanges: Range[]);
+	}
+
+	/**
+	 * The call hierarchy provider interface describes the constract between extensions
+	 * and the call hierarchy feature which allows to browse calls and caller of function,
+	 * methods, constructor etc.
+	 */
+	export interface CallHierarchyProvider {
+
+		/**
+		 * Bootstraps call hierarchy by returning the item that is denoted by the given document
+		 * and position. This item will be used as entry into the call graph. Providers should
+		 * return `undefined` or `null` when there is no item at the given location.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @returns A call hierarchy item or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
+
+		/**
+		 * Provide all incoming calls for an item, e.g all callers for a method. In graph terms this describes directed
+		 * and annotated edges inside the call graph, e.g the given item is the starting node and the result is the nodes
+		 * that can be reached.
+		 *
+		 * @param item The hierarchy item for which incoming calls should be computed.
+		 * @param token A cancellation token.
+		 * @returns A set of incoming calls or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideCallHierarchyIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
+
+		/**
+		 * Provide all outgoing calls for an item, e.g call calls to functions, methods, or constructors from the given item. In
+		 * graph terms this describes directed and annotated edges inside the call graph, e.g the given item is the starting
+		 * node and the result is the nodes that can be reached.
+		 *
+		 * @param item The hierarchy item for which outgoing calls should be computed.
+		 * @param token A cancellation token.
+		 * @returns A set of outgoing calls or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideCallHierarchyOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
+	}
+
+	/**
 	 * A tuple of two characters, like a pair of
 	 * opening and closing brackets.
 	 */
@@ -4080,11 +4223,11 @@ declare module 'vscode' {
 	 * - Workspace configuration (if available)
 	 * - Workspace folder configuration of the requested resource (if available)
 	 *
-	 * *Global configuration* comes from User Settings and shadows Defaults.
+	 * *Global configuration* comes from User Settings and overrides Defaults.
 	 *
-	 * *Workspace configuration* comes from Workspace Settings and shadows Global configuration.
+	 * *Workspace configuration* comes from Workspace Settings and overrides Global configuration.
 	 *
-	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders).
+	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders) and overrides Workspace configuration.
 	 *
 	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
@@ -4133,9 +4276,9 @@ declare module 'vscode' {
 		 * a workspace-specific value and a folder-specific value.
 		 *
 		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
-		 * is computed like this: `defaultValue` overwritten by `globalValue`,
-		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `workspaceFolderValue`.
-		 * Refer to [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings)
+		 * is computed like this: `defaultValue` overridden by `globalValue`,
+		 * `globalValue` overridden by `workspaceValue`. `workspaceValue` overwridden by `workspaceFolderValue`.
+		 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings)
 		 * for more information.
 		 *
 		 * *Note:* The configuration name must denote a leaf in the configuration tree
@@ -5242,6 +5385,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Class used to execute an extension callback as a task.
+	 */
+	export class CustomExecution {
+		/**
+		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
+		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
+		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
+		 * @param callback The callback that will be called when the task is started by a user.
+		 */
+		constructor(callback: () => Thenable<Pseudoterminal>);
+	}
+
+	/**
 	 * The scope of a task.
 	 */
 	export enum TaskScope {
@@ -5283,7 +5442,7 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * ~~Creates a new task.~~
@@ -5318,7 +5477,7 @@ declare module 'vscode' {
 		/**
 		 * The task's execution engine
 		 */
-		execution?: ProcessExecution | ShellExecution;
+		execution?: ProcessExecution | ShellExecution | CustomExecution;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -6259,8 +6418,11 @@ declare module 'vscode' {
 		export const uiKind: UIKind;
 
 		/**
-		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
-		 * default application.
+		 * Opens a link externally using the default application. Depending on the
+		 * used scheme this can be:
+		 * * a browser (`http:`, `https:`)
+		 * * a mail client (`mailto:`)
+		 * * VSCode itself (`vscode:` from `vscode.env.uriScheme`)
 		 *
 		 * *Note* that [`showTextDocument`](#window.showTextDocument) is the right
 		 * way to open a text document inside the editor, not this function.
@@ -6285,7 +6447,7 @@ declare module 'vscode' {
 		 * a system or user action — for example, in remote cases, a user may close a port forwardng tunnel
 		 * that was opened by `asExternalUri`.
 		 *
-		 * Note: uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri`
+		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri`
 		 * on them.
 		 *
 		 * @return A uri that can be used on the client machine.
@@ -8675,6 +8837,15 @@ declare module 'vscode' {
 		export function registerSelectionRangeProvider(selector: DocumentSelector, provider: SelectionRangeProvider): Disposable;
 
 		/**
+		 * Register a call hierarchy provider.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A call hierarchy provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyProvider): Disposable;
+
+		/**
 		 * Set a [language configuration](#LanguageConfiguration) for a language.
 		 *
 		 * @param language A language identifier like `typescript`.
@@ -9261,6 +9432,41 @@ declare module 'vscode' {
 		 * Create a new function breakpoint.
 		 */
 		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
+	}
+
+	/**
+	 * Debug console mode used by debug session, see [options](#DebugSessionOptions).
+	 */
+	export enum DebugConsoleMode {
+		/**
+		 * Debug session should have a separate debug console.
+		 */
+		Separate = 0,
+
+		/**
+		 * Debug session should share debug console with its parent session.
+		 * This value has no effect for sessions which do not have a parent session.
+		 */
+		MergeWithParent = 1
+	}
+
+	/**
+	 * Options for [starting a debug session](#debug.startDebugging).
+	 */
+	export interface DebugSessionOptions {
+
+		/**
+		 * When specified the newly created debug session is registered as a "child" session of this
+		 * "parent" debug session.
+		 */
+		parentSession?: DebugSession;
+
+		/**
+		 * Controls whether this session should have a separate debug console or share it
+		 * with the parent session. Has no effect for sessions which do not have a parent session.
+		 * Defaults to Separate.
+		 */
+		consoleMode?: DebugConsoleMode;
 	}
 
 	/**

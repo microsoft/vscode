@@ -39,11 +39,11 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 
-class TestEnvironmentService extends WorkbenchEnvironmentService {
+class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
 		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);

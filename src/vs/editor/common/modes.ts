@@ -453,7 +453,7 @@ export interface CompletionItem {
 	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 	 */
-	range: IRange;
+	range: IRange | { insert: IRange, replace: IRange };
 	/**
 	 * An optional set of characters that when pressed while this completion is active will accept it first and
 	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -954,7 +954,7 @@ export namespace SymbolKinds {
 	 * @internal
 	 */
 	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		return `symbol-icon ${inline ? 'inline' : 'block'} ${byKind.get(kind) || 'property'}`;
+		return `codicon ${inline ? 'inline' : 'block'} codicon-symbol-${byKind.get(kind) || 'property'}`;
 	}
 }
 

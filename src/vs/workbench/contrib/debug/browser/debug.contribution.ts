@@ -84,7 +84,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	DebugViewlet,
 	VIEWLET_ID,
 	nls.localize('debug', "Debug"),
-	'debug',
+	'codicon-debug',
 	3
 ));
 

@@ -13,7 +13,7 @@
     "@types/mkdirp": "0.5.1",
     "@types/mocha": "2.2.41",
     "@types/ncp": "2.0.1",
-    "@types/node": "^10.14.8",
+    "@types/node": "^12.11.7",
     "@types/rimraf": "2.0.2",
     "concurrently": "^3.5.1",
     "cpx": "^1.5.0",

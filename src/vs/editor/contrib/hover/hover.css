@@ -8,12 +8,9 @@
 	position: absolute;
 	overflow: hidden;
 	z-index: 50;
+	user-select: text;
 	-webkit-user-select: text;
 	-ms-user-select: text;
-	-khtml-user-select: text;
-	-moz-user-select: text;
-	-o-user-select: text;
-	user-select: text;
 	box-sizing: initial;
 	animation: fadein 100ms linear;
 	line-height: 1.5em;

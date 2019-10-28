@@ -505,6 +505,11 @@ export interface ConfigurationProperties {
 	dependsOrder?: DependsOrder;
 
 	/**
+	 * A description of the task.
+	 */
+	detail?: string;
+
+	/**
 	 * The problem watchers to use for this task
 	 */
 	problemMatchers?: Array<string | ProblemMatcher>;

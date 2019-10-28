@@ -168,7 +168,7 @@ suite('CursorMove', () => {
 		testColumnFromVisibleColumn('baz', 4, 3, 4);
 
 		testColumnFromVisibleColumn('📚az', 4, 0, 1);
-		testColumnFromVisibleColumn('📚az', 4, 1, 2);
+		testColumnFromVisibleColumn('📚az', 4, 1, 1);
 		testColumnFromVisibleColumn('📚az', 4, 2, 3);
 		testColumnFromVisibleColumn('📚az', 4, 3, 4);
 		testColumnFromVisibleColumn('📚az', 4, 4, 5);

@@ -225,8 +225,8 @@ export namespace TaskDTO {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
-		} else if ((<vscode.Task2>value).execution2 && (<vscode.Task2>value).execution2 instanceof types.CustomExecution) {
-			execution = CustomExecutionDTO.from(<types.CustomExecution>(<vscode.Task2>value).execution2);
+		} else if (value.execution && value.execution instanceof types.CustomExecution) {
+			execution = CustomExecutionDTO.from(<types.CustomExecution>value.execution);
 		}
 
 		const definition: tasks.TaskDefinitionDTO | undefined = TaskDefinitionDTO.from(value.definition);
@@ -261,6 +261,7 @@ export namespace TaskDTO {
 			problemMatchers: value.problemMatchers,
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
 			runOptions: (<vscode.Task>value).runOptions ? (<vscode.Task>value).runOptions : { reevaluateOnRerun: true },
+			detail: (<vscode.Task2>value).detail
 		};
 		return result;
 	}
@@ -302,6 +303,9 @@ export namespace TaskDTO {
 		}
 		if (value._id) {
 			result._id = value._id;
+		}
+		if (value.detail) {
+			result.detail = value.detail;
 		}
 		return result;
 	}
@@ -574,7 +578,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		}
 
 		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
-			await this.addCustomExecution(resolvedTaskDTO, <vscode.Task2>resolvedTask, true);
+			await this.addCustomExecution(resolvedTaskDTO, resolvedTask, true);
 		}
 
 		return await this.resolveTaskInternal(resolvedTaskDTO);
@@ -588,12 +592,12 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		return this._handleCounter++;
 	}
 
-	protected async addCustomExecution(taskDTO: tasks.TaskDTO, task: vscode.Task2, isProvided: boolean): Promise<void> {
+	protected async addCustomExecution(taskDTO: tasks.TaskDTO, task: vscode.Task, isProvided: boolean): Promise<void> {
 		const taskId = await this._proxy.$createTaskId(taskDTO);
 		if (!isProvided && !this._providedCustomExecutions2.has(taskId)) {
 			this._notProvidedCustomExecutions.add(taskId);
 		}
-		this._providedCustomExecutions2.set(taskId, <types.CustomExecution>(<vscode.Task2>task).execution2);
+		this._providedCustomExecutions2.set(taskId, <types.CustomExecution>task.execution);
 	}
 
 	protected async getTaskExecution(execution: tasks.TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {
@@ -675,7 +679,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		// in the provided custom execution map that is cleaned up after the
 		// task is executed.
 		if (CustomExecutionDTO.is(dto.execution)) {
-			await this.addCustomExecution(dto, <vscode.Task2>task, false);
+			await this.addCustomExecution(dto, task, false);
 		} else {
 			throw new Error('Not implemented');
 		}
@@ -697,7 +701,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 					// The ID is calculated on the main thread task side, so, let's call into it here.
 					// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 					// is invoked, we have to be able to map it back to our data.
-					taskIdPromises.push(this.addCustomExecution(taskDTO, <vscode.Task2>task, true));
+					taskIdPromises.push(this.addCustomExecution(taskDTO, task, true));
 				} else {
 					console.warn('Only custom execution tasks supported.');
 				}

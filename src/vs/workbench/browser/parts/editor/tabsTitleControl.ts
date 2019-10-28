@@ -31,7 +31,7 @@ import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifie
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
@@ -589,11 +589,16 @@ export class TabsTitleControl extends TitleControl {
 			});
 		}));
 
-		// Pin on double click
+		// Double click: either pin or toggle maximized
 		disposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
 			EventHelper.stop(e);
 
-			this.group.pinEditor(this.group.getEditor(index) || undefined);
+			const editor = this.group.getEditor(index);
+			if (editor && this.group.isPinned(editor)) {
+				this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
+			} else {
+				this.group.pinEditor(editor);
+			}
 		}));
 
 		// Context menu
@@ -915,7 +920,7 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.title = title;
 
 		// Label
-		tabLabelWidget.setResource({ name, description, resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }) || undefined }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
+		tabLabelWidget.setResource({ name, description, resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }) }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
 	}
 
 	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
@@ -1231,7 +1236,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	// High Contrast Border Color for Editor Actions
 	const contrastBorderColor = theme.getColor(contrastBorder);
-	if (contrastBorder) {
+	if (contrastBorderColor) {
 		collector.addRule(`
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 				outline: 1px solid ${contrastBorderColor}

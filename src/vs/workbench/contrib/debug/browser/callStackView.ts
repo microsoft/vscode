@@ -331,10 +331,10 @@ export class CallStackView extends ViewletPanel {
 		});
 	}
 
-	private getContextForContributedActions(element: CallStackItem | null): string | number | undefined {
+	private getContextForContributedActions(element: CallStackItem | null): string | number {
 		if (element instanceof StackFrame) {
 			if (element.source.inMemory) {
-				return element.source.raw.path || element.source.reference;
+				return element.source.raw.path || element.source.reference || '';
 			}
 
 			return element.source.uri.toString();
@@ -346,7 +346,7 @@ export class CallStackView extends ViewletPanel {
 			return element.getId();
 		}
 
-		return undefined;
+		return '';
 	}
 }
 

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -293,6 +293,7 @@ export class CustomMenubarControl extends MenubarControl {
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IHostService protected readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@optional(IElectronService) private readonly electronService: IElectronService,
 		@optional(IElectronEnvironmentService) private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
@@ -444,9 +445,8 @@ export class CustomMenubarControl extends MenubarControl {
 				return null;
 
 			case StateType.Idle:
-				const context = `window:${this.electronEnvironmentService ? this.electronEnvironmentService.windowId : 'any'}`;
 				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
-					this.updateService.checkForUpdates(context));
+					this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId));
 
 			case StateType.CheckingForUpdates:
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking for Updates..."), undefined, false);
@@ -472,7 +472,7 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private get currentMenubarVisibility(): MenuBarVisibility {
-		return this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+		return getMenuBarVisibility(this.configurationService, this.environmentService);
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {

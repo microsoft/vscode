@@ -78,6 +78,7 @@
 .monaco-editor .review-widget .body .review-comment .review-comment-contents {
 	padding-left: 20px;
 	user-select: text;
+	-webkit-user-select: text;
 	width: 100%;
 	overflow: hidden;
 }
@@ -134,6 +135,7 @@
 	width: 16px;
 	height: 12px;
 	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 	display: inline-block;
 	margin-top: 3px;
 	margin-right: 4px;
@@ -274,10 +276,6 @@
 	text-align: left;
 	width: 100%;
 	box-sizing: border-box;
-	-webkit-box-sizing: border-box;
-	-o-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	-ms-box-sizing: border-box;
 	padding: 0.4em;
 	font-size: 12px;
 	line-height: 17px;
@@ -362,10 +360,6 @@
 }
 
 .monaco-editor .review-widget .head {
-	-webkit-box-sizing: border-box;
-	-o-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	-ms-box-sizing: border-box;
 	box-sizing: border-box;
 	display: flex;
 	height: 100%;

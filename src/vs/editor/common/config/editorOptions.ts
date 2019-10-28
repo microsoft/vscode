@@ -72,6 +72,12 @@ export interface IEditorOptions {
 	*/
 	cursorSurroundingLines?: number;
 	/**
+	 * Controls when `cursorSurroundingLines` should be enforced
+	 * Defaults to `default`, `cursorSurroundingLines` is not enforced when cursor position is changed
+	 * by mouse.
+	*/
+	cursorSurroundingLinesStyle?: 'default' | 'all';
+	/**
 	 * Render last line number when the file ends with a newline.
 	 * Defaults to true.
 	*/
@@ -137,7 +143,7 @@ export interface IEditorOptions {
 	fixedOverflowWidgets?: boolean;
 	/**
 	 * The number of vertical lanes the overview ruler should render.
-	 * Defaults to 2.
+	 * Defaults to 3.
 	 */
 	overviewRulerLanes?: number;
 	/**
@@ -1103,9 +1109,9 @@ export interface IEditorFindOptions {
 	 */
 	seedSearchStringFromSelection?: boolean;
 	/**
-	 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
+	 * Controls if Find in Selection flag is turned on in the editor.
 	 */
-	autoFindInSelection?: boolean;
+	autoFindInSelection?: 'never' | 'always' | 'multiline';
 	/*
 	 * Controls whether the Find Widget should add extra lines on top of the editor.
 	 */
@@ -1124,7 +1130,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 	constructor() {
 		const defaults: EditorFindOptions = {
 			seedSearchStringFromSelection: true,
-			autoFindInSelection: false,
+			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true
 		};
@@ -1137,8 +1143,14 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					description: nls.localize('find.seedSearchStringFromSelection', "Controls whether the search string in the Find Widget is seeded from the editor selection.")
 				},
 				'editor.find.autoFindInSelection': {
-					type: 'boolean',
+					type: 'string',
+					enum: ['never', 'always', 'multiline'],
 					default: defaults.autoFindInSelection,
+					enumDescriptions: [
+						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default)'),
+						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically'),
+						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
+					],
 					description: nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried out on selected text or the entire file in the editor.")
 				},
 				'editor.find.globalFindClipboard': {
@@ -1163,7 +1175,9 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 		const input = _input as IEditorFindOptions;
 		return {
 			seedSearchStringFromSelection: EditorBooleanOption.boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
-			autoFindInSelection: EditorBooleanOption.boolean(input.autoFindInSelection, this.defaultValue.autoFindInSelection),
+			autoFindInSelection: typeof _input.autoFindInSelection === 'boolean'
+				? (_input.autoFindInSelection ? 'always' : 'never')
+				: EditorStringEnumOption.stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
 			globalFindClipboard: EditorBooleanOption.boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop)
 		};
@@ -1258,7 +1272,7 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
 		}
-		return EditorFloatOption.clamp(r, 8, 100);
+		return EditorFloatOption.clamp(r, 6, 100);
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The final fontSize respects the editor zoom level.
@@ -2722,6 +2736,7 @@ export const enum EditorOption {
 	cursorSmoothCaretAnimation,
 	cursorStyle,
 	cursorSurroundingLines,
+	cursorSurroundingLinesStyle,
 	cursorWidth,
 	disableLayerHinting,
 	disableMonospaceOptimizations,
@@ -2936,6 +2951,18 @@ export const EditorOptions = {
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or `scrollOffset` in some other editors.") }
 	)),
+	cursorSurroundingLinesStyle: register(new EditorStringEnumOption(
+		EditorOption.cursorSurroundingLinesStyle, 'cursorSurroundingLinesStyle',
+		'default' as 'default' | 'all',
+		['default', 'all'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered from keyboard and api"),
+				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
+			],
+			description: nls.localize('cursorSurroundingLinesStyle', "Controls when `cursorSurroundingLines` should be enforced")
+		}
+	)),
 	cursorWidth: register(new EditorIntOption(
 		EditorOption.cursorWidth, 'cursorWidth',
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
@@ -3094,8 +3121,7 @@ export const EditorOptions = {
 	)),
 	overviewRulerLanes: register(new EditorIntOption(
 		EditorOption.overviewRulerLanes, 'overviewRulerLanes',
-		3, 0, 3,
-		{ description: nls.localize('overviewRulerLanes', "Controls the number of decorations that can show up at the same position in the overview ruler.") }
+		3, 0, 3
 	)),
 	parameterHints: register(new EditorParameterHints()),
 	quickSuggestions: register(new EditorQuickSuggestions()),

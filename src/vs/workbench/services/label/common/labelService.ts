@@ -12,11 +12,10 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { isEqual, basenameOrAuthority, isEqualOrParent, basename, joinPath, dirname } from 'vs/base/common/resources';
-import { isWindows } from 'vs/base/common/platform';
+import { isEqual, basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ltrim, endsWith } from 'vs/base/common/strings';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
@@ -71,7 +70,7 @@ const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
 
 function hasDriveLetter(path: string): boolean {
-	return !!(isWindows && path && path[2] === ':');
+	return !!(path && path[2] === ':');
 }
 
 class ResourceLabelFormattersHandler implements IWorkbenchContribution {
@@ -194,7 +193,7 @@ export class LabelService implements ILabelService {
 
 		if (isWorkspaceIdentifier(workspace)) {
 			// Workspace: Untitled
-			if (isEqualOrParent(workspace.configPath, this.environmentService.untitledWorkspacesHome)) {
+			if (isUntitledWorkspace(workspace.configPath, this.environmentService)) {
 				return localize('untitledWorkspace', "Untitled (Workspace)");
 			}
 

@@ -12,6 +12,7 @@
 	align-items: center;
 	justify-content: center;
 	user-select: none;
+	-webkit-user-select: none;
 	zoom: 1; /* prevent zooming */
 	line-height: 22px;
 	height: 22px;

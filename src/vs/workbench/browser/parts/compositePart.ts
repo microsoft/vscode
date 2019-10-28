@@ -285,7 +285,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		if (this.activeComposite && this.activeComposite.getId() === compositeId) {
 
 			// Title
-			this.updateTitle(this.activeComposite.getId(), this.activeComposite.getTitle() || undefined);
+			this.updateTitle(this.activeComposite.getId(), this.activeComposite.getTitle());
 
 			// Actions
 			const actionsBinding = this.collectCompositeActions(this.activeComposite);

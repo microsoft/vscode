@@ -81,6 +81,9 @@ import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
+const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
+const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
+const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -182,6 +185,13 @@ class TaskMap {
 interface TaskQuickPickEntry extends IQuickPickItem {
 	task: Task | undefined | null;
 }
+
+interface ProblemMatcherDisableMetrics {
+	type: string;
+}
+type ProblemMatcherDisableMetricsClassification = {
+	type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
 
 export abstract class AbstractTaskService extends Disposable implements ITaskService {
 
@@ -723,11 +733,32 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return settingValue === true;
 	}
 
+	private isProblemMatcherPromptEnabled(type?: string): boolean {
+		const settingValue = this.configurationService.getValue(PROBLEM_MATCHER_NEVER_CONFIG);
+		if (Types.isBoolean(settingValue)) {
+			return !settingValue;
+		}
+		if (type === undefined) {
+			return true;
+		}
+		const settingValueMap: IStringDictionary<boolean> = <any>settingValue;
+		return !settingValueMap[type];
+	}
+
+	private getTypeForTask(task: Task): string {
+		let type: string;
+		if (CustomTask.is(task)) {
+			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+			type = (<any>configProperties).type;
+		} else {
+			type = task.getDefinition()!.type;
+		}
+		return type;
+	}
+
 	private shouldAttachProblemMatcher(task: Task): boolean {
-		const settingValue = this.configurationService.getValue('task.problemMatchers.neverPrompt');
-		if (settingValue === true) {
-			return false;
-		} else if (task.type && Types.isStringArray(settingValue) && (settingValue.indexOf(task.type) >= 0)) {
+		const enabled = this.isProblemMatcherPromptEnabled(this.getTypeForTask(task));
+		if (enabled === false) {
 			return false;
 		}
 		if (!this.canCustomize(task)) {
@@ -749,11 +780,28 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return false;
 	}
 
+	private async updateNeverProblemMatcherSetting(type: string): Promise<void> {
+		this.telemetryService.publicLog2<ProblemMatcherDisableMetrics, ProblemMatcherDisableMetricsClassification>('problemMatcherDisabled', { type });
+		const current = this.configurationService.getValue(PROBLEM_MATCHER_NEVER_CONFIG);
+		if (current === true) {
+			return;
+		}
+		let newValue: IStringDictionary<boolean>;
+		if (current !== false) {
+			newValue = <any>current;
+		} else {
+			newValue = Object.create(null);
+		}
+		newValue[type] = true;
+		return this.configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue, ConfigurationTarget.USER);
+	}
+
 	private attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task | undefined> {
 		interface ProblemMatcherPickEntry extends IQuickPickItem {
 			matcher: NamedProblemMatcher | undefined;
 			never?: boolean;
 			learnMore?: boolean;
+			setting?: string;
 		}
 		let entries: QuickPickInput<ProblemMatcherPickEntry>[] = [];
 		for (let key of ProblemMatcherRegistry.keys()) {
@@ -780,14 +828,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			});
 			entries.unshift({ type: 'separator', label: nls.localize('TaskService.associate', 'associate') });
+			let taskType: string;
+			if (CustomTask.is(task)) {
+				let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+				taskType = (<any>configProperties).type;
+			} else {
+				taskType = task.getDefinition().type;
+			}
 			entries.unshift(
 				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
-				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output'), matcher: undefined, never: true },
+				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output for this task'), matcher: undefined, never: true },
+				{ label: nls.localize('TaskService.attachProblemMatcher.neverType', 'Never scan the task output for {0} tasks', taskType), matcher: undefined, setting: taskType },
 				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the task output'), matcher: undefined, learnMore: true }
 			);
 			return this.quickInputService.pick(entries, {
 				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output'),
-			}).then((selected) => {
+			}).then(async (selected) => {
 				if (selected) {
 					if (selected.learnMore) {
 						this.openDocumentation();
@@ -807,6 +863,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 						this.customize(task, properties, true);
 						return newTask;
+					} else if (selected.setting) {
+						await this.updateNeverProblemMatcherSetting(selected.setting);
+						return task;
 					} else {
 						return task;
 					}
@@ -1297,7 +1356,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						this.notificationService.prompt(Severity.Warning, nls.localize('TaskSystem.slowProvider', "The {0} task provider is slow. The extension that provides {0} tasks may provide a setting to disable it, or you can disable all tasks providers", type),
 							[settings, disableAll, dontShow]);
 					}
-				}, 1000);
+				}, 4000);
 			}
 		});
 	}
@@ -1876,6 +1935,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return true;
 	}
 
+	private showDetail(): boolean {
+		return this.configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
+	}
+
 	private createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry): TaskQuickPickEntry[] {
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
@@ -1892,7 +1955,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					description = workspaceFolder.name;
 				}
 			}
-			return { label: task._label, description, task };
+
+			return { label: task._label, description, task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
 		};
 		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
 			if (tasks.length) {
@@ -1934,7 +1998,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				for (let task of tasks) {
 					let key = task.getRecentlyUsedKey();
 					if (!key || !recentlyUsedTasks.has(key)) {
-						if (task._source.kind === TaskSourceKind.Workspace) {
+						if ((task._source.kind === TaskSourceKind.Workspace) || (task._source.kind === TaskSourceKind.User)) {
 							configured.push(task);
 						} else {
 							detected.push(task);
@@ -1959,6 +2023,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
+		const tokenSource = new CancellationTokenSource();
+		const cancellationToken: CancellationToken = tokenSource.token;
 		let _createEntries = (): Promise<QuickPickInput<TaskQuickPickEntry>[]> => {
 			if (Array.isArray(tasks)) {
 				return Promise.resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
@@ -1966,15 +2032,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				return tasks.then((tasks) => this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
 			}
 		};
-		return this.quickInputService.pick(_createEntries().then((entries) => {
-			if ((entries.length === 0) && defaultEntry) {
+		const pickEntries = _createEntries().then((entries) => {
+			if ((entries.length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
+				tokenSource.cancel();
+			} else if ((entries.length === 0) && defaultEntry) {
 				entries.push(defaultEntry);
 			} else if (entries.length > 1 && additionalEntries && additionalEntries.length > 0) {
 				entries.push({ type: 'separator', label: '' });
 				entries.push(additionalEntries[0]);
 			}
 			return entries;
-		}), {
+		});
+		return this.quickInputService.pick(pickEntries, {
 			placeHolder,
 			matchOnDescription: true,
 			onDidTriggerItemButton: context => {
@@ -1986,6 +2055,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					this.openConfig(task);
 				}
 			}
+		}, cancellationToken).then(async (selection) => {
+			if (cancellationToken.isCancellationRequested) {
+				// canceled when there's only one task
+				const task = (await pickEntries)[0];
+				if ((<any>task).task) {
+					selection = <TaskQuickPickEntry>task;
+				}
+			}
+			if (!selection) {
+				return;
+			}
+			return selection;
 		});
 	}
 

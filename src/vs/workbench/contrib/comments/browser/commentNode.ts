@@ -57,7 +57,7 @@ export class CommentNode extends Disposable {
 	protected toolbar: ToolBar | undefined;
 	private _commentFormActions: CommentFormActions | null = null;
 
-	private readonly _onDidDelete = new Emitter<CommentNode>();
+	private readonly _onDidClick = new Emitter<CommentNode>();
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
@@ -89,7 +89,7 @@ export class CommentNode extends Disposable {
 		this._contextKeyService = contextKeyService.createScoped(this._domNode);
 		this._commentContextValue = this._contextKeyService.createKey('comment', comment.contextValue);
 
-		this._domNode.tabIndex = 0;
+		this._domNode.tabIndex = -1;
 		const avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
 		if (comment.userIconPath) {
 			const img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
@@ -111,10 +111,12 @@ export class CommentNode extends Disposable {
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
 		this._domNode.setAttribute('role', 'treeitem');
 		this._clearTimeout = null;
+
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CLICK, () => this.isEditing || this._onDidClick.fire(this)));
 	}
 
-	public get onDidDelete(): Event<CommentNode> {
-		return this._onDidDelete.event;
+	public get onDidClick(): Event<CommentNode> {
+		return this._onDidClick.event;
 	}
 
 	private createHeader(commentDetailsContainer: HTMLElement): void {
@@ -430,19 +432,31 @@ export class CommentNode extends Disposable {
 		this._commentFormActions.setActions(menu);
 	}
 
+	setFocus(focused: boolean, visible: boolean = false) {
+		if (focused) {
+			this._domNode.focus();
+			this._actionsToolbarContainer.classList.remove('hidden');
+			this._actionsToolbarContainer.classList.add('tabfocused');
+			this._domNode.tabIndex = 0;
+		} else {
+			if (this._actionsToolbarContainer.classList.contains('tabfocused') && !this._actionsToolbarContainer.classList.contains('mouseover')) {
+				this._actionsToolbarContainer.classList.add('hidden');
+				this._domNode.tabIndex = -1;
+			}
+			this._actionsToolbarContainer.classList.remove('tabfocused');
+		}
+	}
+
 	private registerActionBarListeners(actionsContainer: HTMLElement): void {
 		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', () => {
 			actionsContainer.classList.remove('hidden');
+			actionsContainer.classList.add('mouseover');
 		}));
-
-		this._register(dom.addDisposableListener(this._domNode, 'focus', () => {
-			actionsContainer.classList.remove('hidden');
-		}));
-
 		this._register(dom.addDisposableListener(this._domNode, 'mouseleave', () => {
-			if (!this._domNode.contains(document.activeElement)) {
+			if (actionsContainer.classList.contains('mouseover') && !actionsContainer.classList.contains('tabfocused')) {
 				actionsContainer.classList.add('hidden');
 			}
+			actionsContainer.classList.remove('mouseover');
 		}));
 	}
 

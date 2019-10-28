@@ -430,12 +430,16 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 		nodes.forEach(node => {
 			const ref = model.getNodeLocation(node);
-			const parentRef = model.getParentNodeLocation(ref);
+			try {
+				const parentRef = model.getParentNodeLocation(ref);
 
-			if (node.collapsible && node.children.length > 0 && !node.collapsed) {
-				set.add(node);
-			} else if (parentRef) {
-				set.add(model.getNode(parentRef));
+				if (node.collapsible && node.children.length > 0 && !node.collapsed) {
+					set.add(node);
+				} else if (parentRef) {
+					set.add(model.getNode(parentRef));
+				}
+			} catch {
+				// noop
 			}
 		});
 
@@ -657,7 +661,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 		const onKeyDown = Event.chain(domEvent(this.view.getHTMLElement(), 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
-			.filter(e => e.key !== 'Dead')
+			.filter(e => e.key !== 'Dead' && !/^Media/.test(e.key))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)

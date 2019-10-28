@@ -38,8 +38,6 @@ export const RemoteConnectionState = new RawContextKey<'' | 'initializing' | 'di
 
 export const HasMacNativeTabsContext = new RawContextKey<boolean>('hasMacNativeTabs', false);
 
-export const SupportsWorkspacesContext = new RawContextKey<boolean>('supportsWorkspaces', true);
-
 export const IsDevelopmentContext = new RawContextKey<boolean>('isDevelopment', false);
 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined);
@@ -106,11 +104,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Development
 		IsDevelopmentContext.bindTo(this.contextKeyService).set(!this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment);
-
-		// Workspaces Support
-		// - web: only if already in workspace state
-		// - desktop: always
-		SupportsWorkspacesContext.bindTo(this.contextKeyService).set(isWeb ? this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE : true);
 
 		// Editors
 		this.activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);

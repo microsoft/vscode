@@ -23,6 +23,7 @@
 	overflow: hidden;
 	display: flex;
 	cursor: pointer;
+	align-items: center;
 }
 
 .monaco-panel-view .panel > .panel-header > .twisties {

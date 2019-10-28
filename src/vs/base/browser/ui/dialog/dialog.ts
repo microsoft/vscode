@@ -6,7 +6,7 @@
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode, isAncestor } from 'vs/base/browser/dom';
+import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -84,12 +84,13 @@ export class Dialog extends Disposable {
 		if (this.options.checkboxLabel) {
 			const checkboxRowElement = messageContainer.appendChild($('.dialog-checkbox-row'));
 
-			this.checkbox = this._register(new SimpleCheckbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
+			const checkbox = this.checkbox = this._register(new SimpleCheckbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
 
-			checkboxRowElement.appendChild(this.checkbox.domNode);
+			checkboxRowElement.appendChild(checkbox.domNode);
 
 			const checkboxMessageElement = checkboxRowElement.appendChild($('.dialog-checkbox-message'));
 			checkboxMessageElement.innerText = this.options.checkboxLabel;
+			this._register(addDisposableListener(checkboxMessageElement, EventType.CLICK, () => checkbox.checked = !checkbox.checked));
 		}
 
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));

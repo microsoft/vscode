@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensions';
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -81,7 +80,7 @@ const viewletDescriptor = new ViewletDescriptor(
 	ExtensionsViewlet,
 	VIEWLET_ID,
 	localize('extensions', "Extensions"),
-	'extensions',
+	'codicon-extensions',
 	4
 );
 
@@ -274,12 +273,13 @@ CommandsRegistry.registerCommand({
 			throw new Error(localize('id required', "Extension id required."));
 		}
 		const extensionManagementService = accessor.get(IExtensionManagementService);
+		const installed = await extensionManagementService.getInstalled(ExtensionType.User);
+		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+		if (!extensionToUninstall) {
+			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", id));
+		}
+
 		try {
-			const installed = await extensionManagementService.getInstalled(ExtensionType.User);
-			const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
-			if (!extensionToUninstall) {
-				return Promise.reject(new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", id)));
-			}
 			await extensionManagementService.uninstall(extensionToUninstall, true);
 		} catch (e) {
 			onUnexpectedError(e);

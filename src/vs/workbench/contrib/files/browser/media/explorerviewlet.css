@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Activity Bar */
-.monaco-workbench .activitybar .monaco-action-bar .action-label.explore {
-	-webkit-mask: url('files-activity-bar.svg') no-repeat 50% 50%;
-}
-
 /* --- Explorer viewlet --- */
 .explorer-viewlet,
 .explorer-folders-view {
@@ -68,6 +63,7 @@
 
 .explorer-viewlet .panel-header .count {
 	min-width: fit-content;
+	min-width: -moz-fit-content;
 	display: flex;
 	align-items: center;
 }

@@ -60,7 +60,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	protected createElement(options: WebviewOptions) {
 		const element = document.createElement('iframe');
-		element.className = `webview ${options.customClasses}`;
+		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin');
 		element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		element.style.border = 'none';
@@ -92,9 +92,13 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private preprocessHtml(value: string): string {
-		return value.replace(/(["'])vscode-resource:(\/\/([^\s'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_, startQuote, _1, scheme, path, endQuote) => {
-			return `${startQuote}${this.externalEndpoint}/vscode-resource/${scheme || ''}${path}${endQuote}`;
-		});
+		return value
+			.replace(/(["'])vscode-resource:(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
+				if (scheme) {
+					return `${startQuote}${this.externalEndpoint}/vscode-resource/${scheme}${path}${endQuote}`;
+				}
+				return `${startQuote}${this.externalEndpoint}/vscode-resource/file${path}${endQuote}`;
+			});
 	}
 
 	protected get extraContentOptions() {
@@ -104,7 +108,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	focus(): void {
-		console.log('focus');
 		if (this.element) {
 			this._send('focus');
 		}

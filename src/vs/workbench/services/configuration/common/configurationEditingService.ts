@@ -409,7 +409,7 @@ export class ConfigurationEditingService {
 			return false;
 		}
 		const parseErrors: json.ParseError[] = [];
-		json.parse(model.getValue(), parseErrors);
+		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true, allowEmptyContent: true });
 		return parseErrors.length > 0;
 	}
 
