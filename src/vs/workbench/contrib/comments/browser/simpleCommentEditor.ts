@@ -47,6 +47,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		const codeEditorWidgetOptions = {
+			isSimpleWidget: true,
 			contributions: [
 				{ id: MenuPreventer.ID, ctor: MenuPreventer },
 				{ id: ContextMenuController.ID, ctor: ContextMenuController },

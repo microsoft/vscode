@@ -68,7 +68,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	// signal to code-block render that the
 	// element has been created
 	let signalInnerHTML: () => void;
-	const withInnerHTML = new Promise(c => signalInnerHTML = c);
+	const withInnerHTML = new Promise<void>(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {

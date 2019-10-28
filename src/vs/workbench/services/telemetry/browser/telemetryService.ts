@@ -52,11 +52,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (!environmentService.args['disable-telemetry'] && !!productService.enableTelemetry) {
+		if (!!productService.enableTelemetry) {
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new WebTelemetryAppender(logService, remoteAgentService), new LogAppender(logService)),
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.configuration.remoteAuthority),
-				piiPaths: [environmentService.appRoot]
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.configuration.remoteAuthority)
 			};
 
 			this.impl = this._register(new BaseTelemetryService(config, configurationService));

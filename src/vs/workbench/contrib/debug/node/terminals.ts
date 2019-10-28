@@ -29,34 +29,49 @@ export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestAr
 	}
 }
 
-export function hasChildProcesses(processId: number): boolean {
-	if (processId) {
-		try {
-			// if shell has at least one child process, assume that shell is busy
-			if (env.isWindows) {
-				const result = cp.spawnSync('wmic', ['process', 'get', 'ParentProcessId']);
-				if (result.stdout) {
-					const pids = result.stdout.toString().split('\r\n');
-					if (!pids.some(p => parseInt(p) === processId)) {
-						return false;
-					}
-				}
-			} else {
-				const result = cp.spawnSync('/usr/bin/pgrep', ['-lP', String(processId)]);
-				if (result.stdout) {
-					const r = result.stdout.toString().trim();
-					if (r.length === 0 || r.indexOf(' tmux') >= 0) { // ignore 'tmux'; see #43683
-						return false;
-					}
-				}
-			}
+function spawnAsPromised(command: string, args: string[]): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let stdout = '';
+		const child = cp.spawn(command, args);
+		if (child.pid) {
+			child.stdout.on('data', (data: Buffer) => {
+				stdout += data.toString();
+			});
 		}
-		catch (e) {
-			// silently ignore
+		child.on('error', err => {
+			reject(err);
+		});
+		child.on('close', code => {
+			resolve(stdout);
+		});
+	});
+}
+
+export function hasChildProcesses(processId: number): Promise<boolean> {
+	if (processId) {
+		// if shell has at least one child process, assume that shell is busy
+		if (env.isWindows) {
+			return spawnAsPromised('wmic', ['process', 'get', 'ParentProcessId']).then(stdout => {
+				const pids = stdout.split('\r\n');
+				return pids.some(p => parseInt(p) === processId);
+			}, error => {
+				return true;
+			});
+		} else {
+			return spawnAsPromised('/usr/bin/pgrep', ['-lP', String(processId)]).then(stdout => {
+				const r = stdout.trim();
+				if (r.length === 0 || r.indexOf(' tmux') >= 0) { // ignore 'tmux'; see #43683
+					return false;
+				} else {
+					return true;
+				}
+			}, error => {
+				return true;
+			});
 		}
 	}
 	// fall back to safe side
-	return true;
+	return Promise.resolve(true);
 }
 
 const enum ShellType { cmd, powershell, bash }
@@ -89,8 +104,6 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 	} else if (shell.indexOf('cmd.exe') >= 0) {
 		shellType = ShellType.cmd;
 	} else if (shell.indexOf('bash') >= 0) {
-		shellType = ShellType.bash;
-	} else if (shell.indexOf('git\\bin\\bash.exe') >= 0) {
 		shellType = ShellType.bash;
 	}
 

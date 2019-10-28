@@ -6,8 +6,9 @@
 import * as os from 'os';
 import * as fs from 'fs';
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile, OPTIONS } from 'vs/platform/environment/node/argv';
-import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { parseCLIProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
+import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/common/product';
 import * as paths from 'vs/base/common/path';
@@ -134,8 +135,8 @@ export async function main(argv: string[]): Promise<any> {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
 			processCallbacks.push(async child => {
-				child.stdout.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
-				child.stderr.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
 				await new Promise(c => child.once('exit', () => c()));
 			});

@@ -22,7 +22,8 @@ suite('ExtHostTypes', function () {
 		assert.deepEqual(uri.toJSON(), {
 			$mid: 1,
 			scheme: 'file',
-			path: '/path/test.file'
+			path: '/path/test.file',
+			external: 'file:///path/test.file'
 		});
 
 		assert.ok(uri.fsPath);
@@ -30,6 +31,7 @@ suite('ExtHostTypes', function () {
 			$mid: 1,
 			scheme: 'file',
 			path: '/path/test.file',
+			external: 'file:///path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
 			_sep: isWindows ? 1 : undefined,
 		});

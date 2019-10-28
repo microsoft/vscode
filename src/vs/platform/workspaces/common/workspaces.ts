@@ -19,6 +19,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Event as CommonEvent } from 'vs/base/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
@@ -172,6 +173,10 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 	return undefined;
 }
 
+export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
+	return isEqualOrParent(path, environmentService.untitledWorkspacesHome);
+}
+
 export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
 export interface ISingleFolderWorkspaceInitializationPayload { id: string; folder: ISingleFolderWorkspaceIdentifier; }
 export interface IEmptyWorkspaceInitializationPayload { id: string; }
@@ -280,12 +285,9 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 	let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
 
 	// Filter out folders which do not have a path or uri set
-	if (Array.isArray(storedWorkspace.folders)) {
+	if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {
 		storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
-	}
-
-	// Validate
-	if (!Array.isArray(storedWorkspace.folders)) {
+	} else {
 		throw new Error(`${path} looks like an invalid workspace file.`);
 	}
 

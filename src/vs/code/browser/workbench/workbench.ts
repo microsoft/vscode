@@ -206,6 +206,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	static QUERY_PARAM_FOLDER = 'folder';
 	static QUERY_PARAM_WORKSPACE = 'workspace';
 
+	static QUERY_PARAM_PAYLOAD = 'payload';
+
 	constructor(
 		public readonly workspace: IWorkspace,
 		public readonly payload: object
@@ -216,27 +218,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 			return; // return early if workspace and environment is not changing and we are reusing window
 		}
 
-		// Empty
-		let targetHref: string | undefined = undefined;
-		if (!workspace) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW}=true`;
-		}
-
-		// Folder
-		else if (isFolderToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${workspace.folderUri.path}`;
-		}
-
-		// Workspace
-		else if (isWorkspaceToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${workspace.workspaceUri.path}`;
-		}
-
-		// Environment
-		if (options?.payload) {
-			targetHref += `&payload=${encodeURIComponent(JSON.stringify(options.payload))}`;
-		}
-
+		const targetHref = this.createTargetUrl(workspace, options);
 		if (targetHref) {
 			if (options?.reuse) {
 				window.location.href = targetHref;
@@ -248,6 +230,32 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				}
 			}
 		}
+	}
+
+	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): string | undefined {
+
+		// Empty
+		let targetHref: string | undefined = undefined;
+		if (!workspace) {
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW}=true`;
+		}
+
+		// Folder
+		else if (isFolderToOpen(workspace)) {
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${encodeURIComponent(workspace.folderUri.toString())}`;
+		}
+
+		// Workspace
+		else if (isWorkspaceToOpen(workspace)) {
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${encodeURIComponent(workspace.workspaceUri.toString())}`;
+		}
+
+		// Append payload if any
+		if (options?.payload) {
+			targetHref += `&${WorkspaceProvider.QUERY_PARAM_PAYLOAD}=${encodeURIComponent(JSON.stringify(options.payload))}`;
+		}
+
+		return targetHref;
 	}
 
 	private isSame(workspaceA: IWorkspace, workspaceB: IWorkspace): boolean {
@@ -276,32 +284,49 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		throw new Error('Missing web configuration element');
 	}
 
-	const options: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
-
-	// Determine workspace to open
+	// Find workspace to open and payload
+	let foundWorkspace = false;
 	let workspace: IWorkspace;
-	if (options.folderUri) {
-		workspace = { folderUri: URI.revive(options.folderUri) };
-	} else if (options.workspaceUri) {
-		workspace = { workspaceUri: URI.revive(options.workspaceUri) };
-	} else {
-		workspace = undefined;
-	}
-
-	// Find payload
 	let payload = Object.create(null);
-	if (document.location.search) {
-		const query = document.location.search.substring(1);
-		const vars = query.split('&');
-		for (let p of vars) {
-			const pair = p.split('=');
-			if (pair.length === 2) {
-				const [key, value] = pair;
-				if (key === 'payload') {
-					payload = JSON.parse(decodeURIComponent(value));
-					break;
-				}
-			}
+
+	const query = new URL(document.location.href).searchParams;
+	query.forEach((value, key) => {
+		switch (key) {
+
+			// Folder
+			case WorkspaceProvider.QUERY_PARAM_FOLDER:
+				workspace = { folderUri: URI.parse(value) };
+				foundWorkspace = true;
+				break;
+
+			// Workspace
+			case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
+				workspace = { workspaceUri: URI.parse(value) };
+				foundWorkspace = true;
+				break;
+
+			// Empty
+			case WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW:
+				workspace = undefined;
+				foundWorkspace = true;
+				break;
+
+			// Payload
+			case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
+				payload = JSON.parse(value);
+				break;
+		}
+	});
+
+	// If no workspace is provided through the URL, check for config attribute from server
+	const options: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
+	if (!foundWorkspace) {
+		if (options.folderUri) {
+			workspace = { folderUri: URI.revive(options.folderUri) };
+		} else if (options.workspaceUri) {
+			workspace = { workspaceUri: URI.revive(options.workspaceUri) };
+		} else {
+			workspace = undefined;
 		}
 	}
 

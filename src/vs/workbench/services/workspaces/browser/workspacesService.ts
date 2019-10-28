@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, WORKSPACE_EXTENSION, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { joinPath } from 'vs/base/common/resources';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class BrowserWorkspacesService extends Disposable implements IWorkspacesService {
 
@@ -25,6 +30,8 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
+		@IFileService private readonly fileService: IFileService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -113,20 +120,35 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	//#region Workspace Management
 
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
-		throw new Error('Untitled workspaces are currently unsupported in Web');
+	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
+		return { workspace: await this.getWorkspaceIdentifier(path) };
 	}
 
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
-		throw new Error('Untitled workspaces are currently unsupported in Web');
+	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
+		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
+		const newUntitledWorkspacePath = joinPath(this.environmentService.untitledWorkspacesHome, `Untitled-${randomId}.${WORKSPACE_EXTENSION}`);
+
+		// Build array of workspace folders to store
+		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
+		if (folders) {
+			for (const folder of folders) {
+				storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, folder.name, this.environmentService.untitledWorkspacesHome));
+			}
+		}
+
+		// Store at untitled workspaces location
+		const storedWorkspace: IStoredWorkspace = { folders: storedWorkspaceFolder, remoteAuthority };
+		await this.fileService.writeFile(newUntitledWorkspacePath, VSBuffer.fromString(JSON.stringify(storedWorkspace, null, '\t')));
+
+		return this.getWorkspaceIdentifier(newUntitledWorkspacePath);
 	}
 
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
-		throw new Error('Untitled workspaces are currently unsupported in Web');
+		return this.fileService.del(workspace.configPath);
 	}
 
-	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> {
-		throw new Error('Untitled workspaces are currently unsupported in Web');
+	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> {
+		return getWorkspaceIdentifier(workspacePath);
 	}
 
 	//#endregion

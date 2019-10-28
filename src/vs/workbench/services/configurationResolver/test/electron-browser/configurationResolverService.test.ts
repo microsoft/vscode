@@ -19,7 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import * as Types from 'vs/base/common/types';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -642,7 +642,7 @@ class MockInputsConfigurationService extends TestConfigurationService {
 	}
 }
 
-class MockWorkbenchEnvironmentService extends WorkbenchEnvironmentService {
+class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(env: platform.IProcessEnvironment) {
 		super({ userEnv: env } as IWindowConfiguration, process.execPath, 0);

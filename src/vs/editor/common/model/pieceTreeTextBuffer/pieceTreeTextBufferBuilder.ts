@@ -57,7 +57,7 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
-		return this._chunks[0].buffer.substr(0, 100).split(/\r\n|\r|\n/)[0];
+		return this._chunks[0].buffer.substr(0, lengthLimit).split(/\r\n|\r|\n/)[0];
 	}
 }
 

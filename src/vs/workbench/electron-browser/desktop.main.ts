@@ -15,7 +15,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
@@ -56,12 +56,12 @@ import { ElectronEnvironmentService, IElectronEnvironmentService } from 'vs/work
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService: WorkbenchEnvironmentService;
+	private readonly environmentService: NativeWorkbenchEnvironmentService;
 
 	constructor(private configuration: IWindowConfiguration) {
 		super();
 
-		this.environmentService = new WorkbenchEnvironmentService(configuration, configuration.execPath, configuration.windowId);
+		this.environmentService = new NativeWorkbenchEnvironmentService(configuration, configuration.execPath, configuration.windowId);
 
 		this.init();
 	}

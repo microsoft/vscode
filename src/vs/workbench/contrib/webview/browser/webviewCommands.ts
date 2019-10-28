@@ -13,44 +13,32 @@ import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEdito
 export class ShowWebViewEditorFindWidgetCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const webViewEditor = getActiveWebviewEditor(accessor);
-		if (webViewEditor) {
-			webViewEditor.showFind();
-		}
+	public runCommand(accessor: ServicesAccessor): void {
+		getActiveWebviewEditor(accessor)?.showFind();
 	}
 }
 
 export class HideWebViewEditorFindCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.hideFind';
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const webViewEditor = getActiveWebviewEditor(accessor);
-		if (webViewEditor) {
-			webViewEditor.hideFind();
-		}
+	public runCommand(accessor: ServicesAccessor): void {
+		getActiveWebviewEditor(accessor)?.hideFind();
 	}
 }
 
 export class WebViewEditorFindNextCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.findNext';
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const webViewEditor = getActiveWebviewEditor(accessor);
-		if (webViewEditor) {
-			webViewEditor.find(false);
-		}
+	public runCommand(accessor: ServicesAccessor): void {
+		getActiveWebviewEditor(accessor)?.find(false);
 	}
 }
 
 export class WebViewEditorFindPreviousCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.findPrevious';
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const webViewEditor = getActiveWebviewEditor(accessor);
-		if (webViewEditor) {
-			webViewEditor.find(true);
-		}
+	public runCommand(accessor: ServicesAccessor): void {
+		getActiveWebviewEditor(accessor)?.find(true);
 	}
 }
 export class ReloadWebviewAction extends Action {
@@ -79,8 +67,8 @@ export class ReloadWebviewAction extends Action {
 	}
 }
 
-function getActiveWebviewEditor(accessor: ServicesAccessor): WebviewEditor | null {
+export function getActiveWebviewEditor(accessor: ServicesAccessor): WebviewEditor | undefined {
 	const editorService = accessor.get(IEditorService);
-	const activeControl = editorService.activeControl as WebviewEditor;
-	return activeControl.isWebviewEditor ? activeControl : null;
+	const activeControl = editorService.activeControl as WebviewEditor | undefined;
+	return activeControl?.isWebviewEditor ? activeControl : undefined;
 }

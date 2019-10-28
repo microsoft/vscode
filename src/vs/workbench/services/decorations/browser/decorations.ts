@@ -20,7 +20,7 @@ export interface IDecorationData {
 	readonly bubble?: boolean;
 }
 
-export interface IDecoration {
+export interface IDecoration extends IDisposable {
 	readonly tooltip: string;
 	readonly labelClassName: string;
 	readonly badgeClassName: string;

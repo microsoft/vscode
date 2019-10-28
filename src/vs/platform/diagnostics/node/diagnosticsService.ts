@@ -7,7 +7,7 @@ import { virtualMachineHint } from 'vs/base/node/id';
 import { IMachineInfo, WorkspaceStats, WorkspaceStatItem, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 import { readdir, stat, exists, readFile } from 'fs';
 import { join, basename } from 'vs/base/common/path';
-import { parse, ParseError } from 'vs/base/common/json';
+import { parse, ParseError, getNodeType } from 'vs/base/common/json';
 import { listProcesses } from 'vs/base/node/ps';
 import product from 'vs/platform/product/common/product';
 import { repeat, pad } from 'vs/base/common/strings';
@@ -223,7 +223,7 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 						return resolve([]);
 					}
 
-					if (json['configurations']) {
+					if (getNodeType(json) === 'object' && json['configurations']) {
 						for (const each of json['configurations']) {
 							const type = each['type'];
 							if (type) {

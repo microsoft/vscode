@@ -310,6 +310,11 @@ export interface ConfigurationProperties {
 	group?: string | GroupKind;
 
 	/**
+	 * A description of the task.
+	 */
+	detail?: string;
+
+	/**
 	 * The other tasks the task depend on
 	 */
 	dependsOn?: string | TaskIdentifier | Array<string | TaskIdentifier>;
@@ -547,7 +552,7 @@ interface MetaData<T, U> {
 }
 
 
-function _isEmpty<T>(this: void, value: T | undefined, properties: MetaData<T, any>[] | undefined): boolean {
+function _isEmpty<T>(this: void, value: T | undefined, properties: MetaData<T, any>[] | undefined, allowEmptyArray: boolean = false): boolean {
 	if (value === undefined || value === null || properties === undefined) {
 		return true;
 	}
@@ -556,7 +561,7 @@ function _isEmpty<T>(this: void, value: T | undefined, properties: MetaData<T, a
 		if (property !== undefined && property !== null) {
 			if (meta.type !== undefined && !meta.type.isEmpty(property)) {
 				return false;
-			} else if (!Array.isArray(property) || property.length > 0) {
+			} else if (!Array.isArray(property) || (property.length > 0) || allowEmptyArray) {
 				return false;
 			}
 		}
@@ -586,11 +591,11 @@ function _assignProperties<T>(this: void, target: T | undefined, source: T | und
 	return target;
 }
 
-function _fillProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: MetaData<T, any>[] | undefined): T | undefined {
+function _fillProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: MetaData<T, any>[] | undefined, allowEmptyArray: boolean = false): T | undefined {
 	if (!source || _isEmpty(source, properties)) {
 		return target;
 	}
-	if (!target || _isEmpty(target, properties)) {
+	if (!target || _isEmpty(target, properties, allowEmptyArray)) {
 		return source;
 	}
 	for (let meta of properties!) {
@@ -722,7 +727,7 @@ namespace ShellConfiguration {
 	}
 
 	export function isEmpty(this: void, value: Tasks.ShellConfiguration): boolean {
-		return _isEmpty(value, properties);
+		return _isEmpty(value, properties, true);
 	}
 
 	export function assignProperties(this: void, target: Tasks.ShellConfiguration | undefined, source: Tasks.ShellConfiguration | undefined): Tasks.ShellConfiguration | undefined {
@@ -730,7 +735,7 @@ namespace ShellConfiguration {
 	}
 
 	export function fillProperties(this: void, target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration | undefined {
-		return _fillProperties(target, source, properties);
+		return _fillProperties(target, source, properties, true);
 	}
 
 	export function fillDefaults(this: void, value: Tasks.ShellConfiguration, context: ParseContext): Tasks.ShellConfiguration {
@@ -1326,6 +1331,9 @@ namespace ConfigurationProperties {
 		if (configProblemMatcher !== undefined) {
 			result.problemMatchers = configProblemMatcher;
 		}
+		if (external.detail) {
+			result.detail = external.detail;
+		}
 		return isEmpty(result) ? undefined : result;
 	}
 
@@ -1587,6 +1595,7 @@ namespace CustomTask {
 		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'dependsOn');
 		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'problemMatchers');
 		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'promptOnClose');
+		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'detail');
 		result.command.presentation = CommandConfiguration.PresentationOptions.assignProperties(
 			result.command.presentation!, configuredProps.configurationProperties.presentation)!;
 		result.command.options = CommandOptions.assignProperties(result.command.options, configuredProps.configurationProperties.options);
@@ -1598,6 +1607,7 @@ namespace CustomTask {
 		fillProperty(resultConfigProps, contributedConfigProps, 'dependsOn');
 		fillProperty(resultConfigProps, contributedConfigProps, 'problemMatchers');
 		fillProperty(resultConfigProps, contributedConfigProps, 'promptOnClose');
+		fillProperty(resultConfigProps, contributedConfigProps, 'detail');
 		result.command.presentation = CommandConfiguration.PresentationOptions.fillProperties(
 			result.command.presentation!, contributedConfigProps.presentation)!;
 		result.command.options = CommandOptions.fillProperties(result.command.options, contributedConfigProps.options);

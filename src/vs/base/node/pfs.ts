@@ -641,25 +641,28 @@ export async function mkdirp(path: string, mode?: number, token?: CancellationTo
 
 			// ENOENT: a parent folder does not exist yet
 			if (error.code === 'ENOENT') {
-				return Promise.reject(error);
+				throw error;
 			}
 
 			// Any other error: check if folder exists and
 			// return normally in that case if its a folder
+			let targetIsFile = false;
 			try {
 				const fileStat = await stat(path);
-				if (!fileStat.isDirectory()) {
-					return Promise.reject(new Error(`'${path}' exists and is not a directory.`));
-				}
+				targetIsFile = !fileStat.isDirectory();
 			} catch (statError) {
-				throw error; // rethrow original error
+				throw error; // rethrow original error if stat fails
+			}
+
+			if (targetIsFile) {
+				throw new Error(`'${path}' exists and is not a directory.`);
 			}
 		}
 	};
 
 	// stop at root
 	if (path === dirname(path)) {
-		return Promise.resolve();
+		return;
 	}
 
 	try {
@@ -680,7 +683,7 @@ export async function mkdirp(path: string, mode?: number, token?: CancellationTo
 		}
 
 		// Any other error
-		return Promise.reject(error);
+		throw error;
 	}
 }
 

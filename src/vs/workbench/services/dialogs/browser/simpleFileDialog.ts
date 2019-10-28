@@ -514,6 +514,16 @@ export class SimpleFileDialog {
 		return undefined;
 	}
 
+	private root(value: URI) {
+		let lastDir = value;
+		let dir = resources.dirname(value);
+		while (!resources.isEqual(lastDir, dir)) {
+			lastDir = dir;
+			dir = resources.dirname(dir);
+		}
+		return dir;
+	}
+
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
 		if ((value.length > 0) && ((value[value.length - 1] === '~') || (value[0] === '~'))) {
 			let newDir = this.userHome;
@@ -521,6 +531,11 @@ export class SimpleFileDialog {
 				newDir = resources.joinPath(newDir, value.substring(1));
 			}
 			await this.updateItems(newDir, true);
+			return UpdateResult.Updated;
+		} else if (value === '\\') {
+			valueUri = this.root(this.currentFolder);
+			value = this.pathFromUri(valueUri);
+			await this.updateItems(valueUri, true);
 			return UpdateResult.Updated;
 		} else if (!resources.isEqual(this.currentFolder, valueUri, true) && (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true)))) {
 			let stat: IFileStat | undefined;

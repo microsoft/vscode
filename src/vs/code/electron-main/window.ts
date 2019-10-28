@@ -635,6 +635,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Set window ID
 		windowConfiguration.windowId = this._win.id;
+		windowConfiguration.sessionId = `window:${this._win.id}`;
 		windowConfiguration.logLevel = this.logService.getLevel();
 
 		// Set zoomlevel
@@ -657,7 +658,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Title style related
 		windowConfiguration.maximized = this._win.isMaximized();
-		windowConfiguration.frameless = this.hasHiddenTitleBarStyle && !isMacintosh;
 
 		// Dump Perf Counters
 		windowConfiguration.perfEntries = perf.exportEntries();

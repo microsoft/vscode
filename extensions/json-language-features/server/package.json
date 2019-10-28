@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",
-    "@types/node": "^10.14.8"
+    "@types/node": "^12.11.7"
   },
   "scripts": {
     "prepublishOnly": "npm run clean && npm run compile",

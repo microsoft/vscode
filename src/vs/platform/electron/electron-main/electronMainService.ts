@@ -10,7 +10,7 @@ import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
-import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -18,7 +18,6 @@ import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { dirExists } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -403,24 +402,6 @@ export class ElectronMainService implements IElectronMainService {
 
 	async startCrashReporter(windowId: number | undefined, options: CrashReporterStartOptions): Promise<void> {
 		crashReporter.start(options);
-	}
-
-	//#endregion
-
-	//#region Debug
-
-	// TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
-
-	async openExtensionDevelopmentHostWindow(windowId: number, args: string[], env: IProcessEnvironment): Promise<void> {
-		const pargs = parseArgs(args, OPTIONS);
-		const extDevPaths = pargs.extensionDevelopmentPath;
-		if (extDevPaths) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
-				context: OpenContext.API,
-				cli: pargs,
-				userEnv: Object.keys(env).length > 0 ? env : undefined
-			});
-		}
 	}
 
 	//#endregion

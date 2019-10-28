@@ -366,7 +366,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 			// Generate CSS to show the icon in the activity bar
 			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${cssClass}`;
-			createCSSRule(iconClass, `-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%; -webkit-mask-size: 24px;`);
+			createCSSRule(iconClass, `
+				mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				mask-size: 24px;
+				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				-webkit-mask-size: 24px;`
+			);
 		}
 
 		return viewContainer;

@@ -7,7 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
@@ -125,8 +125,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
 
-	private fileInputFactory: IFileInputFactory;
-
 	private canNavigateBackContextKey: IContextKey<boolean>;
 	private canNavigateForwardContextKey: IContextKey<boolean>;
 	private canNavigateToLastEditLocationContextKey: IContextKey<boolean>;
@@ -148,8 +146,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false)).bindTo(this.contextKeyService);
 		this.canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false)).bindTo(this.contextKeyService);
 		this.canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false)).bindTo(this.contextKeyService);
-
-		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileInputFactory();
 
 		this.index = -1;
 		this.lastIndex = -1;
@@ -486,7 +482,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {
-		const input = editor ? editor.input : undefined;
+		const input = editor?.input;
 
 		// Ensure we have at least a name to show and not configured to exclude input
 		if (!input || !input.getName() || !this.include(input)) {
@@ -738,8 +734,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
-		if (this.fileInputFactory.isFileInput(input)) {
-			return { resource: input.getResource() };
+		const resource = input.getResource();
+		if (resource && this.fileService.canHandleResource(resource)) {
+			return { resource: resource };
 		}
 
 		return input;

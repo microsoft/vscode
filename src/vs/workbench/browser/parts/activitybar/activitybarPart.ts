@@ -260,8 +260,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		this.createGlobalActivityActionBar(globalActivities);
 
-		this.element.style.display = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? '' : 'none';
-
 		return this.content;
 	}
 
@@ -308,7 +306,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.globalActivityAction = new ActivityAction({
 			id: 'workbench.actions.manage',
 			name: nls.localize('manage', "Manage"),
-			cssClass: 'update-activity'
+			cssClass: 'codicon-settings-gear'
 		});
 
 		this.globalActivityActionBar.push(this.globalActivityAction);

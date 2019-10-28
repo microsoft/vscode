@@ -172,7 +172,7 @@ class HelpItem implements IHelpItem {
 			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
 
 			if (action) {
-				await this.openerService.open(URI.parse(action.label));
+				await this.openerService.open(URI.parse(action.description));
 			}
 		} else {
 			await this.openerService.open(URI.parse(this.values[0].url));
@@ -461,7 +461,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	RemoteViewlet,
 	VIEWLET_ID,
 	nls.localize('remote.explorer', "Remote Explorer"),
-	'remote',
+	'codicon-remote-explorer',
 	4
 ));
 

@@ -102,8 +102,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
 			}
-			extHostProcess.stdout.on('data', (data: Buffer) => processOutput(data.toString()));
-			extHostProcess.stderr.on('data', (data: Buffer) => processOutput(data.toString()));
+			extHostProcess.stdout!.on('data', (data: Buffer) => processOutput(data.toString()));
+			extHostProcess.stderr!.on('data', (data: Buffer) => processOutput(data.toString()));
 			extHostProcess.on('error', (error: Error) => {
 				processError(`server failed with error:\n${error.message}`);
 				extHostProcess = undefined;
