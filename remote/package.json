@@ -19,7 +19,7 @@
     "vscode-minimist": "^1.2.1",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.5.7",
-    "vscode-textmate": "^4.2.2",
+    "vscode-textmate": "^4.3.0",
     "xterm": "4.2.0",
     "xterm-addon-search": "0.3.0",
     "xterm-addon-web-links": "0.2.1",
