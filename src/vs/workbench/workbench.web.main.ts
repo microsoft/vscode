@@ -108,4 +108,7 @@ import 'vs/workbench/contrib/tasks/browser/taskService';
 // Telemetry Opt Out
 import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.contribution';
 
+// Issues
+import 'vs/workbench/contrib/issue/browser/issue.contribution';
+
 //#endregion
