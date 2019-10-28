@@ -571,7 +571,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						let newSpacesCnt = originalSpacesCnt + spaceCntOffset;
 						let newIndent = indentUtils.generateIndent(newSpacesCnt, tabSize, insertSpaces);
 
-						if (newIndent > originalIndent) {
+						if (newIndent.length > originalIndent.length) {
 							textEdits.push({
 								range: new Range(i, 1, i, originalIndent.length + 1),
 								text: newIndent
