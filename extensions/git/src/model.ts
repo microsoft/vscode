@@ -215,6 +215,24 @@ export class Model {
 		}));
 	}
 
+	private repoShouldBeIgnored(repositoryRoot: string, ignoredRepos: Set<string>) {
+		for (const ignoredRepo of ignoredRepos) {
+			if (path.isAbsolute(ignoredRepo)) {
+				if (ignoredRepo === repositoryRoot) {
+					return true;
+				}
+			}
+			else {
+				for (const workspaceFolder of workspace.workspaceFolders || []) {
+					if (path.join(workspaceFolder.uri.fsPath, ignoredRepo) === repositoryRoot) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
 	@sequentialize
 	async openRepository(path: string): Promise<void> {
 		if (this.getRepository(path)) {
@@ -243,7 +261,7 @@ export class Model {
 			const config = workspace.getConfiguration('git');
 			const ignoredRepos = new Set(config.get<Array<string>>('ignoredRepositories'));
 
-			if (ignoredRepos.has(rawRoot)) {
+			if (this.repoShouldBeIgnored(repositoryRoot, ignoredRepos)) {
 				return;
 			}
 
