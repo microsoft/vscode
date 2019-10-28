@@ -158,6 +158,7 @@
 
 .monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row .dialog-checkbox-message {
 	cursor: pointer;
+	user-select: none;
 }
 
 /** Dialog: Buttons Row */
