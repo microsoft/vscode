@@ -365,11 +365,11 @@ export class LineProcess extends AbstractProcess<LineData> {
 	protected handleSpawn(childProcess: cp.ChildProcess, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback, sync: boolean): void {
 		const stdoutLineDecoder = new LineDecoder();
 		const stderrLineDecoder = new LineDecoder();
-		childProcess.stdout.on('data', (data: Buffer) => {
+		childProcess.stdout!.on('data', (data: Buffer) => {
 			const lines = stdoutLineDecoder.write(data);
 			lines.forEach(line => pp({ line: line, source: Source.stdout }));
 		});
-		childProcess.stderr.on('data', (data: Buffer) => {
+		childProcess.stderr!.on('data', (data: Buffer) => {
 			const lines = stderrLineDecoder.write(data);
 			lines.forEach(line => pp({ line: line, source: Source.stderr }));
 		});
