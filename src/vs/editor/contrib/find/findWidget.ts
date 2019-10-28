@@ -1013,7 +1013,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._state.change({ searchScope: null }, true);
 			}
 		}));
-		
+
 		actionsContainer.appendChild(this._toggleSelectionFind.domNode);
 
 		// Close button
