@@ -121,18 +121,18 @@ export class RatingsWidget extends ExtensionWidget {
 		const rating = Math.round(this.extension.rating * 2) / 2;
 
 		if (this.small) {
-			append(this.container, $('span.full.star'));
+			append(this.container, $('span.codicon.codicon-star-full'));
 
 			const count = append(this.container, $('span.count'));
 			count.textContent = String(rating);
 		} else {
 			for (let i = 1; i <= 5; i++) {
 				if (rating >= i) {
-					append(this.container, $('span.full.star'));
+					append(this.container, $('span.codicon.codicon-star-full'));
 				} else if (rating >= i - 0.5) {
-					append(this.container, $('span.half.star'));
+					append(this.container, $('span.codicon.codicon-star-half'));
 				} else {
-					append(this.container, $('span.empty.star'));
+					append(this.container, $('span.codicon.codicon-star-empty'));
 				}
 			}
 		}
