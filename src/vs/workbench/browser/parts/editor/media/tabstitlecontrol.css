@@ -205,6 +205,10 @@
 	opacity: 1;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-close .action-label.codicon {
+	color: inherit;
+}
+
 /* change close icon to dirty state icon */
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before {
