@@ -253,7 +253,7 @@ suite('PFS', () => {
 		}
 		catch (error) {
 			assert.fail(error);
-			return Promise.reject(error);
+			throw error;
 		}
 	});
 

@@ -120,7 +120,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			// Do not allow workspace folders with scheme different than the current remote scheme
 			const schemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
 			if (schemas.length && foldersToAdd.some(f => schemas.indexOf(f.uri.scheme) === -1)) {
-				return Promise.reject(new Error(nls.localize('differentSchemeRoots', "Workspace folders from different providers are not allowed in the same workspace.")));
+				throw new Error(nls.localize('differentSchemeRoots', "Workspace folders from different providers are not allowed in the same workspace."));
 			}
 		}
 
