@@ -552,7 +552,7 @@ export class Menubar {
 						this.reportMenuActionTelemetry('CheckForUpdate');
 
 						const window = this.windowsMainService.getLastActiveWindow();
-						const context = window?.config?.sessionId;
+						const context = window && `window:${window.id}`; // sessionId
 						this.updateService.checkForUpdates(context);
 					}, 0)
 				})];

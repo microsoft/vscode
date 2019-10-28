@@ -568,7 +568,11 @@ function isHashOrQuestionMark(code: number): boolean {
 const _encodeTable: string[] = (function () {
 	let table: string[] = [];
 	for (let code = 0; code < 128; code++) {
-		table[code] = `%${code.toString(16)}`;
+		if (code < 16) {
+			table[code] = `%0${code.toString(16).toUpperCase()}`;
+		} else {
+			table[code] = `%${code.toString(16).toUpperCase()}`;
+		}
 	}
 	return table;
 })();

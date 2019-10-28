@@ -49,6 +49,10 @@
 	display: none;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label.codicon {
+	color: inherit;
+}
+
 /* Drag Cursor */
 .monaco-workbench .part.editor > .content .editor-group-container > .title {
 	cursor: grab;

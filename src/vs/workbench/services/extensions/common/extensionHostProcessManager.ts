@@ -57,7 +57,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	constructor(
 		public readonly isLocal: boolean,
 		extensionHostProcessWorker: IExtensionHostStarter,
-		private readonly _remoteAuthority: string,
+		private readonly _remoteAuthority: string | null,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
@@ -185,7 +185,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol, logger);
 		this._register(this._extensionHostProcessRPCProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
-			remoteAuthority: this._remoteAuthority,
+			remoteAuthority: this._remoteAuthority! /* TODO: sandy081, remove not-null assertion */,
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol!.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol!.set(identifier, instance),
 			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._extensionHostProcessRPCProtocol!.assertRegistered(identifiers),
@@ -360,7 +360,7 @@ class RPCLogger implements IRPCProtocolLogger {
 }
 
 interface ExtHostLatencyResult {
-	remoteAuthority: string;
+	remoteAuthority: string | null;
 	up: number;
 	down: number;
 	latency: number;

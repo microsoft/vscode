@@ -406,7 +406,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = this.instantiationService.createInstance(
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
 			treeContainer,

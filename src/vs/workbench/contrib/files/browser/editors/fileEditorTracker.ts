@@ -307,7 +307,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// to have a size of 2 (1 running load and 1 queued load).
 		const queue = this.modelLoadQueue.queueFor(model.getResource());
 		if (queue.size <= 1) {
-			queue.queue(() => model.load().then<void>(undefined, onUnexpectedError));
+			queue.queue(() => model.load().then(undefined, onUnexpectedError));
 		}
 	}
 

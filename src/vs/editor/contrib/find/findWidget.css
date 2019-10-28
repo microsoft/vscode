@@ -41,6 +41,10 @@
 	transform: translateY(Calc(-100% - 10px)); /* shadow (10px) */
 }
 
+.monaco-editor .find-widget textarea {
+	margin: 0px;
+}
+
 .monaco-editor .find-widget.hiddenEditor {
 	display: none;
 }

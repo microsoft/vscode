@@ -59,8 +59,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _latencyLastMeasured: number = 0;
 	private _initialCwd: string | undefined;
 
-	private readonly _onProcessStateChange = this._register(new Emitter<ProcessState>());
-	public get onProcessStateChange(): Event<ProcessState> { return this._onProcessStateChange.event; }
 	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
@@ -105,16 +103,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// If the process was still connected this dispose came from
 			// within VS Code, not the process, so mark the process as
 			// killed by the user.
-			this._setProcessState(ProcessState.KILLED_BY_USER);
+			this.processState = ProcessState.KILLED_BY_USER;
 			this._process.shutdown(immediate);
 			this._process = null;
 		}
 		super.dispose();
-	}
-
-	private _setProcessState(newState: ProcessState): void {
-		this.processState = newState;
-		this._onProcessStateChange.fire(this.processState);
 	}
 
 	public async createProcess(
@@ -155,7 +148,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
 			}
 		}
-		this._setProcessState(ProcessState.LAUNCHING);
+		this.processState = ProcessState.LAUNCHING;
 
 		this._process.onProcessData(data => {
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
@@ -188,7 +181,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {
-				this._setProcessState(ProcessState.RUNNING);
+				this.processState = ProcessState.RUNNING;
 			}
 		}, LAUNCHING_DURATION);
 	}
@@ -299,13 +292,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// during launch. This typically means that there is a problem with the
 		// shell and args.
 		if (this.processState === ProcessState.LAUNCHING) {
-			this._setProcessState(ProcessState.KILLED_DURING_LAUNCH);
+			this.processState = ProcessState.KILLED_DURING_LAUNCH;
 		}
 
 		// If TerminalInstance did not know about the process exit then it was
 		// triggered by the process, not on VS Code's side.
 		if (this.processState === ProcessState.RUNNING) {
-			this._setProcessState(ProcessState.KILLED_BY_PROCESS);
+			this.processState = ProcessState.KILLED_BY_PROCESS;
 		}
 
 		this._onProcessExit.fire(exitCode);

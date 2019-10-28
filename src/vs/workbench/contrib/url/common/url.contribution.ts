@@ -54,7 +54,10 @@ CommandsRegistry.registerCommand(manageTrustedDomainSettingsCommand);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: manageTrustedDomainSettingsCommand.id,
-		title: manageTrustedDomainSettingsCommand.description.description
+		title: {
+			value: manageTrustedDomainSettingsCommand.description.description,
+			original: 'Manage Trusted Domains'
+		}
 	}
 });
 

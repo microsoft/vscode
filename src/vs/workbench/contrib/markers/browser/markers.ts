@@ -38,7 +38,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this.markersModel = this._register(instantiationService.createInstance(MarkersModel, this.readMarkers()));
+		this.markersModel = this._register(instantiationService.createInstance(MarkersModel));
 
 		this.markersModel.setResourceMarkers(groupBy(this.readMarkers(), compareMarkersByUri).map(group => [group[0].resource, group]));
 		this._register(Event.debounce<readonly URI[], ResourceMap<URI>>(markerService.onMarkerChanged, (resourcesMap, resources) => {

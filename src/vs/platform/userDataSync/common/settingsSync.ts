@@ -153,7 +153,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			if (this.hasErrors(content)) {
 				const error = new Error(localize('errorInvalidSettings', "Unable to sync settings. Please resolve conflicts without any errors/warnings and try again."));
 				this.logService.error(error);
-				return Promise.reject(error);
+				throw error;
 			}
 
 			let { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged } = await this.syncPreviewResultPromise;

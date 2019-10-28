@@ -23,7 +23,7 @@ import 'vs/editor/contrib/folding/folding';
 import 'vs/editor/contrib/fontZoom/fontZoom';
 import 'vs/editor/contrib/format/formatActions';
 import 'vs/editor/contrib/goToDefinition/goToDefinitionCommands';
-import 'vs/editor/contrib/goToDefinition/goToDefinitionMouse';
+import 'vs/editor/contrib/goToDefinition/goToDefinitionAtPosition';
 import 'vs/editor/contrib/gotoError/gotoError';
 import 'vs/editor/contrib/hover/hover';
 import 'vs/editor/contrib/inPlaceReplace/inPlaceReplace';

@@ -72,7 +72,7 @@ export class TerminalNativeService implements ITerminalNativeService {
 			const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(path)}`], {}, (error, stdout, stderr) => {
 				c(escapeNonWindowsPath(stdout.trim()));
 			});
-			proc.stdin.end();
+			proc.stdin!.end();
 		});
 	}
 

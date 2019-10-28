@@ -440,7 +440,7 @@
         "deps": "yarn add vscode-emmet-helper"
     },
     "devDependencies": {
-        "@types/node": "^10.14.8",
+        "@types/node": "^12.11.7",
         "mocha-junit-reporter": "^1.17.0",
         "mocha-multi-reporters": "^1.1.7",
         "vscode": "1.0.1"

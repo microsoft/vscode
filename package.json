@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.40.0",
-  "distro": "5dd40ec86e4715185a744cb63dc697fab97b2ceb",
+  "distro": "948ef8e28a1d039cef909e23b1f260461c5ab3b6",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "chokidar": "3.2.2",
+    "chokidar": "3.2.3",
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.1",
@@ -52,7 +52,7 @@
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.5.7",
     "vscode-sqlite3": "4.0.8",
-    "vscode-textmate": "^4.2.2",
+    "vscode-textmate": "^4.3.0",
     "xterm": "4.2.0",
     "xterm-addon-search": "0.3.0",
     "xterm-addon-web-links": "0.2.1",
@@ -61,7 +61,10 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
+    "@types/chokidar": "2.1.3",
     "@types/cookie": "^0.3.3",
+    "@types/graceful-fs": "4.1.2",
+    "@types/iconv-lite": "0.0.1",
     "@types/keytar": "^4.4.0",
     "@types/mocha": "2.2.39",
     "@types/node": "^10.12.12",

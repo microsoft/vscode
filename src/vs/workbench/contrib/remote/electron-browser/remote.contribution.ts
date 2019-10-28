@@ -365,6 +365,18 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveI
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);
 
+const extensionKindSchema = {
+	type: 'string',
+	enum: [
+		'ui',
+		'workspace'
+	],
+	enumDescriptions: [
+		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+	],
+};
+
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		id: 'remote',
@@ -376,16 +388,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				markdownDescription: nls.localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
-						type: 'string',
-						enum: [
-							'ui',
-							'workspace'
-						],
-						enumDescriptions: [
-							nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-							nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
-						],
-						default: 'ui'
+						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
+						default: 'ui',
 					},
 				},
 				default: {
