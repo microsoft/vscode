@@ -64,6 +64,10 @@
 	max-width: -moz-fit-content;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-left .action-label {
+	margin-right: 4px !important;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.close-button-left::after,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.close-button-off::after {
 	content: '';
@@ -201,8 +205,8 @@
 }
 
 /* change close icon to dirty state icon */
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty:not(.dirty-border-top) > .tab-close .action-label:not(:hover)::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty:not(.dirty-border-top) > .tab-close .action-label:not(:hover)::before {
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before {
 	content: "\ea71"; /* use `circle-filled` icon unicode */
 }
 
