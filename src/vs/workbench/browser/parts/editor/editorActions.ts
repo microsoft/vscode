@@ -425,7 +425,7 @@ export class OpenToSideFromQuickOpenAction extends Action {
 			const input = entry.getInput();
 			if (input) {
 				if (input instanceof EditorInput) {
-					return this.editorService.openEditor(input, entry.getOptions() || undefined, SIDE_GROUP);
+					return this.editorService.openEditor(input, entry.getOptions(), SIDE_GROUP);
 				}
 
 				const resourceInput = input as IResourceInput;
