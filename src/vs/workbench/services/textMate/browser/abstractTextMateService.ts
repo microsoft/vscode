@@ -16,7 +16,6 @@ import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRe
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -48,7 +47,6 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
 		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
-		@IFileService protected readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -192,8 +190,12 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			logTrace: (msg: string) => this._logService.trace(msg),
 			logError: (msg: string, err: any) => this._logService.error(msg, err),
 			readFile: async (resource: URI) => {
-				const content = await this._fileService.readFile(resource);
-				return content.value.toString();
+				const response = await fetch(dom.asDomUri(resource).toString(true));
+				if (response.status !== 200) {
+					throw new Error(response.statusText);
+				}
+
+				return response.text();
 			}
 		}, this._grammarDefinitions || [], vscodeTextmate, this._loadOnigLib());
 		this._onDidCreateGrammarFactory(this._grammarDefinitions || []);

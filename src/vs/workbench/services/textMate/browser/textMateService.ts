@@ -8,7 +8,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
 import { IOnigLib } from 'vscode-textmate';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -20,13 +19,12 @@ export class TextMateService extends AbstractTextMateService {
 	constructor(
 		@IModeService modeService: IModeService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(modeService, themeService, fileService, notificationService, logService, configurationService, storageService);
+		super(modeService, themeService, notificationService, logService, configurationService, storageService);
 	}
 
 	protected _loadVSCodeTextmate(): Promise<typeof import('vscode-textmate')> {

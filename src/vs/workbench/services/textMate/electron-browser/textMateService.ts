@@ -142,14 +142,14 @@ export class TextMateService extends AbstractTextMateService {
 	constructor(
 		@IModeService modeService: IModeService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IFileService fileService: IFileService,
+		@IFileService private _fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
-		super(modeService, themeService, fileService, notificationService, logService, configurationService, storageService);
+		super(modeService, themeService, notificationService, logService, configurationService, storageService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);
