@@ -79,15 +79,15 @@ export class RipgrepTextSearchEngine {
 				cancel();
 			});
 
-			rgProc.stdout.on('data', data => {
+			rgProc.stdout!.on('data', data => {
 				ripgrepParser.handleData(data);
 			});
 
 			let gotData = false;
-			rgProc.stdout.once('data', () => gotData = true);
+			rgProc.stdout!.once('data', () => gotData = true);
 
 			let stderr = '';
-			rgProc.stderr.on('data', data => {
+			rgProc.stderr!.on('data', data => {
 				const message = data.toString();
 				this.outputChannel.appendLine(message);
 				stderr += message;

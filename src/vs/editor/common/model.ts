@@ -1195,6 +1195,13 @@ export interface ITextBufferFactory {
 /**
  * @internal
  */
+export const enum ModelConstants {
+	FIRST_LINE_DETECTION_LENGTH_LIMIT = 1000
+}
+
+/**
+ * @internal
+ */
 export interface ITextBuffer {
 	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;

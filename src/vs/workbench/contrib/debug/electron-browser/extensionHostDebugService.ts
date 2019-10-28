@@ -7,21 +7,13 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class ExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
 	constructor(
-		@IMainProcessService readonly mainProcessService: IMainProcessService,
-		@IElectronService private readonly electronService: IElectronService
+		@IMainProcessService readonly mainProcessService: IMainProcessService
 	) {
 		super(mainProcessService.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
-	}
-
-	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> {
-		// TODO@Isidor move into debug IPC channel (https://github.com/microsoft/vscode/issues/81060)
-		return this.electronService.openExtensionDevelopmentHostWindow(args, env);
 	}
 }
 

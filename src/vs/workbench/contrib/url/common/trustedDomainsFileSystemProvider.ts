@@ -121,7 +121,7 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProvider, IW
 			this.storageService.store('http.linkProtectionTrustedDomainsContent', trustedDomainsContent, StorageScope.GLOBAL);
 			this.storageService.store(
 				'http.linkProtectionTrustedDomains',
-				JSON.stringify(trustedDomains),
+				JSON.stringify(trustedDomains) || '',
 				StorageScope.GLOBAL
 			);
 		} catch (err) { }

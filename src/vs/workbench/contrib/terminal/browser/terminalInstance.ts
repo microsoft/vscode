@@ -305,7 +305,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('terminal.integrated')) {
+			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity')) {
 				this.updateConfig();
 				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
 				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
@@ -421,7 +421,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const bottom = parseInt(wrapperElementStyle.bottom!.split('px')[0], 10);
 
 		const innerWidth = width - marginLeft - marginRight;
-		const innerHeight = height - bottom;
+		const innerHeight = height - bottom - 1;
 
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(innerWidth, innerHeight);
 		return TerminalInstance._lastKnownCanvasDimensions;
@@ -448,7 +448,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const Terminal = await this._getXtermConstructor();
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
-		const fastScrollSensitivity = this._configurationService.getValue<IEditorOptions>('editor.fastScrollSensitivity').fastScrollSensitivity;
+		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
+
 		const xterm = new Terminal({
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
@@ -464,8 +465,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			fastScrollModifier: 'alt',
-			fastScrollSensitivity,
-			// TODO: Guess whether to use canvas or dom better
+			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
+			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
 		});
 		this._xterm = xterm;
@@ -484,7 +485,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
 		this._xterm.onData(data => this._processManager.write(data));
-		// TODO: How does the cwd work on detached processes?
 		this.processReady.then(async () => {
 			if (this._linkHandler) {
 				this._linkHandler.processCwd = await this._processManager.getInitialCwd();
@@ -1213,7 +1213,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
-		this._safeSetOption('fastScrollSensitivity', this._configurationService.getValue<IEditorOptions>('editor.fastScrollSensitivity').fastScrollSensitivity);
+
+		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
+		this._safeSetOption('fastScrollSensitivity', editorOptions.fastScrollSensitivity);
+		this._safeSetOption('scrollSensitivity', editorOptions.mouseWheelScrollSensitivity);
 	}
 
 	public updateAccessibilitySupport(): void {

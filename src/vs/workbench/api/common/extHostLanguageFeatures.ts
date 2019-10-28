@@ -635,6 +635,12 @@ class SuggestAdapter {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
+		// The default insert/replace ranges. It's important to compute them
+		// before asynchronously asking the provider for its results. See
+		// https://github.com/microsoft/vscode/issues/83400#issuecomment-546851421
+		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
+		const insertRange = replaceRange.with({ end: pos });
+
 		return asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))).then(value => {
 
 			if (!value) {
@@ -654,10 +660,6 @@ class SuggestAdapter {
 			const pid: number = SuggestAdapter.supportsResolving(this._provider) ? this._cache.add(list.items) : this._cache.add([]);
 			const disposables = new DisposableStore();
 			this._disposables.set(pid, disposables);
-
-			// the default text edit range
-			const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
-			const insertRange = replaceRange.with({ end: pos });
 
 			const result: extHostProtocol.ISuggestResultDto = {
 				x: pid,
@@ -1037,7 +1039,7 @@ class CallHierarchyAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.CallHierarchyItemProvider
+		private readonly _provider: vscode.CallHierarchyProvider
 	) { }
 
 	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<{ sessionId: string, root: extHostProtocol.ICallHierarchyItemDto } | undefined> {
@@ -1078,11 +1080,12 @@ class CallHierarchyAdapter {
 	}
 
 	releaseSession(sessionId: string): void {
-		this._cache.delete(sessionId);
+		this._cache.delete(sessionId.charAt(0));
 	}
 
-	private _cacheAndConvertItem(sessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
-		const array = this._cache.get(sessionId.charAt(0))!;
+	private _cacheAndConvertItem(itemOrSessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
+		const sessionId = itemOrSessionId.charAt(0);
+		const array = this._cache.get(sessionId)!;
 		const dto: extHostProtocol.ICallHierarchyItemDto = {
 			id: sessionId + String.fromCharCode(array.length),
 			name: item.name,
@@ -1532,7 +1535,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- call hierarchy
 
-	registerCallHierarchyProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CallHierarchyItemProvider): vscode.Disposable {
+	registerCallHierarchyProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CallHierarchyProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new CallHierarchyAdapter(this._documents, provider), extension);
 		this._proxy.$registerCallHierarchyProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);

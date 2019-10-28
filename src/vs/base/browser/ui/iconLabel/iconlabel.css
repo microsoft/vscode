@@ -25,6 +25,7 @@
 
 	/* fonts icons */
 	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 	vertical-align: top;
 
 	flex-shrink: 0; /* fix for https://github.com/Microsoft/vscode/issues/13787 */

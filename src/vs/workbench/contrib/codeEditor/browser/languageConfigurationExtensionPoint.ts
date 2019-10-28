@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { ParseError, parse } from 'vs/base/common/json';
+import { ParseError, parse, getNodeType } from 'vs/base/common/json';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -43,7 +43,16 @@ interface ILanguageConfiguration {
 }
 
 function isStringArr(something: string[] | null): something is string[] {
-	return Array.isArray(something) && something.every(value => typeof value === 'string');
+	if (!Array.isArray(something)) {
+		return false;
+	}
+	for (let i = 0, len = something.length; i < len; i++) {
+		if (typeof something[i] !== 'string') {
+			return false;
+		}
+	}
+	return true;
+
 }
 
 function isCharacterPair(something: CharacterPair | null): boolean {
@@ -91,9 +100,13 @@ export class LanguageConfigurationFileHandler {
 	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFileLocation: URI): void {
 		this._fileService.readFile(configFileLocation).then((contents) => {
 			const errors: ParseError[] = [];
-			const configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
+			let configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
 			if (errors.length) {
 				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation.toString(), errors.map(e => (`[${e.offset}, ${e.length}] ${getParseErrorMessage(e.error)}`)).join('\n')));
+			}
+			if (getNodeType(configuration) !== 'object') {
+				console.error(nls.localize('formatError', "{0}: Invalid format, JSON object expected.", configFileLocation.toString()));
+				configuration = {};
 			}
 			this._handleConfig(languageIdentifier, configuration);
 		}, (err) => {

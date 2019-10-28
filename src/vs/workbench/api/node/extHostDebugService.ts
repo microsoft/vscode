@@ -340,46 +340,38 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 				});
 			}
 
-			return new Promise(resolve => {
-				if (this._integratedTerminalInstance) {
-					this._integratedTerminalInstance.processId.then(pid => {
-						resolve(hasChildProcesses(pid));
-					}, err => {
-						resolve(true);
-					});
-				} else {
-					resolve(true);
-				}
-			}).then(async needNewTerminal => {
+			let needNewTerminal = true;	// be pessimistic
+			if (this._integratedTerminalInstance) {
+				const pid = await this._integratedTerminalInstance.processId;
+				needNewTerminal = await hasChildProcesses(pid);		// if no processes running in terminal reuse terminal
+			}
 
-				const configProvider = await this._configurationService.getConfigProvider();
-				const shell = this._terminalService.getDefaultShell(true, configProvider);
+			const configProvider = await this._configurationService.getConfigProvider();
+			const shell = this._terminalService.getDefaultShell(true, configProvider);
 
-				if (needNewTerminal || !this._integratedTerminalInstance) {
-					const options: vscode.TerminalOptions = {
-						shellPath: shell,
-						// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
-						cwd: args.cwd,
-						name: args.title || nls.localize('debug.terminal.title', "debuggee"),
-						env: args.env
-					};
-					delete args.cwd;
-					delete args.env;
-					this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
-				}
-				const terminal: vscode.Terminal = this._integratedTerminalInstance;
+			if (needNewTerminal || !this._integratedTerminalInstance) {
 
-				terminal.show();
+				const options: vscode.TerminalOptions = {
+					shellPath: shell,
+					// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
+					cwd: args.cwd,
+					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
+					env: args.env
+				};
+				delete args.cwd;
+				delete args.env;
+				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
+			}
 
-				return this._integratedTerminalInstance.processId.then(shellProcessId => {
+			const terminal = this._integratedTerminalInstance;
 
-					const command = prepareCommand(args, shell, configProvider);
+			terminal.show();
 
-					terminal.sendText(command, true);
+			const shellProcessId = await this._integratedTerminalInstance.processId;
+			const command = prepareCommand(args, shell, configProvider);
+			terminal.sendText(command, true);
 
-					return shellProcessId;
-				});
-			});
+			return shellProcessId;
 
 		} else if (args.kind === 'external') {
 

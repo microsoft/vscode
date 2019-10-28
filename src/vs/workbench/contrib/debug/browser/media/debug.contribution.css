@@ -54,6 +54,14 @@
 	margin-left: 2px;
 }
 
+/* Do not show call stack decoration when we plan to show breakpoint and top stack frame in one decoration */
+.monaco-editor .debug-breakpoint-placeholder ~ .debug-top-stack-frame-column::before {
+	width: 0em;
+	content: "";
+	margin-right: 0px;
+	margin-left: 0px;
+}
+
 .monaco-editor .debug-top-stack-frame-column::before {
 	height: 1.3em;
 }
@@ -111,10 +119,7 @@
 	background: url('breakpoint-unsupported.svg') center center no-repeat;
 }
 
-.monaco-editor .debug-top-stack-frame.debug-breakpoint,
-.monaco-editor .debug-top-stack-frame.debug-breakpoint-conditional,
-.monaco-editor .debug-top-stack-frame.debug-breakpoint-log,
-.monaco-editor .inline-breakpoint-widget.debug-top-stack-frame-column {
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-and-top-stack-frame {
 	background: url('current-and-breakpoint.svg') center center no-repeat;
 }
 

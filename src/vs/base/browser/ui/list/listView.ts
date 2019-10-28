@@ -20,6 +20,7 @@ import { Range, IRange } from 'vs/base/common/range';
 import { equals, distinct } from 'vs/base/common/arrays';
 import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout, Delayer } from 'vs/base/common/async';
+import { isFirefox } from 'vs/base/browser/browser';
 
 interface IItem<T> {
 	readonly id: string;
@@ -595,7 +596,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return;
 		}
 
-		item.row.domNode.style.width = 'fit-content';
+		item.row.domNode.style.width = isFirefox ? '-moz-fit-content' : 'fit-content';
 		item.width = DOM.getContentWidth(item.row.domNode);
 		const style = window.getComputedStyle(item.row.domNode);
 

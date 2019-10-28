@@ -333,7 +333,7 @@ const _defaultOptions: ISnippetSessionInsertOptions = {
 
 export class SnippetSession {
 
-	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet): void {
+	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet, adjustIndentation: boolean, adjustNewlines: boolean): void {
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
 
@@ -342,13 +342,19 @@ export class SnippetSession {
 				// adjust indentation of text markers, except for choise elements
 				// which get adjusted when being selected
 				const lines = marker.value.split(/\r\n|\r|\n/);
-				for (let i = 1; i < lines.length; i++) {
-					let templateLeadingWhitespace = getLeadingWhitespace(lines[i]);
-					lines[i] = model.normalizeIndentation(lineLeadingWhitespace + templateLeadingWhitespace) + lines[i].substr(templateLeadingWhitespace.length);
+
+				if (adjustIndentation) {
+					for (let i = 1; i < lines.length; i++) {
+						let templateLeadingWhitespace = getLeadingWhitespace(lines[i]);
+						lines[i] = model.normalizeIndentation(lineLeadingWhitespace + templateLeadingWhitespace) + lines[i].substr(templateLeadingWhitespace.length);
+					}
 				}
-				const newValue = lines.join(model.getEOL());
-				if (newValue !== marker.value) {
-					marker.parent.replace(marker, [new Text(newValue)]);
+
+				if (adjustNewlines) {
+					const newValue = lines.join(model.getEOL());
+					if (newValue !== marker.value) {
+						marker.parent.replace(marker, [new Text(newValue)]);
+					}
 				}
 			}
 			return true;
@@ -439,9 +445,11 @@ export class SnippetSession {
 			// happens when being asked for (default) or when this is a secondary
 			// cursor and the leading whitespace is different
 			const start = snippetSelection.getStartPosition();
-			if (adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber))) {
-				SnippetSession.adjustWhitespace(model, start, snippet);
-			}
+			SnippetSession.adjustWhitespace(
+				model, start, snippet,
+				adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber)),
+				true
+			);
 
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,

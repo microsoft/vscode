@@ -724,4 +724,35 @@ suite('IndexTreeModel', function () {
 		model.refilter();
 		assert.deepEqual(toArray(list), ['platinum']);
 	});
+
+	test('explicit hidden nodes should have renderNodeCount == 0, issue #83211', function () {
+		const list: ITreeNode<string>[] = [];
+		let query = new RegExp('');
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): boolean {
+				return query.test(element);
+			}
+		};
+
+		const model = new IndexTreeModel<string>('test', toSpliceable(list), 'root', { filter });
+
+		model.splice([0], 0, [
+			{ element: 'a', children: [{ element: 'aa' }] },
+			{ element: 'b', children: [{ element: 'bb' }] }
+		]);
+
+		assert.deepEqual(toArray(list), ['a', 'aa', 'b', 'bb']);
+		assert.deepEqual(model.getListIndex([0]), 0);
+		assert.deepEqual(model.getListIndex([0, 0]), 1);
+		assert.deepEqual(model.getListIndex([1]), 2);
+		assert.deepEqual(model.getListIndex([1, 0]), 3);
+
+		query = /b/;
+		model.refilter();
+		assert.deepEqual(toArray(list), ['b', 'bb']);
+		assert.deepEqual(model.getListIndex([0]), -1);
+		assert.deepEqual(model.getListIndex([0, 0]), -1);
+		assert.deepEqual(model.getListIndex([1]), 0);
+		assert.deepEqual(model.getListIndex([1, 0]), 1);
+	});
 });

@@ -19,7 +19,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { parse } from 'vs/base/common/json';
+import { parse, getNodeType } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -482,9 +482,13 @@ class UserKeyboardLayout extends Disposable {
 		try {
 			const content = await this.fileService.readFile(this.keyboardLayoutResource);
 			const value = parse(content.value.toString());
-			const layoutInfo = value.layout;
-			const mappings = value.rawMapping;
-			this._keyboardLayout = KeymapInfo.createKeyboardLayoutFromDebugInfo(layoutInfo, mappings, true);
+			if (getNodeType(value) === 'object') {
+				const layoutInfo = value.layout;
+				const mappings = value.rawMapping;
+				this._keyboardLayout = KeymapInfo.createKeyboardLayoutFromDebugInfo(layoutInfo, mappings, true);
+			} else {
+				this._keyboardLayout = null;
+			}
 		} catch (e) {
 			this._keyboardLayout = null;
 		}

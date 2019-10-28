@@ -10,9 +10,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
-import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const enum CallHierarchyDirection {
 	CallsTo = 1,
@@ -56,6 +56,26 @@ export interface CallHierarchyProvider {
 export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();
 
 
+class RefCountedDisposabled {
+
+	constructor(
+		private readonly _disposable: IDisposable,
+		private _counter = 1
+	) { }
+
+	acquire() {
+		this._counter++;
+		return this;
+	}
+
+	release() {
+		if (--this._counter === 0) {
+			this._disposable.dispose();
+		}
+		return this;
+	}
+}
+
 export class CallHierarchyModel {
 
 	static async create(model: ITextModel, position: IPosition, token: CancellationToken): Promise<CallHierarchyModel | undefined> {
@@ -67,17 +87,26 @@ export class CallHierarchyModel {
 		if (!session) {
 			return undefined;
 		}
-		return new CallHierarchyModel(provider, session);
+		return new CallHierarchyModel(provider, session.root, new RefCountedDisposabled(session));
 	}
 
 	private constructor(
 		readonly provider: CallHierarchyProvider,
-		readonly session: CallHierarchySession,
-		readonly root = session.root
+		readonly root: CallHierarchyItem,
+		readonly ref: RefCountedDisposabled,
 	) { }
 
 	dispose(): void {
-		this.session.dispose();
+		this.ref.release();
+	}
+
+	fork(item: CallHierarchyItem): CallHierarchyModel {
+		const that = this;
+		return new class extends CallHierarchyModel {
+			constructor() {
+				super(that.provider, item, that.ref.acquire());
+			}
+		};
 	}
 
 	async resolveIncomingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<IncomingCall[]> {
@@ -105,14 +134,3 @@ export class CallHierarchyModel {
 	}
 }
 
-
-export async function provideIncomingCalls(model: ITextModel, position: IPosition, token: CancellationToken): Promise<IncomingCall[]> {
-	throw new Error();
-}
-
-export async function provideOutgoingCalls(model: ITextModel, position: IPosition, token: CancellationToken): Promise<OutgoingCall[]> {
-	throw new Error();
-}
-
-registerDefaultLanguageCommand('_executeCallHierarchyIncomingCalls', async (model, position) => provideIncomingCalls(model, position, CancellationToken.None));
-registerDefaultLanguageCommand('_executeCallHierarchyOutgoingCalls', async (model, position) => provideOutgoingCalls(model, position, CancellationToken.None));
