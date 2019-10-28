@@ -576,10 +576,7 @@ export class TerminalService implements ITerminalService {
 
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalFocusContextKey, this._configHelper, container, shellLaunchConfig);
-		// This event must fire after the process has been created, otherwise terminals created via
-		// the extension API do not have a change to have their ID returned to them which will
-		// result in 2 terminal objects for a single terminal on the extension host.
-		instance.onProcessCreated(() => this._onInstanceCreated.fire(instance));
+		this._onInstanceCreated.fire(instance);
 		return instance;
 	}
 
