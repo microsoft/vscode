@@ -10,6 +10,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
@@ -120,7 +121,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _matchesCount!: HTMLElement;
 	private _prevBtn!: SimpleButton;
 	private _nextBtn!: SimpleButton;
-	private _toggleSelectionFind!: SimpleCheckbox;
+	private _toggleSelectionFind!: Checkbox;
 	private _closeBtn!: SimpleButton;
 	private _replaceBtn!: SimpleButton;
 	private _replaceAllBtn!: SimpleButton;
@@ -430,7 +431,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		let isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
 		let isChecked = this._toggleSelectionFind.checked;
 
-		this._toggleSelectionFind.setEnabled(this._isVisible && (isChecked || isSelection));
+		if (this._isVisible && (isChecked || isSelection)) {
+			this._toggleSelectionFind.enable();
+		} else {
+			this._toggleSelectionFind.disable();
+		}
 	}
 
 	private _updateButtons(): void {
@@ -641,6 +646,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		};
 		this._findInput.style(inputStyles);
 		this._replaceInput.style(inputStyles);
+		this._toggleSelectionFind.style(inputStyles);
 	}
 
 	private _tryUpdateWidgetWidth() {
@@ -986,25 +992,29 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		actionsContainer.appendChild(this._nextBtn.domNode);
 
 		// Toggle selection button
-		this._toggleSelectionFind = this._register(new SimpleCheckbox({
-			parent: actionsContainer,
+		this._toggleSelectionFind = this._register(new Checkbox({
+			actionClassName: 'codicon codicon-selection',
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
-			onChange: () => {
-				if (this._toggleSelectionFind.checked) {
-					if (this._codeEditor.hasModel()) {
-						let selection = this._codeEditor.getSelection();
-						if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-							selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
-						}
-						if (!selection.isEmpty()) {
-							this._state.change({ searchScope: selection }, true);
-						}
+			isChecked: false
+		}));
+
+		this._register(this._toggleSelectionFind.onChange(() => {
+			if (this._toggleSelectionFind.checked) {
+				if (this._codeEditor.hasModel()) {
+					let selection = this._codeEditor.getSelection();
+					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+						selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
 					}
-				} else {
-					this._state.change({ searchScope: null }, true);
+					if (!selection.isEmpty()) {
+						this._state.change({ searchScope: selection }, true);
+					}
 				}
+			} else {
+				this._state.change({ searchScope: null }, true);
 			}
 		}));
+		
+		actionsContainer.appendChild(this._toggleSelectionFind.domNode);
 
 		// Close button
 		this._closeBtn = this._register(new SimpleButton({
@@ -1059,7 +1069,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					this._prevBtn.focus();
 				} else if (this._nextBtn.isEnabled()) {
 					this._nextBtn.focus();
-				} else if (this._toggleSelectionFind.isEnabled()) {
+				} else if (this._toggleSelectionFind.enabled) {
 					this._toggleSelectionFind.focus();
 				} else if (this._closeBtn.isEnabled()) {
 					this._closeBtn.focus();
@@ -1202,91 +1212,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private updateAccessibilitySupport(): void {
 		const value = this._codeEditor.getOption(EditorOption.accessibilitySupport);
 		this._findInput.setFocusInputOnOptionClick(value !== AccessibilitySupport.Enabled);
-	}
-}
-
-interface ISimpleCheckboxOpts {
-	readonly parent: HTMLElement;
-	readonly title: string;
-	readonly onChange: () => void;
-}
-
-class SimpleCheckbox extends Widget {
-
-	private static _COUNTER = 0;
-
-	private readonly _opts: ISimpleCheckboxOpts;
-	private readonly _domNode: HTMLElement;
-	private readonly _checkbox: HTMLInputElement;
-	private readonly _label: HTMLLabelElement;
-
-	constructor(opts: ISimpleCheckboxOpts) {
-		super();
-		this._opts = opts;
-
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-checkbox';
-		this._domNode.title = this._opts.title;
-		this._domNode.tabIndex = 0;
-
-		this._checkbox = document.createElement('input');
-		this._checkbox.type = 'checkbox';
-		this._checkbox.className = 'checkbox';
-		this._checkbox.id = 'checkbox-' + SimpleCheckbox._COUNTER++;
-		this._checkbox.tabIndex = -1;
-
-		this._label = document.createElement('label');
-		this._label.className = 'codicon codicon-selection';
-		// Connect the label and the checkbox. Checkbox will get checked when the label receives a click.
-		this._label.htmlFor = this._checkbox.id;
-		this._label.tabIndex = -1;
-
-		this._domNode.appendChild(this._checkbox);
-		this._domNode.appendChild(this._label);
-
-		this._opts.parent.appendChild(this._domNode);
-
-		this.onchange(this._checkbox, () => {
-			this._opts.onChange();
-		});
-	}
-
-	public get domNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	public isEnabled(): boolean {
-		return (this._domNode.tabIndex >= 0);
-	}
-
-	public get checked(): boolean {
-		return this._checkbox.checked;
-	}
-
-	public set checked(newValue: boolean) {
-		this._checkbox.checked = newValue;
-	}
-
-	public focus(): void {
-		this._domNode.focus();
-	}
-
-	private enable(): void {
-		this._checkbox.removeAttribute('disabled');
-	}
-
-	private disable(): void {
-		this._checkbox.disabled = true;
-	}
-
-	public setEnabled(enabled: boolean): void {
-		if (enabled) {
-			this.enable();
-			this.domNode.tabIndex = 0;
-		} else {
-			this.disable();
-			this.domNode.tabIndex = -1;
-		}
 	}
 }
 
