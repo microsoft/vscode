@@ -82,8 +82,8 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess) {
 			this.getShellName().then(title => {
 				if (!this._isDisposed) {
-					this._terminalInstance.setTitle(title, TitleEventSource.Process);
 					this._terminalInstance.setShellType(this.getShellType(title));
+					this._terminalInstance.setTitle(title, TitleEventSource.Process);
 				}
 			});
 		}
