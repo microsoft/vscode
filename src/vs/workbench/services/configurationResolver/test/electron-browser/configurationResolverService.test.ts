@@ -487,6 +487,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(2, mockCommandService.callCount);
 		});
 	});
+
 	test('contributed variable', () => {
 		const buildTask = 'npm: compile';
 		const variable = 'defaultBuildTask';
@@ -498,6 +499,43 @@ suite('Configuration Resolver Service', () => {
 			assert.deepEqual(result, {
 				'name': `${buildTask}`
 			});
+		});
+	});
+
+	test('dependant substitutions', () => {
+		const configuration = {
+			'property1': '${env:key1}',
+			'property2': '${input:input1}',
+			'property3': '${command:command1}',
+			'property4': '${command:command2}'
+		};
+
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+
+			assert.deepEqual(mockCommandService.callHistory[0].args[0], {
+				'property1': 'Value for key1',
+				'property2': 'resolvedEnterinput1',
+				'property3': '${command:command1}',
+				'property4': '${command:command2}'
+			});
+
+
+			assert.deepEqual(mockCommandService.callHistory[1].args[0], {
+				'property1': 'Value for key1',
+				'property2': 'resolvedEnterinput1',
+				'property3': 'command1-result',
+				'property4': '${command:command2}'
+			});
+
+
+			assert.deepEqual(result, {
+				'property1': 'Value for key1',
+				'property2': 'resolvedEnterinput1',
+				'property3': 'command1-result',
+				'property4': 'command2-result',
+			});
+
+			assert.equal(2, mockCommandService.callCount);
 		});
 	});
 });
@@ -534,10 +572,14 @@ class MockCommandService implements ICommandService {
 	public _serviceBrand: undefined;
 	public callCount = 0;
 
+	public callHistory: HistoryEntry[] = [];
+
 	onWillExecuteCommand = () => Disposable.None;
 	onDidExecuteCommand = () => Disposable.None;
 	public executeCommand(commandId: string, ...args: any[]): Promise<any> {
 		this.callCount++;
+
+		this.callHistory.push({ commandId: commandId, args: args });
 
 		let result = `${commandId}-result`;
 		if (args.length >= 1) {
@@ -548,6 +590,11 @@ class MockCommandService implements ICommandService {
 
 		return Promise.resolve(result);
 	}
+}
+
+interface HistoryEntry {
+	commandId: string;
+	args: any[];
 }
 
 class MockQuickInputService implements IQuickInputService {
@@ -648,3 +695,4 @@ class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService 
 		super({ userEnv: env } as IWindowConfiguration, process.execPath, 0);
 	}
 }
+
