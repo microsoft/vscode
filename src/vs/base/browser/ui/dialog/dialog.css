@@ -156,6 +156,10 @@
 	display: flex;
 }
 
+.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row .dialog-checkbox-message {
+	cursor: pointer;
+}
+
 /** Dialog: Buttons Row */
 .monaco-workbench .dialog-box > .dialog-buttons-row {
 	display: flex;
