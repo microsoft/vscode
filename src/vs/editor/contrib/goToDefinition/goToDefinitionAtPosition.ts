@@ -27,7 +27,6 @@ import { IWordAtPosition, IModelDeltaDecoration, ITextModel, IFoundBracket } fro
 import { Position } from 'vs/editor/common/core/position';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class GotoDefinitionAtPositionEditorContribution implements editorCommon.IEditorContribution {
 
