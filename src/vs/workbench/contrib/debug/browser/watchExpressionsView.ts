@@ -75,7 +75,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 		if (this.toolbar) {
 			const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
-			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
+			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all');
 			const removeAllWatchExpressionsAction = new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService);
 			this.toolbar.setActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction])();
 		}
