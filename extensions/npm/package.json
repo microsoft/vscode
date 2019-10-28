@@ -30,6 +30,7 @@
   "main": "./out/main",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
+    "onCommand:npm.runScriptFromFolder",
     "onLanguage:json",
     "workspaceContains:package.json",
     "onView:npm"
