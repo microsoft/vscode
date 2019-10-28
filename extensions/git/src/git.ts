@@ -196,13 +196,13 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 		}),
 		new Promise<Buffer>(c => {
 			const buffers: Buffer[] = [];
-			on(child.stdout, 'data', (b: Buffer) => buffers.push(b));
-			once(child.stdout, 'close', () => c(Buffer.concat(buffers)));
+			on(child.stdout!, 'data', (b: Buffer) => buffers.push(b));
+			once(child.stdout!, 'close', () => c(Buffer.concat(buffers)));
 		}),
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
-			on(child.stderr, 'data', (b: Buffer) => buffers.push(b));
-			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
+			on(child.stderr!, 'data', (b: Buffer) => buffers.push(b));
+			once(child.stderr!, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
 	]) as Promise<[number, Buffer, string]>;
 
@@ -360,7 +360,7 @@ export class Git {
 		const onSpawn = (child: cp.ChildProcess) => {
 			const decoder = new StringDecoder('utf8');
 			const lineStream = new byline.LineStream({ encoding: 'utf8' });
-			child.stderr.on('data', (buffer: Buffer) => lineStream.write(decoder.write(buffer)));
+			child.stderr!.on('data', (buffer: Buffer) => lineStream.write(decoder.write(buffer)));
 
 			let totalProgress = 0;
 			let previousProgress = 0;
@@ -438,7 +438,7 @@ export class Git {
 		}
 
 		if (options.input) {
-			child.stdin.end(options.input, 'utf8');
+			child.stdin!.end(options.input, 'utf8');
 		}
 
 		const bufferResult = await exec(child, options.cancellationToken);
@@ -882,7 +882,7 @@ export class Repository {
 
 	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
 		const child = await this.stream(['show', object]);
-		const buffer = await readBytes(child.stdout, 4100);
+		const buffer = await readBytes(child.stdout!, 4100);
 
 		try {
 			child.kill();
@@ -1151,7 +1151,7 @@ export class Repository {
 
 	async stage(path: string, data: string): Promise<void> {
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', path], { stdio: [null, null, null] });
-		child.stdin.end(data, 'utf8');
+		child.stdin!.end(data, 'utf8');
 
 		const { exitCode, stdout } = await exec(child);
 		const hash = stdout.toString('utf8');
@@ -1641,19 +1641,19 @@ export class Repository {
 
 				if (parser.status.length > limit) {
 					child.removeListener('exit', onExit);
-					child.stdout.removeListener('data', onStdoutData);
+					child.stdout!.removeListener('data', onStdoutData);
 					child.kill();
 
 					c({ status: parser.status.slice(0, limit), didHitLimit: true });
 				}
 			};
 
-			child.stdout.setEncoding('utf8');
-			child.stdout.on('data', onStdoutData);
+			child.stdout!.setEncoding('utf8');
+			child.stdout!.on('data', onStdoutData);
 
 			const stderrData: string[] = [];
-			child.stderr.setEncoding('utf8');
-			child.stderr.on('data', raw => stderrData.push(raw as string));
+			child.stderr!.setEncoding('utf8');
+			child.stderr!.on('data', raw => stderrData.push(raw as string));
 
 			child.on('error', cpErrorHandler(e));
 			child.on('exit', onExit);
