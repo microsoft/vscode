@@ -333,7 +333,7 @@ CommandsRegistry.registerCommand({
 
 const RevealInSideBarForSearchResultsCommand: ICommandAction = {
 	id: Constants.RevealInSideBarForSearchResults,
-	title: nls.localize('revealInSideBar', "Reveal in Explorer")
+	title: nls.localize('revealInSideBar', "Reveal in Side Bar")
 };
 
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
