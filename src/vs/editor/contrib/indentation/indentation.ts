@@ -498,7 +498,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 
 		let firstLineText = model.getLineContent(startLineNumber);
-		let indentOfFirstLine = null
+		let indentOfFirstLine = null;
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
 			indentOfFirstLine = LanguageConfigurationRegistry.getGoodIndentForLine(model, model.getLanguageIdentifier().id, startLineNumber, indentConverter);
 
@@ -513,7 +513,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						text: newIndent
 					});
 					firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
-					indentOfFirstLine = newIndent
+					indentOfFirstLine = newIndent;
 				} else {
 					let indentMetadata = LanguageConfigurationRegistry.getIndentMetadata(model, startLineNumber);
 
@@ -558,7 +558,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					}
 				}
 			};
-			let firstLineSpacesCnt = indentOfFirstLine!==null ? indentOfFirstLine.length : 0
+			let firstLineSpacesCnt = indentOfFirstLine!==null ? indentUtils.getSpaceCnt(indentOfFirstLine, tabSize) : 0;
 			let indentOfSecondLine = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdentifier().id, startLineNumber + 1, indentConverter);
 			if (indentOfSecondLine !== null) {
 				let newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
@@ -566,13 +566,13 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
 					let spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
+					if (spaceCntOffset < tabSize) {
+						spaceCntOffset = firstLineSpacesCnt;
+					}
 					for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
 						let lineContent = model.getLineContent(i);
 						let originalIndent = strings.getLeadingWhitespace(lineContent);
 						let originalSpacesCnt = indentUtils.getSpaceCnt(originalIndent, tabSize);
-						if (originalSpacesCnt <= firstLineSpacesCnt) {
-							continue;
-						}
 						let newSpacesCnt = originalSpacesCnt + spaceCntOffset;
 						let newIndent = indentUtils.generateIndent(newSpacesCnt, tabSize, insertSpaces);
 						if (newIndent !== originalIndent) {
