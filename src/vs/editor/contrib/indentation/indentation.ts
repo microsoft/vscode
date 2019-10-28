@@ -568,10 +568,12 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						let lineContent = model.getLineContent(i);
 						let originalIndent = strings.getLeadingWhitespace(lineContent);
 						let originalSpacesCnt = indentUtils.getSpaceCnt(originalIndent, tabSize);
+						if (originalSpacesCnt <= firstLineSpacesCnt) {
+							continue;
+						}
 						let newSpacesCnt = originalSpacesCnt + spaceCntOffset;
 						let newIndent = indentUtils.generateIndent(newSpacesCnt, tabSize, insertSpaces);
-
-						if (newIndent.length > originalIndent.length) {
+						if (newIndent !== originalIndent) {
 							textEdits.push({
 								range: new Range(i, 1, i, originalIndent.length + 1),
 								text: newIndent
