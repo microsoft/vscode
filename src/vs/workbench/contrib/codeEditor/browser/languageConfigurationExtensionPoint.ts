@@ -43,7 +43,16 @@ interface ILanguageConfiguration {
 }
 
 function isStringArr(something: string[] | null): something is string[] {
-	return Array.isArray(something) && something.every(value => typeof value === 'string');
+	if (!Array.isArray(something)) {
+		return false;
+	}
+	for (let i = 0, len = something.length; i < len; i++) {
+		if (typeof something[i] !== 'string') {
+			return false;
+		}
+	}
+	return true;
+
 }
 
 function isCharacterPair(something: CharacterPair | null): boolean {
