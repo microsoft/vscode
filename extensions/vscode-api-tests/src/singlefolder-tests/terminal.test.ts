@@ -204,7 +204,7 @@ suite('window namespace tests', () => {
 
 				const term1Write = new EventEmitter<string>();
 				const term1Close = new EventEmitter<void>();
-				window.createTerminal({ name: 'test1', pty: {
+				const reg4 = window.createTerminal({ name: 'test1', pty: {
 					onDidWrite: term1Write.event,
 					onDidClose: term1Close.event,
 					open: async () => {
@@ -216,7 +216,7 @@ suite('window namespace tests', () => {
 
 						const term2Write = new EventEmitter<string>();
 						const term2Close = new EventEmitter<void>();
-						window.createTerminal({ name: 'test2', pty: {
+						const reg5 = window.createTerminal({ name: 'test2', pty: {
 							onDidWrite: term2Write.event,
 							onDidClose: term2Close.event,
 							open: async () => {
@@ -226,6 +226,9 @@ suite('window namespace tests', () => {
 								await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
 
 								term2Close.fire();
+
+								reg4.dispose();
+								reg5.dispose();
 							},
 							close: () => { }
 						}});
