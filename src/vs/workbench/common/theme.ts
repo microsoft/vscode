@@ -575,19 +575,19 @@ export const NOTIFICATIONS_ERROR_ICON_FOREGROUND = registerColor('notificationsE
 	dark: editorErrorForeground,
 	light: editorErrorForeground,
 	hc: editorErrorForeground
-}, nls.localize('notificationsErrorIconForeground', "The color used for the notification error icon."));
+}, nls.localize('notificationsErrorIconForeground', "The color used for the icon of error notifications. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_WARNING_ICON_FOREGROUND = registerColor('notificationsWarningIcon.foreground', {
 	dark: editorWarningForeground,
 	light: editorWarningForeground,
 	hc: editorWarningForeground
-}, nls.localize('notificationsWarningIconForeground', "The color used for the notification warning icon."));
+}, nls.localize('notificationsWarningIconForeground', "The color used for the icon of warning notifications. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_INFO_ICON_FOREGROUND = registerColor('notificationsInfoIcon.foreground', {
 	dark: editorInfoForeground,
 	light: editorInfoForeground,
 	hc: editorInfoForeground
-}, nls.localize('notificationsInfoIconForeground', "The color used for the notification info icon."));
+}, nls.localize('notificationsInfoIconForeground', "The color used for the icon of info notifications. Notifications slide in from the bottom right of the window."));
 
 export const WINDOW_ACTIVE_BORDER = registerColor('window.activeBorder', {
 	dark: null,
