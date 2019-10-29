@@ -302,11 +302,11 @@ export const SYMBOL_ICON_COLOR_FOREGROUND = registerColor('symbolIcon.colorForeg
 	hc: foreground
 }, localize('symbolIcon.colorForeground', 'The foreground color for color symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const SYMBOL_ICON_CONSTANT_FOREGROUND = registerColor('symbolIcon.contstantForeground', {
+export const SYMBOL_ICON_CONSTANT_FOREGROUND = registerColor('symbolIcon.constantForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('symbolIcon.contstantForeground', 'The foreground color for contstant symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.constantForeground', 'The foreground color for constant symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
 export const SYMBOL_ICON_CONSTRUCTOR_FOREGROUND = registerColor('symbolIcon.constructorForeground', {
 	dark: '#B180D7',
