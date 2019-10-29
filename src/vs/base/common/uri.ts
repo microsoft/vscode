@@ -396,7 +396,7 @@ export class URI implements UriComponents {
 			return data;
 		} else {
 			const result = new _URI(data);
-			result._external = (<UriState>data).external;
+			result._external = (<UriState>data)._href;
 			result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath : null;
 			return result;
 		}
@@ -413,7 +413,7 @@ export interface UriComponents {
 
 interface UriState extends UriComponents {
 	$mid: number;
-	external: string;
+	_href: string;
 	fsPath: string;
 	_sep: 1 | undefined;
 }
@@ -454,7 +454,7 @@ class _URI extends URI {
 			res._sep = _pathSepMarker;
 		}
 		if (this._external) {
-			res.external = this._external;
+			res._href = this._external;
 		}
 		// uri components
 		if (this.path) {
