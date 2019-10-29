@@ -1554,7 +1554,7 @@ export class CommandCenter {
 
 		if (commit.parents.length > 1) {
 			const yes = localize('undo commit', "Undo merge commit");
-			const result = await window.showWarningMessage(localize('merge commit', "The last commit was a merge commit. Are you sure you want to undo it?"), yes);
+			const result = await window.showWarningMessage(localize('merge commit', "The last commit was a merge commit. Are you sure you want to undo it?"), { modal: true }, yes);
 
 			if (result !== yes) {
 				return;
