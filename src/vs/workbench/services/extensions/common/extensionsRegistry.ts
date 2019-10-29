@@ -146,6 +146,18 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 	}
 }
 
+const extensionKindSchema = {
+	type: 'string',
+	enum: [
+		'ui',
+		'workspace'
+	],
+	enumDescriptions: [
+		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+	],
+};
+
 const schemaId = 'vscode://schemas/vscode-extensions';
 export const schema = {
 	properties: {
@@ -346,15 +358,7 @@ export const schema = {
 		},
 		extensionKind: {
 			description: nls.localize('extensionKind', "Define the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote."),
-			type: 'string',
-			enum: [
-				'ui',
-				'workspace'
-			],
-			enumDescriptions: [
-				nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-				nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
-			],
+			oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
 			default: 'workspace'
 		},
 		scripts: {

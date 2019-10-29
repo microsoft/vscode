@@ -855,33 +855,7 @@ declare module 'vscode' {
 	export namespace env {
 
 		/**
-		 * Creates a Uri that - if opened in a browser - will result in a
-		 * registered [UriHandler](#UriHandler) to fire. The handler's
-		 * Uri will be configured with the path, query and fragment of
-		 * [AppUriOptions](#AppUriOptions) if provided, otherwise it will be empty.
-		 *
-		 * Extensions should not make any assumptions about the resulting
-		 * Uri and should not alter it in anyway. Rather, extensions can e.g.
-		 * use this Uri in an authentication flow, by adding the Uri as
-		 * callback query argument to the server to authenticate to.
-		 *
-		 * Note: If the server decides to add additional query parameters to the Uri
-		 * (e.g. a token or secret), it will appear in the Uri that is passed
-		 * to the [UriHandler](#UriHandler).
-		 *
-		 * **Example** of an authentication flow:
-		 * ```typescript
-		 * vscode.window.registerUriHandler({
-		 *   handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
-		 *     if (uri.path === '/did-authenticate') {
-		 *       console.log(uri.toString());
-		 *     }
-		 *   }
-		 * });
-		 *
-		 * const callableUri = await vscode.env.createAppUri({ payload: { path: '/did-authenticate' } });
-		 * await vscode.env.openExternal(callableUri);
-		 * ```
+		 * @deprecated use `vscode.env.asExternalUri` instead.
 		 */
 		export function createAppUri(options?: AppUriOptions): Thenable<Uri>;
 	}

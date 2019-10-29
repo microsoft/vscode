@@ -594,7 +594,8 @@ export interface ExtHostWebviewsShape {
 export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
-	$createAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<UriComponents>;
+	$createAppUri(uri: UriComponents): Promise<UriComponents>;
+	$proposedCreateAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<UriComponents>;
 }
 
 export interface ExtHostUrlsShape {

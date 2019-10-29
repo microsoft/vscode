@@ -1320,7 +1320,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
-		collector.addRule(`.monaco-editor .find-widget { border: 2px solid ${hcBorder}; }`);
+		collector.addRule(`.monaco-editor .find-widget { border: 1px solid ${hcBorder}; }`);
 	}
 
 	const foreground = theme.getColor(editorWidgetForeground);

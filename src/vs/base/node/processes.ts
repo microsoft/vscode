@@ -454,6 +454,14 @@ export namespace win32 {
 		if (paths === undefined || paths.length === 0) {
 			return path.join(cwd, command);
 		}
+
+		async function fileExists(path: string): Promise<boolean> {
+			if (await promisify(fs.exists)(path)) {
+				return !((await promisify(fs.stat)(path)).isDirectory);
+			}
+			return false;
+		}
+
 		// We have a simple file name. We get the path variable from the env
 		// and try to find the executable on the path.
 		for (let pathEntry of paths) {
@@ -464,15 +472,15 @@ export namespace win32 {
 			} else {
 				fullPath = path.join(cwd, pathEntry, command);
 			}
-			if (await promisify(fs.exists)(fullPath)) {
+			if (await fileExists(fullPath)) {
 				return fullPath;
 			}
 			let withExtension = fullPath + '.com';
-			if (await promisify(fs.exists)(withExtension)) {
+			if (await fileExists(withExtension)) {
 				return withExtension;
 			}
 			withExtension = fullPath + '.exe';
-			if (await promisify(fs.exists)(withExtension)) {
+			if (await fileExists(withExtension)) {
 				return withExtension;
 			}
 		}

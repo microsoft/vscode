@@ -21,13 +21,14 @@ import { IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext } from 'vs/
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import product from 'vs/platform/product/common/product';
 
 // Actions
 (function registerActions(): void {
 	const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
-	// Actions: View
-	(function registerViewActions(): void {
+	// Actions: Zoom
+	(function registerZoomActions(): void {
 		const viewCategory = nls.localize('view', "View");
 
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL, KeyMod.CtrlCmd | KeyCode.NUMPAD_ADD] }), 'View: Zoom In', viewCategory);
@@ -90,7 +91,6 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 	(function registerDeveloperActions(): void {
 		const developerCategory = nls.localize('developer', "Developer");
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureRuntimeArgumentsAction, ConfigureRuntimeArgumentsAction.ID, ConfigureRuntimeArgumentsAction.LABEL), 'Developer: Configure Runtime Arguments', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Developer: Reload With Extensions Disabled', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
 
@@ -101,6 +101,12 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I }
 		});
+	})();
+
+	// Actions: Runtime Arguments
+	(function registerRuntimeArgumentsAction(): void {
+		const preferencesCategory = nls.localize('preferences', "Preferences");
+		registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureRuntimeArgumentsAction, ConfigureRuntimeArgumentsAction.ID, ConfigureRuntimeArgumentsAction.LABEL), 'Preferences: Configure Runtime Arguments', preferencesCategory);
 	})();
 })();
 
@@ -154,14 +160,16 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 		order: 3
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '3_feedback',
-		command: {
-			id: 'workbench.action.openIssueReporter',
-			title: nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
-		},
-		order: 3
-	});
+	if (!!product.reportIssueUrl) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '3_feedback',
+			command: {
+				id: 'workbench.action.openIssueReporter',
+				title: nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
+			},
+			order: 3
+		});
+	}
 
 	// Tools
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {

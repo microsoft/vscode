@@ -35,7 +35,7 @@ import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
-import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
+import { normalizeGitHubUrl } from 'vs/code/common/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';

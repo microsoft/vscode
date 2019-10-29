@@ -311,7 +311,7 @@ export class TabsTitleControl extends TitleControl {
 				(tabsContainer.lastChild as HTMLElement).remove();
 
 				// Remove associated tab label and widget
-				this.tabDisposables.pop()!.dispose();
+				dispose(this.tabDisposables.pop());
 			}
 
 			// A removal of a label requires to recompute all labels
@@ -355,7 +355,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	pinEditor(editor: IEditorInput): void {
-		this.withTab(editor, (tabContainer, tabLabelWidget, tabLabel) => this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel));
 	}
 
 	setActive(isGroupActive: boolean): void {
@@ -391,7 +391,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
-		this.withTab(editor, (tabContainer, tabLabelWidget) => this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget) => this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -418,13 +418,23 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	private withTab(editor: IEditorInput, fn: (tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
-		const editorIndex = this.group.getIndexOfEditor(editor);
+	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+		this.group.editors.forEach((editor, index) => {
+			this.doWithTab(index, editor, fn);
+		});
+	}
 
+	private withTab(editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+		this.doWithTab(this.group.getIndexOfEditor(editor), editor, fn);
+	}
+
+	private doWithTab(index: number, editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
 		const tabsContainer = assertIsDefined(this.tabsContainer);
-		const tabContainer = tabsContainer.children[editorIndex] as HTMLElement;
-		if (tabContainer) {
-			fn(tabContainer, this.tabResourceLabels.get(editorIndex), this.tabLabels[editorIndex]);
+		const tabContainer = tabsContainer.children[index] as HTMLElement;
+		const tabResourceLabel = this.tabResourceLabels.get(index);
+		const tabLabel = this.tabLabels[index];
+		if (tabContainer && tabResourceLabel && tabLabel) {
+			fn(editor, index, tabContainer, tabResourceLabel, tabLabel);
 		}
 	}
 
@@ -865,16 +875,6 @@ export class TabsTitleControl extends TitleControl {
 
 		// Ensure the active tab is always revealed
 		this.layout(this.dimension);
-	}
-
-	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
-		this.group.editors.forEach((editor, index) => {
-			const tabsContainer = assertIsDefined(this.tabsContainer);
-			const tabContainer = tabsContainer.children[index] as HTMLElement;
-			if (tabContainer) {
-				fn(editor, index, tabContainer, this.tabResourceLabels.get(index), this.tabLabels[index]);
-			}
-		});
 	}
 
 	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {

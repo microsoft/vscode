@@ -14,6 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { WebviewContentState } from 'vs/editor/common/modes';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ConfirmResult, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
@@ -31,11 +32,12 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		viewType: string,
 		id: string,
 		webview: Lazy<UnownedDisposable<WebviewEditorOverlay>>,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
-		super(id, viewType, '', webview, webviewWorkbenchService);
+		super(id, viewType, '', webview, webviewWorkbenchService, lifecycleService);
 		this._editorResource = resource;
 	}
 

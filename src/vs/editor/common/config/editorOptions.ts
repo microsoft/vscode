@@ -1261,6 +1261,8 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 			EditorOption.fontSize, 'fontSize', EDITOR_FONT_DEFAULTS.fontSize,
 			{
 				type: 'number',
+				minimum: 6,
+				maximum: 100,
 				default: EDITOR_FONT_DEFAULTS.fontSize,
 				description: nls.localize('fontSize', "Controls the font size in pixels.")
 			}
@@ -2352,11 +2354,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		super(
 			EditorOption.suggest, 'suggest', defaults,
 			{
-				'editor.suggest.overwriteOnAccept': {
-					type: 'boolean',
-					default: defaults.overwriteOnAccept,
-					description: nls.localize('suggest.overwriteOnAccept', "Controls whether words are overwritten when accepting completions.")
-				},
+				// 'editor.suggest.overwriteOnAccept': {
+				// 	type: 'boolean',
+				// 	default: defaults.overwriteOnAccept,
+				// 	description: nls.localize('suggest.overwriteOnAccept', "Controls whether words are overwritten when accepting completions.")
+				// },
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
 					default: defaults.filterGraceful,

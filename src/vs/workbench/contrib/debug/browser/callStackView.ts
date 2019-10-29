@@ -122,7 +122,7 @@ export class CallStackView extends ViewletPanel {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>>(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(this.instantiationService),
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),

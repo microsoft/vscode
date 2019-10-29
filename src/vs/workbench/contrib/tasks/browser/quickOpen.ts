@@ -173,7 +173,7 @@ class CustomizeTaskAction extends Action {
 	}
 
 	public updateClass(): void {
-		this.class = 'quick-open-task-configure';
+		this.class = 'codicon-gear';
 	}
 
 	public run(element: any): Promise<any> {

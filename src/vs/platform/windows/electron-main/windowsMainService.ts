@@ -496,7 +496,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!usedWindows.some(window => window.isExtensionDevelopmentHost) && !openConfig.diffMode && !openConfig.noRecentEntry) {
+		if (!usedWindows.some(window => window.isExtensionDevelopmentHost) && !(fileInputs?.filesToDiff) && !openConfig.noRecentEntry) {
 			const recents: IRecent[] = [];
 			for (let pathToOpen of pathsToOpen) {
 				if (pathToOpen.workspace) {

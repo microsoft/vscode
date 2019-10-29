@@ -162,10 +162,7 @@ class BrowserMain extends Disposable {
 		// Product
 		const productService = {
 			_serviceBrand: undefined,
-			...{
-				...product,				// dev or built time config
-				...{ urlProtocol: '' }	// web related overrides from us
-			}
+			...product
 		};
 		serviceCollection.set(IProductService, productService);
 
