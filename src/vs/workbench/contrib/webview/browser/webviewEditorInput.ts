@@ -9,6 +9,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 
@@ -16,6 +17,7 @@ const WebviewPanelResourceScheme = 'webview-panel';
 
 class WebviewIconsManager {
 	private readonly _icons = new Map<string, { light: URI, dark: URI }>();
+
 
 	@memoize
 	private get _styleElement(): HTMLStyleElement {
@@ -26,7 +28,8 @@ class WebviewIconsManager {
 
 	public setIcons(
 		webviewId: string,
-		iconPath: { light: URI, dark: URI } | undefined
+		iconPath: { light: URI, dark: URI } | undefined,
+		lifecycleService: ILifecycleService,
 	) {
 		if (iconPath) {
 			this._icons.set(webviewId, iconPath);
@@ -34,10 +37,11 @@ class WebviewIconsManager {
 			this._icons.delete(webviewId);
 		}
 
-		this.updateStyleSheet();
+		this.updateStyleSheet(lifecycleService);
 	}
 
-	private updateStyleSheet() {
+	private async updateStyleSheet(lifecycleService: ILifecycleService, ) {
+		await lifecycleService.when(LifecyclePhase.Starting);
 		const cssRules: string[] = [];
 		this._icons.forEach((value, key) => {
 			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
@@ -67,7 +71,8 @@ export class WebviewInput extends EditorInput {
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		webview: Lazy<Unowned<WebviewEditorOverlay>>
+		webview: Lazy<Unowned<WebviewEditorOverlay>>,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -118,7 +123,7 @@ export class WebviewInput extends EditorInput {
 
 	public set iconPath(value: { light: URI, dark: URI } | undefined) {
 		this._iconPath = value;
-		WebviewInput.iconsManager.setIcons(this.id, value);
+		WebviewInput.iconsManager.setIcons(this.id, value, this.lifecycleService);
 	}
 
 	public matches(other: IEditorInput): boolean {
