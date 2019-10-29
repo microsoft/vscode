@@ -1261,6 +1261,8 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 			EditorOption.fontSize, 'fontSize', EDITOR_FONT_DEFAULTS.fontSize,
 			{
 				type: 'number',
+				minimum: 6,
+				maximum: 100,
 				default: EDITOR_FONT_DEFAULTS.fontSize,
 				description: nls.localize('fontSize', "Controls the font size in pixels.")
 			}
