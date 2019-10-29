@@ -35,12 +35,14 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
 	if (placeholderForeground) {
 		collector.addRule(`
-			.monaco-workbench input::-moz-placeholder,
-			.monaco-workbench input::-webkit-input-placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench input::placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench input::-webkit-input-placeholder  { color: ${placeholderForeground}; }
+			.monaco-workbench input::-moz-placeholder { color: ${placeholderForeground}; }
 		`);
 		collector.addRule(`
-			.monaco-workbench textarea::-moz-placeholder,
+			.monaco-workbench textarea::placeholder { color: ${placeholderForeground}; }
 			.monaco-workbench textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench textarea::-moz-placeholder { color: ${placeholderForeground}; }
 		`);
 	}
 

@@ -301,7 +301,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
-			if (!this.environmentService.args['extension-development-confirm-save']) { //
+			if (!this.environmentService.args['extension-development-confirm-save']) {
 				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
 			}
 		}
