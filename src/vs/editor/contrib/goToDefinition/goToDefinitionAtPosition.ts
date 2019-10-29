@@ -30,7 +30,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export class GotoDefinitionAtPositionEditorContribution implements editorCommon.IEditorContribution {
 
-	public static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
+	public static readonly ID = 'editor.contrib.gotodefinitionatposition';
 	static readonly MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private readonly editor: ICodeEditor;
