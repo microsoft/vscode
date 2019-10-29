@@ -32,6 +32,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
+import { isFirefox } from 'vs/base/browser/browser';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -313,8 +314,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		// Indicate onBeforeRun
 		this.onBeforeRun(this.commandId);
 
-		// Use a timeout to give the quick open widget a chance to close itself first
-		setTimeout(async () => {
+		const commandRunner = (async () => {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'quick open' });
@@ -335,7 +335,16 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 			} else {
 				this.notificationService.info(localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 			}
-		}, 50);
+		});
+
+		// Use a timeout to give the quick open widget a chance to close itself first
+		// Firefox: since the browser is quite picky for certain commands, we do not
+		// use a timeout (https://github.com/microsoft/vscode/issues/83288)
+		if (!isFirefox) {
+			setTimeout(() => commandRunner(), 50);
+		} else {
+			commandRunner();
+		}
 	}
 
 	private onError(error?: Error): void {

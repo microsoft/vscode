@@ -73,7 +73,7 @@ export class NotificationsList extends Themable {
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
 
 		// List
-		const list = this.list = this._register(this.instantiationService.createInstance(
+		const list = this.list = this._register(this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<INotificationViewItem>>(
 			WorkbenchList,
 			'NotificationsList',
 			this.listContainer,

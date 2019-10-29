@@ -732,7 +732,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const keyboardNavigationLabelProvider = new SCMTreeKeyboardNavigationLabelProvider();
 		const identityProvider = new SCMResourceIdentityProvider();
 
-		this.tree = this.instantiationService.createInstance(
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchCompressibleObjectTree, WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>>(
 			WorkbenchCompressibleObjectTree,
 			'SCM Tree Repo',
 			this.listContainer,

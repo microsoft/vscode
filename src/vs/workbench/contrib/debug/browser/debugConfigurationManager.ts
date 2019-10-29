@@ -13,6 +13,7 @@ import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/workbench/common/editor';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,7 +35,6 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { sequence } from 'vs/base/common/async';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { first } from 'vs/base/common/arrays';
 
@@ -65,6 +65,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHistoryService historyService: IHistoryService
@@ -74,7 +75,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.debuggers = [];
 		this.toDispose = [];
 		this.initLaunches();
-		this.registerListeners();
+		this.registerListeners(lifecycleService);
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const previousSelectedLaunch = this.launches.filter(l => l.uri.toString() === previousSelectedRoot).pop();
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
@@ -190,27 +191,31 @@ export class ConfigurationManager implements IConfigurationManager {
 		return providers.length > 0;
 	}
 
-	async resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, config: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
-		await this.activateDebuggers('onDebugResolve', type);
-		// pipe the config through the promises sequentially. Append at the end the '*' types
-		const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
-			.concat(this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfiguration));
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
+		return this.activateDebuggers('onDebugResolve', type).then(() => {
+			// pipe the config through the promises sequentially. Append at the end the '*' types
+			const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
+				.concat(this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfiguration));
 
-		await sequence(providers.map(provider => async () => {
-			config = (await provider.resolveDebugConfiguration!(folderUri, config, token)) || config;
-		}));
-
-		return config;
+			return providers.reduce((promise, provider) => {
+				return promise.then(config => {
+					if (config) {
+						return provider.resolveDebugConfiguration!(folderUri, config, token);
+					} else {
+						return Promise.resolve(config);
+					}
+				});
+			}, Promise.resolve(debugConfiguration));
+		});
 	}
 
-	async provideDebugConfigurations(folderUri: uri | undefined, type: string, token: CancellationToken): Promise<any[]> {
-		await this.activateDebuggers('onDebugInitialConfigurations');
-		const results = await Promise.all(this.configProviders.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)));
-
-		return results.reduce((first, second) => first.concat(second), []);
+	provideDebugConfigurations(folderUri: uri | undefined, type: string, token: CancellationToken): Promise<any[]> {
+		return this.activateDebuggers('onDebugInitialConfigurations')
+			.then(() => Promise.all(this.configProviders.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)))
+				.then(results => results.reduce((first, second) => first.concat(second), [])));
 	}
 
-	private registerListeners(): void {
+	private registerListeners(lifecycleService: ILifecycleService): void {
 		debuggersExtPoint.setHandler((extensions, delta) => {
 			delta.added.forEach(added => {
 				added.value.forEach(rawAdapter => {
@@ -384,54 +389,57 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, type)).pop();
 	}
 
-	async guessDebugger(type?: string): Promise<Debugger | undefined> {
+	guessDebugger(type?: string): Promise<Debugger | undefined> {
 		if (type) {
 			const adapter = this.getDebugger(type);
 			return Promise.resolve(adapter);
 		}
 
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-		let candidates: Debugger[] | undefined;
+		let candidates: Promise<Debugger[]> | undefined;
 		if (isCodeEditor(activeTextEditorWidget)) {
 			const model = activeTextEditorWidget.getModel();
 			const language = model ? model.getLanguageIdentifier().language : undefined;
 			const adapters = this.debuggers.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
 			if (adapters.length === 1) {
-				return adapters[0];
+				return Promise.resolve(adapters[0]);
 			}
 			if (adapters.length > 1) {
-				candidates = adapters;
+				candidates = Promise.resolve(adapters);
 			}
 		}
 
 		if (!candidates) {
-			await this.activateDebuggers('onDebugInitialConfigurations');
-			candidates = this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
+			candidates = this.activateDebuggers('onDebugInitialConfigurations').then(() => this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider()));
 		}
 
-		candidates.sort((first, second) => first.label.localeCompare(second.label));
-		const picks = candidates.map(c => ({ label: c.label, debugger: c }));
-		const picked = await this.quickInputService.pick<{ label: string, debugger: Debugger | undefined }>([...picks, { type: 'separator' }, { label: 'More...', debugger: undefined }], { placeHolder: nls.localize('selectDebug', "Select Environment") });
-
-		if (picked && picked.debugger) {
-			return picked.debugger;
-		}
-		if (picked) {
-			this.commandService.executeCommand('debug.installAdditionalDebuggers');
-		}
-
-		return undefined;
+		return candidates.then(debuggers => {
+			debuggers.sort((first, second) => first.label.localeCompare(second.label));
+			const picks = debuggers.map(c => ({ label: c.label, debugger: c }));
+			return this.quickInputService.pick<{ label: string, debugger: Debugger | undefined }>([...picks, { type: 'separator' }, { label: 'More...', debugger: undefined }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+				.then(picked => {
+					if (picked && picked.debugger) {
+						return picked.debugger;
+					}
+					if (picked) {
+						this.commandService.executeCommand('debug.installAdditionalDebuggers');
+					}
+					return undefined;
+				});
+		});
 	}
 
-	async activateDebuggers(activationEvent: string, debugType?: string): Promise<void> {
-		const promises: Promise<any>[] = [
+	activateDebuggers(activationEvent: string, debugType?: string): Promise<void> {
+		const thenables: Promise<any>[] = [
 			this.extensionService.activateByEvent(activationEvent),
 			this.extensionService.activateByEvent('onDebug')
 		];
 		if (debugType) {
-			promises.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
+			thenables.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
 		}
-		await Promise.all(promises);
+		return Promise.all(thenables).then(_ => {
+			return undefined;
+		});
 	}
 
 	private setSelectedLaunchName(selectedName: string | undefined): void {
@@ -528,57 +536,54 @@ class Launch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch', { resource: this.workspace.uri }).workspaceFolder;
 	}
 
-	async openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditor | null, created: boolean }> {
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditor | null, created: boolean }> {
 		const resource = this.uri;
 		let created = false;
-		let content = '';
-		try {
-			const fileContent = await this.fileService.readFile(resource);
-			content = fileContent.value.toString();
-		} catch {
-			// launch.json not found: create one by collecting launch configs from debugConfigProviders
-			const adapter = await this.configurationManager.guessDebugger(type);
 
-			if (adapter) {
-				const initialConfigs = await this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type, token || CancellationToken.None);
-				content = await adapter.getInitialConfigurationContent(initialConfigs);
-			}
-			if (content) {
+		return this.fileService.readFile(resource).then(content => content.value, err => {
+			// launch.json not found: create one by collecting launch configs from debugConfigProviders
+			return this.configurationManager.guessDebugger(type).then(adapter => {
+				if (adapter) {
+					return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type, token || CancellationToken.None).then(initialConfigs => {
+						return adapter.getInitialConfigurationContent(initialConfigs);
+					});
+				} else {
+					return '';
+				}
+			}).then(content => {
+
+				if (!content) {
+					return '';
+				}
+
 				created = true; // pin only if config file is created #8727
-				try {
-					await this.textFileService.write(resource, content);
-				} catch (error) {
-					throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error.message));
+				return this.textFileService.write(resource, content).then(() => content);
+			});
+		}).then(content => {
+			if (!content) {
+				return { editor: null, created: false };
+			}
+			const contentValue = content.toString();
+			const index = contentValue.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
+			let startLineNumber = 1;
+			for (let i = 0; i < index; i++) {
+				if (contentValue.charAt(i) === '\n') {
+					startLineNumber++;
 				}
 			}
-		}
+			const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
 
-		if (content === '') {
-			return { editor: null, created: false };
-		}
-
-		const index = content.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
-		let startLineNumber = 1;
-		for (let i = 0; i < index; i++) {
-			if (content.charAt(i) === '\n') {
-				startLineNumber++;
-			}
-		}
-		const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
-
-		const editor = await this.editorService.openEditor({
-			resource,
-			options: {
-				selection,
-				preserveFocus,
-				pinned: created,
-				revealIfVisible: true
-			},
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-
-		return ({
-			editor: withUndefinedAsNull(editor),
-			created
+			return Promise.resolve(this.editorService.openEditor({
+				resource,
+				options: {
+					selection,
+					preserveFocus,
+					pinned: created,
+					revealIfVisible: true
+				},
+			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor: withUndefinedAsNull(editor), created })));
+		}, (error: Error) => {
+			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error.message));
 		});
 	}
 }
@@ -608,17 +613,11 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').workspace;
 	}
 
-	async openConfigFile(sideBySide: boolean, preserveFocus: boolean): Promise<{ editor: IEditor | null, created: boolean }> {
-
-		const editor = await this.editorService.openEditor({
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Promise<{ editor: IEditor | null, created: boolean }> {
+		return this.editorService.openEditor({
 			resource: this.contextService.getWorkspace().configuration!,
 			options: { preserveFocus }
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-
-		return ({
-			editor: withUndefinedAsNull(editor),
-			created: false
-		});
+		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor: withUndefinedAsNull(editor), created: false }));
 	}
 }
 
@@ -651,11 +650,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').user;
 	}
 
-	async openConfigFile(_: boolean, preserveFocus: boolean): Promise<{ editor: IEditor | null, created: boolean }> {
-		const editor = await this.preferencesService.openGlobalSettings(false, { preserveFocus });
-		return ({
-			editor: withUndefinedAsNull(editor),
-			created: false
-		});
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Promise<{ editor: IEditor | null, created: boolean }> {
+		return this.preferencesService.openGlobalSettings(false, { preserveFocus }).then(editor => ({ editor: withUndefinedAsNull(editor), created: false }));
 	}
 }

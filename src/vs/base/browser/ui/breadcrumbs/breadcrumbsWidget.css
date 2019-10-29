@@ -25,6 +25,10 @@
 	outline: none;
 }
 
+.monaco-breadcrumbs .monaco-breadcrumb-item .codicon-chevron-right {
+	color: inherit;
+}
+
 .monaco-breadcrumbs .monaco-breadcrumb-item:first-of-type::before {
 	content: ' ';
 }

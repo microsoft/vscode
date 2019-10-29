@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { NodeStringDecoder, StringDecoder } from 'string_decoder';
+import { StringDecoder } from 'string_decoder';
 
 import * as vscode from 'vscode';
 
@@ -21,7 +21,7 @@ const enum Setting {
 }
 
 export class LineDecoder {
-	private stringDecoder: NodeStringDecoder;
+	private stringDecoder: StringDecoder;
 	private remaining: string | null;
 
 	constructor(encoding: string = 'utf8') {

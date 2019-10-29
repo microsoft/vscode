@@ -26,6 +26,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/goToDefinition/goToDefinitionAtPosition';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -258,8 +259,50 @@ class ShowHoverAction extends EditorAction {
 	}
 }
 
+class ShowCtrlHoverAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.showCtrlHover',
+			label: nls.localize({
+				key: 'showCtrlHover',
+				comment: [
+					'Label for action that will trigger the showing of a ctrl+hover in the editor.',
+					'This allows for users to show the ctrl+hover without using the mouse.'
+				]
+			}, "Show Control Hover"),
+			alias: 'Show Control Hover',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+		const position = editor.getPosition();
+
+		if (!position) {
+			return;
+		}
+
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		const goto = GotoDefinitionAtPositionEditorContribution.get(editor);
+		const promise = goto.startFindDefinitionFromCursor(position);
+		if (promise) {
+			promise.then(() => {
+				controller.showContentHover(range, HoverStartMode.Immediate, true);
+			});
+		} else {
+			controller.showContentHover(range, HoverStartMode.Immediate, true);
+		}
+	}
+}
+
 registerEditorContribution(ModesHoverController.ID, ModesHoverController);
 registerEditorAction(ShowHoverAction);
+registerEditorAction(ShowCtrlHoverAction);
 
 // theming
 registerThemingParticipant((theme, collector) => {

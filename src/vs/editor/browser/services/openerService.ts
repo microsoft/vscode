@@ -102,7 +102,7 @@ export class OpenerService extends Disposable implements IOpenerService {
 		if (equalsIgnoreCase(scheme, Schemas.command)) {
 			// run command or bail out if command isn't known
 			if (!CommandsRegistry.getCommand(path)) {
-				return Promise.reject(`command '${path}' NOT known`);
+				throw new Error(`command '${path}' NOT known`);
 			}
 			// execute as command
 			let args: any = [];

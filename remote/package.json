@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "chokidar": "3.2.2",
+    "chokidar": "3.2.3",
     "cookie": "^0.4.0",
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
@@ -19,7 +19,7 @@
     "vscode-minimist": "^1.2.1",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.5.7",
-    "vscode-textmate": "^4.2.2",
+    "vscode-textmate": "^4.3.0",
     "xterm": "4.2.0",
     "xterm-addon-search": "0.3.0",
     "xterm-addon-web-links": "0.2.1",

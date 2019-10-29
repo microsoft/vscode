@@ -43,16 +43,6 @@
             },
             "scope": "resource"
           },
-          "css.experimental.customData": {
-            "type": "array",
-            "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "scope": "resource",
-            "deprecationMessage": "This setting is no longe experimental. Use `css.customData` instead."
-          },
           "css.completion.triggerPropertyValueCompletion": {
             "type": "boolean",
             "scope": "resource",
@@ -809,7 +799,7 @@
     "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
-    "@types/node": "^10.14.8",
+    "@types/node": "^12.11.7",
     "mocha": "^6.1.4"
   }
 }

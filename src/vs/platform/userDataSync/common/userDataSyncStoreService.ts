@@ -29,7 +29,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 	async read(key: string, oldValue: IUserData | null): Promise<IUserData> {
 		if (!this.enabled) {
-			return Promise.reject(new Error('No settings sync store url configured.'));
+			throw new Error('No settings sync store url configured.');
 		}
 
 		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), 'resource', key, 'latest').toString();
@@ -59,7 +59,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 	async write(key: string, data: string, ref: string | null): Promise<string> {
 		if (!this.enabled) {
-			return Promise.reject(new Error('No settings sync store url configured.'));
+			throw new Error('No settings sync store url configured.');
 		}
 
 		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), 'resource', key).toString();
@@ -90,7 +90,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		if (this.authTokenService.status !== AuthTokenStatus.Disabled) {
 			const authToken = await this.authTokenService.getToken();
 			if (!authToken) {
-				return Promise.reject(new Error('No Auth Token Available.'));
+				throw new Error('No Auth Token Available.');
 			}
 			options.headers = options.headers || {};
 			options.headers['authorization'] = `Bearer ${authToken}`;
