@@ -623,6 +623,20 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			this._setSelections(matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn)));
 		}
 	}
+
+	public selectAllUsingString(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		let matches: FindMatch[] | null = null;
+
+		matches = this._editor.getModel().findMatches(searchString, true, isRegex, matchCase, wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+
+		if (matches.length > 0) {
+			this._setSelections(matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn)));
+		}
+	}
 }
 
 export abstract class MultiCursorSelectionControllerAction extends EditorAction {

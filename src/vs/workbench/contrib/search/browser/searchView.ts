@@ -62,7 +62,6 @@ import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
-import { CommonFindController } from 'vs/editor/contrib/find/findController';
 
 const $ = dom.$;
 
@@ -1541,14 +1540,12 @@ export class SearchView extends ViewletPanel {
 	}
 
 	openEditorWithMultiCursor(element: FileMatchOrMatch): Promise<void> {
-		const selection = this.getSelectionFrom(element);
 		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
 				preserveFocus: false,
 				pinned: true,
-				selection,
 				revealIfVisible: true
 			}
 		}).then(editor => {
@@ -1556,8 +1553,12 @@ export class SearchView extends ViewletPanel {
 				let codeEditor = getCodeEditor(editor.getControl());
 				if (codeEditor) {
 					let multiCursorController = MultiCursorSelectionController.get(codeEditor);
-					let findController = CommonFindController.get(codeEditor);
-					multiCursorController.selectAll(findController);
+					let isRegex = this.searchWidget.searchInput.getRegex();
+					let isWholeWords = this.searchWidget.searchInput.getWholeWords();
+					let isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
+					let contentPattern = this.searchWidget.searchInput.getValue();
+
+					multiCursorController.selectAllUsingString(contentPattern, isRegex, isCaseSensitive, isWholeWords);
 				}
 			}
 			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
