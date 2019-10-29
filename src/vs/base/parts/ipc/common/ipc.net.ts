@@ -284,8 +284,8 @@ class ProtocolWriter {
 
 	public write(msg: ProtocolMessage) {
 		if (this._isDisposed) {
-			console.warn(`Cannot write message in a disposed ProtocolWriter`);
-			console.warn(msg);
+			// ignore: there could be left-over promises which complete and then
+			// decide to write a response, etc...
 			return;
 		}
 		msg.writtenTime = Date.now();
