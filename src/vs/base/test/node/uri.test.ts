@@ -557,6 +557,10 @@ suite('URI', () => {
 		assertComponents(inStr, 'https', 'www.google.co.jp', '/search', 'q=%91%E5', '');
 	});
 
+	test('Other files wrongly shown in search within single root workspace #83298', function () {
+		assertToString('vscode-remote://foo+bar/hello+hallo', 'vscode-remote://foo%2Bbar/hello+hallo');
+	});
+
 	test('URI#parse creates normalized output', function () {
 		function assertToString(input: string, output: string = input): void {
 			const uri = URI.parse(input);
@@ -745,5 +749,7 @@ suite('URI', () => {
 		// assertToString('https://eu-west-1.console.aws.amazon.com/cloudformation/home\\?region=eu-west-1#/stacks\\?filter=active'); URL makes slash out of backslash
 		assertToString('http://localhost/?user=test%2B1@example.com');
 		assertToString('https://www.google.co.jp/search?q=%91%E5');
+
+		// assertToString('vscode-remote://foo+bar/hello+hallo'); we encode the + in the authority
 	});
 });

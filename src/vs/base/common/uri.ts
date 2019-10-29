@@ -560,6 +560,13 @@ function isQueryPrecentEncodeSet(code: number): boolean {
 		|| code === 0x27; // <- todo@joh https://url.spec.whatwg.org/#is-special
 }
 
+// this is non-standard but it has become a thing...
+// https://github.com/microsoft/vscode/issues/83298
+function isAuthorityPrecentEncodeSet(code: number): boolean {
+	return isC0ControlPercentEncodeSet(code)
+		|| code === 0x2B;
+}
+
 // this is non-standard and uses for `URI.toString(true)`
 function isHashOrQuestionMark(code: number): boolean {
 	return code === CharCode.Hash || code === CharCode.QuestionMark;
@@ -633,7 +640,7 @@ function percentEncode(str: string, mustEncode: (code: number) => boolean): stri
 const enum EncodePart {
 	user, authority, path, query, fragment
 }
-const _normalEncoder: { (code: number): boolean }[] = [isUserInfoPercentEncodeSet, isC0ControlPercentEncodeSet, isPathPercentEncodeSet, isQueryPrecentEncodeSet, isFragmentPercentEncodeSet];
+const _normalEncoder: { (code: number): boolean }[] = [isUserInfoPercentEncodeSet, isAuthorityPrecentEncodeSet, isPathPercentEncodeSet, isQueryPrecentEncodeSet, isFragmentPercentEncodeSet];
 const _minimalEncoder: { (code: number): boolean }[] = [isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, isHashOrQuestionMark, () => false];
 
 const _driveLetterRegExp = /^(\/?[a-z])(:|%3a)/i;
