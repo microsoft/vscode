@@ -239,6 +239,7 @@
 	});
 
 	container.addEventListener('wheel', (/** @type {WheelEvent} */ e) => {
+		e.preventDefault();
 		if (!image || !hasLoadedImage) {
 			return;
 		}
@@ -254,9 +255,11 @@
 
 		let delta = e.deltaY > 0 ? 1 : -1;
 		updateScale(scale * (1 - delta * SCALE_PINCH_FACTOR));
-	});
+	}, { passive: false });
 
-	window.addEventListener('scroll', () => {
+	window.addEventListener('scroll', e => {
+		e.preventDefault();
+
 		if (!image || !hasLoadedImage || !image.parentElement || scale === 'fit') {
 			return;
 		}
@@ -265,7 +268,7 @@
 		if (entry) {
 			vscode.setState({ scale: entry.scale, offsetX: window.scrollX, offsetY: window.scrollY });
 		}
-	});
+	}, { passive: false });
 
 	container.classList.add('image');
 

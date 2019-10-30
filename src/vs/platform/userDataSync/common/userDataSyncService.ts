@@ -53,7 +53,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			throw new Error('Not enabled');
 		}
 		if (this.authTokenService.status === AuthTokenStatus.Inactive) {
-			return Promise.reject('Not Authenticated. Please sign in to start sync.');
+			throw new Error('Not Authenticated. Please sign in to start sync.');
 		}
 		for (const synchroniser of this.synchronisers) {
 			if (!await synchroniser.sync(_continue)) {

@@ -295,9 +295,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();
 		}));
-		this._register(Event.debounce(this.configurationService.onDidChangeConfiguration, () => {
-			return;
-		}, 1000)(() => {
+		this._register(this.configurationService.onDidChangeConfiguration(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
@@ -1964,7 +1962,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			for (let task of tasks) {
 				let entry: TaskQuickPickEntry = TaskQuickPickEntry(task);
-				entry.buttons = [{ iconClass: 'quick-open-task-configure', tooltip: nls.localize('configureTask', "Configure Task") }];
+				entry.buttons = [{ iconClass: 'codicon-gear', tooltip: nls.localize('configureTask', "Configure Task") }];
 				if (selectedEntry && (task === selectedEntry.task)) {
 					entries.unshift(selectedEntry);
 				} else {

@@ -659,7 +659,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				const modeId = textModel.getLanguageIdentifier().language;
-				info = { mode: this.modeService.getLanguageName(modeId) || undefined };
+				info = { mode: withNullAsUndefined(this.modeService.getLanguageName(modeId)) };
 			}
 		}
 
@@ -832,7 +832,7 @@ function isWritableCodeEditor(codeEditor: ICodeEditor | undefined): boolean {
 }
 
 function isWritableBaseEditor(e: IBaseEditor): boolean {
-	return e && isWritableCodeEditor(getCodeEditor(e.getControl()) || undefined);
+	return e && isWritableCodeEditor(withNullAsUndefined(getCodeEditor(e.getControl())));
 }
 
 export class ShowLanguageExtensionsAction extends Action {
@@ -893,7 +893,7 @@ export class ChangeModeAction extends Action {
 		let modeId: string | undefined;
 		if (textModel) {
 			modeId = textModel.getLanguageIdentifier().language;
-			currentModeId = this.modeService.getLanguageName(modeId) || undefined;
+			currentModeId = withNullAsUndefined(this.modeService.getLanguageName(modeId));
 		}
 
 		// All languages are valid picks

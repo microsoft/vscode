@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../common/media/task.contribution';
-
 import * as nls from 'vs/nls';
 
 import { QuickOpenHandler } from 'vs/workbench/contrib/tasks/browser/taskQuickOpen';

@@ -136,7 +136,7 @@
 	"config.supportCancellation": "Controls whether a notification comes up when running the Sync action, which allows the user to cancel the operation.",
 	"config.branchSortOrder": "Controls the sort order for branches.",
 	"config.untrackedChanges": "Controls how untracked changes behave.",
-	"config.untrackedChanges.default": "All changes, tracked and untracked, appear together and behave equally.",
+	"config.untrackedChanges.mixed": "All changes, tracked and untracked, appear together and behave equally.",
 	"config.untrackedChanges.separate": "Untracked changes appear separately in the Source Control view. They are also excluded from several actions.",
 	"config.untrackedChanges.hidden": "Untracked changes are hidden and excluded from several actions.",
 	"colors.added": "Color for added resources.",

@@ -42,7 +42,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
-import { withUndefinedAsNull } from 'vs/base/common/types';
+import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 
 // Commands
 
@@ -138,12 +138,12 @@ async function doSaveAs(
 	editorGroupService: IEditorGroupsService,
 	environmentService: IWorkbenchEnvironmentService
 ): Promise<boolean> {
-	let viewStateOfSource: IEditorViewState | null = null;
+	let viewStateOfSource: IEditorViewState | undefined = undefined;
 	const activeTextEditorWidget = getCodeEditor(editorService.activeTextEditorWidget);
 	if (activeTextEditorWidget) {
 		const activeResource = toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && isEqual(activeResource, resource)) {
-			viewStateOfSource = activeTextEditorWidget.saveViewState();
+			viewStateOfSource = withNullAsUndefined(activeTextEditorWidget.saveViewState());
 		}
 	}
 
@@ -174,7 +174,7 @@ async function doSaveAs(
 		resource: target,
 		options: {
 			pinned: true,
-			viewState: viewStateOfSource || undefined
+			viewState: viewStateOfSource
 		}
 	};
 

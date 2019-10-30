@@ -1420,6 +1420,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
+	private async fileExists(path: string): Promise<boolean> {
+		const uri: URI = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: path }), this.environmentService.configuration.remoteAuthority);
+		if (await this.fileService.exists(uri)) {
+			return !((await this.fileService.resolve(uri)).isDirectory);
+		}
+		return false;
+	}
+
 	private async findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string> {
 		// If we have an absolute path then we take it.
 		if (path.isAbsolute(command)) {
@@ -1452,15 +1460,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 				fullPath = path.join(cwd, pathEntry, command);
 			}
 
-			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: fullPath }), this.environmentService.configuration.remoteAuthority))) {
+			if (await this.fileExists(fullPath)) {
 				return fullPath;
 			}
 			let withExtension = fullPath + '.com';
-			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: withExtension }), this.environmentService.configuration.remoteAuthority))) {
+			if (await this.fileExists(withExtension)) {
 				return withExtension;
 			}
 			withExtension = fullPath + '.exe';
-			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: withExtension }), this.environmentService.configuration.remoteAuthority))) {
+			if (await this.fileExists(withExtension)) {
 				return withExtension;
 			}
 		}

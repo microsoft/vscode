@@ -253,7 +253,7 @@ suite('PFS', () => {
 		}
 		catch (error) {
 			assert.fail(error);
-			return Promise.reject(error);
+			throw error;
 		}
 	});
 
@@ -525,7 +525,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError || (<any>expectedError).code !== 'EISDIR') {
-			return Promise.reject(new Error('Expected EISDIR error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error')));
+			throw new Error('Expected EISDIR error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error'));
 		}
 
 		// verify that the stream is still consumable (for https://github.com/Microsoft/vscode/issues/42542)
@@ -551,7 +551,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError || expectedError.message !== readError) {
-			return Promise.reject(new Error('Expected error for writing to folder'));
+			throw new Error('Expected error for writing to folder');
 		}
 
 		await pfs.rimraf(parentDir);
@@ -582,7 +582,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError || !((<any>expectedError).code !== 'EACCES' || (<any>expectedError).code !== 'EPERM')) {
-			return Promise.reject(new Error('Expected EACCES/EPERM error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error')));
+			throw new Error('Expected EACCES/EPERM error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error'));
 		}
 
 		await pfs.rimraf(parentDir);
@@ -609,7 +609,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError) {
-			return Promise.reject(new Error('Expected error for writing to folder'));
+			throw new Error('Expected error for writing to folder');
 		}
 
 		await pfs.rimraf(parentDir);

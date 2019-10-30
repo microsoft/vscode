@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
+import { ITextModel, ITextBufferFactory, ITextSnapshot, ModelConstants } from 'vs/editor/common/model';
 import { EditorModel, IModeSupport } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -106,12 +106,12 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		// text buffer factory
 		const textBufferFactory = value as ITextBufferFactory;
 		if (typeof textBufferFactory.getFirstLineText === 'function') {
-			return textBufferFactory.getFirstLineText(100);
+			return textBufferFactory.getFirstLineText(ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT);
 		}
 
 		// text model
 		const textSnapshot = value as ITextModel;
-		return textSnapshot.getLineContent(1).substr(0, 100);
+		return textSnapshot.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT);
 	}
 
 	/**

@@ -46,6 +46,7 @@ interface Settings {
 	json?: {
 		schemas?: JSONSchemaSettings[];
 		format?: { enable: boolean; };
+		resultLimit?: number;
 	};
 	http?: {
 		proxy?: string;
@@ -320,6 +321,7 @@ function getSettings(): Settings {
 		},
 		json: {
 			schemas: [],
+			resultLimit: 5000
 		}
 	};
 	let schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);

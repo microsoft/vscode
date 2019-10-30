@@ -405,7 +405,15 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 	}
 
 	private static _isStringArray(arr: string[]): boolean {
-		return Array.isArray(arr) && arr.every(value => typeof value === 'string');
+		if (!Array.isArray(arr)) {
+			return false;
+		}
+		for (let i = 0, len = arr.length; i < len; i++) {
+			if (typeof arr[i] !== 'string') {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
