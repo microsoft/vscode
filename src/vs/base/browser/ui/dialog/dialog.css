@@ -184,6 +184,8 @@
 }
 
 .monaco-workbench .dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
+	width: fit-content;
+	width: -moz-fit-content;
 	padding: 5px 10px;
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	overflow: hidden;
