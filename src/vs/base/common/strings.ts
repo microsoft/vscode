@@ -338,34 +338,6 @@ export function compareIgnoreCase(a: string, b: string): number {
 	}
 }
 
-/**
- * [0-9]
- */
-export function isAsciiDigit(code: number): boolean {
-	return code >= CharCode.Digit0 && code <= CharCode.Digit9;
-}
-
-/**
- * [a-f]
- */
-export function isLowerAsciiHex(code: number): boolean {
-	return code >= CharCode.a && code <= CharCode.f;
-}
-
-/**
- * [A-F]
- */
-export function isUpperAsciiHex(code: number): boolean {
-	return code >= CharCode.A && code <= CharCode.F;
-}
-
-/**
- * [0-9a-fA-F]
- */
-export function isAsciiHex(code: number): boolean {
-	return isAsciiDigit(code) || isLowerAsciiHex(code) || isUpperAsciiHex(code);
-}
-
 export function isLowerAsciiLetter(code: number): boolean {
 	return code >= CharCode.a && code <= CharCode.z;
 }
@@ -374,7 +346,7 @@ export function isUpperAsciiLetter(code: number): boolean {
 	return code >= CharCode.A && code <= CharCode.Z;
 }
 
-export function isAsciiLetter(code: number): boolean {
+function isAsciiLetter(code: number): boolean {
 	return isLowerAsciiLetter(code) || isUpperAsciiLetter(code);
 }
 

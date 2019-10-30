@@ -1236,8 +1236,8 @@ declare module 'vscode' {
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
 		 * *Note* that for a while uris without a `scheme` were accepted. That is not correct
-		 * as all uris should have a scheme. When missing the `file`-scheme is being used unless
-		 * the  `strict`-argument is `true` in which case an error is thrown.
+		 * as all uris should have a scheme. To avoid breakage of existing code the optional
+		 * `strict`-argument has been added. We *strongly* advise to use it, e.g. `Uri.parse('my:uri', true)`
 		 *
 		 * @see [Uri.toString](#Uri.toString)
 		 * @param value The string value of an Uri.
