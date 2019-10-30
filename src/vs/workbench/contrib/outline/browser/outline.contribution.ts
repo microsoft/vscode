@@ -54,132 +54,132 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'outline.filteredTypes.file': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.file', "When set to `false` outline never shows `file`-symbols.")
+			markdownDescription: localize('filteredTypes.file', "When enabled outline shows `file`-symbols.")
 		},
 		'outline.filteredTypes.module': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.module', "When set to `false` outline never shows `module`-symbols.")
+			markdownDescription: localize('filteredTypes.module', "When enabled outline shows `module`-symbols.")
 		},
 		'outline.filteredTypes.namespace': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.namespace', "When set to `false` outline never shows `namespace`-symbols.")
+			markdownDescription: localize('filteredTypes.namespace', "When enabled outline shows `namespace`-symbols.")
 		},
 		'outline.filteredTypes.package': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.package', "When set to `false` outline never shows `package`-symbols.")
+			markdownDescription: localize('filteredTypes.package', "When enabled outline shows `package`-symbols.")
 		},
 		'outline.filteredTypes.class': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.class', "When set to `false` outline never shows `class`-symbols.")
+			markdownDescription: localize('filteredTypes.class', "When enabled outline shows `class`-symbols.")
 		},
 		'outline.filteredTypes.method': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.method', "When set to `false` outline never shows `method`-symbols.")
+			markdownDescription: localize('filteredTypes.method', "When enabled outline shows `method`-symbols.")
 		},
 		'outline.filteredTypes.property': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.property', "When set to `false` outline never shows `property`-symbols.")
+			markdownDescription: localize('filteredTypes.property', "When enabled outline shows `property`-symbols.")
 		},
 		'outline.filteredTypes.field': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.field', "When set to `false` outline never shows `field`-symbols.")
+			markdownDescription: localize('filteredTypes.field', "When enabled outline shows `field`-symbols.")
 		},
 		'outline.filteredTypes.constructor': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.constructor', "When set to `false` outline never shows `constructor`-symbols.")
+			markdownDescription: localize('filteredTypes.constructor', "When enabled outline shows `constructor`-symbols.")
 		},
 		'outline.filteredTypes.enum': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.enum', "When set to `false` outline never shows `enum`-symbols.")
+			markdownDescription: localize('filteredTypes.enum', "When enabled outline shows `enum`-symbols.")
 		},
 		'outline.filteredTypes.interface': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.interface', "When set to `false` outline never shows `interface`-symbols.")
+			markdownDescription: localize('filteredTypes.interface', "When enabled outline shows `interface`-symbols.")
 		},
 		'outline.filteredTypes.function': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.function', "When set to `false` outline never shows `function`-symbols.")
+			markdownDescription: localize('filteredTypes.function', "When enabled outline shows `function`-symbols.")
 		},
 		'outline.filteredTypes.variable': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.variable', "When set to `false` outline never shows `variable`-symbols.")
+			markdownDescription: localize('filteredTypes.variable', "When enabled outline shows `variable`-symbols.")
 		},
 		'outline.filteredTypes.constant': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.constant', "When set to `false` outline never shows `constant`-symbols.")
+			markdownDescription: localize('filteredTypes.constant', "When enabled outline shows `constant`-symbols.")
 		},
 		'outline.filteredTypes.string': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.string', "When set to `false` outline never shows `string`-symbols.")
+			markdownDescription: localize('filteredTypes.string', "When enabled outline shows `string`-symbols.")
 		},
 		'outline.filteredTypes.number': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.number', "When set to `false` outline never shows `number`-symbols.")
+			markdownDescription: localize('filteredTypes.number', "When enabled outline shows `number`-symbols.")
 		},
 		'outline.filteredTypes.boolean': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.boolean', "When set to `false` outline never shows `boolean`-symbols.")
+			markdownDescription: localize('filteredTypes.boolean', "When enabled outline shows `boolean`-symbols.")
 		},
 		'outline.filteredTypes.array': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.array', "When set to `false` outline never shows `array`-symbols.")
+			markdownDescription: localize('filteredTypes.array', "When enabled outline shows `array`-symbols.")
 		},
 		'outline.filteredTypes.object': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.object', "When set to `false` outline never shows `object`-symbols.")
+			markdownDescription: localize('filteredTypes.object', "When enabled outline shows `object`-symbols.")
 		},
 		'outline.filteredTypes.key': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.key', "When set to `false` outline never shows `key`-symbols.")
+			markdownDescription: localize('filteredTypes.key', "When enabled outline shows `key`-symbols.")
 		},
 		'outline.filteredTypes.null': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.null', "When set to `false` outline never shows `null`-symbols.")
+			markdownDescription: localize('filteredTypes.null', "When enabled outline shows `null`-symbols.")
 		},
 		'outline.filteredTypes.enumMember': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.enumMember', "When set to `false` outline never shows `enumMember`-symbols.")
+			markdownDescription: localize('filteredTypes.enumMember', "When enabled outline shows `enumMember`-symbols.")
 		},
 		'outline.filteredTypes.struct': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.struct', "When set to `false` outline never shows `struct`-symbols.")
+			markdownDescription: localize('filteredTypes.struct', "When enabled outline shows `struct`-symbols.")
 		},
 		'outline.filteredTypes.event': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.event', "When set to `false` outline never shows `event`-symbols.")
+			markdownDescription: localize('filteredTypes.event', "When enabled outline shows `event`-symbols.")
 		},
 		'outline.filteredTypes.operator': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.operator', "When set to `false` outline never shows `operator`-symbols.")
+			markdownDescription: localize('filteredTypes.operator', "When enabled outline shows `operator`-symbols.")
 		},
 		'outline.filteredTypes.typeParameter': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('filteredTypes.typeParameter', "When set to `false` outline never shows `typeParameter`-symbols.")
+			markdownDescription: localize('filteredTypes.typeParameter', "When enabled outline shows `typeParameter`-symbols.")
 		}
 	}
 });
