@@ -44,6 +44,10 @@
 	line-height: initial;
 }
 
+.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .monaco-dropdown .action-label,
+.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .monaco-dropdown .action-label {
+	line-height: 35px;
+}
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label .label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label .label {
 	display: none;
