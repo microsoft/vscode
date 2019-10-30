@@ -40,7 +40,7 @@
 }
 
 .hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label,
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label {
+.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label:not(.codicon) {
 	line-height: initial;
 }
 
