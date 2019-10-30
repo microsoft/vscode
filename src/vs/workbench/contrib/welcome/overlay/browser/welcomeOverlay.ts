@@ -207,6 +207,7 @@ class WelcomeOverlay extends Disposable {
 			dom.addClass(workbench, 'blur-background');
 			this._overlayVisible.set(true);
 			this.updateProblemsKey();
+			this.updateActivityBarKeys();
 			this._overlay.focus();
 		}
 	}
@@ -224,6 +225,25 @@ class WelcomeOverlay extends Disposable {
 		} else {
 			key.style.bottom = '';
 			key.style.left = '';
+		}
+	}
+
+	private updateActivityBarKeys() {
+		const ids = ['explorer', 'search', 'git', 'debug', 'extensions'];
+		const activityBar = document.querySelector('.activitybar .composite-bar');
+		if (activityBar instanceof HTMLElement) {
+			const target = activityBar.getBoundingClientRect();
+			const bounds = this._overlay.getBoundingClientRect();
+			for (let i = 0; i < ids.length; i++) {
+				const key = this._overlay.querySelector(`.key.${ids[i]}`) as HTMLElement;
+				const top = target.top - bounds.top + 50 * i + 13;
+				key.style.top = top + 'px';
+			}
+		} else {
+			for (let i = 0; i < ids.length; i++) {
+				const key = this._overlay.querySelector(`.key.${ids[i]}`) as HTMLElement;
+				key.style.top = '';
+			}
 		}
 	}
 
