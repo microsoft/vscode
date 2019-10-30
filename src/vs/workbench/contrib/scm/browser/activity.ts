@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { basename } from 'vs/base/common/resources';
+import { basename, relativePath } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
@@ -13,7 +13,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { commonPrefixLength } from 'vs/base/common/strings';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 function getCount(repository: ISCMRepository): number {
@@ -62,12 +61,12 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		const resource = this.editorService.activeEditor.getResource();
 
-		if (!resource || resource.scheme !== 'file') {
+		if (!resource) {
 			return false;
 		}
 
 		let bestRepository: ISCMRepository | null = null;
-		let bestMatchLength = Number.NEGATIVE_INFINITY;
+		let bestMatchLength = Number.POSITIVE_INFINITY;
 
 		for (const repository of this.scmService.repositories) {
 			const root = repository.provider.rootUri;
@@ -76,12 +75,11 @@ export class SCMStatusController implements IWorkbenchContribution {
 				continue;
 			}
 
-			const rootFSPath = root.fsPath;
-			const prefixLength = commonPrefixLength(rootFSPath, resource.fsPath);
+			const path = relativePath(root, resource);
 
-			if (prefixLength === rootFSPath.length && prefixLength > bestMatchLength) {
+			if (path && !/^\.\./.test(path) && path.length < bestMatchLength) {
 				bestRepository = repository;
-				bestMatchLength = prefixLength;
+				bestMatchLength = path.length;
 			}
 		}
 
