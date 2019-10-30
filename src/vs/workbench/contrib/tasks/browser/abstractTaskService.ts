@@ -2485,9 +2485,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let entries = Promise.all(stats).then((stats) => {
 			return taskPromise.then((taskMap) => {
 				let entries: QuickPickInput<EntryType>[] = [];
+				let needsCreateOrOpen: boolean = true;
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 					let tasks = taskMap.all();
-					let needsCreateOrOpen: boolean = true;
 					if (tasks.length > 0) {
 						tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
 						for (let task of tasks) {
@@ -2527,7 +2527,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						index++;
 					}
 				}
-				if (entries.length === 1) {
+				if ((entries.length === 1) && !needsCreateOrOpen) {
 					tokenSource.cancel();
 				}
 				return entries;
