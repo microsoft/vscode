@@ -14,6 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IdleValue } from 'vs/base/common/async';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 class SnippetBodyInsights {
 
@@ -153,7 +154,8 @@ export class SnippetFile {
 		readonly location: URI,
 		public defaultScopes: string[] | undefined,
 		private readonly _extension: IExtensionDescription | undefined,
-		private readonly _fileService: IFileService
+		private readonly _fileService: IFileService,
+		private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService
 	) {
 		this.isGlobalSnippets = extname(location.path) === '.code-snippets';
 		this.isUserSnippets = !this._extension;
@@ -199,10 +201,19 @@ export class SnippetFile {
 		}
 	}
 
+	private async _load(): Promise<string> {
+		if (this._extension) {
+			return this._extensionResourceLoaderService.readExtensionResource(this.location);
+		} else {
+			const content = await this._fileService.readFile(this.location);
+			return content.value.toString();
+		}
+	}
+
 	load(): Promise<this> {
 		if (!this._loadPromise) {
-			this._loadPromise = Promise.resolve(this._fileService.readFile(this.location)).then(content => {
-				const data = <JsonSerializedSnippets>jsonParse(content.value.toString());
+			this._loadPromise = Promise.resolve(this._load()).then(content => {
+				const data = <JsonSerializedSnippets>jsonParse(content);
 				if (getNodeType(data) === 'object') {
 					forEach(data, entry => {
 						const { key: name, value: scopeOrTemplate } = entry;
