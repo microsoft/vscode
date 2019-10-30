@@ -8,7 +8,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileChange, IFileSystemProvider, IStat, IWatchOptions, FileOpenOptions } from 'vs/platform/files/common/files';
+import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileChange, IStat, IWatchOptions, FileOpenOptions, IFileSystemProviderWithFileReadWriteCapability, FileWriteOptions } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -20,7 +20,7 @@ export interface IFileChangeDto {
 	type: FileChangeType;
 }
 
-export class RemoteExtensionsFileSystemProvider extends Disposable implements IFileSystemProvider {
+export class RemoteExtensionsFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadWriteCapability {
 
 	private readonly session: string = generateUuid();
 
@@ -59,7 +59,8 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 
 	setCaseSensitive(isCaseSensitive: boolean) {
 		let capabilities = (
-			FileSystemProviderCapabilities.FileOpenReadWriteClose
+			FileSystemProviderCapabilities.FileReadWrite
+			| FileSystemProviderCapabilities.FileOpenReadWriteClose
 			| FileSystemProviderCapabilities.FileFolderCopy
 		);
 
@@ -97,8 +98,17 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 		return bytesRead;
 	}
 
+	async readFile(resource: URI): Promise<Uint8Array> {
+		const buff = <VSBuffer>await this.channel.call('readFile', [resource]);
+		return buff.buffer;
+	}
+
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		return this.channel.call('write', [fd, pos, VSBuffer.wrap(data), offset, length]);
+	}
+
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+		return this.channel.call('writeFile', [resource, VSBuffer.wrap(content), opts]);
 	}
 
 	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
