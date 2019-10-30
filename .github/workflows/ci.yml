@@ -94,6 +94,8 @@ jobs:
         node-version: 10
     - run: yarn --frozen-lockfile
       name: Install Dependencies
+    - run: echo $GITHUB_TOKEN
+      name: Test
     - run: yarn electron x64
       name: Download Electron
     - run: yarn gulp hygiene --skip-tslint
