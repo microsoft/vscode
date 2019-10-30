@@ -37,6 +37,7 @@ body {
 	overflow: hidden;
 	font-size: 11px;
 	user-select: none;
+	-webkit-user-select: none;
 }
 
 body.web {
