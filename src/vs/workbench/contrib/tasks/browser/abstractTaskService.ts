@@ -2020,17 +2020,32 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return entries;
 	}
 
-	private showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
+	private async showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
 		const tokenSource = new CancellationTokenSource();
 		const cancellationToken: CancellationToken = tokenSource.token;
-		let _createEntries = (): Promise<QuickPickInput<TaskQuickPickEntry>[]> => {
+		let _createEntries = new Promise<QuickPickInput<TaskQuickPickEntry>[]>((resolve) => {
 			if (Array.isArray(tasks)) {
-				return Promise.resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
+				resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
 			} else {
-				return tasks.then((tasks) => this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
+				resolve(tasks.then((tasks) => this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry)));
 			}
-		};
-		const pickEntries = _createEntries().then((entries) => {
+		});
+
+		const timeout: boolean = await Promise.race([new Promise(async (resolve) => {
+			await _createEntries;
+			resolve(false);
+		}), new Promise((resolve) => {
+			const timer = setTimeout(() => {
+				clearTimeout(timer);
+				resolve(true);
+			}, 200);
+		})]);
+
+		if (!timeout && ((await _createEntries).length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
+			return (<TaskQuickPickEntry>(await _createEntries)[0]);
+		}
+
+		const pickEntries = _createEntries.then((entries) => {
 			if ((entries.length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
 				tokenSource.cancel();
 			} else if ((entries.length === 0) && defaultEntry) {
@@ -2447,7 +2462,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 
-	private runConfigureTasks(): void {
+	private async runConfigureTasks(): Promise<void> {
 		if (!this.canRunCommand()) {
 			return undefined;
 		}
@@ -2477,11 +2492,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return this.fileService.resolve(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
 		});
 
+		type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
+		function handleSelection(this: any, selection: EntryType) {
+			if (!selection) {
+				return;
+			}
+			if (isTaskEntry(selection)) {
+				configureTask(selection.task);
+			} else {
+				this.openTaskFile(selection.folder.toResource('.vscode/tasks.json'));
+			}
+		}
+
 		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');
 		let openLabel = nls.localize('TaskService.openJsonFile', 'Open tasks.json file');
 		const tokenSource = new CancellationTokenSource();
 		const cancellationToken: CancellationToken = tokenSource.token;
-		type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
 		let entries = Promise.all(stats).then((stats) => {
 			return taskPromise.then((taskMap) => {
 				let entries: QuickPickInput<EntryType>[] = [];
@@ -2534,6 +2560,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			});
 		});
 
+		const timeout: boolean = await Promise.race([new Promise(async (resolve) => {
+			await entries;
+			resolve(false);
+		}), new Promise((resolve) => {
+			const timer = setTimeout(() => {
+				clearTimeout(timer);
+				resolve(true);
+			}, 200);
+		})]);
+
+		if (!timeout && ((await entries).length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
+			handleSelection(<EntryType>((await entries)[0]));
+			return;
+		}
+
 		this.quickInputService.pick(entries,
 			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }, cancellationToken).
 			then(async (selection) => {
@@ -2544,14 +2585,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						selection = <EntryType>task;
 					}
 				}
-				if (!selection) {
-					return;
-				}
-				if (isTaskEntry(selection)) {
-					configureTask(selection.task);
-				} else {
-					this.openTaskFile(selection.folder.toResource('.vscode/tasks.json'));
-				}
+				handleSelection(selection);
 			});
 	}
 
