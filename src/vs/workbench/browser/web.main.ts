@@ -211,17 +211,21 @@ class BrowserMain extends Disposable {
 	private registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): void {
 
 		// Logger
-		const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
 		(async () => {
-			try {
-				await indexedDBLogProvider.database;
-
-				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
-			} catch (error) {
-				logService.info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
-				logService.error(error);
-
+			if (browser.isEdge) {
 				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
+			} else {
+				try {
+					const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
+					await indexedDBLogProvider.database;
+
+					fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
+				} catch (error) {
+					logService.info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
+					logService.error(error);
+
+					fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
+				}
 			}
 
 			const consoleLogService = new ConsoleLogService(logService.getLevel());
