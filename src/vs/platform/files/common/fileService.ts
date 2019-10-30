@@ -17,6 +17,7 @@ import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamT
 import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
+import { assign } from 'vs/base/common/objects';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -300,14 +301,14 @@ export class FileService extends Disposable implements IFileService {
 				await this.mkdirp(provider, dirname(resource));
 			}
 
-			// write file: buffered
-			if (hasOpenReadWriteCloseCapability(provider)) {
-				await this.doWriteBuffered(provider, resource, bufferOrReadableOrStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStream) : bufferOrReadableOrStream);
+			// write file: unbuffered (only if data to write is a buffer, or the provider has no buffered write capability)
+			if (!hasOpenReadWriteCloseCapability(provider) || (hasReadWriteCapability(provider) && bufferOrReadableOrStream instanceof VSBuffer)) {
+				await this.doWriteUnbuffered(provider, resource, bufferOrReadableOrStream);
 			}
 
-			// write file: unbuffered
+			// write file: buffered
 			else {
-				await this.doWriteUnbuffered(provider, resource, bufferOrReadableOrStream);
+				await this.doWriteBuffered(provider, resource, bufferOrReadableOrStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStream) : bufferOrReadableOrStream);
 			}
 		} catch (error) {
 			throw new FileOperationError(localize('err.write', "Unable to write file ({0})", this.ensureError(error).toString()), toFileOperationResult(error), options);
@@ -353,7 +354,16 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	async readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
-		const stream = await this.readFileStream(resource, options);
+		const provider = await this.withReadWriteProvider(resource);
+
+		const stream = await this.doReadAsFileStream(provider, resource, assign({
+			// optimization: since we know that the caller does not
+			// care about buffering, we indicate this to the reader.
+			// this reduces all the overhead the buffered reading
+			// has (open, read, close) if the provider supports
+			// unbuffered reading.
+			preferUnbuffered: true
+		}, options || Object.create(null)));
 
 		return {
 			...stream,
@@ -363,6 +373,11 @@ export class FileService extends Disposable implements IFileService {
 
 	async readFileStream(resource: URI, options?: IReadFileOptions): Promise<IFileStreamContent> {
 		const provider = await this.withReadWriteProvider(resource);
+
+		return this.doReadAsFileStream(provider, resource, options);
+	}
+
+	private async doReadAsFileStream(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options?: IReadFileOptions & { preferUnbuffered?: boolean }): Promise<IFileStreamContent> {
 
 		// install a cancellation token that gets cancelled
 		// when any error occurs. this allows us to resolve
@@ -389,14 +404,14 @@ export class FileService extends Disposable implements IFileService {
 
 			let fileStreamPromise: Promise<VSBufferReadableStream>;
 
-			// read buffered
-			if (hasOpenReadWriteCloseCapability(provider)) {
-				fileStreamPromise = Promise.resolve(this.readFileBuffered(provider, resource, cancellableSource.token, options));
+			// read unbuffered (only if either preferred, or the provider has no buffered read capability)
+			if (!hasOpenReadWriteCloseCapability(provider) || (hasReadWriteCapability(provider) && options?.preferUnbuffered)) {
+				fileStreamPromise = this.readFileUnbuffered(provider, resource, options);
 			}
 
-			// read unbuffered
+			// read buffered
 			else {
-				fileStreamPromise = this.readFileUnbuffered(provider, resource, options);
+				fileStreamPromise = Promise.resolve(this.readFileBuffered(provider, resource, cancellableSource.token, options));
 			}
 
 			const [fileStat, fileStream] = await Promise.all([statPromise, fileStreamPromise]);
