@@ -2571,8 +2571,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		})]);
 
 		if (!timeout && ((await entries).length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-			handleSelection(<EntryType>((await entries)[0]));
-			return;
+			const entry: any = <any>((await entries)[0]);
+			if (entry.task) {
+				handleSelection(entry);
+				return;
+			}
 		}
 
 		this.quickInputService.pick(entries,
