@@ -226,7 +226,7 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 		private readonly _prefix: string,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
-
+		this.update();
 	}
 
 	update() {
