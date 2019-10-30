@@ -359,7 +359,21 @@ export const schema = {
 		extensionKind: {
 			description: nls.localize('extensionKind', "Define the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote."),
 			oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
-			default: 'workspace'
+			default: 'workspace',
+			defaultSnippets: [
+				{
+					body: ['ui', 'workspace'],
+					description: nls.localize('extensionKind.ui-workspace', "Define an extension which can run on either side, with a preference towards running on the local machine.")
+				},
+				{
+					body: ['workspace', 'ui'],
+					description: nls.localize('extensionKind.workspace-ui', "Define an extension which can run on either side, with a preference towards running on the remote machine.")
+				},
+				{
+					body: [],
+					description: nls.localize('extensionKind.empty', "Define an extension which cannot run in a remote context, neither on the local, nor on the remote machine.")
+				}
+			]
 		},
 		scripts: {
 			type: 'object',
