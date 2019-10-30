@@ -10,11 +10,26 @@ const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
 const _doubleSlashStart = /^\/\//;
 
-function _validateUri(ret: URI): void {
+let _throwOnMissingSchema: boolean = true;
+
+/**
+ * @internal
+ */
+export function setUriThrowOnMissingScheme(value: boolean): boolean {
+	const old = _throwOnMissingSchema;
+	_throwOnMissingSchema = value;
+	return old;
+}
+
+function _validateUri(ret: URI, _strict?: boolean): void {
 
 	// scheme, must be set
 	if (!ret.scheme) {
-		throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		if (_strict || _throwOnMissingSchema) {
+			throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		} else {
+			console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		}
 	}
 
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
@@ -41,8 +56,14 @@ function _validateUri(ret: URI): void {
 	}
 }
 
-// graceful behaviour when scheme is missing: fallback to using 'file'-scheme
-function _schemeFix(scheme: string): string {
+// for a while we allowed uris *without* schemes and this is the migration
+// for them, e.g. an uri without scheme and without strict-mode warns and falls
+// back to the file-scheme. that should cause the least carnage and still be a
+// clear warning
+function _schemeFix(scheme: string, _strict: boolean): string {
+	if (_strict || _throwOnMissingSchema) {
+		return scheme || _empty;
+	}
 	if (!scheme) {
 		console.trace('BAD uri lacks scheme, falling back to file-scheme.');
 		scheme = 'file';
@@ -138,7 +159,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string);
+	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string, _strict?: boolean);
 
 	/**
 	 * @internal
@@ -148,7 +169,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string) {
+	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict: boolean = false) {
 
 		if (typeof schemeOrData === 'object') {
 			this.scheme = schemeOrData.scheme || _empty;
@@ -160,13 +181,13 @@ export class URI implements UriComponents {
 			// that creates uri components.
 			// _validateUri(this);
 		} else {
-			this.scheme = _schemeFix(schemeOrData);
+			this.scheme = _schemeFix(schemeOrData, _strict);
 			this.authority = authority || _empty;
 			this.path = _referenceResolution(this.scheme, path || _empty);
 			this.query = query || _empty;
 			this.fragment = fragment || _empty;
 
-			_validateUri(this);
+			_validateUri(this, _strict);
 		}
 	}
 
@@ -205,7 +226,7 @@ export class URI implements UriComponents {
 
 	// ---- modify to new -------------------------
 
-	with(change: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null; }): URI {
+	with(change: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null }): URI {
 
 		if (!change) {
 			return this;
@@ -258,7 +279,7 @@ export class URI implements UriComponents {
 	 *
 	 * @param value A string which represents an URI (see `URI#toString`).
 	 */
-	static parse(value: string): URI {
+	static parse(value: string, _strict: boolean = false): URI {
 		const match = _regexp.exec(value);
 		if (!match) {
 			return new _URI(_empty, _empty, _empty, _empty, _empty);
@@ -268,7 +289,8 @@ export class URI implements UriComponents {
 			decodeURIComponent(match[4] || _empty),
 			decodeURIComponent(match[5] || _empty),
 			decodeURIComponent(match[7] || _empty),
-			decodeURIComponent(match[9] || _empty)
+			decodeURIComponent(match[9] || _empty),
+			_strict
 		);
 	}
 
@@ -320,7 +342,7 @@ export class URI implements UriComponents {
 		return new _URI('file', authority, path, _empty, _empty);
 	}
 
-	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string; }): URI {
+	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
 		return new _URI(
 			components.scheme,
 			components.authority,
@@ -444,7 +466,7 @@ class _URI extends URI {
 }
 
 // reserved characters: https://tools.ietf.org/html/rfc3986#section-2.2
-const encodeTable: { [ch: number]: string; } = {
+const encodeTable: { [ch: number]: string } = {
 	[CharCode.Colon]: '%3A', // gen-delims
 	[CharCode.Slash]: '%2F',
 	[CharCode.QuestionMark]: '%3F',
