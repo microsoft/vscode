@@ -476,3 +476,23 @@ export class DragAndDropObserver extends Disposable {
 		}));
 	}
 }
+
+export function containsDragType(event: DragEvent, ...dragTypesToFind: string[]): boolean {
+	if (!event.dataTransfer) {
+		return false;
+	}
+
+	const dragTypes = event.dataTransfer.types;
+	const lowercaseDragTypes: string[] = [];
+	for (let i = 0; i < dragTypes.length; i++) {
+		lowercaseDragTypes.push(dragTypes[i].toLowerCase()); // somehow the types are lowercase
+	}
+
+	for (const dragType of dragTypesToFind) {
+		if (lowercaseDragTypes.indexOf(dragType.toLowerCase()) >= 0) {
+			return true;
+		}
+	}
+
+	return false;
+}
