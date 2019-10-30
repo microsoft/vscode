@@ -222,13 +222,13 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 			'//',
 			'// NOTE: Changing this file requires a restart of VS Code.',
 			'{',
-			'	// Enabled by default by VS Code to resolve color issues in the renderer',
-			'	// See https://github.com/Microsoft/vscode/issues/51791 for details',
-			'	"disable-color-correct-rendering": true,',
-			'',
 			'	// Use software rendering instead of hardware accelerated rendering.',
 			'	// This can help in cases where you see rendering issues in VS Code.',
-			'	// "disable-hardware-acceleration": true'
+			'	// "disable-hardware-acceleration": true,',
+			'',
+			'	// Enabled by default by VS Code to resolve color issues in the renderer',
+			'	// See https://github.com/Microsoft/vscode/issues/51791 for details',
+			'	"disable-color-correct-rendering": true'
 		];
 
 		if (legacyLocale) {
