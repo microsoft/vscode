@@ -728,7 +728,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private isProvideTasksEnabled(): boolean {
 		const settingValue = this.configurationService.getValue('task.autoDetect');
-		return settingValue === true;
+		return settingValue === 'on';
 	}
 
 	private isProblemMatcherPromptEnabled(type?: string): boolean {
@@ -1341,7 +1341,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				setTimeout(() => {
 					if (!isDone) {
 						const settings: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.settings', "Settings"), run: () => this.preferencesService.openSettings(false, undefined) };
-						const disableAll: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.disableAll', "Disable All"), run: () => this.configurationService.updateValue('task.autoDetect', false) };
+						const disableAll: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.disableAll', "Disable All"), run: () => this.configurationService.updateValue('task.autoDetect', 'off') };
 						const dontShow: IPromptChoice = {
 							label: nls.localize('TaskSystem.slowProvider.dontShow', "Don't warn again for {0} tasks", type), run: () => {
 								if (!Types.isStringArray(settingValue)) {
