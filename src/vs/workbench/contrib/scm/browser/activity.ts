@@ -51,19 +51,19 @@ export class SCMStatusController implements IWorkbenchContribution {
 			this.onDidAddRepository(repository);
 		}
 
-		editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.disposables);
+		editorService.onDidActiveEditorChange(this.tryFocusRepositoryBasedOnActiveEditor, this, this.disposables);
 		this.renderActivityCount();
 	}
 
-	private onDidActiveEditorChange(): void {
+	private tryFocusRepositoryBasedOnActiveEditor(): boolean {
 		if (!this.editorService.activeEditor) {
-			return;
+			return false;
 		}
 
 		const resource = this.editorService.activeEditor.getResource();
 
 		if (!resource || resource.scheme !== 'file') {
-			return;
+			return false;
 		}
 
 		let bestRepository: ISCMRepository | null = null;
@@ -85,13 +85,16 @@ export class SCMStatusController implements IWorkbenchContribution {
 			}
 		}
 
-		if (bestRepository) {
-			this.onDidFocusRepository(bestRepository);
+		if (!bestRepository) {
+			return false;
 		}
+
+		this.focusRepository(bestRepository);
+		return true;
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const focusDisposable = repository.onDidFocus(() => this.onDidFocusRepository(repository));
+		const focusDisposable = repository.onDidFocus(() => this.focusRepository(repository));
 
 		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
 		const changeDisposable = onDidChange(() => this.renderActivityCount());
@@ -102,7 +105,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 			this.disposables = this.disposables.filter(d => d !== removeDisposable);
 
 			if (this.scmService.repositories.length === 0) {
-				this.onDidFocusRepository(undefined);
+				this.focusRepository(undefined);
 			} else if (this.focusedRepository === repository) {
 				this.scmService.repositories[0].focus();
 			}
@@ -113,16 +116,18 @@ export class SCMStatusController implements IWorkbenchContribution {
 		const disposable = combinedDisposable(focusDisposable, changeDisposable, removeDisposable);
 		this.disposables.push(disposable);
 
-		if (!this.focusedRepository) {
-			if (this.editorService.activeEditor) {
-				this.onDidActiveEditorChange();
-			} else {
-				this.onDidFocusRepository(repository);
-			}
+		if (this.focusedRepository) {
+			return;
 		}
+
+		if (this.tryFocusRepositoryBasedOnActiveEditor()) {
+			return;
+		}
+
+		this.focusRepository(repository);
 	}
 
-	private onDidFocusRepository(repository: ISCMRepository | undefined): void {
+	private focusRepository(repository: ISCMRepository | undefined): void {
 		if (this.focusedRepository === repository) {
 			return;
 		}
