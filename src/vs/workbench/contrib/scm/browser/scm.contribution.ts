@@ -97,7 +97,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.diffDecorationsGutterVisibility.always', "Show the diff decorator in the gutter at all times."),
 				localize('scm.diffDecorationsGutterVisibility.hover', "Show the diff decorator in the gutter only on hover.")
 			],
-			description: localize('scm.diffDecorationsGutterVisibility', "Controls the visibilty of the Source Control diff decorator in the gutter."),
+			description: localize('scm.diffDecorationsGutterVisibility', "Controls the visibility of the Source Control diff decorator in the gutter."),
 			default: 'always'
 		},
 		'scm.alwaysShowActions': {
