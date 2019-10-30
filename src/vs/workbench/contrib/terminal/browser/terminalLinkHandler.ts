@@ -291,7 +291,11 @@ export class TerminalLinkHandler {
 		}
 		label = nls.localize('terminalLinkHandler.followLinkCtrl', "Ctrl + click");
 
-		return new MarkdownString(`[Follow Link](${uri}) (${label})`);
+		const message: IMarkdownString = new MarkdownString(`[Follow Link](${uri}) (${label})`, true);
+		message.uris = {
+			[uri]: URI.parse(uri).toJSON()
+		};
+		return message;
 	}
 
 	private get osPath(): IPath {
