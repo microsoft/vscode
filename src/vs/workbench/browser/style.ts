@@ -190,6 +190,33 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				-webkit-appearance: button;
 				-moz-appearance: button;
 			}
+
+			.monaco-workbench .select-container {
+				position: relative;
+			}
+
+			/* Panel dropdown */
+			.monaco-workbench .panel .monaco-action-bar .select-container .monaco-select-box {
+				margin-right: 0;
+			}
+
+			/* Debug dropdown */
+			.monaco-workbench .start-debug-action-item .select-container {
+				padding-right: 22px;
+			}
+
+			.monaco-workbench .select-container:after {
+				content: "\\f11e";
+				font-family: codicon;
+				font-size: 14px;
+				width: 14px;
+				height: 14px;
+				position: absolute;
+				top: 0;
+				bottom: 0;
+				right: 4px;
+				margin: auto;
+			}
 		`);
 	}
 });
