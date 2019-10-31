@@ -2392,6 +2392,10 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					maximum: 15,
 					description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
 				},
+				'editor.suggest.filteredTypes': {
+					type: 'object',
+					deprecationMessage: nls.localize('deprecated', "This setting is deprecated, please use separate settings like 'editor.suggest.filteredTypes.keyword' or 'editor.suggest.filteredTypes.snippet' instead.")
+				},
 				'editor.suggest.filteredTypes.method': {
 					type: 'boolean',
 					default: true,
