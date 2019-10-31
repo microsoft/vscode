@@ -143,12 +143,6 @@ export function activate(context: ExtensionContext) {
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
-		disposable = client.onTelemetry(e => {
-			if (telemetryReporter) {
-				telemetryReporter.sendTelemetryEvent(e.key, e.data);
-			}
-		});
-
 		const schemaDocuments: { [uri: string]: boolean } = {};
 
 		// handle content request
@@ -162,6 +156,14 @@ export function activate(context: ExtensionContext) {
 					return Promise.reject(error);
 				});
 			} else {
+				if (telemetryReporter && uri.authority === 'schema.management.azure.com') {
+					/* __GDPR__
+						"json.schema" : {
+							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					 */
+					telemetryReporter.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
+				}
 				const headers = { 'Accept-Encoding': 'gzip, deflate' };
 				return xhr({ url: uriPath, followRedirects: 5, headers }).then(response => {
 					return response.responseText;

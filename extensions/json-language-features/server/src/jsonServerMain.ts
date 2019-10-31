@@ -58,7 +58,7 @@ const workspaceContext = {
 		return URL.resolve(resource, relativePath);
 	}
 };
-function getSchemaRequestService(handledSchemas: { [schema: string]: boolean }) {
+function getSchemaRequestService(handledSchemas: { [schema: string]: boolean } = {}) {
 
 	return (uri: string): Thenable<string> => {
 		const protocol = uri.substr(0, uri.indexOf(':'));
@@ -72,19 +72,6 @@ function getSchemaRequestService(handledSchemas: { [schema: string]: boolean }) 
 					});
 				});
 			} else if (protocol === 'http' || protocol === 'https') {
-				if (uri.indexOf('//schema.management.azure.com/') !== -1) {
-					/* __GDPR__
-						"json.schema" : {
-							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					 */
-					connection.telemetry.logEvent({
-						key: 'json.schema',
-						value: {
-							schemaURL: uri
-						}
-					});
-				}
 				const headers = { 'Accept-Encoding': 'gzip, deflate' };
 				return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
 					return response.responseText;
