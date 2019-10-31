@@ -255,7 +255,7 @@ export namespace MarkdownString {
 		}
 
 		// extract uris into a separate object
-		const resUris: { [href: string]: UriComponents; } = Object.create(null);
+		const resUris: { [href: string]: UriComponents } = Object.create(null);
 		res.uris = resUris;
 
 		const collectUri = (href: string): string => {
@@ -277,7 +277,7 @@ export namespace MarkdownString {
 		return res;
 	}
 
-	function _uriMassage(part: string, bucket: { [n: string]: UriComponents; }): string {
+	function _uriMassage(part: string, bucket: { [n: string]: UriComponents }): string {
 		if (!part) {
 			return part;
 		}
@@ -513,7 +513,7 @@ export namespace WorkspaceEdit {
 
 export namespace SymbolKind {
 
-	const _fromMapping: { [kind: number]: modes.SymbolKind; } = Object.create(null);
+	const _fromMapping: { [kind: number]: modes.SymbolKind } = Object.create(null);
 	_fromMapping[types.SymbolKind.File] = modes.SymbolKind.File;
 	_fromMapping[types.SymbolKind.Module] = modes.SymbolKind.Module;
 	_fromMapping[types.SymbolKind.Namespace] = modes.SymbolKind.Namespace;
@@ -893,7 +893,7 @@ export namespace DocumentLink {
 		let target: URI | undefined = undefined;
 		if (link.url) {
 			try {
-				target = typeof link.url === 'string' ? URI.parse(link.url) : URI.revive(link.url);
+				target = typeof link.url === 'string' ? URI.parse(link.url, true) : URI.revive(link.url);
 			} catch (err) {
 				// ignore
 			}

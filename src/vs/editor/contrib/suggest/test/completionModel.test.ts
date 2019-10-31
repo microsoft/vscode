@@ -33,6 +33,40 @@ export function createSuggestItem(label: string, overwriteBefore: number, kind =
 }
 suite('CompletionModel', function () {
 
+	let defaultOptions = {
+		overwriteOnAccept: false,
+		snippetsPreventQuickSuggestions: true,
+		filterGraceful: true,
+		localityBonus: false,
+		shareSuggestSelections: false,
+		showIcons: true,
+		maxVisibleSuggestions: 12,
+		showMethods: true,
+		showFunctions: true,
+		showConstructors: true,
+		showFields: true,
+		showVariables: true,
+		showClasses: true,
+		showStructs: true,
+		showInterfaces: true,
+		showModules: true,
+		showProperties: true,
+		showEvents: true,
+		showOperators: true,
+		showUnits: true,
+		showValues: true,
+		showConstants: true,
+		showEnums: true,
+		showEnumMembers: true,
+		showKeywords: true,
+		showWords: true,
+		showColors: true,
+		showFiles: true,
+		showReferences: true,
+		showFolders: true,
+		showTypeParameters: true,
+		showSnippets: true,
+	};
 
 	let model: CompletionModel;
 
@@ -158,16 +192,7 @@ suite('CompletionModel', function () {
 		], 1, {
 			leadingLineContent: 's',
 			characterCountDelta: 0
-		}, WordDistance.None, {
-			overwriteOnAccept: false,
-			snippetsPreventQuickSuggestions: true,
-			filterGraceful: true,
-			localityBonus: false,
-			shareSuggestSelections: false,
-			showIcons: true,
-			maxVisibleSuggestions: 12,
-			filteredTypes: Object.create(null)
-		}, 'top');
+		}, WordDistance.None, defaultOptions, 'top');
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -186,16 +211,7 @@ suite('CompletionModel', function () {
 		], 1, {
 			leadingLineContent: 's',
 			characterCountDelta: 0
-		}, WordDistance.None, {
-			overwriteOnAccept: false,
-			snippetsPreventQuickSuggestions: true,
-			filterGraceful: true,
-			localityBonus: false,
-			shareSuggestSelections: false,
-			showIcons: true,
-			maxVisibleSuggestions: 12,
-			filteredTypes: Object.create(null)
-		}, 'bottom');
+		}, WordDistance.None, defaultOptions, 'bottom');
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -213,16 +229,7 @@ suite('CompletionModel', function () {
 		], 1, {
 			leadingLineContent: 's',
 			characterCountDelta: 0
-		}, WordDistance.None, {
-			overwriteOnAccept: false,
-			snippetsPreventQuickSuggestions: true,
-			filterGraceful: true,
-			localityBonus: false,
-			shareSuggestSelections: false,
-			showIcons: true,
-			maxVisibleSuggestions: 12,
-			filteredTypes: Object.create(null)
-		}, 'inline');
+		}, WordDistance.None, defaultOptions, 'inline');
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;

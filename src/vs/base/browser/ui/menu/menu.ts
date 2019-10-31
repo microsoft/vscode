@@ -215,7 +215,7 @@ export class Menu extends ActionBar {
 
 		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : '';
 		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : '';
-		const border = style.borderColor ? `2px solid ${style.borderColor}` : '';
+		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
 		const shadow = style.shadowColor ? `0 2px 4px ${style.shadowColor}` : '';
 
 		container.style.border = border;

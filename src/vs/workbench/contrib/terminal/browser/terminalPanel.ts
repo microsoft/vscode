@@ -292,7 +292,7 @@ export class TerminalPanel extends Panel {
 
 				const terminal = this._terminalService.getActiveInstance();
 				if (terminal) {
-					return this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title).then(preparedPath => {
+					return this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType).then(preparedPath => {
 						terminal.sendText(preparedPath, false);
 					});
 				}

@@ -143,7 +143,7 @@ export interface IExtensionManifest {
 	readonly activationEvents?: string[];
 	readonly extensionDependencies?: string[];
 	readonly extensionPack?: string[];
-	readonly extensionKind?: ExtensionKind;
+	readonly extensionKind?: ExtensionKind | ExtensionKind[];
 	readonly contributes?: IExtensionContributions;
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };

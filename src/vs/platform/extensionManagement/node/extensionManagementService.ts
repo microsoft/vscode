@@ -153,7 +153,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.logService.trace('ExtensionManagementService#zip', extension.identifier.id);
 		return this.collectFiles(extension)
 			.then(files => zip(path.join(tmpdir(), generateUuid()), files))
-			.then(path => URI.file(path));
+			.then<URI>(path => URI.file(path));
 	}
 
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
@@ -373,7 +373,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					return this.setUninstalled(extension)
 						.then(() => this.removeUninstalledExtension(extension)
 							.then(
-								() => this.installFromGallery(galleryExtension),
+								() => this.installFromGallery(galleryExtension).then(),
 								e => Promise.reject(new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e))))));
 				}
 				return Promise.reject(new Error(nls.localize('Not a Marketplace extension', "Only Marketplace Extensions can be reinstalled")));
@@ -524,10 +524,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 								.then(galleryResult => {
 									const extensionsToInstall = galleryResult.firstPage;
 									return Promise.all(extensionsToInstall.map(e => this.installFromGallery(e)))
-										.then(() => null, errors => this.rollback(extensionsToInstall).then(() => Promise.reject(errors), () => Promise.reject(errors)));
+										.then(undefined, errors => this.rollback(extensionsToInstall).then(() => Promise.reject(errors), () => Promise.reject(errors)));
 								});
 						}
-						return null;
+						return;
 					});
 			}
 		}
@@ -548,7 +548,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.then(installed => {
 				const extensionToUninstall = installed.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
 				if (extensionToUninstall) {
-					return this.checkForDependenciesAndUninstall(extensionToUninstall, installed).then(() => null, error => Promise.reject(this.joinErrors(error)));
+					return this.checkForDependenciesAndUninstall(extensionToUninstall, installed).then(undefined, error => Promise.reject(this.joinErrors(error)));
 				} else {
 					return Promise.reject(new Error(nls.localize('notInstalled', "Extension '{0}' is not installed.", extension.manifest.displayName || extension.manifest.name)));
 				}

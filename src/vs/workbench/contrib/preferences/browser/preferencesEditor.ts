@@ -634,7 +634,7 @@ class PreferencesRenderersController extends Disposable {
 
 				if (filterResult) {
 					filterResult.query = filter;
-					filterResult.exactMatch = searchResult && searchResult.exactMatch;
+					filterResult.exactMatch = !!searchResult && searchResult.exactMatch;
 				}
 
 				return filterResult;

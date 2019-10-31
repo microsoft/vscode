@@ -40,13 +40,17 @@
 }
 
 .hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label,
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label {
+.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label:not(.codicon) {
 	line-height: initial;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label .label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label .label {
 	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label.codicon {
+	color: inherit;
 }
 
 /* Drag Cursor */

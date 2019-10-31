@@ -126,12 +126,18 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 			const filePath = this.toFilePath(resource);
 
-			// Validate target
-			const fileExists = await exists(filePath);
-			if (fileExists && !opts.overwrite) {
-				throw createFileSystemProviderError(new Error(localize('fileExists', "File already exists")), FileSystemProviderErrorCode.FileExists);
-			} else if (!fileExists && !opts.create) {
-				throw createFileSystemProviderError(new Error(localize('fileNotExists', "File does not exist")), FileSystemProviderErrorCode.FileNotFound);
+			// Validate target unless { create: true, overwrite: true }
+			if (!opts.create || !opts.overwrite) {
+				const fileExists = await exists(filePath);
+				if (fileExists) {
+					if (!opts.overwrite) {
+						throw createFileSystemProviderError(new Error(localize('fileExists', "File already exists")), FileSystemProviderErrorCode.FileExists);
+					}
+				} else {
+					if (!opts.create) {
+						throw createFileSystemProviderError(new Error(localize('fileNotExists', "File does not exist")), FileSystemProviderErrorCode.FileNotFound);
+					}
+				}
 			}
 
 			// Open

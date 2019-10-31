@@ -1319,7 +1319,7 @@ export class Repository implements Disposable {
 
 				// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z
 				const child = this.repository.stream(['check-ignore', '-v', '-z', '--stdin'], { stdio: [null, null, null] });
-				child.stdin.end(filePaths.join('\0'), 'utf8');
+				child.stdin!.end(filePaths.join('\0'), 'utf8');
 
 				const onExit = (exitCode: number) => {
 					if (exitCode === 1) {
@@ -1341,12 +1341,12 @@ export class Repository implements Disposable {
 					data += raw;
 				};
 
-				child.stdout.setEncoding('utf8');
-				child.stdout.on('data', onStdoutData);
+				child.stdout!.setEncoding('utf8');
+				child.stdout!.on('data', onStdoutData);
 
 				let stderr: string = '';
-				child.stderr.setEncoding('utf8');
-				child.stderr.on('data', raw => stderr += raw);
+				child.stderr!.setEncoding('utf8');
+				child.stderr!.on('data', raw => stderr += raw);
 
 				child.on('error', reject);
 				child.on('exit', onExit);
@@ -1509,7 +1509,7 @@ export class Repository implements Disposable {
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
 
-		const untrackedChanges = scopedConfig.get<'default' | 'separate' | 'hidden'>('untrackedChanges');
+		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
 		const merge: Resource[] = [];
@@ -1523,12 +1523,12 @@ export class Repository implements Disposable {
 
 			switch (raw.x + raw.y) {
 				case '??': switch (untrackedChanges) {
-					case 'default': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
+					case 'mixed': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
 					case 'separate': return untracked.push(new Resource(ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
 					default: return undefined;
 				}
 				case '!!': switch (untrackedChanges) {
-					case 'default': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+					case 'mixed': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
 					case 'separate': return untracked.push(new Resource(ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
 					default: return undefined;
 				}
@@ -1575,7 +1575,7 @@ export class Repository implements Disposable {
 	private setCountBadge(): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const countBadge = config.get<'all' | 'tracked' | 'off'>('countBadge');
-		const untrackedChanges = config.get<'default' | 'separate' | 'hidden'>('untrackedChanges');
+		const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 
 		let count =
 			this.mergeGroup.resourceStates.length +
@@ -1585,7 +1585,7 @@ export class Repository implements Disposable {
 		switch (countBadge) {
 			case 'off': count = 0; break;
 			case 'tracked':
-				if (untrackedChanges === 'default') {
+				if (untrackedChanges === 'mixed') {
 					count -= this.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length;
 				}
 				break;

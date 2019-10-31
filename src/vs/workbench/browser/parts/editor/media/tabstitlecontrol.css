@@ -54,6 +54,7 @@
 	width: 120px;
 	min-width: fit-content;
 	min-width: -moz-fit-content;
+	flex-shrink: 0;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink {
@@ -62,6 +63,10 @@
 	flex-grow: 1; /* all tabs grow even */
 	max-width: fit-content;
 	max-width: -moz-fit-content;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-left .action-label {
+	margin-right: 4px !important;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.close-button-left::after,
@@ -200,9 +205,13 @@
 	opacity: 1;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-close .action-label.codicon {
+	color: inherit;
+}
+
 /* change close icon to dirty state icon */
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty:not(.dirty-border-top) > .tab-close .action-label:not(:hover)::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty:not(.dirty-border-top) > .tab-close .action-label:not(:hover)::before {
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before {
 	content: "\ea71"; /* use `circle-filled` icon unicode */
 }
 

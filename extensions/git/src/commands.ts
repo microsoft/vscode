@@ -915,8 +915,8 @@ export class CommandCenter {
 		}
 
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		const untrackedChanges = config.get<'default' | 'separate' | 'hidden'>('untrackedChanges');
-		await repository.add([], untrackedChanges === 'default' ? undefined : { update: true });
+		const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+		await repository.add([], untrackedChanges === 'mixed' ? undefined : { update: true });
 	}
 
 	private async _stageDeletionConflict(repository: Repository, uri: Uri): Promise<void> {
@@ -1421,7 +1421,7 @@ export class CommandCenter {
 			opts.all = 'tracked';
 		}
 
-		if (opts.all && config.get<'default' | 'separate' | 'hidden'>('untrackedChanges') !== 'default') {
+		if (opts.all && config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges') !== 'mixed') {
 			opts.all = 'tracked';
 		}
 
@@ -1554,7 +1554,7 @@ export class CommandCenter {
 
 		if (commit.parents.length > 1) {
 			const yes = localize('undo commit', "Undo merge commit");
-			const result = await window.showWarningMessage(localize('merge commit', "The last commit was a merge commit. Are you sure you want to undo it?"), yes);
+			const result = await window.showWarningMessage(localize('merge commit', "The last commit was a merge commit. Are you sure you want to undo it?"), { modal: true }, yes);
 
 			if (result !== yes) {
 				return;

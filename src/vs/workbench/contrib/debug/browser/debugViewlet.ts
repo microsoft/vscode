@@ -220,6 +220,6 @@ class ToggleReplAction extends TogglePanelAction {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IPanelService panelService: IPanelService
 	) {
-		super(id, label, REPL_ID, panelService, layoutService, 'debug-action toggle-repl');
+		super(id, label, REPL_ID, panelService, layoutService, 'debug-action codicon-terminal');
 	}
 }

@@ -25,9 +25,6 @@ export function validatePaths(args: ParsedArgs): ParsedArgs {
 		args._ = paths;
 	}
 
-	// Update environment
-	args.diff = args.diff && args._.length === 2;
-
 	return args;
 }
 

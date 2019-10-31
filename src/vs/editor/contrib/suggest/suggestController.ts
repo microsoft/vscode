@@ -263,9 +263,10 @@ export class SuggestController implements IEditorContribution {
 			insertText = SnippetParser.escape(insertText);
 		}
 
-		const overwriteConfig = flags & InsertFlags.AlternativeOverwriteConfig
-			? !this._editor.getOption(EditorOption.suggest).overwriteOnAccept
-			: this._editor.getOption(EditorOption.suggest).overwriteOnAccept;
+		// const overwriteConfig = flags & InsertFlags.AlternativeOverwriteConfig
+		// 	? !this._editor.getOption(EditorOption.suggest).overwriteOnAccept
+		// 	: this._editor.getOption(EditorOption.suggest).overwriteOnAccept;
+		const overwriteConfig = false;
 
 		const overwriteBefore = position.column - item.editStart.column;
 		const overwriteAfter = (overwriteConfig ? item.editReplaceEnd.column : item.editInsertEnd.column) - position.column;
@@ -532,16 +533,16 @@ KeybindingsRegistry.registerKeybindingRule({
 	weight
 });
 
-// shift+enter and shift+tab use the alternative-flag so that the suggest controller
-// is doing the opposite of the editor.suggest.overwriteOnAccept-configuration
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
-	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
-	primary: KeyMod.Shift | KeyCode.Tab,
-	secondary: [KeyMod.Shift | KeyCode.Enter],
-	args: { alternative: true },
-	weight
-});
+// // shift+enter and shift+tab use the alternative-flag so that the suggest controller
+// // is doing the opposite of the editor.suggest.overwriteOnAccept-configuration
+// KeybindingsRegistry.registerKeybindingRule({
+// 	id: 'acceptSelectedSuggestion',
+// 	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+// 	primary: KeyMod.Shift | KeyCode.Tab,
+// 	secondary: [KeyMod.Shift | KeyCode.Enter],
+// 	args: { alternative: true },
+// 	weight
+// });
 
 // continue to support the old command
 CommandsRegistry.registerCommandAlias('acceptSelectedSuggestionOnEnter', 'acceptSelectedSuggestion');
