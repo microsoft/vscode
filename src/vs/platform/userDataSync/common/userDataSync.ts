@@ -32,19 +32,19 @@ export function registerConfiguration(): IDisposable {
 		properties: {
 			'configurationSync.enable': {
 				type: 'boolean',
-				description: localize('configurationSync.enable', "When enabled, synchronises configuration that includes Settings and Extensions."),
+				description: localize('configurationSync.enable', "When enabled, synchronizes configuration that includes Settings and Extensions."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION
 			},
 			'configurationSync.enableSettings': {
 				type: 'boolean',
-				description: localize('configurationSync.enableSettings', "When enabled settings are synchronised while synchronizing configuration."),
+				description: localize('configurationSync.enableSettings', "When enabled settings are synchronized while synchronizing configuration."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
 			'configurationSync.enableExtensions': {
 				type: 'boolean',
-				description: localize('configurationSync.enableExtensions', "When enabled extensions are synchronised while synchronizing configuration."),
+				description: localize('configurationSync.enableExtensions', "When enabled extensions are synchronized while synchronizing configuration."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
