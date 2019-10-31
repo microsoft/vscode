@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual } from 'assert';
 
 suite('window namespace tests', () => {
@@ -12,49 +12,47 @@ suite('window namespace tests', () => {
 		await workspace.getConfiguration('terminal.integrated').update('windowsEnableConpty', false, ConfigurationTarget.Global);
 	});
 	suite('Terminal', () => {
+		let disposables: Disposable[] = [];
+
+		teardown(() => {
+			disposables.forEach(d => d.dispose());
+			disposables.length = 0;
+		});
+
 		test('sendText immediately after createTerminal should not throw', (done) => {
-			const reg1 = window.onDidOpenTerminal(term => {
+			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
 				}
 				terminal.dispose();
-				reg1.dispose();
-				const reg2 = window.onDidCloseTerminal(() => {
-					reg2.dispose();
-					done();
-				});
-			});
+				disposables.push(window.onDidCloseTerminal(() => done()));
+			}));
 			const terminal = window.createTerminal();
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
 		});
 
 		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
-			const reg1 = window.onDidOpenTerminal(term => {
+			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
 				}
 				terminal.dispose();
-				reg1.dispose();
-				const reg2 = window.onDidCloseTerminal(() => {
-					reg2.dispose();
-					done();
-				});
-			});
+				disposables.push(window.onDidCloseTerminal(() => done()));
+			}));
 			const terminal = window.createTerminal();
 		});
 
 		test('processId immediately after createTerminal should fetch the pid', (done) => {
-			const reg1 = window.onDidOpenTerminal(term => {
+			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
 				}
-				reg1.dispose();
 				terminal.processId.then(id => {
 					try {
 						ok(id > 0);
@@ -62,29 +60,22 @@ suite('window namespace tests', () => {
 						done(e);
 					}
 					terminal.dispose();
-					const reg2 = window.onDidCloseTerminal(() => {
-						reg2.dispose();
-						done();
-					});
+					disposables.push(window.onDidCloseTerminal(() => done()));
 				});
-			});
+			}));
 			const terminal = window.createTerminal();
 		});
 
 		test('name in constructor should set terminal.name', (done) => {
-			const reg1 = window.onDidOpenTerminal(term => {
+			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
 				}
 				terminal.dispose();
-				reg1.dispose();
-				const reg2 = window.onDidCloseTerminal(() => {
-					reg2.dispose();
-					done();
-				});
-			});
+				disposables.push(window.onDidCloseTerminal(() => done()));
+			}));
 			const terminal = window.createTerminal('a');
 			try {
 				equal(terminal.name, 'a');
@@ -94,19 +85,15 @@ suite('window namespace tests', () => {
 		});
 
 		test('onDidOpenTerminal should fire when a terminal is created', (done) => {
-			const reg1 = window.onDidOpenTerminal(term => {
+			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(term.name, 'b');
 				} catch (e) {
 					done(e);
 				}
-				reg1.dispose();
-				const reg2 = window.onDidCloseTerminal(() => {
-					reg2.dispose();
-					done();
-				});
+				disposables.push(window.onDidCloseTerminal(() => done()));
 				terminal.dispose();
-			});
+			}));
 			const terminal = window.createTerminal('b');
 		});
 		// test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
@@ -182,7 +169,7 @@ suite('window namespace tests', () => {
 		suite('hideFromUser', () => {
 			test('should be available to terminals API', done => {
 				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
-				window.onDidOpenTerminal(t => {
+				disposables.push(window.onDidOpenTerminal(t => {
 					try {
 						equal(t, terminal);
 						equal(t.name, 'bg');
@@ -190,12 +177,12 @@ suite('window namespace tests', () => {
 					} catch (e) {
 						done(e);
 					}
-					const reg3 = window.onDidCloseTerminal(() => {
-						reg3.dispose();
+					disposables.push(window.onDidCloseTerminal(() => {
+						// reg3.dispose();
 						done();
-					});
+					}));
 					terminal.dispose();
-				});
+				}));
 			});
 		});
 
@@ -204,17 +191,17 @@ suite('window namespace tests', () => {
 				const openEvents: string[] = [];
 				const dataEvents: { name: string, data: string }[] = [];
 				const closeEvents: string[] = [];
-				const reg1 = window.onDidOpenTerminal(e => openEvents.push(e.name));
+				disposables.push(window.onDidOpenTerminal(e => openEvents.push(e.name)));
 
 				let resolveOnceDataWritten: (() => void) | undefined;
 
-				const reg2 = window.onDidWriteTerminalData(e => {
+				disposables.push(window.onDidWriteTerminalData(e => {
 					dataEvents.push({ name: e.terminal.name, data: e.data });
 
 					resolveOnceDataWritten!();
-				});
+				}));
 
-				const reg3 = window.onDidCloseTerminal(e => {
+				disposables.push(window.onDidCloseTerminal(e => {
 					closeEvents.push(e.name);
 
 					try {
@@ -226,16 +213,12 @@ suite('window namespace tests', () => {
 							deepEqual(openEvents, ['test1', 'test2']);
 							deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
 							deepEqual(closeEvents, ['test1', 'test2']);
-
-							reg1.dispose();
-							reg2.dispose();
-							reg3.dispose();
 							done();
 						}
 					} catch (e) {
 						done(e);
 					}
-				});
+				}));
 
 				const term1Write = new EventEmitter<string>();
 				const term1Close = new EventEmitter<void>();
@@ -272,19 +255,15 @@ suite('window namespace tests', () => {
 
 		suite('Extension pty terminals', () => {
 			test('should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
-				const reg1 = window.onDidOpenTerminal(term => {
+				disposables.push(window.onDidOpenTerminal(term => {
 					try {
 						equal(term.name, 'c');
 					} catch (e) {
 						done(e);
 					}
-					reg1.dispose();
-					const reg2 = window.onDidCloseTerminal(() => {
-						reg2.dispose();
-						done();
-					});
+					disposables.push(window.onDidCloseTerminal(() => done()));
 					term.dispose();
-				});
+				}));
 				const pty: Pseudoterminal = {
 					onDidWrite: new EventEmitter<string>().event,
 					open: () => { },
@@ -341,15 +320,14 @@ suite('window namespace tests', () => {
 			// });
 
 			test('should respect dimension overrides', (done) => {
-				const reg1 = window.onDidOpenTerminal(term => {
+				disposables.push(window.onDidOpenTerminal(term => {
 					try {
 						equal(terminal, term);
 					} catch (e) {
 						done(e);
 					}
-					reg1.dispose();
 					term.show();
-					const reg2 = window.onDidChangeTerminalDimensions(e => {
+					disposables.push(window.onDidChangeTerminalDimensions(e => {
 						try {
 							equal(e.dimensions.columns, 10);
 							equal(e.dimensions.rows, 5);
@@ -357,14 +335,10 @@ suite('window namespace tests', () => {
 						} catch (e) {
 							done(e);
 						}
-						reg2.dispose();
-						const reg3 = window.onDidCloseTerminal(() => {
-							reg3.dispose();
-							done();
-						});
+						disposables.push(window.onDidCloseTerminal(() => done()));
 						terminal.dispose();
-					});
-				});
+					}));
+				}));
 				const writeEmitter = new EventEmitter<string>();
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
 				const pty: Pseudoterminal = {
