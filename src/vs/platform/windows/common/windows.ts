@@ -219,7 +219,7 @@ export interface IAddFoldersRequest {
 }
 
 export interface IWindowConfiguration extends ParsedArgs {
-	machineId: string;
+	machineId?: string; // NOTE: This is undefined in the web, the telemetry service directly resolves this.
 	windowId: number; // TODO: should we deprecate this in favor of sessionId?
 	sessionId: string;
 	logLevel: LogLevel;
