@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, dirname } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import { Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -634,57 +634,7 @@ async function doCopyFile(source: string, target: string, mode: number): Promise
 }
 
 export async function mkdirp(path: string, mode?: number, token?: CancellationToken): Promise<void> {
-	const mkdir = async () => {
-		try {
-			await promisify(fs.mkdir)(path, mode);
-		} catch (error) {
-
-			// ENOENT: a parent folder does not exist yet
-			if (error.code === 'ENOENT') {
-				throw error;
-			}
-
-			// Any other error: check if folder exists and
-			// return normally in that case if its a folder
-			let targetIsFile = false;
-			try {
-				const fileStat = await stat(path);
-				targetIsFile = !fileStat.isDirectory();
-			} catch (statError) {
-				throw error; // rethrow original error if stat fails
-			}
-
-			if (targetIsFile) {
-				throw new Error(`'${path}' exists and is not a directory.`);
-			}
-		}
-	};
-
-	// stop at root
-	if (path === dirname(path)) {
-		return;
-	}
-
-	try {
-		await mkdir();
-	} catch (error) {
-
-		// Respect cancellation
-		if (token && token.isCancellationRequested) {
-			return Promise.resolve();
-		}
-
-		// ENOENT: a parent folder does not exist yet, continue
-		// to create the parent folder and then try again.
-		if (error.code === 'ENOENT') {
-			await mkdirp(dirname(path), mode);
-
-			return mkdir();
-		}
-
-		// Any other error
-		throw error;
-	}
+	return promisify(fs.mkdir)(path, { mode, recursive: true });
 }
 
 // See https://github.com/Microsoft/vscode/issues/30180
