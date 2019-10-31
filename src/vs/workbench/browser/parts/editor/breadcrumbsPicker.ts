@@ -452,7 +452,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs.filteredTypes')
+				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
 			}
 		);
 	}

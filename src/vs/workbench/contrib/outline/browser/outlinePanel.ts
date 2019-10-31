@@ -314,7 +314,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._treeRenderer = this._instantiationService.createInstance(OutlineElementRenderer);
 		this._treeDataSource = new OutlineDataSource();
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
-		this._treeFilter = this._instantiationService.createInstance(OutlineFilter, 'outline.filteredTypes');
+		this._treeFilter = this._instantiationService.createInstance(OutlineFilter, 'outline');
 		this._tree = this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			'OutlinePanel',
@@ -368,7 +368,7 @@ export class OutlinePanel extends ViewletPanel {
 			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
 				this._tree.updateChildren();
 			}
-			if (e.affectsConfiguration('outline.filteredTypes')) {
+			if (e.affectsConfiguration('outline')) {
 				this._treeFilter.update();
 				this._tree.refilter();
 			}

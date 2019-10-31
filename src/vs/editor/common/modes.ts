@@ -19,7 +19,6 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureR
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { keys } from 'vs/base/common/map';
 
 /**
  * Open ended enum at runtime
@@ -937,12 +936,6 @@ export namespace SymbolKinds {
 	 */
 	export function fromString(value: string): SymbolKind | undefined {
 		return byName.get(value);
-	}
-	/**
-	 * @internal
-	 */
-	export function names(): readonly string[] {
-		return keys(byName);
 	}
 	/**
 	 * @internal
