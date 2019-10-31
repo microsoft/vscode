@@ -7,7 +7,7 @@ import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, MouseController, DefaultKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider, IKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode } from 'vs/base/browser/dom';
+import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -211,6 +211,8 @@ export enum RenderIndentGuides {
 interface ITreeRendererOptions {
 	readonly indent?: number;
 	readonly renderIndentGuides?: RenderIndentGuides;
+	// TODO@joao replace this with collapsible: boolean | 'ondemand'
+	readonly hideTwistiesOfChildlessElements?: boolean;
 }
 
 interface IRenderData<TTemplateData> {
@@ -244,6 +246,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, IRenderData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
+	private hideTwistiesOfChildlessElements: boolean = false;
 
 	private shouldRenderIndentGuides: boolean = false;
 	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
@@ -289,6 +292,10 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 					this._onDidChangeActiveNodes(this.activeNodes.elements);
 				}
 			}
+		}
+
+		if (typeof options.hideTwistiesOfChildlessElements !== 'undefined') {
+			this.hideTwistiesOfChildlessElements = options.hideTwistiesOfChildlessElements;
 		}
 	}
 
@@ -365,10 +372,12 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 			this.renderer.renderTwistie(node.element, templateData.twistie);
 		}
 
-		toggleClass(templateData.twistie, 'codicon', node.collapsible);
-		toggleClass(templateData.twistie, 'codicon-chevron-down', node.collapsible);
-		toggleClass(templateData.twistie, 'collapsible', node.collapsible);
-		toggleClass(templateData.twistie, 'collapsed', node.collapsible && node.collapsed);
+		if (node.collapsible && (!this.hideTwistiesOfChildlessElements || node.visibleChildrenCount > 0)) {
+			addClasses(templateData.twistie, 'codicon', 'codicon-chevron-down', 'collapsible');
+			toggleClass(templateData.twistie, 'collapsed', node.collapsed);
+		} else {
+			removeClasses(templateData.twistie, 'codicon', 'codicon-chevron-down', 'collapsible', 'collapsed');
+		}
 
 		if (node.collapsible) {
 			templateData.container.setAttribute('aria-expanded', String(!node.collapsed));

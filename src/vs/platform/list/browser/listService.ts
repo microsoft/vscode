@@ -967,7 +967,8 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			horizontalScrolling,
 			openOnSingleClick,
 			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService),
-			additionalScrollHeight
+			additionalScrollHeight,
+			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements
 		} as TOptions
 	};
 }
