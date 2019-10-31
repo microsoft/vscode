@@ -96,6 +96,7 @@ suite('window namespace tests', () => {
 			}));
 			const terminal = window.createTerminal('b');
 		});
+
 		// test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
 		// 	const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
 		// 		equal(active, terminal);
@@ -341,6 +342,10 @@ suite('window namespace tests', () => {
 					}
 					term.show();
 					disposables.push(window.onDidChangeTerminalDimensions(e => {
+						if (e.dimensions.columns === 0 || e.dimensions.rows === 0) {
+							// HACK: Ignore the event if dimension(s) are zero (#83778)
+							return;
+						}
 						try {
 							equal(e.dimensions.columns, 10);
 							equal(e.dimensions.rows, 5);
