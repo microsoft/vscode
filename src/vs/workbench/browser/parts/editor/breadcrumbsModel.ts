@@ -6,7 +6,7 @@
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { size } from 'vs/base/common/collections';
+import { size, values } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -214,7 +214,9 @@ export class EditorBreadcrumbsModel {
 		}
 		let item: OutlineGroup | OutlineElement | undefined = model.getItemEnclosingPosition(position);
 		if (!item) {
-			return [model];
+			return values(model.children).every(e => this._isFiltered(e))
+				? []
+				: [model];
 		}
 		let chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
@@ -231,15 +233,17 @@ export class EditorBreadcrumbsModel {
 		let result: Array<OutlineGroup | OutlineElement> = [];
 		for (let i = chain.length - 1; i >= 0; i--) {
 			let element = chain[i];
-			if (
-				element instanceof OutlineElement
-				&& !this._configurationService.getValue<boolean>(`breadcrumbs.filteredTypes.${SymbolKinds.toString(element.symbol.kind)}`)
-			) {
+			if (this._isFiltered(element)) {
 				break;
 			}
 			result.push(element);
 		}
 		return result;
+	}
+
+	private _isFiltered(element: TreeElement): boolean {
+		return element instanceof OutlineElement
+			&& !this._configurationService.getValue<boolean>(`breadcrumbs.filteredTypes.${SymbolKinds.toString(element.symbol.kind)}`);
 	}
 
 	private _updateOutlineElements(elements: Array<OutlineModel | OutlineGroup | OutlineElement>): void {
