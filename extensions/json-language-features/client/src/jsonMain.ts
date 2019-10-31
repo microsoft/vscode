@@ -168,7 +168,11 @@ export function activate(context: ExtensionContext) {
 				return xhr({ url: uriPath, followRedirects: 5, headers }).then(response => {
 					return response.responseText;
 				}, (error: XHRResponse) => {
-					return Promise.reject(new ResponseError(error.status, error.responseText || getErrorStatusDescription(error.status) || error.toString()));
+					let extraInfo = error.responseText || error.toString();
+					if (extraInfo.length > 256) {
+						extraInfo = `${extraInfo.substr(0, 256)}...`;
+					}
+					return Promise.reject(new ResponseError(error.status, getErrorStatusDescription(error.status) + '\n' + extraInfo));
 				});
 			}
 		});

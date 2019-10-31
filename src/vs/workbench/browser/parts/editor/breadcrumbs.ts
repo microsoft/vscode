@@ -167,132 +167,132 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			default: true
 		},
-		'breadcrumbs.filteredTypes.file': {
+		'breadcrumbs.showFiles': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.file', "When enabled breadcrumbs show `file`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.module': {
+		'breadcrumbs.showModules': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.module', "When enabled breadcrumbs show `module`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.namespace': {
+		'breadcrumbs.showNamespaces': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.namespace', "When enabled breadcrumbs show `namespace`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.package': {
+		'breadcrumbs.showPackages': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.package', "When enabled breadcrumbs show `package`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.class': {
+		'breadcrumbs.showClasses': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.class', "When enabled breadcrumbs show `class`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.method': {
+		'breadcrumbs.showMethods': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.method', "When enabled breadcrumbs show `method`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.property': {
+		'breadcrumbs.showProperties': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.property', "When enabled breadcrumbs show `property`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.field': {
+		'breadcrumbs.showFields': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.field', "When enabled breadcrumbs show `field`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.constructor': {
+		'breadcrumbs.showConstructors': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.constructor', "When enabled breadcrumbs show `constructor`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.enum': {
+		'breadcrumbs.showEnums': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.enum', "When enabled breadcrumbs show `enum`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.interface': {
+		'breadcrumbs.showInterfaces': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.interface', "When enabled breadcrumbs show `interface`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.function': {
+		'breadcrumbs.showFunctions': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.function', "When enabled breadcrumbs show `function`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.variable': {
+		'breadcrumbs.showVariables': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.variable', "When enabled breadcrumbs show `variable`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.constant': {
+		'breadcrumbs.showConstants': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.constant', "When enabled breadcrumbs show `constant`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.string': {
+		'breadcrumbs.showStrings': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.string', "When enabled breadcrumbs show `string`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.number': {
+		'breadcrumbs.showNumbers': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.number', "When enabled breadcrumbs show `number`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.boolean': {
+		'breadcrumbs.showBooleans': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.boolean', "When enabled breadcrumbs show `boolean`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.array': {
+		'breadcrumbs.showArrays': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.array', "When enabled breadcrumbs show `array`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.object': {
+		'breadcrumbs.showObjects': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.object', "When enabled breadcrumbs show `object`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.key': {
+		'breadcrumbs.showKeys': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.key', "When enabled breadcrumbs show `key`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.null': {
+		'breadcrumbs.showNull': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.null', "When enabled breadcrumbs show `null`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.enumMember': {
+		'breadcrumbs.showEnumMembers': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.enumMember', "When enabled breadcrumbs show `enumMember`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.struct': {
+		'breadcrumbs.showStructs': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.struct', "When enabled breadcrumbs show `struct`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.event': {
+		'breadcrumbs.showEvents': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.event', "When enabled breadcrumbs show `event`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.operator': {
+		'breadcrumbs.showOperators': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.operator', "When enabled breadcrumbs show `operator`-symbols.")
 		},
-		'breadcrumbs.filteredTypes.typeParameter': {
+		'breadcrumbs.showTypeParameters': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('filteredTypes.typeParameter', "When enabled breadcrumbs show `typeParameter`-symbols.")

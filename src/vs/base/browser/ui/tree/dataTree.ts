@@ -11,7 +11,7 @@ import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list
 import { Iterator } from 'vs/base/common/iterator';
 
 export interface IDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
-	sorter?: ITreeSorter<T>;
+	readonly sorter?: ITreeSorter<T>;
 }
 
 export interface IDataTreeViewState {
