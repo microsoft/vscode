@@ -65,6 +65,9 @@ export class ShowProblemsPanelAction extends Action {
 export interface IMarkersFilterActionChangeEvent extends IActionChangeEvent {
 	filterText?: boolean;
 	useFilesExclude?: boolean;
+	showWarnings?: boolean;
+	showErrors?: boolean;
+	showInfos?: boolean;
 }
 
 export interface IMarkersFilterActionOptions {
@@ -105,6 +108,39 @@ export class MarkersFilterAction extends Action {
 		if (this._useFilesExclude !== filesExclude) {
 			this._useFilesExclude = filesExclude;
 			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ useFilesExclude: true });
+		}
+	}
+
+	private _showWarnings: boolean = true;
+	get showWarnings(): boolean {
+		return this._showWarnings;
+	}
+	set showWarnings(showWarnings: boolean) {
+		if (this._showWarnings !== showWarnings) {
+			this._showWarnings = showWarnings;
+			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ showWarnings: true });
+		}
+	}
+
+	private _showErrors: boolean = true;
+	get showErrors(): boolean {
+		return this._showErrors;
+	}
+	set showErrors(showErrors: boolean) {
+		if (this._showErrors !== showErrors) {
+			this._showErrors = showErrors;
+			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ showErrors: true });
+		}
+	}
+
+	private _showInfos: boolean = true;
+	get showInfos(): boolean {
+		return this._showInfos;
+	}
+	set showInfos(showInfos: boolean) {
+		if (this._showInfos !== showInfos) {
+			this._showInfos = showInfos;
+			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ showInfos: true });
 		}
 	}
 }
@@ -191,6 +227,9 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		const controlsContainer = DOM.append(container, DOM.$('.markers-panel-filter-controls'));
 		this.createBadge(controlsContainer);
 		this.createFilesExcludeCheckbox(controlsContainer);
+		this.createErrorsCheckbox(controlsContainer);
+		this.createWarningsCheckbox(controlsContainer);
+		this.createInfosCheckbox(controlsContainer);
 	}
 
 	private createBadge(container: HTMLElement): void {
@@ -230,6 +269,69 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 		this._register(attachCheckboxStyler(filesExcludeFilter, this.themeService));
 		container.appendChild(filesExcludeFilter.domNode);
+	}
+
+	private createWarningsCheckbox(container: HTMLElement): void {
+		const warningsFilter = this._register(new Checkbox({
+			actionClassName: 'codicon codicon-warning',
+			title: this.action.showWarnings ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_WARNINGS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_WARNINGS,
+			isChecked: this.action.showWarnings
+		}));
+		this._register(warningsFilter.onChange(() => {
+			warningsFilter.domNode.title = warningsFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_WARNINGS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_WARNINGS;
+			this.action.showWarnings = warningsFilter.checked;
+			this.focus();
+		}));
+		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
+			if (event.showWarnings) {
+				warningsFilter.checked = this.action.showWarnings;
+			}
+		}));
+
+		this._register(attachCheckboxStyler(warningsFilter, this.themeService));
+		container.appendChild(warningsFilter.domNode);
+	}
+
+	private createErrorsCheckbox(container: HTMLElement): void {
+		const errorsFilter = this._register(new Checkbox({
+			actionClassName: 'codicon codicon-error',
+			title: this.action.showErrors ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_ERRORS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_ERRORS,
+			isChecked: this.action.showErrors
+		}));
+		this._register(errorsFilter.onChange(() => {
+			errorsFilter.domNode.title = errorsFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_ERRORS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_ERRORS;
+			this.action.showErrors = errorsFilter.checked;
+			this.focus();
+		}));
+		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
+			if (event.showErrors) {
+				errorsFilter.checked = this.action.showErrors;
+			}
+		}));
+
+		this._register(attachCheckboxStyler(errorsFilter, this.themeService));
+		container.appendChild(errorsFilter.domNode);
+	}
+
+	private createInfosCheckbox(container: HTMLElement): void {
+		const infosFilter = this._register(new Checkbox({
+			actionClassName: 'codicon codicon-info',
+			title: this.action.showInfos ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_INFOS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_INFOS,
+			isChecked: this.action.showInfos
+		}));
+		this._register(infosFilter.onChange(() => {
+			infosFilter.domNode.title = infosFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_INFOS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_INFOS;
+			this.action.showInfos = infosFilter.checked;
+			this.focus();
+		}));
+		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
+			if (event.showInfos) {
+				infosFilter.checked = this.action.showInfos;
+			}
+		}));
+
+		this._register(attachCheckboxStyler(infosFilter, this.themeService));
+		container.appendChild(infosFilter.domNode);
 	}
 
 	private onDidInputChange(inputbox: HistoryInputBox) {
@@ -280,9 +382,9 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private reportFilteringUsed(): void {
 		const filterOptions = this.filterController.getFilterOptions();
 		const data = {
-			errors: filterOptions.filterErrors,
-			warnings: filterOptions.filterWarnings,
-			infos: filterOptions.filterInfos,
+			errors: filterOptions._showErrors,
+			warnings: filterOptions._showWarnings,
+			infos: filterOptions._showInfos,
 		};
 		/* __GDPR__
 			"problems.filter" : {

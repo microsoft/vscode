@@ -265,7 +265,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private updateFilter() {
 		this.cachedFilterStats = undefined;
-		this.filter.options = new FilterOptions(this.filterAction.filterText, this.getFilesExcludeExpressions());
+		this.filter.options = new FilterOptions(this.filterAction.filterText, this.getFilesExcludeExpressions(), this.filterAction.showWarnings, this.filterAction.showErrors, this.filterAction.showInfos);
 		this.tree.refilter();
 		this._onDidFilter.fire();
 
@@ -405,7 +405,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}));
 		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
 		this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
-			if (event.filterText || event.useFilesExclude) {
+			if (event.filterText || event.useFilesExclude || event.showWarnings || event.showErrors || event.showInfos) {
 				this.updateFilter();
 			}
 		}));
