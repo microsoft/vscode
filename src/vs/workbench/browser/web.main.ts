@@ -126,7 +126,7 @@ class BrowserMain extends Disposable {
 	}
 
 	private restoreBaseTheme(): void {
-		addClass(this.domElement, window.localStorage.getItem('baseTheme') || getThemeTypeSelector(DARK));
+		addClass(this.domElement, window.localStorage.getItem('vscode.baseTheme') || getThemeTypeSelector(DARK));
 	}
 
 	private saveBaseTheme(): void {
@@ -134,7 +134,7 @@ class BrowserMain extends Disposable {
 		const baseThemes = [DARK, LIGHT, HIGH_CONTRAST].map(baseTheme => getThemeTypeSelector(baseTheme));
 		for (const baseTheme of baseThemes) {
 			if (classes.indexOf(baseTheme) >= 0) {
-				window.localStorage.setItem('baseTheme', baseTheme);
+				window.localStorage.setItem('vscode.baseTheme', baseTheme);
 				break;
 			}
 		}
