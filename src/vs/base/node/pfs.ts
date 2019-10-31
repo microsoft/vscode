@@ -11,7 +11,6 @@ import * as platform from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { endsWith } from 'vs/base/common/strings';
 import { promisify } from 'util';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -633,7 +632,7 @@ async function doCopyFile(source: string, target: string, mode: number): Promise
 	});
 }
 
-export async function mkdirp(path: string, mode?: number, token?: CancellationToken): Promise<void> {
+export async function mkdirp(path: string, mode?: number): Promise<void> {
 	return promisify(fs.mkdir)(path, { mode, recursive: true });
 }
 
