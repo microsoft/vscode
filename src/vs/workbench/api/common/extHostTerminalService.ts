@@ -369,7 +369,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		if (this._terminalProcesses[id]) {
 			// Extension pty terminal only - when virtual process resize fires it means that the
 			// terminal's maximum dimensions changed
-			this._terminalProcesses[id].resize(cols, rows);
+			this._terminalProcesses[id]?.resize(cols, rows);
 		}
 	}
 
@@ -481,12 +481,12 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {
-		this._terminalProcesses[id].input(data);
+		this._terminalProcesses[id]?.input(data);
 	}
 
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {
 		try {
-			this._terminalProcesses[id].resize(cols, rows);
+			this._terminalProcesses[id]?.resize(cols, rows);
 		} catch (error) {
 			// We tried to write to a closed pipe / channel.
 			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
@@ -496,15 +496,15 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	}
 
 	public $acceptProcessShutdown(id: number, immediate: boolean): void {
-		this._terminalProcesses[id].shutdown(immediate);
+		this._terminalProcesses[id]?.shutdown(immediate);
 	}
 
 	public $acceptProcessRequestInitialCwd(id: number): void {
-		this._terminalProcesses[id].getInitialCwd().then(initialCwd => this._proxy.$sendProcessInitialCwd(id, initialCwd));
+		this._terminalProcesses[id]?.getInitialCwd().then(initialCwd => this._proxy.$sendProcessInitialCwd(id, initialCwd));
 	}
 
 	public $acceptProcessRequestCwd(id: number): void {
-		this._terminalProcesses[id].getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
+		this._terminalProcesses[id]?.getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
 	}
 
 	public $acceptProcessRequestLatency(id: number): number {
