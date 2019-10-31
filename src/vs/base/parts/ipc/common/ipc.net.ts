@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
+import { IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 
 export interface ISocket extends IDisposable {
 	onData(listener: (e: VSBuffer) => void): IDisposable;
@@ -137,7 +137,7 @@ export const enum ProtocolConstants {
 	/**
 	 * If there is a message that has been unacknowledged for 10 seconds, consider the connection closed...
 	 */
-	AcknowledgeTimeoutTime = 10000, // 10 seconds
+	AcknowledgeTimeoutTime = 20000, // 20 seconds
 	/**
 	 * Send at least a message every 5s for keep alive reasons.
 	 */
@@ -145,7 +145,7 @@ export const enum ProtocolConstants {
 	/**
 	 * If there is no message received for 10 seconds, consider the connection closed...
 	 */
-	KeepAliveTimeoutTime = 10000, // 10 seconds
+	KeepAliveTimeoutTime = 20000, // 20 seconds
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	 */
