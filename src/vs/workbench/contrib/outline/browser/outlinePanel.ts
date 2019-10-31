@@ -330,7 +330,8 @@ export class OutlinePanel extends ViewletPanel {
 				sorter: this._treeComparator,
 				filter: this._treeFilter,
 				identityProvider: new OutlineIdentityProvider(),
-				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider()
+				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+				hideTwistiesOfChildlessElements: true
 			}
 		);
 
