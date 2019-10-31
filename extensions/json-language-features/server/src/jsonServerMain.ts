@@ -16,7 +16,7 @@ import * as URL from 'url';
 import { posix } from 'path';
 import { setTimeout, clearTimeout } from 'timers';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
-import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities } from 'vscode-json-languageservice';
+import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, SchemaRequestService } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
 interface ISchemaAssociations {
@@ -58,27 +58,40 @@ const workspaceContext = {
 		return URL.resolve(resource, relativePath);
 	}
 };
-function getSchemaRequestService(handledSchemas: { [schema: string]: boolean } = {}) {
 
+const fileRequestService: SchemaRequestService = (uri: string) => {
+	const fsPath = URI.parse(uri).fsPath;
+	return new Promise<string>((c, e) => {
+		fs.readFile(fsPath, 'UTF-8', (err, result) => {
+			err ? e(err.message || err.toString()) : c(result.toString());
+		});
+	});
+};
+
+const httpRequestService: SchemaRequestService = (uri: string) => {
+	const headers = { 'Accept-Encoding': 'gzip, deflate' };
+	return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
+		return response.responseText;
+	}, (error: XHRResponse) => {
+		return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
+	});
+};
+
+function getSchemaRequestService(handledSchemas: string[] = ['https', 'http', 'file']) {
+	const builtInHandlers: { [protocol: string]: SchemaRequestService } = {};
+	for (let protocol of handledSchemas) {
+		if (protocol === 'file') {
+			builtInHandlers[protocol] = fileRequestService;
+		} else if (protocol === 'http' || protocol === 'https') {
+			builtInHandlers[protocol] = httpRequestService;
+		}
+	}
 	return (uri: string): Thenable<string> => {
 		const protocol = uri.substr(0, uri.indexOf(':'));
 
-		if (!handledSchemas || handledSchemas[protocol]) {
-			if (protocol === 'file') {
-				const fsPath = URI.parse(uri).fsPath;
-				return new Promise<string>((c, e) => {
-					fs.readFile(fsPath, 'UTF-8', (err, result) => {
-						err ? e(err.message || err.toString()) : c(result.toString());
-					});
-				});
-			} else if (protocol === 'http' || protocol === 'https') {
-				const headers = { 'Accept-Encoding': 'gzip, deflate' };
-				return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
-					return response.responseText;
-				}, (error: XHRResponse) => {
-					return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
-				});
-			}
+		const builtInHandler = builtInHandlers[protocol];
+		if (builtInHandler) {
+			return builtInHandler(uri);
 		}
 		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 			return responseText;
