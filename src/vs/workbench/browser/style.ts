@@ -211,6 +211,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				font-size: 14px;
 				width: 14px;
 				height: 14px;
+				line-height: 14px;
 				position: absolute;
 				top: 0;
 				bottom: 0;
