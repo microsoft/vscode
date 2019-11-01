@@ -57,7 +57,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 	) {
 		super();
 
-		this._register(vscode.workspace.onDidExecuteRenameFile(async (e) => {
+		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
 			const [{ newUri, oldUri }] = e.renamed;
 			const newFilePath = this.client.toPath(newUri);
 			if (!newFilePath) {

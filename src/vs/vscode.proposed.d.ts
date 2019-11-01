@@ -738,14 +738,14 @@ declare module 'vscode' {
 
 	export namespace workspace {
 
-		export const onDidExecuteCreateFile: Event<FileCreateEvent>;
-		export const onWillExecuteCreateFile: Event<FileWillCreateEvent>;
+		export const onWillCreateFiles: Event<FileWillCreateEvent>;
+		export const onDidCreateFiles: Event<FileCreateEvent>;
 
-		export const onDidExecuteDeleteFile: Event<FileDeleteEvent>;
-		export const onWillExecuteDeleteFile: Event<FileWillDeleteEvent>;
+		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
 
-		export const onWillExecuteRenameFile: Event<FileWillRenameEvent>;
-		export const onDidExecuteRenameFile: Event<FileRenameEvent>;
+		export const onWillRenameFiles: Event<FileWillRenameEvent>;
+		export const onDidRenameFiles: Event<FileRenameEvent>;
 
 	}
 	//#endregion
