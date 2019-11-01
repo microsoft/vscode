@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { escape } from 'vs/base/common/strings';
+import { isWeb } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 
 export default () => `
 <div class="welcomePageContainer">
 	<div class="welcomePage">
 		<div class="title">
-			<h1 class="caption">${escape(localize('welcomePage.vscode', "Visual Studio Code"))}</h1>
+			<h1 class="caption">${escape(isWeb ? localize('welcomePage.vsonline', "Visual Studio Online") : localize('welcomePage.vscode', "Visual Studio Code"))}</h1>
 			<p class="subtitle detail">${escape(localize({ key: 'welcomePage.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))}</p>
 		</div>
 		<div class="row">
