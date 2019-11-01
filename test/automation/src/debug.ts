@@ -12,7 +12,7 @@ import { IElement } from '../src/driver';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET} .debug-view-content`;
-const CONFIGURE = `div[id="workbench.parts.sidebar"] .actions-container .configure`;
+const CONFIGURE = `div[id="workbench.parts.sidebar"] .actions-container .codicon-gear`;
 const STOP = `.debug-toolbar .action-label[title*="Stop"]`;
 const STEP_OVER = `.debug-toolbar .action-label[title*="Step Over"]`;
 const STEP_IN = `.debug-toolbar .action-label[title*="Step Into"]`;
