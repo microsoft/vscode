@@ -142,13 +142,13 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	$onDidRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): void {
 		switch (operation) {
 			case FileOperation.MOVE:
-				this._onDidRenameFile.fire(Object.freeze({ oldUri: URI.revive(target), newUri: URI.revive(source!) }));
+				this._onDidRenameFile.fire(Object.freeze({ renamed: [{ oldUri: URI.revive(target), newUri: URI.revive(source!) }] }));
 				break;
 			case FileOperation.DELETE:
-				this._onDidDeleteFile.fire(Object.freeze({ uri: URI.revive(target) }));
+				this._onDidDeleteFile.fire(Object.freeze({ deleted: [URI.revive(target)] }));
 				break;
 			case FileOperation.CREATE:
-				this._onDidCreateFile.fire(Object.freeze({ uri: URI.revive(target) }));
+				this._onDidCreateFile.fire(Object.freeze({ created: [URI.revive(target)] }));
 				break;
 			default:
 			//ignore, dont send
@@ -182,10 +182,10 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 				await this._fireWillRename(URI.revive(target), URI.revive(source!));
 				break;
 			case FileOperation.DELETE:
-				this._onWillDeleteFile.fireAsync(thenables => (<vscode.FileWillDeleteEvent>{ uri: URI.revive(target), waitUntil: p => thenables.push(Promise.resolve(p)) }));
+				this._onWillDeleteFile.fireAsync(thenables => (<vscode.FileWillDeleteEvent>{ deleting: [URI.revive(target)], waitUntil: p => thenables.push(Promise.resolve(p)) }));
 				break;
 			case FileOperation.CREATE:
-				this._onWillCreateFile.fireAsync(thenables => (<vscode.FileWillCreateEvent>{ uri: URI.revive(target), waitUntil: p => thenables.push(Promise.resolve(p)) }));
+				this._onWillCreateFile.fireAsync(thenables => (<vscode.FileWillCreateEvent>{ creating: [URI.revive(target)], waitUntil: p => thenables.push(Promise.resolve(p)) }));
 				break;
 			default:
 			//ignore, dont send
@@ -197,8 +197,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		const edits: WorkspaceEdit[] = [];
 		await Promise.resolve(this._onWillRenameFile.fireAsync(bucket => {
 			return {
-				oldUri,
-				newUri,
+				renaming: [{ oldUri, newUri }],
 				waitUntil: (thenable: Promise<vscode.WorkspaceEdit>): void => {
 					if (Object.isFrozen(bucket)) {
 						throw new TypeError('waitUntil cannot be called async');

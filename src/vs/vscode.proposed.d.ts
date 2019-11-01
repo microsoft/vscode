@@ -710,31 +710,29 @@ declare module 'vscode' {
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
 
 	export interface FileCreateEvent {
-		readonly uri: Uri;
+		readonly created: ReadonlyArray<Uri>;
 	}
 
 	export interface FileWillCreateEvent {
-		readonly uri: Uri;
+		readonly creating: ReadonlyArray<Uri>;
 		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	export interface FileDeleteEvent {
-		readonly uri: Uri;
+		readonly deleted: ReadonlyArray<Uri>;
 	}
 
 	export interface FileWillDeleteEvent {
-		readonly uri: Uri;
+		readonly deleting: ReadonlyArray<Uri>;
 		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	export interface FileRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
+		readonly renamed: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
 	export interface FileWillRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
+		readonly renaming: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
 	}
 
