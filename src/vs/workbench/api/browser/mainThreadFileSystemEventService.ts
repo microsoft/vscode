@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
 
-	private readonly _listener = new Array<IDisposable>();
+	private readonly _listener = new DisposableStore();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -26,7 +28,7 @@ export class MainThreadFileSystemEventService {
 			changed: [],
 			deleted: []
 		};
-		fileService.onFileChanges(event => {
+		this._listener.add(fileService.onFileChanges(event => {
 			for (let change of event.changes) {
 				switch (change.type) {
 					case FileChangeType.ADDED:
@@ -45,14 +47,14 @@ export class MainThreadFileSystemEventService {
 			events.created.length = 0;
 			events.changed.length = 0;
 			events.deleted.length = 0;
-		}, undefined, this._listener);
+		}));
 
 		// file operation events
-		fileService.onWillRunOperation(e => proxy.$onWillRunFileOperation(e.operation, e.target, e.source));
-		fileService.onAfterOperation(e => proxy.$onDidRunFileOperation(e.operation, e.resource, e.target && e.target.resource), undefined, this._listener);
+		this._listener.add(textFileService.onWillRunOperation(e => proxy.$onWillRunFileOperation(e.operation, e.target, e.source)));
+		this._listener.add(textFileService.onDidRunOperation(e => proxy.$onDidRunFileOperation(e.operation, e.target, e.source)));
 	}
 
 	dispose(): void {
-		dispose(this._listener);
+		this._listener.dispose();
 	}
 }

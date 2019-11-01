@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED, FileOperationWillRunEvent } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter, AsyncEmitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { isAbsolutePath, dirname, basename, joinPath, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -130,9 +130,6 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	//#endregion
-
-	private _onWillRunOperation = this._register(new AsyncEmitter<FileOperationWillRunEvent>());
-	readonly onWillRunOperation = this._onWillRunOperation.event;
 
 	private _onAfterOperation: Emitter<FileOperationEvent> = this._register(new Emitter<FileOperationEvent>());
 	readonly onAfterOperation: Event<FileOperationEvent> = this._onAfterOperation.event;
@@ -281,9 +278,6 @@ export class FileService extends Disposable implements IFileService {
 		if (!options?.overwrite && await this.exists(resource)) {
 			throw new FileOperationError(localize('fileExists', "File to create already exists ({0})", this.resourceForError(resource)), FileOperationResult.FILE_MODIFIED_SINCE, options);
 		}
-
-		// before events
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.CREATE, resource));
 
 		// do write into file (this will create it too)
 		const fileStat = await this.writeFile(resource, bufferOrReadableOrStream);
@@ -548,9 +542,6 @@ export class FileService extends Disposable implements IFileService {
 		const sourceProvider = this.throwIfFileSystemIsReadonly(await this.withReadWriteProvider(source));
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withReadWriteProvider(target));
 
-		// before events
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.MOVE, target, source));
-
 		// move
 		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite);
 
@@ -564,9 +555,6 @@ export class FileService extends Disposable implements IFileService {
 	async copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		const sourceProvider = await this.withReadWriteProvider(source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withReadWriteProvider(target));
-
-		// before events
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.COPY, target, source));
 
 		// copy
 		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', !!overwrite);
@@ -722,9 +710,6 @@ export class FileService extends Disposable implements IFileService {
 	async createFolder(resource: URI): Promise<IFileStatWithMetadata> {
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
 
-		// before events
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.CREATE, resource));
-
 		// mkdir recursively
 		await this.mkdirp(provider, resource);
 
@@ -786,9 +771,6 @@ export class FileService extends Disposable implements IFileService {
 				throw new Error(localize('deleteFailed', "Unable to delete non-empty folder '{0}'.", this.resourceForError(resource)));
 			}
 		}
-
-		// Before Event
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.DELETE, resource));
 
 		// Delete through provider
 		await provider.delete(resource, { recursive, useTrash });
