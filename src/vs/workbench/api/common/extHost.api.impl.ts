@@ -695,11 +695,27 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostLabelService.$registerResourceLabelFormatter(formatter);
 			},
-			onDidRenameFile: (listener: (e: vscode.FileRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			onDidExecuteCreateFile: (listener, thisArg, disposables) => {
+				checkProposedApiEnabled(extension);
+				return extHostFileSystemEvent.onDidCreateFile(listener, thisArg, disposables);
+			},
+			onDidExecuteDeleteFile: (listener, thisArg, disposables) => {
+				checkProposedApiEnabled(extension);
+				return extHostFileSystemEvent.onDidDeleteFile(listener, thisArg, disposables);
+			},
+			onDidExecuteRenameFile: (listener, thisArg, disposables) => {
 				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
 			},
-			onWillRenameFile: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			onWillExecuteCreateFile: (listener: (e: vscode.FileWillCreateEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+				checkProposedApiEnabled(extension);
+				return extHostFileSystemEvent.getOnWillCreateFileEvent(extension)(listener, thisArg, disposables);
+			},
+			onWillExecuteDeleteFile: (listener: (e: vscode.FileWillDeleteEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+				checkProposedApiEnabled(extension);
+				return extHostFileSystemEvent.getOnWillDeleteFileEvent(extension)(listener, thisArg, disposables);
+			},
+			onWillExecuteRenameFile: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
 			}

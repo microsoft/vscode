@@ -708,6 +708,25 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
+
+	export interface FileCreateEvent {
+		readonly uri: Uri;
+	}
+
+	export interface FileWillCreateEvent {
+		readonly uri: Uri;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	export interface FileDeleteEvent {
+		readonly uri: Uri;
+	}
+
+	export interface FileWillDeleteEvent {
+		readonly uri: Uri;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
 	export interface FileRenameEvent {
 		readonly oldUri: Uri;
 		readonly newUri: Uri;
@@ -720,8 +739,16 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
-		export const onWillRenameFile: Event<FileWillRenameEvent>;
-		export const onDidRenameFile: Event<FileRenameEvent>;
+
+		export const onDidExecuteCreateFile: Event<FileCreateEvent>;
+		export const onWillExecuteCreateFile: Event<FileWillCreateEvent>;
+
+		export const onDidExecuteDeleteFile: Event<FileDeleteEvent>;
+		export const onWillExecuteDeleteFile: Event<FileWillDeleteEvent>;
+
+		export const onWillExecuteRenameFile: Event<FileWillRenameEvent>;
+		export const onDidExecuteRenameFile: Event<FileRenameEvent>;
+
 	}
 	//#endregion
 
