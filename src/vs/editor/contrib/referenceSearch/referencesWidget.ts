@@ -53,7 +53,7 @@ class DecorationsManager implements IDisposable {
 		this._onModelChanged();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._callOnModelChange.dispose();
 		this._callOnDispose.dispose();
 		this.removeDecorations();
@@ -145,7 +145,7 @@ class DecorationsManager implements IDisposable {
 		this._editor.deltaDecorations(toRemove, []);
 	}
 
-	public removeDecorations(): void {
+	removeDecorations(): void {
 		let toRemove: string[] = [];
 		this._decorations.forEach((value, key) => {
 			toRemove.push(key);
@@ -156,8 +156,8 @@ class DecorationsManager implements IDisposable {
 }
 
 export class LayoutData {
-	public ratio: number = 0.7;
-	public heightInLines: number = 18;
+	ratio: number = 0.7;
+	heightInLines: number = 18;
 
 	static fromJSON(raw: string): LayoutData {
 		let ratio: number | undefined;
@@ -397,7 +397,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);
 	}
 
-	public setSelection(selection: OneReference): Promise<any> {
+	setSelection(selection: OneReference): Promise<any> {
 		return this._revealReference(selection, true).then(() => {
 			if (!this._model) {
 				// disposed
@@ -409,7 +409,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
+	setModel(newModel: ReferencesModel | undefined): Promise<any> {
 		// clean up
 		this._disposeOnNewModel.clear();
 		this._model = newModel;
@@ -424,7 +424,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			return Promise.resolve(undefined);
 		}
 
-		if (this._model.empty) {
+		if (this._model.isEmpty) {
 			this.setTitle('');
 			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
 			dom.show(this._messageContainer);
