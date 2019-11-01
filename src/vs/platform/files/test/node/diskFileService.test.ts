@@ -15,7 +15,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata, FileOperationWillRunEvent } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -155,6 +155,9 @@ suite('Disk File Service', function () {
 	});
 
 	test('createFolder', async () => {
+		let beforeEvent: FileOperationWillRunEvent | undefined;
+		disposables.add(service.onWillRunOperation(e => beforeEvent = e));
+
 		let event: FileOperationEvent | undefined;
 		disposables.add(service.onAfterOperation(e => event = e));
 
@@ -166,6 +169,11 @@ suite('Disk File Service', function () {
 
 		assert.equal(newFolder.name, 'newFolder');
 		assert.equal(existsSync(newFolder.resource.fsPath), true);
+
+		assert.ok(beforeEvent);
+		assert.equal(beforeEvent!.target.fsPath, newFolderResource.fsPath);
+		assert.equal(beforeEvent!.source, undefined);
+		assert.equal(beforeEvent!.operation, FileOperation.CREATE);
 
 		assert.ok(event);
 		assert.equal(event!.resource.fsPath, newFolderResource.fsPath);
@@ -410,6 +418,9 @@ suite('Disk File Service', function () {
 	});
 
 	test('deleteFile', async () => {
+		let beforeEvent: FileOperationWillRunEvent | undefined;
+		disposables.add(service.onWillRunOperation(e => beforeEvent = e));
+
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
@@ -419,6 +430,12 @@ suite('Disk File Service', function () {
 		await service.del(source.resource);
 
 		assert.equal(existsSync(source.resource.fsPath), false);
+
+		assert.ok(beforeEvent!);
+		assert.equal(beforeEvent!.target.fsPath, resource.fsPath);
+		assert.equal(beforeEvent!.source, undefined);
+		assert.equal(beforeEvent!.operation, FileOperation.DELETE);
+
 		assert.ok(event!);
 		assert.equal(event!.resource.fsPath, resource.fsPath);
 		assert.equal(event!.operation, FileOperation.DELETE);
@@ -454,6 +471,9 @@ suite('Disk File Service', function () {
 	});
 
 	test('move', async () => {
+		let beforeEvent: FileOperationWillRunEvent | undefined;
+		disposables.add(service.onWillRunOperation(e => beforeEvent = e));
+
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
@@ -466,6 +486,10 @@ suite('Disk File Service', function () {
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
 		assert.equal(existsSync(source.fsPath), false);
+		assert.ok(beforeEvent!);
+		assert.equal(beforeEvent!.operation, FileOperation.MOVE);
+		assert.equal(beforeEvent!.source?.fsPath, source.fsPath);
+		assert.equal(beforeEvent!.target?.fsPath, target.fsPath);
 		assert.ok(event!);
 		assert.equal(event!.resource.fsPath, source.fsPath);
 		assert.equal(event!.operation, FileOperation.MOVE);
@@ -820,6 +844,9 @@ suite('Disk File Service', function () {
 	}
 
 	async function doTestCopy(sourceName: string = 'index.html') {
+		let beforeEvent: FileOperationWillRunEvent | undefined;
+		disposables.add(service.onWillRunOperation(e => beforeEvent = e));
+
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
@@ -830,6 +857,10 @@ suite('Disk File Service', function () {
 
 		assert.equal(existsSync(copied.resource.fsPath), true);
 		assert.equal(existsSync(source.resource.fsPath), true);
+		assert.ok(beforeEvent!);
+		assert.equal(beforeEvent!.source!.fsPath, source.resource.fsPath);
+		assert.equal(beforeEvent!.operation, FileOperation.COPY);
+		assert.equal(beforeEvent!.target!.fsPath, copied.resource.fsPath);
 		assert.ok(event!);
 		assert.equal(event!.resource.fsPath, source.resource.fsPath);
 		assert.equal(event!.operation, FileOperation.COPY);
@@ -1338,6 +1369,9 @@ suite('Disk File Service', function () {
 	});
 
 	async function assertCreateFile(converter: (content: string) => VSBuffer | VSBufferReadable | VSBufferReadableStream): Promise<void> {
+		let beforeEvent: FileOperationWillRunEvent | undefined;
+		disposables.add(service.onWillRunOperation(e => beforeEvent = e));
+
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
@@ -1348,6 +1382,10 @@ suite('Disk File Service', function () {
 		assert.equal(existsSync(fileStat.resource.fsPath), true);
 		assert.equal(readFileSync(fileStat.resource.fsPath), contents);
 
+		assert.ok(beforeEvent!);
+		assert.equal(beforeEvent!.target.fsPath, resource.fsPath);
+		assert.equal(beforeEvent!.source, undefined);
+		assert.equal(beforeEvent!.operation, FileOperation.CREATE);
 		assert.ok(event!);
 		assert.equal(event!.resource.fsPath, resource.fsPath);
 		assert.equal(event!.operation, FileOperation.CREATE);

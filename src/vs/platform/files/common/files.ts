@@ -7,7 +7,7 @@ import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
+import { Event, IWaitUntil } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
@@ -56,6 +56,11 @@ export interface IFileService {
 	 * (if any) as well as all files that have been watched explicitly using the #watch() API.
 	 */
 	readonly onFileChanges: Event<FileChangesEvent>;
+
+	/**
+	 * An event that is fired before attempting a certain file operation.
+	 */
+	readonly onWillRunOperation: Event<FileOperationWillRunEvent>;
 
 	/**
 	 * An event that is fired upon successful completion of a certain file operation.
@@ -369,6 +374,23 @@ export class FileOperationEvent {
 	isOperation(operation: FileOperation.MOVE | FileOperation.COPY | FileOperation.CREATE): this is { readonly target: IFileStatWithMetadata };
 	isOperation(operation: FileOperation): boolean {
 		return this.operation === operation;
+	}
+}
+
+export class FileOperationWillRunEvent implements IWaitUntil {
+
+	constructor(
+		private _thenables: Promise<any>[],
+		readonly operation: FileOperation,
+		readonly target: URI,
+		readonly source?: URI | undefined
+	) { }
+
+	waitUntil(thenable: Promise<any>): void {
+		if (Object.isFrozen(this._thenables)) {
+			throw new Error('waitUntil cannot be used aync');
+		}
+		this._thenables.push(thenable);
 	}
 }
 

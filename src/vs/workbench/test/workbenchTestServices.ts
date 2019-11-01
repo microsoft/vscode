@@ -923,6 +923,8 @@ export class TestFileService implements IFileService {
 
 	public _serviceBrand: undefined;
 
+	readonly onWillRunOperation = Event.None;
+
 	private readonly _onFileChanges: Emitter<FileChangesEvent>;
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
