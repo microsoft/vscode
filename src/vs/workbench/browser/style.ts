@@ -195,16 +195,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				position: relative;
 			}
 
-			/* Panel dropdown */
-			.monaco-workbench .panel .monaco-action-bar .select-container .monaco-select-box {
-				margin-right: 0;
-			}
-
-			/* Debug dropdown */
-			.monaco-workbench .start-debug-action-item .select-container {
-				padding-right: 22px;
-			}
-
 			.monaco-workbench .select-container:after {
 				content: "\\f11e";
 				font-family: codicon;

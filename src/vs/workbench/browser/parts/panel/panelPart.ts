@@ -33,6 +33,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { isSafari, isFirefox } from 'vs/base/browser/browser';
 
 interface ICachedPanel {
 	id: string;
@@ -523,6 +524,17 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			}
 		`);
 	}
+
+	// Styling for custom dropdown on Safari and Firefox
+	if (isSafari || isFirefox) {
+		collector.addRule(`
+			/* Panel dropdown */
+			.monaco-workbench .panel .monaco-action-bar .select-container .monaco-select-box {
+				margin-right: 0;
+			}
+		`);
+	}
+
 });
 
 registerSingleton(IPanelService, PanelPart);

@@ -392,5 +392,14 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .codicon-debug-continue { color: ${debugIconContinueColor} !important; }`);
 	}
 
+	// Styling for custom dropdown on Safari and Firefox
+	if (browser.isSafari || browser.isFirefox) {
+		collector.addRule(`
+			/* Debug dropdown */
+			.monaco-workbench .start-debug-action-item .select-container {
+				padding-right: 22px;
+			}
+		`);
+	}
 
 });
