@@ -70,11 +70,8 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
 			const markersBelowViewport = this._terminal.markers.filter(e => e.line >= viewportY).length;
-			if (markersBelowViewport === 0) {
-				markerIndex = -1;
-			} else {
-				markerIndex = this._terminal.markers.length - markersBelowViewport - 1;
-			}
+			// -1 will scroll to the top
+			markerIndex = this._terminal.markers.length - markersBelowViewport - 1;
 		} else if (this._currentMarker === Boundary.Bottom) {
 			markerIndex = this._terminal.markers.length - 1;
 		} else if (this._currentMarker === Boundary.Top) {
@@ -112,11 +109,8 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
 			const markersAboveViewport = this._terminal.markers.filter(e => e.line <= viewportY).length;
-			if (markersAboveViewport < this._terminal.markers.length) {
-				markerIndex = markersAboveViewport;
-			} else {
-				markerIndex = this._terminal.markers.length;
-			}
+			// markers.length will scroll to the bottom
+			markerIndex = markersAboveViewport;
 		} else if (this._currentMarker === Boundary.Bottom) {
 			markerIndex = this._terminal.markers.length;
 		} else if (this._currentMarker === Boundary.Top) {
