@@ -195,7 +195,7 @@ export class CodeApplication extends Disposable {
 					return;
 				}
 
-				delete webPreferences.preloadUrl;
+				delete webPreferences.preloadURL;
 
 				// Otherwise prevent loading
 				this.logService.error('webContents#web-contents-created: Prevented webview attach');
@@ -497,27 +497,27 @@ export class CodeApplication extends Disposable {
 		this.logService.info(`Tracing: waiting for windows to get ready...`);
 
 		let recordingStopped = false;
-		const stopRecording = (timeout: boolean) => {
+		const stopRecording = async (timeout: boolean) => {
 			if (recordingStopped) {
 				return;
 			}
 
 			recordingStopped = true; // only once
 
-			contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
-				if (!timeout) {
-					if (this.dialogMainService) {
-						this.dialogMainService.showMessageBox({
-							type: 'info',
-							message: localize('trace.message', "Successfully created trace."),
-							detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-							buttons: [localize('trace.ok', "Ok")]
-						}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
-					}
-				} else {
-					this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
+			const path = await contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`));
+
+			if (!timeout) {
+				if (this.dialogMainService) {
+					this.dialogMainService.showMessageBox({
+						type: 'info',
+						message: localize('trace.message', "Successfully created trace."),
+						detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+						buttons: [localize('trace.ok', "Ok")]
+					}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 				}
-			});
+			} else {
+				this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
+			}
 		};
 
 		// Wait up to 30s before creating the trace anyways
