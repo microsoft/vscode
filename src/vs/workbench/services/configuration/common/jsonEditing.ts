@@ -36,5 +36,5 @@ export interface IJSONEditingService {
 
 	_serviceBrand: undefined;
 
-	write(resource: URI, value: IJSONValue, save: boolean): Promise<void>;
+	write(resource: URI, values: IJSONValue[], save: boolean): Promise<void>;
 }

@@ -11,7 +11,6 @@ const bom = require("gulp-bom");
 const sourcemaps = require("gulp-sourcemaps");
 const tsb = require("gulp-tsb");
 const path = require("path");
-const _ = require("underscore");
 const monacodts = require("../monaco/api");
 const nls = require("./nls");
 const reporter_1 = require("./reporter");
@@ -22,14 +21,7 @@ const watch = require('./watch');
 const reporter = reporter_1.createReporter();
 function getTypeScriptCompilerOptions(src) {
     const rootDir = path.join(__dirname, `../../${src}`);
-    const tsconfig = require(`../../${src}/tsconfig.json`);
-    let options;
-    if (tsconfig.extends) {
-        options = Object.assign({}, require(path.join(rootDir, tsconfig.extends)).compilerOptions, tsconfig.compilerOptions);
-    }
-    else {
-        options = tsconfig.compilerOptions;
-    }
+    let options = {};
     options.verbose = false;
     options.sourceMap = true;
     if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
@@ -38,15 +30,14 @@ function getTypeScriptCompilerOptions(src) {
     options.rootDir = rootDir;
     options.baseUrl = rootDir;
     options.sourceRoot = util.toFileUri(rootDir);
-    options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
+    options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
     return options;
 }
 function createCompile(src, build, emitError) {
-    const opts = _.clone(getTypeScriptCompilerOptions(src));
-    opts.inlineSources = !!build;
-    opts.noFilesystemLookup = true;
-    const ts = tsb.create(opts, true, undefined, err => reporter(err.toString()));
-    return function (token) {
+    const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
+    const overrideOptions = Object.assign(Object.assign({}, getTypeScriptCompilerOptions(src)), { inlineSources: Boolean(build) });
+    const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
+    function pipeline(token) {
         const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
         const tsFilter = util.filter(data => /\.ts$/.test(data.path));
         const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
@@ -57,30 +48,28 @@ function createCompile(src, build, emitError) {
             .pipe(utf8Filter.restore)
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
-            .pipe(ts(token))
+            .pipe(compilation(token))
             .pipe(noDeclarationsFilter)
             .pipe(build ? nls() : es.through())
             .pipe(noDeclarationsFilter.restore)
             .pipe(sourcemaps.write('.', {
             addComment: false,
             includeContent: !!build,
-            sourceRoot: opts.sourceRoot
+            sourceRoot: overrideOptions.sourceRoot
         }))
             .pipe(tsFilter.restore)
             .pipe(reporter.end(!!emitError));
         return es.duplex(input, output);
+    }
+    pipeline.tsProjectSrc = () => {
+        return compilation.src({ base: src });
     };
+    return pipeline;
 }
-const typesDts = [
-    'node_modules/typescript/lib/*.d.ts',
-    'node_modules/@types/**/*.d.ts',
-    '!node_modules/@types/webpack/**/*',
-    '!node_modules/@types/uglify-js/**/*',
-];
 function compileTask(src, out, build) {
     return function () {
         const compile = createCompile(src, build, true);
-        const srcPipe = es.merge(gulp.src(`${src}/**`, { base: `${src}` }), gulp.src(typesDts));
+        const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         let generator = new MonacoGenerator(false);
         if (src === 'src') {
             generator.execute();
@@ -95,8 +84,8 @@ exports.compileTask = compileTask;
 function watchTask(out, build) {
     return function () {
         const compile = createCompile('src', build);
-        const src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src(typesDts));
-        const watchSrc = watch('src/**', { base: 'src' });
+        const src = gulp.src('src/**', { base: 'src' });
+        const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
         let generator = new MonacoGenerator(true);
         generator.execute();
         return watchSrc

@@ -195,7 +195,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
 		this.useExcludesAndIgnoreFilesBox = this._register(new Checkbox({
-			actionClassName: 'useExcludesAndIgnoreFiles',
+			actionClassName: 'useExcludesAndIgnoreFiles codicon-exclude',
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
 			isChecked: true,
 		}));

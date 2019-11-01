@@ -36,6 +36,27 @@ export class ReplaceCommand implements ICommand {
 	}
 }
 
+export class ReplaceCommandThatSelectsText implements ICommand {
+
+	private readonly _range: Range;
+	private readonly _text: string;
+
+	constructor(range: Range, text: string) {
+		this._range = range;
+		this._text = text;
+	}
+
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		builder.addTrackedEditOperation(this._range, this._text);
+	}
+
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		const inverseEditOperations = helper.getInverseEditOperations();
+		const srcRange = inverseEditOperations[0].range;
+		return new Selection(srcRange.startLineNumber, srcRange.startColumn, srcRange.endLineNumber, srcRange.endColumn);
+	}
+}
+
 export class ReplaceCommandWithoutChangingPosition implements ICommand {
 
 	private readonly _range: Range;

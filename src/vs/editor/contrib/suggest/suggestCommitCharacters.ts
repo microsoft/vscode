@@ -8,6 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class CommitCharacterController {
 
@@ -27,7 +28,7 @@ export class CommitCharacterController {
 		this._disposables.add(editor.onWillType(text => {
 			if (this._active) {
 				const ch = text.charCodeAt(text.length - 1);
-				if (this._active.acceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
+				if (this._active.acceptCharacters.has(ch) && editor.getOption(EditorOption.acceptSuggestionOnCommitCharacter)) {
 					accept(this._active.item);
 				}
 			}

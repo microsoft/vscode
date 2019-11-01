@@ -12,10 +12,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionViewItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -24,6 +24,8 @@ import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/c
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { assertIsDefined } from 'vs/base/common/types';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -69,7 +71,8 @@ export class TerminalPanel extends Panel {
 
 		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 
-		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
+		const container = assertIsDefined(this.getContainer());
+		this._terminalService.setContainers(container, this._terminalContainer);
 
 		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -215,12 +218,13 @@ export class TerminalPanel extends Panel {
 					terminal.focus();
 				}
 			} else if (event.which === 3) {
-				if (this._terminalService.configHelper.config.rightClickBehavior === 'copyPaste') {
+				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					const terminal = this._terminalService.getActiveInstance();
 					if (!terminal) {
 						return;
 					}
-					if (terminal.hasSelection()) {
+					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
 						await terminal.copySelection();
 						terminal.clearSelection();
 					} else {
@@ -249,6 +253,7 @@ export class TerminalPanel extends Panel {
 					getActionsContext: () => this._parentDomElement
 				});
 			} else {
+				event.preventDefault();
 				event.stopImmediatePropagation();
 			}
 			this._cancelContextMenu = false;
@@ -287,7 +292,7 @@ export class TerminalPanel extends Panel {
 
 				const terminal = this._terminalService.getActiveInstance();
 				if (terminal) {
-					return this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title).then(preparedPath => {
+					return this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType).then(preparedPath => {
 						terminal.sendText(preparedPath, false);
 					});
 				}
@@ -333,7 +338,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (hoverBorder) {
 		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`);
 	}
-	const hoverForeground = theme.getColor(editorForeground);
+	const hoverForeground = theme.getColor(editorHoverForeground);
 	if (hoverForeground) {
 		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { color: ${hoverForeground}; }`);
 	}

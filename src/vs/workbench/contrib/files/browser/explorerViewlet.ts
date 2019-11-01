@@ -121,7 +121,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			name: EmptyView.NAME,
 			ctorDescriptor: { ctor: EmptyView },
 			order: 1,
-			canToggleVisibility: false
+			canToggleVisibility: true,
 		};
 	}
 
@@ -241,7 +241,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 
 	focus(): void {
 		const explorerView = this.getView(ExplorerView.ID);
-		if (explorerView && explorerView.isExpanded()) {
+		if (explorerView?.isExpanded()) {
 			explorerView.focus();
 		} else {
 			super.focus();

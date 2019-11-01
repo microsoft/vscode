@@ -23,8 +23,8 @@ const $ = DOM.$;
 
 export class TOCTreeModel {
 
-	private _currentSearchModel: SearchResultModel | null;
-	private _settingsTreeRoot: SettingsTreeGroupElement;
+	private _currentSearchModel: SearchResultModel | null = null;
+	private _settingsTreeRoot!: SettingsTreeGroupElement;
 
 	constructor(
 		private _viewState: ISettingsEditorViewState,
@@ -211,7 +211,7 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 
 		this.getHTMLElement().classList.add(treeClass);
 
-		this.disposables.push(attachStyler(themeService, {
+		this.disposables.add(attachStyler(themeService, {
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
 			listFocusAndSelectionBackground: editorBackground,

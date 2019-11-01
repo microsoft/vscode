@@ -5,14 +5,14 @@
 
 import { strictEqual, ok, equal } from 'assert';
 import { StorageScope, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { StorageService } from 'vs/platform/storage/node/storageService';
+import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 
 suite('StorageService', () => {
@@ -86,7 +86,7 @@ suite('StorageService', () => {
 		class StorageTestEnvironmentService extends EnvironmentService {
 
 			constructor(private workspaceStorageFolderPath: string, private _extensionsPath: string) {
-				super(parseArgs(process.argv), process.execPath);
+				super(parseArgs(process.argv, OPTIONS), process.execPath);
 			}
 
 			get workspaceStorageHome(): string {
@@ -101,7 +101,7 @@ suite('StorageService', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storage = new StorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(storageDir, storageDir));
+		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(storageDir, storageDir));
 		await storage.initialize({ id: String(Date.now()) });
 
 		storage.store('bar', 'foo', StorageScope.WORKSPACE);

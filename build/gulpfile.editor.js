@@ -41,12 +41,7 @@ var editorEntryPoints = [
 ];
 
 var editorResources = [
-	'out-build/vs/{base,editor}/**/*.{svg,png}',
-	'!out-build/vs/base/browser/ui/splitview/**/*',
-	'!out-build/vs/base/browser/ui/toolbar/**/*',
-	'!out-build/vs/base/browser/ui/octiconLabel/**/*',
-	'!out-build/vs/workbench/**',
-	'!**/test/**'
+	'out-editor-build/vs/base/browser/ui/codiconLabel/**/*.ttf'
 ];
 
 var BUNDLED_FILE_HEADER = [
@@ -89,9 +84,6 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			`lib.dom.d.ts`,
 			`lib.webworker.importscripts.d.ts`
 		],
-		redirects: {
-			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
-		},
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /(^vs\/css!)|(promise-polyfill\/polyfill)/,
 		destRoot: path.join(root, 'out-editor-src')

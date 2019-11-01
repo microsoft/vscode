@@ -29,8 +29,9 @@
 .monaco-editor .marker-widget .descriptioncontainer {
 	position: absolute;
 	white-space: pre;
-	-webkit-user-select: text;
 	user-select: text;
+	-webkit-user-select: text;
+	-ms-user-select: text;
 	padding: 8px 12px 0px 20px;
 }
 

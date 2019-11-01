@@ -23,6 +23,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 abstract class Recording {
 
@@ -414,7 +415,7 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		if (codeEditor && codeEditor.getConfiguration().readOnly) {
+		if (codeEditor && codeEditor.getOption(EditorOption.readOnly)) {
 			// If the code editor is readonly still allow bulk edits to be applied #68549
 			codeEditor = undefined;
 		}

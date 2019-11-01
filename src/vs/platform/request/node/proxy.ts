@@ -44,9 +44,7 @@ export async function getProxyAgent(rawRequestURL: string, options: IOptions = {
 		rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true
 	};
 
-	const Ctor = requestURL.protocol === 'http:'
-		? await import('http-proxy-agent')
-		: await import('https-proxy-agent');
-
-	return new Ctor(opts);
+	return requestURL.protocol === 'http:'
+		? new (await import('http-proxy-agent'))(opts)
+		: new (await import('https-proxy-agent'))(opts);
 }

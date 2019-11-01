@@ -16,6 +16,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { join } from 'path';
 
 const chunkSize = 64 * 1024;
 const readError = 'Error while reading';
@@ -252,7 +253,7 @@ suite('PFS', () => {
 		}
 		catch (error) {
 			assert.fail(error);
-			return Promise.reject(error);
+			throw error;
 		}
 	});
 
@@ -386,6 +387,31 @@ suite('PFS', () => {
 		}
 	});
 
+	test('readdirWithFileTypes', async () => {
+		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
+			const id = uuid.generateUuid();
+			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+			const testDir = join(parentDir, 'pfs', id);
+
+			const newDir = path.join(testDir, 'öäü');
+			await pfs.mkdirp(newDir, 493);
+
+			await pfs.writeFile(join(testDir, 'somefile.txt'), 'contents');
+
+			assert.ok(fs.existsSync(newDir));
+
+			const children = await pfs.readdirWithFileTypes(testDir);
+
+			assert.equal(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
+			assert.equal(children.some(n => n.isDirectory()), true);
+
+			assert.equal(children.some(n => n.name === 'somefile.txt'), true);
+			assert.equal(children.some(n => n.isFile()), true);
+
+			await pfs.rimraf(parentDir);
+		}
+	});
+
 	test('writeFile (string)', async () => {
 		const smallData = 'Hello World';
 		const bigData = (new Array(100 * 1024)).join('Large String\n');
@@ -499,7 +525,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError || (<any>expectedError).code !== 'EISDIR') {
-			return Promise.reject(new Error('Expected EISDIR error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error')));
+			throw new Error('Expected EISDIR error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error'));
 		}
 
 		// verify that the stream is still consumable (for https://github.com/Microsoft/vscode/issues/42542)
@@ -525,7 +551,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError || expectedError.message !== readError) {
-			return Promise.reject(new Error('Expected error for writing to folder'));
+			throw new Error('Expected error for writing to folder');
 		}
 
 		await pfs.rimraf(parentDir);
@@ -556,7 +582,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError || !((<any>expectedError).code !== 'EACCES' || (<any>expectedError).code !== 'EPERM')) {
-			return Promise.reject(new Error('Expected EACCES/EPERM error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error')));
+			throw new Error('Expected EACCES/EPERM error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error'));
 		}
 
 		await pfs.rimraf(parentDir);
@@ -583,7 +609,7 @@ suite('PFS', () => {
 		}
 
 		if (!expectedError) {
-			return Promise.reject(new Error('Expected error for writing to folder'));
+			throw new Error('Expected error for writing to folder');
 		}
 
 		await pfs.rimraf(parentDir);

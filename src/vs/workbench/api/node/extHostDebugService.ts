@@ -14,7 +14,7 @@ import {
 	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
 } from 'vs/workbench/api/common/extHost.protocol';
 import * as vscode from 'vscode';
-import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint, DebugConsoleMode } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
@@ -82,12 +82,12 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 	private _debugAdapters: Map<number, IDebugAdapter>;
 	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
 
-	private _variableResolver: IConfigurationResolverService;
+	private _variableResolver: IConfigurationResolverService | undefined;
 
 	private _integratedTerminalInstance?: vscode.Terminal;
-	private _terminalDisposedListener: IDisposable;
+	private _terminalDisposedListener: IDisposable | undefined;
 
-	private _signService: ISignService;
+	private _signService: ISignService | undefined;
 
 
 	constructor(
@@ -252,8 +252,11 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 		return this._debugServiceProxy.$unregisterBreakpoints(ids, fids, dids);
 	}
 
-	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, parentSession?: vscode.DebugSession): Promise<boolean> {
-		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig, parentSession ? parentSession.id : undefined);
+	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, options: vscode.DebugSessionOptions): Promise<boolean> {
+		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig, {
+			parentSessionID: options.parentSession ? options.parentSession.id : undefined,
+			repl: options.consoleMode === DebugConsoleMode.MergeWithParent ? 'mergeWithParent' : 'separate'
+		});
 	}
 
 	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
@@ -337,46 +340,38 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 				});
 			}
 
-			return new Promise(resolve => {
-				if (this._integratedTerminalInstance) {
-					this._integratedTerminalInstance.processId.then(pid => {
-						resolve(hasChildProcesses(pid));
-					}, err => {
-						resolve(true);
-					});
-				} else {
-					resolve(true);
-				}
-			}).then(async needNewTerminal => {
+			let needNewTerminal = true;	// be pessimistic
+			if (this._integratedTerminalInstance) {
+				const pid = await this._integratedTerminalInstance.processId;
+				needNewTerminal = await hasChildProcesses(pid);		// if no processes running in terminal reuse terminal
+			}
 
-				const configProvider = await this._configurationService.getConfigProvider();
-				const shell = this._terminalService.getDefaultShell(true, configProvider);
+			const configProvider = await this._configurationService.getConfigProvider();
+			const shell = this._terminalService.getDefaultShell(true, configProvider);
 
-				if (needNewTerminal || !this._integratedTerminalInstance) {
-					const options: vscode.TerminalOptions = {
-						shellPath: shell,
-						// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
-						cwd: args.cwd,
-						name: args.title || nls.localize('debug.terminal.title', "debuggee"),
-						env: args.env
-					};
-					delete args.cwd;
-					delete args.env;
-					this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
-				}
-				const terminal: vscode.Terminal = this._integratedTerminalInstance;
+			if (needNewTerminal || !this._integratedTerminalInstance) {
 
-				terminal.show();
+				const options: vscode.TerminalOptions = {
+					shellPath: shell,
+					// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
+					cwd: args.cwd,
+					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
+					env: args.env
+				};
+				delete args.cwd;
+				delete args.env;
+				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
+			}
 
-				return this._integratedTerminalInstance.processId.then(shellProcessId => {
+			const terminal = this._integratedTerminalInstance;
 
-					const command = prepareCommand(args, shell, configProvider);
+			terminal.show();
 
-					terminal.sendText(command, true);
+			const shellProcessId = await this._integratedTerminalInstance.processId;
+			const command = prepareCommand(args, shell, configProvider);
+			terminal.sendText(command, true);
 
-					return shellProcessId;
-				});
-			});
+			return shellProcessId;
 
 		} else if (args.kind === 'external') {
 
@@ -687,6 +682,13 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession);
 	}
 
+	public async $acceptDebugSessionNameChanged(sessionDto: IDebugSessionDto, name: string): Promise<void> {
+		const session = await this.getSession(sessionDto);
+		if (session) {
+			session._acceptNameChanged(name);
+		}
+	}
+
 	public async $acceptDebugSessionCustomEvent(sessionDto: IDebugSessionDto, event: any): Promise<void> {
 		const session = await this.getSession(sessionDto);
 		const ee: vscode.DebugSessionCustomEvent = {
@@ -917,6 +919,15 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 		return this._name;
 	}
 
+	public set name(name: string) {
+		this._name = name;
+		this._debugServiceProxy.$setDebugSessionName(this._id, name);
+	}
+
+	_acceptNameChanged(name: string) {
+		this._name = name;
+	}
+
 	public get workspaceFolder(): vscode.WorkspaceFolder | undefined {
 		return this._workspaceFolder;
 	}
@@ -1051,10 +1062,8 @@ interface IDapTransport {
 
 class DirectDebugAdapter extends AbstractDebugAdapter implements IDapTransport {
 
-	readonly onError: Event<Error>;
-	readonly onExit: Event<number>;
 
-	private _sendUp: (msg: DebugProtocol.ProtocolMessage) => void;
+	private _sendUp!: (msg: DebugProtocol.ProtocolMessage) => void;
 
 	constructor(implementation: any) {
 		super();

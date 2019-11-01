@@ -101,7 +101,7 @@ suite('Storage Library', () => {
 		await mkdirp(storageDir);
 
 		class TestSQLiteStorageDatabase extends SQLiteStorageDatabase {
-			private _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
+			private readonly _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
 			get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return this._onDidChangeItemsExternal.event; }
 
 			fireDidChangeItemsExternal(event: IStorageItemsChangeEvent): void {

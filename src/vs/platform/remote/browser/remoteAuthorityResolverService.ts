@@ -5,12 +5,18 @@
 
 import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorities } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
 
 	_serviceBrand: undefined;
 
-	constructor() {
+	constructor(
+		resourceUriProvider: ((uri: URI) => URI) | undefined
+	) {
+		if (resourceUriProvider) {
+			RemoteAuthorities.setDelegate(resourceUriProvider);
+		}
 	}
 
 	resolveAuthority(authority: string): Promise<ResolverResult> {

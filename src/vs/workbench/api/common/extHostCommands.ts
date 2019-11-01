@@ -52,7 +52,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			{
 				processArgument(a) {
 					// URI, Regex
-					return revive(a, 0);
+					return revive(a);
 				}
 			},
 			{
@@ -112,6 +112,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		this._logService.trace('ExtHostCommands#executeCommand', id);
+		return this._doExecuteCommand(id, args, true);
+	}
+
+	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
 
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
@@ -120,8 +124,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 		} else {
 			// automagically convert some argument types
-
-			args = cloneAndChange(args, function (value) {
+			const toArgs = cloneAndChange(args, function (value) {
 				if (value instanceof extHostTypes.Position) {
 					return extHostTypeConverter.Position.from(value);
 				}
@@ -136,7 +139,19 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			});
 
-			return this._proxy.$executeCommand<T>(id, args).then(result => revive(result, 0));
+			try {
+				const result = await this._proxy.$executeCommand<T>(id, toArgs, retry);
+				return revive(result);
+			} catch (e) {
+				// Rerun the command when it wasn't known, had arguments, and when retry
+				// is enabled. We do this because the command might be registered inside
+				// the extension host now and can therfore accept the arguments as-is.
+				if (e instanceof Error && e.message === '$executeCommand:retry') {
+					return this._doExecuteCommand(id, args, false);
+				} else {
+					throw e;
+				}
+			}
 		}
 	}
 

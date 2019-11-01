@@ -227,6 +227,25 @@ export interface IStatusMessageOptions {
 	hideAfter?: number;
 }
 
+export enum NotificationsFilter {
+
+	/**
+	 * No filter is enabled.
+	 */
+	OFF,
+
+	/**
+	 * All notifications are configured as silent. See
+	 * `INotificationProperties.silent` for more info.
+	 */
+	SILENT,
+
+	/**
+	 * All notifications are silent except error notifications.
+	*/
+	ERROR
+}
+
 /**
  * A service to bring up notifications and non-modal prompts.
  *
@@ -286,6 +305,13 @@ export interface INotificationService {
 	 * @returns a disposable to hide the status message
 	 */
 	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+
+	/**
+	 * Allows to configure a filter for notifications.
+	 *
+	 * @param filter the filter to use
+	 */
+	setFilter(filter: NotificationsFilter): void;
 }
 
 export class NoOpNotification implements INotificationHandle {

@@ -90,6 +90,10 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return result;
 	}
 
+	public getBusyTasks(): Task[] {
+		return this.getActiveTasks();
+	}
+
 	public run(task: Task): ITaskExecuteResult {
 		if (this.activeTask) {
 			return { kind: TaskExecuteKind.Active, task, active: { same: this.activeTask._id === task._id, background: this.activeTask.configurationProperties.isBackground! }, promise: this.activeTaskPromise! };

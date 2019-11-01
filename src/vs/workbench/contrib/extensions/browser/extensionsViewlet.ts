@@ -43,7 +43,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -58,11 +58,6 @@ import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsView
 import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { MementoObject } from 'vs/workbench/common/memento';
-
-interface SearchInputEvent extends Event {
-	target: HTMLInputElement;
-	immediate?: boolean;
-}
 
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
@@ -88,6 +83,7 @@ const viewIdNameMappings: { [id: string]: string } = {
 	'extensions.builtInExtensionsList': localize('builtInExtensions', "Features"),
 	'extensions.builtInThemesExtensionsList': localize('builtInThemesExtensions', "Themes"),
 	'extensions.builtInBasicsExtensionsList': localize('builtInBasicsExtensions', "Programming Languages"),
+	'extensions.syncedExtensionsList': localize('syncedExtensions', "My Account"),
 };
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
@@ -315,6 +311,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			weight: 100
 		};
 	}
+
 }
 
 export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensionsViewlet {
@@ -355,7 +352,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
@@ -488,12 +485,13 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return this.secondaryActions;
 	}
 
-	search(value: string): void {
+	search(value: string, refresh: boolean = false): void {
 		if (this.searchBox) {
-			const event = new Event('input', { bubbles: true }) as SearchInputEvent;
-			event.immediate = true;
-
-			this.searchBox.setValue(value);
+			if (this.searchBox.getValue() !== value) {
+				this.searchBox.setValue(value);
+			} else if (refresh) {
+				this.doSearch();
+			}
 		}
 	}
 
@@ -645,7 +643,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionManagementService private readonly extensionsManagementService: IExtensionManagementService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
@@ -676,7 +674,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", e.identifier.id),
 							[{
 								label: localize('reloadNow', "Reload Now"),
-								run: () => this.windowService.reloadWindow()
+								run: () => this.hostService.reload()
 							}],
 							{ sticky: true }
 						);

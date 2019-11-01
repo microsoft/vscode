@@ -179,7 +179,7 @@ export class ShiftCommand implements ICommand {
 				}
 
 				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), desiredIndent);
-				if (lineNumber === startLine) {
+				if (lineNumber === startLine && !this._selection.isEmpty()) {
 					// Force the startColumn to stay put because we're inserting after it
 					this._selectionStartColumnStaysPut = (this._selection.startColumn <= indentationEndIndex + 1);
 				}
@@ -226,7 +226,7 @@ export class ShiftCommand implements ICommand {
 					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), '');
 				} else {
 					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, 1), oneIndent);
-					if (lineNumber === startLine) {
+					if (lineNumber === startLine && !this._selection.isEmpty()) {
 						// Force the startColumn to stay put because we're inserting after it
 						this._selectionStartColumnStaysPut = (this._selection.startColumn === 1);
 					}

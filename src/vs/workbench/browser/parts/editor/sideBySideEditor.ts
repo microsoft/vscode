@@ -17,6 +17,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -47,10 +48,10 @@ export class SideBySideEditor extends BaseEditor {
 	protected masterEditor?: BaseEditor;
 	protected detailsEditor?: BaseEditor;
 
-	private masterEditorContainer: HTMLElement;
-	private detailsEditorContainer: HTMLElement;
+	private masterEditorContainer: HTMLElement | undefined;
+	private detailsEditorContainer: HTMLElement | undefined;
 
-	private splitview: SplitView;
+	private splitview: SplitView | undefined;
 	private dimension: DOM.Dimension = new DOM.Dimension(0, 0);
 
 	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; } | undefined>());
@@ -69,8 +70,8 @@ export class SideBySideEditor extends BaseEditor {
 	protected createEditor(parent: HTMLElement): void {
 		DOM.addClass(parent, 'side-by-side-editor');
 
-		this.splitview = this._register(new SplitView(parent, { orientation: Orientation.HORIZONTAL }));
-		this._register(this.splitview.onDidSashReset(() => this.splitview.distributeViewSizes()));
+		const splitview = this.splitview = this._register(new SplitView(parent, { orientation: Orientation.HORIZONTAL }));
+		this._register(this.splitview.onDidSashReset(() => splitview.distributeViewSizes()));
 
 		this.detailsEditorContainer = DOM.$('.details-editor-container');
 		this.splitview.addView({
@@ -140,7 +141,9 @@ export class SideBySideEditor extends BaseEditor {
 
 	layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
-		this.splitview.layout(dimension.width);
+
+		const splitview = assertIsDefined(this.splitview);
+		splitview.layout(dimension.width);
 	}
 
 	getControl(): IEditorControl | undefined {
@@ -179,8 +182,8 @@ export class SideBySideEditor extends BaseEditor {
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		const detailsEditor = this.doCreateEditor(newInput.details, this.detailsEditorContainer);
-		const masterEditor = this.doCreateEditor(newInput.master, this.masterEditorContainer);
+		const detailsEditor = this.doCreateEditor(newInput.details, assertIsDefined(this.detailsEditorContainer));
+		const masterEditor = this.doCreateEditor(newInput.master, assertIsDefined(this.masterEditorContainer));
 
 		return this.onEditorsCreated(detailsEditor, masterEditor, newInput.details, newInput.master, options, token);
 	}
@@ -234,8 +237,13 @@ export class SideBySideEditor extends BaseEditor {
 			this.masterEditor = undefined;
 		}
 
-		this.detailsEditorContainer.innerHTML = '';
-		this.masterEditorContainer.innerHTML = '';
+		if (this.detailsEditorContainer) {
+			DOM.clearNode(this.detailsEditorContainer);
+		}
+
+		if (this.masterEditorContainer) {
+			DOM.clearNode(this.masterEditorContainer);
+		}
 	}
 
 	dispose(): void {

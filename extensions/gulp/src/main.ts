@@ -62,8 +62,10 @@ function getOutputChannel(): vscode.OutputChannel {
 
 function showError() {
 	vscode.window.showWarningMessage(localize('gulpTaskDetectError', 'Problem finding gulp tasks. See the output for more information.'),
-		localize('gulpShowOutput', 'Go to output')).then(() => {
-			_channel.show(true);
+		localize('gulpShowOutput', 'Go to output')).then((choice) => {
+			if (choice !== undefined) {
+				_channel.show(true);
+			}
 		});
 }
 

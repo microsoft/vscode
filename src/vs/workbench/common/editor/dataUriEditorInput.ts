@@ -25,10 +25,6 @@ export class DataUriEditorInput extends EditorInput {
 	) {
 		super();
 
-		this.name = name;
-		this.description = description;
-		this.resource = resource;
-
 		if (!this.name || !this.description) {
 			const metadata = DataUri.parseMetaData(this.resource);
 

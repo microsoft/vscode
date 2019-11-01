@@ -10,7 +10,7 @@
 export class RGBA8 {
 	_rgba8Brand: void;
 
-	static Empty = new RGBA8(0, 0, 0, 0);
+	static readonly Empty = new RGBA8(0, 0, 0, 0);
 
 	/**
 	 * Red: integer in [0-255]

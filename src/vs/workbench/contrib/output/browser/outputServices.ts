@@ -155,7 +155,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private onDidPanelOpen(panel: IPanel | null, preserveFocus: boolean): Promise<void> {
+	private onDidPanelOpen(panel: IPanel | undefined, preserveFocus: boolean): Promise<void> {
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {

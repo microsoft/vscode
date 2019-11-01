@@ -70,6 +70,7 @@ class TestableLogService extends AbstractLogService implements ILogService {
 	}
 
 	dispose(): void { }
+	flush(): void { }
 }
 
 suite('AIAdapter', () => {

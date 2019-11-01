@@ -158,7 +158,6 @@ suite('SearchModel', () => {
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
-		await timeout(0); // TODO@rob https://github.com/microsoft/vscode/issues/80251
 
 		assert.ok(target.calledThrice);
 		const data = target.args[0];

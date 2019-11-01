@@ -6,6 +6,7 @@
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class WordContextKey extends Disposable {
 
@@ -22,7 +23,7 @@ export class WordContextKey extends Disposable {
 	) {
 		super();
 		this._ckAtEnd = WordContextKey.AtEnd.bindTo(contextKeyService);
-		this._register(this._editor.onDidChangeConfiguration(e => e.contribInfo && this._update()));
+		this._register(this._editor.onDidChangeConfiguration(e => e.hasChanged(EditorOption.tabCompletion) && this._update()));
 		this._update();
 	}
 
@@ -34,7 +35,7 @@ export class WordContextKey extends Disposable {
 
 	private _update(): void {
 		// only update this when tab completions are enabled
-		const enabled = this._editor.getConfiguration().contribInfo.tabCompletion === 'on';
+		const enabled = this._editor.getOption(EditorOption.tabCompletion) === 'on';
 		if (this._enabled === enabled) {
 			return;
 		}

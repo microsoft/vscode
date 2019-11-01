@@ -139,7 +139,7 @@ export class Sash extends Disposable {
 		this._register(domEvent(this.el, 'mousedown')(this.onMouseDown, this));
 		this._register(domEvent(this.el, 'dblclick')(this.onMouseDoubleClick, this));
 
-		Gesture.addTarget(this.el);
+		this._register(Gesture.addTarget(this.el));
 		this._register(domEvent(this.el, EventType.Start)(this.onTouchStart, this));
 
 		if (isIPad) {

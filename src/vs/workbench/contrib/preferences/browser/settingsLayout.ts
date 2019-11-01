@@ -132,7 +132,7 @@ export const tocData: ITOCEntry = {
 				{
 					id: 'features/search',
 					label: localize('search', "Search"),
-					settings: ['search.*', 'searchRipgrep.*']
+					settings: ['search.*']
 				}
 				,
 				{
@@ -154,6 +154,11 @@ export const tocData: ITOCEntry = {
 					id: 'features/terminal',
 					label: localize('terminal', "Terminal"),
 					settings: ['terminal.*']
+				},
+				{
+					id: 'features/task',
+					label: localize('task', "Task"),
+					settings: ['task.*']
 				},
 				{
 					id: 'features/problems',
@@ -195,6 +200,11 @@ export const tocData: ITOCEntry = {
 					id: 'application/telemetry',
 					label: localize('telemetry', "Telemetry"),
 					settings: ['telemetry.*']
+				},
+				{
+					id: 'application/configurationSync',
+					label: localize('configuration sync', "Configuration Sync"),
+					settings: ['configurationSync.*']
 				}
 			]
 		}
@@ -218,3 +228,5 @@ export const knownAcronyms = new Set<string>();
 export const knownTermMappings = new Map<string, string>();
 knownTermMappings.set('power shell', 'PowerShell');
 knownTermMappings.set('powershell', 'PowerShell');
+knownTermMappings.set('javascript', 'JavaScript');
+knownTermMappings.set('typescript', 'TypeScript');

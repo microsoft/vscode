@@ -18,12 +18,12 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
 	readonly elements: ISCMResource[] = [];
 
-	private _onDidSplice = new Emitter<ISplice<ISCMResource>>();
+	private readonly _onDidSplice = new Emitter<ISplice<ISCMResource>>();
 	readonly onDidSplice = this._onDidSplice.event;
 
 	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
 
-	private _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
@@ -104,7 +104,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	// 	// 	.filter(g => g.resources.elements.length > 0 || !g.features.hideWhenEmpty);
 	// }
 
-	private _onDidChangeResources = new Emitter<void>();
+	private readonly _onDidChangeResources = new Emitter<void>();
 	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
 
 	private features: SCMProviderFeatures = {};
@@ -114,18 +114,18 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get rootUri(): URI | undefined { return this._rootUri; }
 	get contextValue(): string { return this._contextValue; }
 
-	get commitTemplate(): string | undefined { return this.features.commitTemplate; }
+	get commitTemplate(): string { return this.features.commitTemplate || ''; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 	get count(): number | undefined { return this.features.count; }
 
-	private _onDidChangeCommitTemplate = new Emitter<string>();
+	private readonly _onDidChangeCommitTemplate = new Emitter<string>();
 	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
 
-	private _onDidChangeStatusBarCommands = new Emitter<Command[]>();
+	private readonly _onDidChangeStatusBarCommands = new Emitter<Command[]>();
 	get onDidChangeStatusBarCommands(): Event<Command[]> { return this._onDidChangeStatusBarCommands.event; }
 
-	private _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
@@ -288,7 +288,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.revive(rootUri), this.scmService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, this.scmService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

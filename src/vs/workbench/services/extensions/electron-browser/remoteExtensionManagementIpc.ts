@@ -11,12 +11,12 @@ import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { prefersExecuteOnUI } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
@@ -116,7 +116,7 @@ export class RemoteExtensionManagementChannelClient extends ExtensionManagementC
 		for (let idx = 0; idx < extensions.length; idx++) {
 			const extension = extensions[idx];
 			const manifest = manifests[idx];
-			if (manifest && isUIExtension(manifest, this.productService, this.configurationService) === uiExtension) {
+			if (manifest && prefersExecuteOnUI(manifest, this.productService, this.configurationService) === uiExtension) {
 				result.set(extension.identifier.id.toLowerCase(), extension);
 				extensionsManifests.push(manifest);
 			}

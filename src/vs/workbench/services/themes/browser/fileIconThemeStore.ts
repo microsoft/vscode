@@ -14,6 +14,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { find } from 'vs/base/common/arrays';
 
 const iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
 	extensionPoint: 'iconThemes',
@@ -62,7 +63,7 @@ export class FileIconThemeStore extends Disposable {
 
 	private initialize() {
 		iconThemeExtPoint.setHandler((extensions) => {
-			const previousIds: { [key: string]: boolean } = {};
+			const previousIds: { [key: string]: boolean; } = {};
 			const added: FileIconThemeData[] = [];
 			for (const theme of this.knownIconThemes) {
 				previousIds[theme.id] = true;
@@ -131,12 +132,7 @@ export class FileIconThemeStore extends Disposable {
 			return Promise.resolve(FileIconThemeData.noIconTheme());
 		}
 		return this.getFileIconThemes().then(allIconSets => {
-			for (let iconSet of allIconSets) {
-				if (iconSet.id === iconTheme) {
-					return iconSet;
-				}
-			}
-			return undefined;
+			return find(allIconSets, iconSet => iconSet.id === iconTheme);
 		});
 	}
 
@@ -145,12 +141,7 @@ export class FileIconThemeStore extends Disposable {
 			return Promise.resolve(FileIconThemeData.noIconTheme());
 		}
 		return this.getFileIconThemes().then(allIconSets => {
-			for (let iconSet of allIconSets) {
-				if (iconSet.settingsId === settingsId) {
-					return iconSet;
-				}
-			}
-			return undefined;
+			return find(allIconSets, iconSet => iconSet.settingsId === settingsId);
 		});
 	}
 

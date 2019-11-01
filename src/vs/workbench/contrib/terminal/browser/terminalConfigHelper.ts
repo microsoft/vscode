@@ -19,7 +19,7 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
 const MINIMUM_FONT_SIZE = 6;
@@ -297,7 +297,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 					],
 					{
 						sticky: true,
-						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.WORKSPACE },
+						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.GLOBAL },
 						onCancel: () => {
 							/* __GDPR__
 								"terminalLaunchRecommendation:popup" : {

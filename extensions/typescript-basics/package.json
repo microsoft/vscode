@@ -79,11 +79,17 @@
         }
       },
       {
-        "scopeName": "documentation.injection",
-        "path": "./syntaxes/jsdoc.injection.tmLanguage.json",
+        "scopeName": "documentation.injection.ts",
+        "path": "./syntaxes/jsdoc.ts.injection.tmLanguage.json",
         "injectTo": [
           "source.ts",
-          "source.tsx",
+          "source.tsx"
+        ]
+      },
+      {
+        "scopeName": "documentation.injection.js.jsx",
+        "path": "./syntaxes/jsdoc.js.injection.tmLanguage.json",
+        "injectTo": [
           "source.js",
           "source.js.jsx"
         ]
@@ -97,36 +103,6 @@
       {
         "language": "typescriptreact",
         "path": "./snippets/typescript.json"
-      }
-    ],
-    "jsonValidation": [
-      {
-        "fileMatch": "tsconfig.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
-      },
-      {
-        "fileMatch": "tsconfig.json",
-        "url": "./schemas/tsconfig.schema.json"
-      },
-      {
-        "fileMatch": "tsconfig.*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
-      },
-      {
-        "fileMatch": "tsconfig-*.json",
-        "url": "./schemas/tsconfig.schema.json"
-      },
-      {
-        "fileMatch": "tsconfig-*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
-      },
-      {
-        "fileMatch": "tsconfig.*.json",
-        "url": "./schemas/tsconfig.schema.json"
-      },
-      {
-        "fileMatch": "typings.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
       }
     ]
   }

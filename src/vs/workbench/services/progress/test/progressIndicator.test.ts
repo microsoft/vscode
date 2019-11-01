@@ -44,8 +44,6 @@ class TestProgressBar {
 	fInfinite: boolean = false;
 	fDone: boolean = false;
 
-	constructor() { }
-
 	infinite() {
 		this.fDone = null!;
 		this.fInfinite = true;

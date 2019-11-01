@@ -13,8 +13,10 @@ import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDes
 import * as fs from 'fs';
 import { URI } from 'vscode-uri';
 import * as URL from 'url';
+import { posix } from 'path';
+import { setTimeout, clearTimeout } from 'timers';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
-import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities } from 'vscode-json-languageservice';
+import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, SchemaRequestService } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
 interface ISchemaAssociations {
@@ -56,40 +58,40 @@ const workspaceContext = {
 		return URL.resolve(resource, relativePath);
 	}
 };
-function getSchemaRequestService(handledSchemas: { [schema: string]: boolean }) {
 
+const fileRequestService: SchemaRequestService = (uri: string) => {
+	const fsPath = URI.parse(uri).fsPath;
+	return new Promise<string>((c, e) => {
+		fs.readFile(fsPath, 'UTF-8', (err, result) => {
+			err ? e(err.message || err.toString()) : c(result.toString());
+		});
+	});
+};
+
+const httpRequestService: SchemaRequestService = (uri: string) => {
+	const headers = { 'Accept-Encoding': 'gzip, deflate' };
+	return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
+		return response.responseText;
+	}, (error: XHRResponse) => {
+		return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
+	});
+};
+
+function getSchemaRequestService(handledSchemas: string[] = ['https', 'http', 'file']) {
+	const builtInHandlers: { [protocol: string]: SchemaRequestService } = {};
+	for (let protocol of handledSchemas) {
+		if (protocol === 'file') {
+			builtInHandlers[protocol] = fileRequestService;
+		} else if (protocol === 'http' || protocol === 'https') {
+			builtInHandlers[protocol] = httpRequestService;
+		}
+	}
 	return (uri: string): Thenable<string> => {
 		const protocol = uri.substr(0, uri.indexOf(':'));
 
-		if (!handledSchemas || handledSchemas[protocol]) {
-			if (protocol === 'file') {
-				const fsPath = URI.parse(uri).fsPath;
-				return new Promise<string>((c, e) => {
-					fs.readFile(fsPath, 'UTF-8', (err, result) => {
-						err ? e(err.message || err.toString()) : c(result.toString());
-					});
-				});
-			} else if (protocol === 'http' || protocol === 'https') {
-				if (uri.indexOf('//schema.management.azure.com/') !== -1) {
-					/* __GDPR__
-						"json.schema" : {
-							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					 */
-					connection.telemetry.logEvent({
-						key: 'json.schema',
-						value: {
-							schemaURL: uri
-						}
-					});
-				}
-				const headers = { 'Accept-Encoding': 'gzip, deflate' };
-				return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
-					return response.responseText;
-				}, (error: XHRResponse) => {
-					return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
-				});
-			}
+		const builtInHandler = builtInHandlers[protocol];
+		if (builtInHandler) {
+			return builtInHandler(uri);
 		}
 		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 			return responseText;
@@ -114,9 +116,12 @@ const documents: TextDocuments = new TextDocuments();
 documents.listen(connection);
 
 let clientSnippetSupport = false;
-let clientDynamicRegisterSupport = false;
-let foldingRangeLimit = Number.MAX_VALUE;
+let dynamicFormatterRegistration = false;
 let hierarchicalDocumentSymbolSupport = false;
+
+let foldingRangeLimitDefault = Number.MAX_VALUE;
+let foldingRangeLimit = Number.MAX_VALUE;
+let resultLimit = Number.MAX_VALUE;
 
 // After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
@@ -144,8 +149,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 
 	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
-	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+	dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof params.initializationOptions.provideFormatter !== 'boolean');
+	foldingRangeLimitDefault = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
@@ -153,7 +158,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
-		documentRangeFormattingProvider: false,
+		documentRangeFormattingProvider: params.initializationOptions.provideFormatter === true,
 		colorProvider: {},
 		foldingRangeProvider: true,
 		selectionRangeProvider: true
@@ -169,6 +174,7 @@ interface Settings {
 	json: {
 		schemas: JSONSchemaSettings[];
 		format: { enable: boolean; };
+		resultLimit?: number;
 	};
 	http: {
 		proxy: string;
@@ -180,6 +186,39 @@ interface JSONSchemaSettings {
 	fileMatch?: string[];
 	url?: string;
 	schema?: JSONSchema;
+}
+
+namespace LimitExceededWarnings {
+	const pendingWarnings: { [uri: string]: { features: { [name: string]: string }; timeout?: NodeJS.Timeout; } } = {};
+
+	export function cancel(uri: string) {
+		const warning = pendingWarnings[uri];
+		if (warning && warning.timeout) {
+			clearTimeout(warning.timeout);
+			delete pendingWarnings[uri];
+		}
+	}
+
+	export function onResultLimitExceeded(uri: string, resultLimit: number, name: string) {
+		return () => {
+			let warning = pendingWarnings[uri];
+			if (warning) {
+				if (!warning.timeout) {
+					// already shown
+					return;
+				}
+				warning.features[name] = name;
+				warning.timeout.refresh();
+			} else {
+				warning = { features: { [name]: name } };
+				warning.timeout = setTimeout(() => {
+					connection.window.showInformationMessage(`${posix.basename(uri)}: For performance reasons, ${Object.keys(warning.features).join(' and ')} have been limited to ${resultLimit} items.`);
+					warning.timeout = undefined;
+				}, 2000);
+				pendingWarnings[uri] = warning;
+			}
+		};
+	}
 }
 
 let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
@@ -194,8 +233,11 @@ connection.onDidChangeConfiguration((change) => {
 	jsonConfigurationSettings = settings.json && settings.json.schemas;
 	updateConfiguration();
 
+	foldingRangeLimit = Math.trunc(Math.max(settings.json && settings.json.resultLimit || foldingRangeLimitDefault, 0));
+	resultLimit = Math.trunc(Math.max(settings.json && settings.json.resultLimit || Number.MAX_VALUE, 0));
+
 	// dynamically enable & disable the formatter
-	if (clientDynamicRegisterSupport) {
+	if (dynamicFormatterRegistration) {
 		const enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
@@ -270,11 +312,13 @@ function updateConfiguration() {
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent((change) => {
+	LimitExceededWarnings.cancel(change.document.uri);
 	triggerValidation(change.document);
 });
 
 // a document has closed: clear all diagnostics
 documents.onDidClose(event => {
+	LimitExceededWarnings.cancel(event.document.uri);
 	cleanPendingValidation(event.document);
 	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
@@ -383,10 +427,11 @@ connection.onDocumentSymbol((documentSymbolParams, token) => {
 		const document = documents.get(documentSymbolParams.textDocument.uri);
 		if (document) {
 			const jsonDocument = getJSONDocument(document);
+			const onResultLimitExceeded = LimitExceededWarnings.onResultLimitExceeded(document.uri, resultLimit, 'document symbols');
 			if (hierarchicalDocumentSymbolSupport) {
-				return languageService.findDocumentSymbols2(document, jsonDocument);
+				return languageService.findDocumentSymbols2(document, jsonDocument, { resultLimit, onResultLimitExceeded });
 			} else {
-				return languageService.findDocumentSymbols(document, jsonDocument);
+				return languageService.findDocumentSymbols(document, jsonDocument, { resultLimit, onResultLimitExceeded });
 			}
 		}
 		return [];
@@ -407,8 +452,9 @@ connection.onDocumentColor((params, token) => {
 	return runSafeAsync(async () => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {
+			const onResultLimitExceeded = LimitExceededWarnings.onResultLimitExceeded(document.uri, resultLimit, 'document colors');
 			const jsonDocument = getJSONDocument(document);
-			return languageService.findDocumentColors(document, jsonDocument);
+			return languageService.findDocumentColors(document, jsonDocument, { resultLimit, onResultLimitExceeded });
 		}
 		return [];
 	}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
@@ -429,7 +475,8 @@ connection.onFoldingRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {
-			return languageService.getFoldingRanges(document, { rangeLimit: foldingRangeLimit });
+			const onRangeLimitExceeded = LimitExceededWarnings.onResultLimitExceeded(document.uri, foldingRangeLimit, 'folding ranges');
+			return languageService.getFoldingRanges(document, { rangeLimit: foldingRangeLimit, onRangeLimitExceeded });
 		}
 		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);

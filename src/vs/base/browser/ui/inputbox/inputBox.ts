@@ -159,7 +159,7 @@ export class InputBox extends Widget {
 		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
 		let wrapper = dom.append(this.element, $('.wrapper'));
-		this.input = dom.append(wrapper, $(tagName + '.input'));
+		this.input = dom.append(wrapper, $(tagName + '.input.empty'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
 		this.input.setAttribute('spellcheck', 'false');
@@ -189,7 +189,7 @@ export class InputBox extends Widget {
 
 			const onSelectionChange = Event.filter(domEvent(document, 'selectionchange'), () => {
 				const selection = document.getSelection();
-				return !!selection && selection.anchorNode === wrapper;
+				return selection?.anchorNode === wrapper;
 			});
 
 			// from DOM to ScrollableElement
@@ -351,7 +351,7 @@ export class InputBox extends Widget {
 	}
 
 	private updateScrollDimensions(): void {
-		if (typeof this.cachedContentHeight !== 'number' || typeof this.cachedHeight !== 'number') {
+		if (typeof this.cachedContentHeight !== 'number' || typeof this.cachedHeight !== 'number' || !this.scrollableElement) {
 			return;
 		}
 
@@ -359,8 +359,8 @@ export class InputBox extends Widget {
 		const height = this.cachedHeight;
 		const scrollTop = this.input.scrollTop;
 
-		this.scrollableElement!.setScrollDimensions({ scrollHeight, height });
-		this.scrollableElement!.setScrollPosition({ scrollTop });
+		this.scrollableElement.setScrollDimensions({ scrollHeight, height });
+		this.scrollableElement.setScrollPosition({ scrollTop });
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {
@@ -373,7 +373,7 @@ export class InputBox extends Widget {
 		dom.addClass(this.element, this.classForType(message.type));
 
 		const styles = this.stylesForType(this.message.type);
-		this.element.style.border = styles.border ? `1px solid ${styles.border}` : null;
+		this.element.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
 		// ARIA Support
 		let alertText: string;
@@ -473,9 +473,9 @@ export class InputBox extends Widget {
 				dom.addClass(spanElement, this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);
-				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : null;
+				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : '';
 				spanElement.style.color = styles.foreground ? styles.foreground.toString() : null;
-				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : null;
+				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
 				dom.append(div, spanElement);
 
@@ -507,6 +507,7 @@ export class InputBox extends Widget {
 
 		this.validate();
 		this.updateMirror();
+		dom.toggleClass(this.input, 'empty', !this.value);
 
 		if (this.state === 'open' && this.contextViewProvider) {
 			this.contextViewProvider.layout();
@@ -518,7 +519,7 @@ export class InputBox extends Widget {
 			return;
 		}
 
-		const value = this.value || this.placeholder;
+		const value = this.value;
 		const lastCharCode = value.charCodeAt(value.length - 1);
 		const suffix = lastCharCode === 10 ? ' ' : '';
 		const mirrorTextContent = value + suffix;
@@ -551,17 +552,17 @@ export class InputBox extends Widget {
 	}
 
 	protected applyStyles(): void {
-		const background = this.inputBackground ? this.inputBackground.toString() : null;
-		const foreground = this.inputForeground ? this.inputForeground.toString() : null;
-		const border = this.inputBorder ? this.inputBorder.toString() : null;
+		const background = this.inputBackground ? this.inputBackground.toString() : '';
+		const foreground = this.inputForeground ? this.inputForeground.toString() : '';
+		const border = this.inputBorder ? this.inputBorder.toString() : '';
 
 		this.element.style.backgroundColor = background;
 		this.element.style.color = foreground;
 		this.input.style.backgroundColor = background;
 		this.input.style.color = foreground;
 
-		this.element.style.borderWidth = border ? '1px' : null;
-		this.element.style.borderStyle = border ? 'solid' : null;
+		this.element.style.borderWidth = border ? '1px' : '';
+		this.element.style.borderStyle = border ? 'solid' : '';
 		this.element.style.borderColor = border;
 	}
 
@@ -577,6 +578,19 @@ export class InputBox extends Widget {
 			this.cachedHeight = Math.min(this.cachedContentHeight, this.maxHeight);
 			this.input.style.height = this.cachedHeight + 'px';
 			this._onDidHeightChange.fire(this.cachedContentHeight);
+		}
+	}
+
+	public insertAtCursor(text: string): void {
+		const inputElement = this.inputElement;
+		const start = inputElement.selectionStart;
+		const end = inputElement.selectionEnd;
+		const content = inputElement.value;
+
+		if (start !== null && end !== null) {
+			this.value = content.substr(0, start) + text + content.substr(end);
+			inputElement.setSelectionRange(start + 1, start + 1);
+			this.layout();
 		}
 	}
 

@@ -429,13 +429,13 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
-	resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
+	async resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
-			return Promise.resolve({ value: createTextBufferFactoryFromSnapshot(snapshot) });
+			return { value: createTextBufferFactoryFromSnapshot(snapshot) };
 		}
 
-		return Promise.reject('Unexpected backup resource to resolve');
+		throw new Error('Unexpected backup resource to resolve');
 	}
 
 	getWorkspaceFileBackups(): Promise<URI[]> {
