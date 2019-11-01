@@ -146,7 +146,7 @@ export function connect(headless: boolean, outPath: string, handle: string): Pro
 		});
 		const page = (await browser.pages())[0];
 		await page.setViewport({ width, height });
-		await page.goto(`${endpoint}&folder=${args![1]}`);
+		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${args![1]}`);
 		const result = {
 			client: { dispose: () => teardown },
 			driver: buildDriver(browser, page)
