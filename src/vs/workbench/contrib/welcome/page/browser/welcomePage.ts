@@ -302,7 +302,9 @@ class WelcomePage extends Disposable {
 		});
 
 		const prodName = container.querySelector('.caption') as HTMLElement;
-		prodName.innerHTML = this.productService.nameLong;
+		if (prodName) {
+			prodName.innerHTML = this.productService.nameLong;
+		}
 
 		recentlyOpened.then(({ workspaces }) => {
 			// Filter out the current workspace
