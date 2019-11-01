@@ -10,7 +10,7 @@ import { iconForeground, foreground, selectionBackground, focusBorder, scrollbar
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { isWeb } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
-import { isSafari, isFirefox } from 'vs/base/browser/browser';
+import { isSafari } from 'vs/base/browser/browser';
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
@@ -178,35 +178,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench .monaco-editor .view-lines {
 				user-select: text;
 				-webkit-user-select: text;
-			}
-		`);
-	}
-
-	// The native look of dropdown form fields in Firefox and Safari
-	// is unpleasant. As such we force it to render as buttons instead.
-	if (isSafari || isFirefox) {
-		collector.addRule(`
-			.monaco-workbench select {
-				-webkit-appearance: button;
-				-moz-appearance: button;
-			}
-
-			.monaco-workbench .select-container {
-				position: relative;
-			}
-
-			.monaco-workbench .select-container:after {
-				content: "\\f11e";
-				font-family: codicon;
-				font-size: 14px;
-				width: 14px;
-				height: 14px;
-				line-height: 14px;
-				position: absolute;
-				top: 0;
-				bottom: 0;
-				right: 4px;
-				margin: auto;
 			}
 		`);
 	}

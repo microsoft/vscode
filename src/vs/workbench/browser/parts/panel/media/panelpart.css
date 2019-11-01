@@ -110,7 +110,12 @@
 	text-align: center;
 	display: inline-block;
 	box-sizing: border-box;
-	}
+}
+
+/* Dropdown */
+.monaco-workbench .panel .monaco-action-bar .select-container .monaco-select-box {
+	margin-right: 0;
+}
 
 /** Actions */
 
