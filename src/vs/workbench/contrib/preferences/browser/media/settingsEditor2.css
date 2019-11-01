@@ -488,6 +488,7 @@
 	width: initial;
 	font: inherit;
 	height: 26px;
+	padding: 2px 8px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions {

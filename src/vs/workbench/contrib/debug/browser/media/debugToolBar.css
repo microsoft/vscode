@@ -17,6 +17,10 @@
 
 .monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container {
 	margin-right: 7px;
+
+}
+
+.monaco-workbench .start-debug-action-item .select-container {
 	padding-right: 22px;
 }
 
