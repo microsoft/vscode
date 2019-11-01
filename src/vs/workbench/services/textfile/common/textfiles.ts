@@ -22,8 +22,6 @@ export interface ITextFileService extends IDisposable {
 
 	_serviceBrand: undefined;
 
-	readonly onWillMove: Event<IWillMoveEvent>;
-
 	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 
 	readonly onFilesAssociationChange: Event<void>;
@@ -490,13 +488,6 @@ export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
 	readonly textEditorModel: ITextModel;
 
 	createSnapshot(): ITextSnapshot;
-}
-
-export interface IWillMoveEvent {
-	oldResource: URI;
-	newResource: URI;
-
-	waitUntil(p: Promise<unknown>): void;
 }
 
 /**

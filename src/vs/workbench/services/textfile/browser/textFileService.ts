@@ -5,12 +5,11 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -52,9 +51,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	private readonly _onFilesAssociationChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onFilesAssociationChange: Event<void> = this._onFilesAssociationChange.event;
-
-	private readonly _onWillMove = this._register(new Emitter<IWillMoveEvent>());
-	readonly onWillMove: Event<IWillMoveEvent> = this._onWillMove.event;
 
 	private _models: TextFileEditorModelManager;
 	get models(): ITextFileEditorModelManager { return this._models; }
@@ -441,9 +437,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 
-		// await onWillMove event joiners
-		await this.notifyOnWillMove(source, target);
-
 		// find all models that related to either source or target (can be many if resource is a folder)
 		const sourceModels: ITextFileEditorModel[] = [];
 		const conflictingModels: ITextFileEditorModel[] = [];
@@ -522,24 +515,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}));
 
 		return stat;
-	}
-
-	private async notifyOnWillMove(source: URI, target: URI): Promise<void> {
-		const waitForPromises: Promise<unknown>[] = [];
-
-		// fire event
-		this._onWillMove.fire({
-			oldResource: source,
-			newResource: target,
-			waitUntil(promise: Promise<unknown>) {
-				waitForPromises.push(promise.then(undefined, errors.onUnexpectedError));
-			}
-		});
-
-		// prevent async waitUntil-calls
-		Object.freeze(waitForPromises);
-
-		await Promise.all(waitForPromises);
 	}
 
 	//#endregion
