@@ -115,6 +115,7 @@ class Preview extends Disposable {
 
 		this._register(webviewEditor.onDidChangeViewState(() => {
 			this.update();
+			this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 		}));
 
 		this._register(webviewEditor.onDidDispose(() => {
@@ -139,6 +140,7 @@ class Preview extends Disposable {
 
 		this.render();
 		this.update();
+		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
 	public zoomIn() {
@@ -175,7 +177,6 @@ class Preview extends Disposable {
 			}
 			this._previewState = PreviewState.Visible;
 		}
-		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
 	private getWebiewContents(): string {

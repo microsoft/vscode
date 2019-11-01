@@ -70,7 +70,8 @@
 	let ctrlPressed = false;
 	let altPressed = false;
 	let hasLoadedImage = false;
-	let consumeClick = false;
+	let consumeClick = true;
+	let isActive = false;
 
 	// Elements
 	const container = document.body;
@@ -117,10 +118,10 @@
 		});
 	}
 
-	function changeActive(value) {
+	function setActive(value) {
+		isActive = value;
 		if (value) {
 			container.classList.add('zoom-in');
-			consumeClick = true;
 		} else {
 			ctrlPressed = false;
 			altPressed = false;
@@ -202,7 +203,7 @@
 			return;
 		}
 
-		consumeClick = false;
+		consumeClick = !isActive;
 	});
 
 	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
@@ -308,7 +309,7 @@
 				break;
 
 			case 'setActive':
-				changeActive(e.data.value);
+				setActive(e.data.value);
 				break;
 
 			case 'zoomIn':
