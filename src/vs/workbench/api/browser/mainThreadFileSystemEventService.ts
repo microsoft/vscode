@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { FileChangeType, IFileService, FileOperation } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
@@ -16,8 +15,7 @@ export class MainThreadFileSystemEventService {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IFileService fileService: IFileService,
-		@ITextFileService textfileService: ITextFileService,
+		@IFileService fileService: IFileService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -49,17 +47,9 @@ export class MainThreadFileSystemEventService {
 			events.deleted.length = 0;
 		}, undefined, this._listener);
 
-		// file operation events - (changes the editor makes)
-		fileService.onAfterOperation(e => {
-			if (e.isOperation(FileOperation.MOVE)) {
-				proxy.$onFileRename(e.resource, e.target.resource);
-			}
-		}, undefined, this._listener);
-
-		textfileService.onWillMove(e => {
-			const promise = proxy.$onWillRename(e.oldResource, e.newResource);
-			e.waitUntil(promise);
-		}, undefined, this._listener);
+		// file operation events
+		fileService.onWillRunOperation(e => proxy.$onWillRunFileOperation(e.operation, e.target, e.source));
+		fileService.onAfterOperation(e => proxy.$onDidRunFileOperation(e.operation, e.resource, e.target && e.target.resource), undefined, this._listener);
 	}
 
 	dispose(): void {

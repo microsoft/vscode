@@ -13,6 +13,7 @@ import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, Mai
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { FileOperation } from 'vs/platform/files/common/files';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
@@ -103,11 +104,11 @@ interface WillRenameListener {
 
 export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
 
+
 	private readonly _onFileEvent = new Emitter<FileSystemEvents>();
 	private readonly _onDidRenameFile = new Emitter<vscode.FileRenameEvent>();
 	private readonly _onWillRenameFile = new AsyncEmitter<vscode.FileWillRenameEvent>();
 
-	readonly onDidRenameFile: Event<vscode.FileRenameEvent> = this._onDidRenameFile.event;
 
 	constructor(
 		mainContext: IMainContext,
@@ -117,7 +118,9 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		//
 	}
 
-	public createFileSystemWatcher(globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): vscode.FileSystemWatcher {
+	//--- file events
+
+	createFileSystemWatcher(globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): vscode.FileSystemWatcher {
 		return new FileSystemWatcher(this._onFileEvent.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
 	}
 
@@ -125,9 +128,19 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		this._onFileEvent.fire(events);
 	}
 
-	$onFileRename(oldUri: UriComponents, newUri: UriComponents) {
-		this._onDidRenameFile.fire(Object.freeze({ oldUri: URI.revive(oldUri), newUri: URI.revive(newUri) }));
+
+	//--- file operations
+
+	$onDidRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): void {
+		switch (operation) {
+			case FileOperation.MOVE:
+				this._onDidRenameFile.fire(Object.freeze({ oldUri: URI.revive(target), newUri: URI.revive(source!) }));
+				break;
+			//todo@joh there are more operations...
+		}
 	}
+
+	readonly onDidRenameFile: Event<vscode.FileRenameEvent> = this._onDidRenameFile.event;
 
 	getOnWillRenameFileEvent(extension: IExtensionDescription): Event<vscode.FileWillRenameEvent> {
 		return (listener, thisArg, disposables) => {
@@ -139,12 +152,19 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	$onWillRename(oldUriDto: UriComponents, newUriDto: UriComponents): Promise<any> {
-		const oldUri = URI.revive(oldUriDto);
-		const newUri = URI.revive(newUriDto);
+	async $onWillRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): Promise<any> {
+		switch (operation) {
+			case FileOperation.MOVE:
+				await this._fireWillRename(URI.revive(target), URI.revive(source!));
+				break;
+			//todo@joh there are more operations...
+		}
+	}
+
+	private async _fireWillRename(oldUri: URI, newUri: URI): Promise<any> {
 
 		const edits: WorkspaceEdit[] = [];
-		return Promise.resolve(this._onWillRenameFile.fireAsync((bucket, _listener) => {
+		await Promise.resolve(this._onWillRenameFile.fireAsync(bucket => {
 			return {
 				oldUri,
 				newUri,
@@ -163,20 +183,22 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 					bucket.push(wrappedThenable);
 				}
 			};
-		}).then((): any => {
-			if (edits.length === 0) {
-				return undefined;
-			}
-			// flatten all WorkspaceEdits collected via waitUntil-call
-			// and apply them in one go.
-			const allEdits = new Array<Array<IResourceFileEditDto | IResourceTextEditDto>>();
-			for (let edit of edits) {
-				if (edit) { // sparse array
-					let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
-					allEdits.push(edits);
-				}
-			}
-			return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
 		}));
+
+		if (edits.length === 0) {
+			return undefined;
+		}
+
+		// flatten all WorkspaceEdits collected via waitUntil-call
+		// and apply them in one go.
+		const allEdits = new Array<Array<IResourceFileEditDto | IResourceTextEditDto>>();
+		for (let edit of edits) {
+			if (edit) { // sparse array
+				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+				allEdits.push(edits);
+			}
+		}
+		return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
+
 	}
 }
