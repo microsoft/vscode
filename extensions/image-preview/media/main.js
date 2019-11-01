@@ -121,7 +121,13 @@
 	function setActive(value) {
 		isActive = value;
 		if (value) {
-			container.classList.add('zoom-in');
+			if (isMac ? altPressed : ctrlPressed) {
+				container.classList.remove('zoom-in');
+				container.classList.add('zoom-out');
+			} else {
+				container.classList.remove('zoom-out');
+				container.classList.add('zoom-in');
+			}
 		} else {
 			ctrlPressed = false;
 			altPressed = false;
@@ -203,6 +209,9 @@
 			return;
 		}
 
+		ctrlPressed = e.ctrlKey;
+		altPressed = e.altKey;
+
 		consumeClick = !isActive;
 	});
 
@@ -213,14 +222,6 @@
 
 		if (e.button !== 0) {
 			return;
-		}
-
-		ctrlPressed = e.ctrlKey;
-		altPressed = e.altKey;
-
-		if (isMac ? altPressed : ctrlPressed) {
-			container.classList.remove('zoom-in');
-			container.classList.add('zoom-out');
 		}
 
 		if (consumeClick) {
