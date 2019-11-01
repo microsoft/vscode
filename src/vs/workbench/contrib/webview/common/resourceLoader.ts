@@ -5,9 +5,10 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { sep } from 'vs/base/common/path';
+import { LRUCache } from 'vs/base/common/map';
 import { startsWith, endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileContent, IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { getWebviewContentMimeType } from 'vs/workbench/contrib/webview/common/mimeTypes';
 
@@ -27,13 +28,32 @@ const AccessDenied = new class { readonly type = 'access-denied'; };
 
 type LocalResourceResponse = Success | typeof Failed | typeof AccessDenied;
 
+const cache = new LRUCache<string, IFileContent>(10000);
+
 async function resolveContent(
 	fileService: IFileService,
 	resource: URI,
 	mime: string
 ): Promise<LocalResourceResponse> {
 	try {
-		const contents = await fileService.readFile(resource);
+		const uriString = resource.toString();
+		let contents;
+		let oldContents = cache.get(uriString);
+		if (oldContents !== undefined) {
+			try {
+				contents = await fileService.readFile(resource, { etag: oldContents.etag });
+			} catch (e) {
+				if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+					contents = oldContents;
+				} else {
+					throw e;
+				}
+			}
+		} else {
+			contents = await fileService.readFile(resource);
+		}
+
+		cache.set(uriString, contents);
 		return new Success(contents.value, mime);
 	} catch (err) {
 		console.log(err);
