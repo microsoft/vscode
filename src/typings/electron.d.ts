@@ -1,4 +1,4 @@
-// Type definitions for Electron 7.0.0
+// Type definitions for Electron 7.0.1
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -4629,7 +4629,7 @@ declare namespace Electron {
 		 * Removes the specified `listener` from the listener array for the specified
 		 * `channel`.
 		 */
-		removeListener(channel: string, listener: () => void): this;
+		removeListener(channel: string, listener: (...args: any[]) => void): this;
 	}
 
 	interface IpcMainEvent extends Event {
@@ -10474,7 +10474,7 @@ declare namespace Electron {
 		 * When provided, request will be made with these headers.
 		 */
 		requestHeaders?: Record<string, (string) | (string[])>;
-	  }
+	}
 
 	interface BitmapOptions {
 		/**
@@ -11217,7 +11217,7 @@ declare namespace Electron {
 		 * otherwise original response header's status will be used.
 		 */
 		statusLine?: string;
-	  }
+	}
 
 	interface HeapStatistics {
 		totalHeapSize: number;
@@ -13272,16 +13272,12 @@ declare namespace NodeJS {
 		/**
 		 * The version of the host operating system.
 		 *
-		 * Examples:
-		 *
-		 * * `macOS` -> `10.13.6`
-		 * * `Windows` -> `10.0.17763`
-		 * * `Linux` -> `4.15.0-45-generic`
+		 * Example:
 		 *
 		 * **Note:** It returns the actual operating system version instead of kernel
 		 * version on macOS unlike `os.release()`.
 		 */
-		getSystemVersion(): ('macOS' | 'Windows' | 'Linux');
+		getSystemVersion(): string;
 		/**
 		 * Causes the main thread of the current process hang.
 		 */
