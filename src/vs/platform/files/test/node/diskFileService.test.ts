@@ -20,7 +20,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { VSBuffer, VSBufferReadable, toVSBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, streamToBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream } from 'vs/base/common/buffer';
 import { find } from 'vs/base/common/arrays';
 
 function getByName(root: IFileStat, name: string): IFileStat | undefined {
@@ -1563,7 +1563,7 @@ suite('Disk File Service', function () {
 		const source = URI.file(join(testDir, 'small.txt'));
 		const target = URI.file(join(testDir, 'small-copy.txt'));
 
-		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
+		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'small-copy.txt');
 
 		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
@@ -1575,7 +1575,7 @@ suite('Disk File Service', function () {
 		const source = URI.file(join(testDir, 'lorem.txt'));
 		const target = URI.file(join(testDir, 'lorem-copy.txt'));
 
-		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
+		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'lorem-copy.txt');
 
 		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
@@ -1587,7 +1587,7 @@ suite('Disk File Service', function () {
 		const source = URI.file(join(testDir, 'small.txt'));
 		const target = URI.file(join(testDir, 'small-copy.txt'));
 
-		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
+		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'small-copy.txt');
 
 		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
@@ -1599,7 +1599,7 @@ suite('Disk File Service', function () {
 		const source = URI.file(join(testDir, 'lorem.txt'));
 		const target = URI.file(join(testDir, 'lorem-copy.txt'));
 
-		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
+		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'lorem-copy.txt');
 
 		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
