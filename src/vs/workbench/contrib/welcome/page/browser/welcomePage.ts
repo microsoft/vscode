@@ -301,7 +301,7 @@ class WelcomePage extends Disposable {
 			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile', ConfigurationTarget.USER);
 		});
 
-		const prodName = container.querySelector('.caption') as HTMLElement;
+		const prodName = container.querySelector('.title .caption') as HTMLElement;
 		if (prodName) {
 			prodName.innerHTML = this.productService.nameLong;
 		}
