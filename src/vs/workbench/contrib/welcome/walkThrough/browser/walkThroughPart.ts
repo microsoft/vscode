@@ -58,11 +58,11 @@ export class WalkThroughPart extends BaseEditor {
 
 	private readonly disposables = new DisposableStore();
 	private contentDisposables: IDisposable[] = [];
-	private content: HTMLDivElement;
-	private scrollbar: DomScrollableElement;
+	private content!: HTMLDivElement;
+	private scrollbar!: DomScrollableElement;
 	private editorFocus: IContextKey<boolean>;
-	private lastFocus: HTMLElement;
-	private size: Dimension;
+	private lastFocus: HTMLElement | undefined;
+	private size: Dimension | undefined;
 	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
 
 	constructor(
