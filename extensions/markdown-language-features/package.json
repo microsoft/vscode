@@ -331,10 +331,10 @@
 		"lodash.throttle": "^4.1.1",
 		"mocha-junit-reporter": "^1.17.0",
 		"mocha-multi-reporters": "^1.1.7",
-		"ts-loader": "^4.0.1",
-		"typescript": "^3.3.1",
+		"ts-loader": "^6.2.1",
+		"typescript": "^3.6.4",
 		"vscode": "^1.1.10",
-		"webpack": "^4.1.0",
-		"webpack-cli": "^2.0.10"
+		"webpack": "^4.41.2",
+		"webpack-cli": "^3.3.0"
 	}
 }
