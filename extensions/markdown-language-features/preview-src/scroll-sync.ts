@@ -27,7 +27,15 @@ const getCodeLineElements = (() => {
 			elements = [{ element: document.body, line: 0 }];
 			for (const element of document.getElementsByClassName('code-line')) {
 				const line = +element.getAttribute('data-line')!;
-				if (!isNaN(line)) {
+				if (isNaN(line)) {
+					continue;
+				}
+
+				if (element.tagName === 'CODE' && element.parentElement && element.parentElement.tagName === 'PRE') {
+					// Fenched code blocks are a special case since the `code-line` can only be marked on
+					// the `<code>` element and not the parent `<pre>` element.
+					elements.push({ element: element.parentElement as HTMLElement, line });
+				} else {
 					elements.push({ element: element as HTMLElement, line });
 				}
 			}
@@ -81,6 +89,9 @@ export function getLineElementsAtPageOffset(offset: number): { previous: CodeLin
 		const loElement = lines[lo];
 		return { previous: loElement, next: hiElement };
 	}
+	if (hi > 1 && hi < lines.length && hiBounds.top + hiBounds.height > position) {
+		return { previous: hiElement, next: lines[hi + 1] };
+	}
 	return { previous: hiElement };
 }
 
@@ -125,8 +136,7 @@ export function getEditorLineNumberForPageOffset(offset: number) {
 			const progressBetweenElements = offsetFromPrevious / (next.element.getBoundingClientRect().top - previousBounds.top);
 			const line = previous.line + progressBetweenElements * (next.line - previous.line);
 			return clampLine(line);
-		}
-		else {
+		} else {
 			const progressWithinElement = offsetFromPrevious / (previousBounds.height);
 			const line = previous.line + progressWithinElement;
 			return clampLine(line);
