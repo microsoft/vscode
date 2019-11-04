@@ -8,7 +8,6 @@ import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { timeout } from 'vs/base/common/async';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
