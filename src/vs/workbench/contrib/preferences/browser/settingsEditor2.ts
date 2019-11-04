@@ -1305,7 +1305,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
 		const searchP = provider ? provider.searchModel(model, token) : Promise.resolve(null);
 		return searchP
-			.then<ISearchResult>(null, err => {
+			.then<ISearchResult, ISearchResult | null>(undefined, err => {
 				if (isPromiseCanceledError(err)) {
 					return Promise.reject(err);
 				} else {
@@ -1321,7 +1321,7 @@ export class SettingsEditor2 extends BaseEditor {
 						this.telemetryService.publicLog('settingsEditor.searchError', { message, filter });
 						this.logService.info('Setting search error: ' + message);
 					}
-					return Promise.resolve(null);
+					return null;
 				}
 			});
 	}

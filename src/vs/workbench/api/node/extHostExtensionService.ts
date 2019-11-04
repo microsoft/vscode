@@ -72,6 +72,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 				return nativeProcessSend.apply(process, args);
 			}
 			mainThreadConsole.$logExtensionHostMessage(args[0]);
+			return false;
 		};
 	}
 

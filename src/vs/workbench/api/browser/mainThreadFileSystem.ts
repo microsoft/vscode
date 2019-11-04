@@ -67,7 +67,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 				err.name = FileSystemProviderErrorCode.FileNotADirectory;
 				throw err;
 			}
-			return !stat.children ? [] : stat.children.map(child => [child.name, MainThreadFileSystem._getFileType(child)]);
+			return !stat.children ? [] : stat.children.map(child => [child.name, MainThreadFileSystem._getFileType(child)] as [string, FileType]);
 		}).catch(MainThreadFileSystem._handleError);
 	}
 
@@ -80,19 +80,23 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$writeFile(uri: UriComponents, content: VSBuffer): Promise<void> {
-		return this._fileService.writeFile(URI.revive(uri), content).catch(MainThreadFileSystem._handleError);
+		return this._fileService.writeFile(URI.revive(uri), content)
+			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
 
 	$rename(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
-		return this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite).catch(MainThreadFileSystem._handleError);
+		return this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite)
+			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
 
 	$copy(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
-		return this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite).catch(MainThreadFileSystem._handleError);
+		return this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite)
+			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
 
 	$mkdir(uri: UriComponents): Promise<void> {
-		return this._fileService.createFolder(URI.revive(uri)).catch(MainThreadFileSystem._handleError);
+		return this._fileService.createFolder(URI.revive(uri))
+			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
 
 	$delete(uri: UriComponents, opts: FileDeleteOptions): Promise<void> {
