@@ -688,7 +688,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 			// freeze thenables-collection to enforce sync-calls to
 			// wait until and then wait for all thenables to resolve
 			Object.freeze(thenables);
-			await Promise.all(thenables);
+			await Promise.all(thenables).catch(e => onUnexpectedError(e));
 		}
 	}
 }

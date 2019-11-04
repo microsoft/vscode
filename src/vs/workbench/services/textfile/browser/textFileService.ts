@@ -5,16 +5,15 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, AsyncEmitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IFileService, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { IFileService, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -53,8 +52,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private readonly _onFilesAssociationChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onFilesAssociationChange: Event<void> = this._onFilesAssociationChange.event;
 
-	private readonly _onWillMove = this._register(new Emitter<IWillMoveEvent>());
-	readonly onWillMove: Event<IWillMoveEvent> = this._onWillMove.event;
+
+	private _onWillRunOperation = this._register(new AsyncEmitter<FileOperationWillRunEvent>());
+	readonly onWillRunOperation = this._onWillRunOperation.event;
+
+	private _onDidRunOperation = this._register(new Emitter<FileOperationDidRunEvent>());
+	readonly onDidRunOperation = this._onDidRunOperation.event;
+
 
 	private _models: TextFileEditorModelManager;
 	get models(): ITextFileEditorModelManager { return this._models; }
@@ -409,6 +413,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+
+		// before event
+		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.CREATE, resource));
+
 		const stat = await this.doCreate(resource, value, options);
 
 		// If we had an existing model for the given resource, load
@@ -419,6 +427,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		if (existingModel && !existingModel.isDisposed()) {
 			await existingModel.revert();
 		}
+
+		// after event
+		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.CREATE, resource));
 
 		return stat;
 	}
@@ -432,17 +443,20 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource));
 
+		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.DELETE, resource));
+
+		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource));
 		await this.revertAll(dirtyFiles, { soft: true });
 
-		return this.fileService.del(resource, options);
+		await this.fileService.del(resource, options);
+		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.DELETE, resource));
 	}
 
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 
-		// await onWillMove event joiners
-		await this.notifyOnWillMove(source, target);
+		// before events
+		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.MOVE, target, source));
 
 		// find all models that related to either source or target (can be many if resource is a folder)
 		const sourceModels: ITextFileEditorModel[] = [];
@@ -521,25 +535,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			}
 		}));
 
+		// after event
+		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.MOVE, target, source));
+
 		return stat;
-	}
-
-	private async notifyOnWillMove(source: URI, target: URI): Promise<void> {
-		const waitForPromises: Promise<unknown>[] = [];
-
-		// fire event
-		this._onWillMove.fire({
-			oldResource: source,
-			newResource: target,
-			waitUntil(promise: Promise<unknown>) {
-				waitForPromises.push(promise.then(undefined, errors.onUnexpectedError));
-			}
-		});
-
-		// prevent async waitUntil-calls
-		Object.freeze(waitForPromises);
-
-		await Promise.all(waitForPromises);
 	}
 
 	//#endregion

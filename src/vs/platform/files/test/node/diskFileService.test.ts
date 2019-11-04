@@ -428,6 +428,7 @@ suite('Disk File Service', function () {
 		await service.del(source.resource);
 
 		assert.equal(existsSync(source.resource.fsPath), false);
+
 		assert.ok(event!);
 		assert.equal(event!.resource.fsPath, resource.fsPath);
 		assert.equal(event!.operation, FileOperation.DELETE);
