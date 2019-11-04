@@ -219,7 +219,7 @@ suite('editor tests', () => {
 		return testEditorContents('/far.js');
 	});
 
-	test('editor contents are correct read (large file)', async function () {
+	test('editor contents are correctly read (large file)', async function () {
 		return testEditorContents('/lorem.txt');
 	});
 
