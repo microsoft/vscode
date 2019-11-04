@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./goToDefinitionAtPosition';
+import 'vs/css!./media/goToDefinitionAtPosition';
 import * as nls from 'vs/nls';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
