@@ -13,7 +13,7 @@ import { LocationLink, DefinitionProviderRegistry, ImplementationProviderRegistr
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 
-function getDefinitions<T>(
+function getLocationLinks<T>(
 	model: ITextModel,
 	position: Position,
 	registry: LanguageFeatureRegistry<T>,
@@ -35,25 +35,25 @@ function getDefinitions<T>(
 
 
 export function getDefinitionsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getDefinitions(model, position, DefinitionProviderRegistry, (provider, model, position) => {
+	return getLocationLinks(model, position, DefinitionProviderRegistry, (provider, model, position) => {
 		return provider.provideDefinition(model, position, token);
 	});
 }
 
 export function getDeclarationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getDefinitions(model, position, DeclarationProviderRegistry, (provider, model, position) => {
+	return getLocationLinks(model, position, DeclarationProviderRegistry, (provider, model, position) => {
 		return provider.provideDeclaration(model, position, token);
 	});
 }
 
 export function getImplementationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getDefinitions(model, position, ImplementationProviderRegistry, (provider, model, position) => {
+	return getLocationLinks(model, position, ImplementationProviderRegistry, (provider, model, position) => {
 		return provider.provideImplementation(model, position, token);
 	});
 }
 
 export function getTypeDefinitionsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getDefinitions(model, position, TypeDefinitionProviderRegistry, (provider, model, position) => {
+	return getLocationLinks(model, position, TypeDefinitionProviderRegistry, (provider, model, position) => {
 		return provider.provideTypeDefinition(model, position, token);
 	});
 }

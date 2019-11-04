@@ -31,10 +31,9 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { ISymbolNavigationService } from 'vs/editor/contrib/goToDefinition/goToDefinitionResultsNavigation';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
 
-export class DefinitionActionConfig {
+export class SymbolNavigationActionConfig {
 
 	constructor(
 		public readonly openToSide = false,
@@ -46,16 +45,16 @@ export class DefinitionActionConfig {
 	}
 }
 
-export class DefinitionAction extends EditorAction {
+abstract class SymbolNavigationAction extends EditorAction {
 
-	private readonly _configuration: DefinitionActionConfig;
+	private readonly _configuration: SymbolNavigationActionConfig;
 
-	constructor(configuration: DefinitionActionConfig, opts: IActionOptions) {
+	constructor(configuration: SymbolNavigationActionConfig, opts: IActionOptions) {
 		super(opts);
 		this._configuration = configuration;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (!editor.hasModel()) {
 			return Promise.resolve(undefined);
 		}
@@ -69,45 +68,28 @@ export class DefinitionAction extends EditorAction {
 
 		const cts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-		const definitionPromise = raceCancellation(this._getTargetLocationForPosition(model, pos, cts.token), cts.token).then(async references => {
+		const promise = raceCancellation(this._getLocationModel(model, pos, cts.token), cts.token).then(async references => {
 
-			if (!references || model.isDisposed()) {
-				// new model, no more model
+			if (!references || cts.token.isCancellationRequested) {
 				return;
 			}
 
-			// * remove falsy references
-			// * find reference at the current pos
-			let idxOfCurrent = -1;
-			const result: LocationLink[] = [];
-			for (const reference of references) {
-				if (!reference || !reference.range) {
-					continue;
-				}
-				const newLen = result.push(reference);
-				if (this._configuration.filterCurrent
-					&& isEqual(reference.uri, model.uri)
-					&& Range.containsPosition(reference.range, pos)
-					&& idxOfCurrent === -1
-				) {
-					idxOfCurrent = newLen - 1;
-				}
-			}
+			const referenceUnderCusor = references.referenceAt(model.uri, pos);
+			const referenceCount = references.references.length;
 
-			if (result.length === 0) {
+			if (referenceCount === 0) {
 				// no result -> show message
 				if (this._configuration.showMessage) {
 					const info = model.getWordAtPosition(pos);
 					MessageController.get(editor).showMessage(this._getNoResultFoundMessage(info), pos);
 				}
-			} else if (result.length === 1 && idxOfCurrent !== -1) {
+			} else if (referenceCount === 1 && referenceUnderCusor) {
 				// only the position at which we are -> adjust selection
-				let [current] = result;
-				return this._openReference(editor, editorService, current, false).then(() => undefined);
+				return this._openReference(editor, editorService, referenceUnderCusor, false).then(() => undefined);
 
 			} else {
 				// handle multile results
-				return this._onResult(editorService, symbolNavService, editor, new ReferencesModel(result));
+				return this._onResult(editorService, symbolNavService, editor, references);
 			}
 
 		}, (err) => {
@@ -117,23 +99,15 @@ export class DefinitionAction extends EditorAction {
 			cts.dispose();
 		});
 
-		progressService.showWhile(definitionPromise, 250);
-		return definitionPromise;
+		progressService.showWhile(promise, 250);
+		return promise;
 	}
 
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
-		return getDefinitionsAtPosition(model, position, token);
-	}
+	protected abstract _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel>;
 
-	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
-		return info && info.word
-			? nls.localize('noResultWord', "No definition found for '{0}'", info.word)
-			: nls.localize('generic.noResults', "No definition found");
-	}
+	protected abstract _getNoResultFoundMessage(info: IWordAtPosition | null): string;
 
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
-	}
+	protected abstract _getMetaTitle(model: ReferencesModel): string;
 
 	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
 
@@ -202,6 +176,25 @@ export class DefinitionAction extends EditorAction {
 	}
 }
 
+//#region --- DEFINITION
+
+export class DefinitionAction extends SymbolNavigationAction {
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getDefinitionsAtPosition(model, position, token));
+	}
+
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
+		return info && info.word
+			? nls.localize('noResultWord', "No definition found for '{0}'", info.word)
+			: nls.localize('generic.noResults', "No definition found");
+	}
+
+	protected _getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
+	}
+}
+
 const goToDefinitionKb = isWeb && !isStandalone
 	? KeyMod.CtrlCmd | KeyCode.F12
 	: KeyCode.F12;
@@ -211,7 +204,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 	static readonly id = 'editor.action.revealDefinition';
 
 	constructor() {
-		super(new DefinitionActionConfig(), {
+		super(new SymbolNavigationActionConfig(), {
 			id: GoToDefinitionAction.id,
 			label: nls.localize('actions.goToDecl.label', "Go to Definition"),
 			alias: 'Go to Definition',
@@ -237,7 +230,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 	static readonly id = 'editor.action.revealDefinitionAside';
 
 	constructor() {
-		super(new DefinitionActionConfig(true), {
+		super(new SymbolNavigationActionConfig(true), {
 			id: OpenDefinitionToSideAction.id,
 			label: nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"),
 			alias: 'Open Definition to the Side',
@@ -259,7 +252,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 	static readonly id = 'editor.action.peekDefinition';
 
 	constructor() {
-		super(new DefinitionActionConfig(undefined, true, false), {
+		super(new SymbolNavigationActionConfig(undefined, true, false), {
 			id: PeekDefinitionAction.id,
 			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
 			alias: 'Peek Definition',
@@ -282,10 +275,14 @@ export class PeekDefinitionAction extends DefinitionAction {
 	}
 }
 
-export class DeclarationAction extends DefinitionAction {
+//#endregion
 
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
-		return getDeclarationsAtPosition(model, position, token);
+//#region --- DECLARATION
+
+export class DeclarationAction extends SymbolNavigationAction {
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getDeclarationsAtPosition(model, position, token));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
@@ -304,7 +301,7 @@ export class GoToDeclarationAction extends DeclarationAction {
 	static readonly id = 'editor.action.revealDeclaration';
 
 	constructor() {
-		super(new DefinitionActionConfig(), {
+		super(new SymbolNavigationActionConfig(), {
 			id: GoToDeclarationAction.id,
 			label: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
 			alias: 'Go to Declaration',
@@ -331,7 +328,7 @@ export class GoToDeclarationAction extends DeclarationAction {
 
 export class PeekDeclarationAction extends DeclarationAction {
 	constructor() {
-		super(new DefinitionActionConfig(undefined, true, false), {
+		super(new SymbolNavigationActionConfig(undefined, true, false), {
 			id: 'editor.action.peekDeclaration',
 			label: nls.localize('actions.peekDecl.label', "Peek Declaration"),
 			alias: 'Peek Declaration',
@@ -347,9 +344,14 @@ export class PeekDeclarationAction extends DeclarationAction {
 	}
 }
 
-export class ImplementationAction extends DefinitionAction {
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
-		return getImplementationsAtPosition(model, position, token);
+//#endregion
+
+//#region --- IMPLEMENTATION
+
+export class ImplementationAction extends SymbolNavigationAction {
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getImplementationsAtPosition(model, position, token));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
@@ -368,7 +370,7 @@ export class GoToImplementationAction extends ImplementationAction {
 	public static readonly ID = 'editor.action.goToImplementation';
 
 	constructor() {
-		super(new DefinitionActionConfig(), {
+		super(new SymbolNavigationActionConfig(), {
 			id: GoToImplementationAction.ID,
 			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
 			alias: 'Go to Implementation',
@@ -389,7 +391,7 @@ export class PeekImplementationAction extends ImplementationAction {
 	public static readonly ID = 'editor.action.peekImplementation';
 
 	constructor() {
-		super(new DefinitionActionConfig(false, true, false), {
+		super(new SymbolNavigationActionConfig(false, true, false), {
 			id: PeekImplementationAction.ID,
 			label: nls.localize('actions.peekImplementation.label', "Peek Implementation"),
 			alias: 'Peek Implementation',
@@ -405,9 +407,14 @@ export class PeekImplementationAction extends ImplementationAction {
 	}
 }
 
-export class TypeDefinitionAction extends DefinitionAction {
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
-		return getTypeDefinitionsAtPosition(model, position, token);
+//#endregion
+
+//#region --- TYPE DEFINITION
+
+export class TypeDefinitionAction extends SymbolNavigationAction {
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getTypeDefinitionsAtPosition(model, position, token));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
@@ -426,7 +433,7 @@ export class GoToTypeDefinitionAction extends TypeDefinitionAction {
 	public static readonly ID = 'editor.action.goToTypeDefinition';
 
 	constructor() {
-		super(new DefinitionActionConfig(), {
+		super(new SymbolNavigationActionConfig(), {
 			id: GoToTypeDefinitionAction.ID,
 			label: nls.localize('actions.goToTypeDefinition.label', "Go to Type Definition"),
 			alias: 'Go to Type Definition',
@@ -451,7 +458,7 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 	public static readonly ID = 'editor.action.peekTypeDefinition';
 
 	constructor() {
-		super(new DefinitionActionConfig(false, true, false), {
+		super(new SymbolNavigationActionConfig(false, true, false), {
 			id: PeekTypeDefinitionAction.ID,
 			label: nls.localize('actions.peekTypeDefinition.label', "Peek Type Definition"),
 			alias: 'Peek Type Definition',
@@ -466,6 +473,8 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 		});
 	}
 }
+
+//#endregion
 
 registerEditorAction(GoToDefinitionAction);
 registerEditorAction(OpenDefinitionToSideAction);

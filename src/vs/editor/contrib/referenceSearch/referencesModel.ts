@@ -154,25 +154,25 @@ export class ReferencesModel implements IDisposable {
 	readonly _onDidChangeReferenceRange = new Emitter<OneReference>();
 	readonly onDidChangeReferenceRange: Event<OneReference> = this._onDidChangeReferenceRange.event;
 
-	constructor(references: LocationLink[]) {
+	constructor(links: LocationLink[]) {
 
 		// grouping and sorting
-		const [providersFirst] = references;
-		references.sort(ReferencesModel._compareReferences);
+		const [providersFirst] = links;
+		links.sort(ReferencesModel._compareReferences);
 
 		let current: FileReferences | undefined;
-		for (let ref of references) {
-			if (!current || current.uri.toString() !== ref.uri.toString()) {
+		for (let link of links) {
+			if (!current || current.uri.toString() !== link.uri.toString()) {
 				// new group
-				current = new FileReferences(this, ref.uri);
+				current = new FileReferences(this, link.uri);
 				this.groups.push(current);
 			}
 
 			// append, check for equality first!
-			if (current.children.length === 0 || !Range.equalsRange(ref.range, current.children[current.children.length - 1].range)) {
+			if (current.children.length === 0 || !Range.equalsRange(link.range, current.children[current.children.length - 1].range)) {
 
 				const oneRef = new OneReference(
-					providersFirst === ref, current, ref.targetSelectionRange || ref.range,
+					providersFirst === link, current, link.targetSelectionRange || link.range,
 					ref => this._onDidChangeReferenceRange.fire(ref)
 				);
 				this.references.push(oneRef);
@@ -256,6 +256,17 @@ export class ReferencesModel implements IDisposable {
 
 		if (nearest) {
 			return this.references[nearest.idx];
+		}
+		return undefined;
+	}
+
+	referenceAt(resource: URI, position: Position): OneReference | undefined {
+		for (const ref of this.references) {
+			if (ref.uri.toString() === resource.toString()) {
+				if (Range.containsPosition(ref.range, position)) {
+					return ref;
+				}
+			}
 		}
 		return undefined;
 	}
