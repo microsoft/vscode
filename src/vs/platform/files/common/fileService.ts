@@ -13,7 +13,8 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, bufferToStream, VSBufferReadableStream, writeableBufferStream, VSBufferWriteableStream, isVSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, bufferToStream, VSBufferReadableStream, newWriteableBufferStream, VSBufferWriteableStream } from 'vs/base/common/buffer';
+import { isReadableStream } from 'vs/base/common/stream';
 import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
@@ -426,7 +427,7 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private readFileBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, token: CancellationToken, options?: IReadFileOptions): VSBufferReadableStream {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		// do not await reading but simply return
 		// the stream directly since it operates
@@ -886,7 +887,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// write into handle until all bytes from buffer have been written
 			try {
-				if (isVSBufferReadableStream(readableOrStream)) {
+				if (isReadableStream(readableOrStream)) {
 					await this.doWriteStreamBufferedQueued(provider, handle, readableOrStream);
 				} else {
 					await this.doWriteReadableBufferedQueued(provider, handle, readableOrStream);
@@ -957,7 +958,7 @@ export class FileService extends Disposable implements IFileService {
 		let buffer: VSBuffer;
 		if (bufferOrReadableOrStream instanceof VSBuffer) {
 			buffer = bufferOrReadableOrStream;
-		} else if (isVSBufferReadableStream(bufferOrReadableOrStream)) {
+		} else if (isReadableStream(bufferOrReadableOrStream)) {
 			buffer = await streamToBuffer(bufferOrReadableOrStream);
 		} else {
 			buffer = readableToBuffer(bufferOrReadableOrStream);

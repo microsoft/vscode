@@ -12,7 +12,6 @@ import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -302,23 +301,6 @@ suite('PFS', () => {
 		await pfs.mkdirp(newDir, 493);
 
 		assert.ok(fs.existsSync(newDir));
-
-		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
-	});
-
-	test('mkdirp cancellation', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'pfs', id);
-
-		const source = new CancellationTokenSource();
-
-		const mkdirpPromise = pfs.mkdirp(newDir, 493, source.token);
-		source.cancel();
-
-		await mkdirpPromise;
-
-		assert.ok(!fs.existsSync(newDir));
 
 		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
