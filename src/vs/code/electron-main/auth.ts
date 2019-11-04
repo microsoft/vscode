@@ -54,7 +54,7 @@ export class ProxyAuthHandler extends Disposable {
 			skipTaskbar: true,
 			resizable: false,
 			width: 450,
-			height: 220,
+			height: 225,
 			show: true,
 			title: 'VS Code',
 			webPreferences: {
