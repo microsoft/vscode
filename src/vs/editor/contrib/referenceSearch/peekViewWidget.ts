@@ -17,11 +17,13 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
@@ -56,6 +58,24 @@ export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true);
 	export const notInPeekEditor: ContextKeyExpr = inPeekEditor.toNegated();
 }
+
+class PeekContextController implements IEditorContribution {
+
+	static readonly ID = 'editor.contrib.referenceController';
+
+	constructor(
+		editor: ICodeEditor,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		if (editor instanceof EmbeddedCodeEditorWidget) {
+			PeekContext.inPeekEditor.bindTo(contextKeyService);
+		}
+	}
+
+	dispose(): void { }
+}
+
+registerEditorContribution(PeekContextController.ID, PeekContextController);
 
 export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
 	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
