@@ -91,7 +91,7 @@ export class ExtHostWebview implements vscode.Webview {
 	}
 }
 
-export class ExtHostWebviewEditor implements vscode.WebviewEditor {
+export class ExtHostWebviewEditor implements vscode.WebviewPanel {
 
 	private readonly _handle: WebviewPanelHandle;
 	private readonly _proxy: MainThreadWebviewsShape;
@@ -221,18 +221,6 @@ export class ExtHostWebviewEditor implements vscode.WebviewEditor {
 	_setVisible(value: boolean) {
 		this.assertNotDisposed();
 		this._visible = value;
-	}
-
-	private readonly _onWillSave = new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>();
-	public readonly onWillSave = this._onWillSave.event;
-
-	async _save(): Promise<boolean> {
-		const waitingOn: Thenable<boolean>[] = [];
-		this._onWillSave.fire({
-			waitUntil: (thenable: Thenable<boolean>): void => { waitingOn.push(thenable); },
-		});
-		const result = await Promise.all(waitingOn);
-		return result.every(x => x);
 	}
 
 	public postMessage(message: any): Promise<boolean> {
@@ -434,15 +422,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension);
 		const revivedPanel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(handle, revivedPanel);
-		return Promise.resolve(provider.resolveWebviewEditor(URI.revive(resource), revivedPanel));
-	}
-
-	async $save(handle: WebviewPanelHandle): Promise<boolean> {
-		const panel = this.getWebviewPanel(handle);
-		if (panel) {
-			return panel._save();
-		}
-		return false;
+		await Promise.resolve(provider.resolveWebviewEditor({ resource: URI.revive(resource) }, revivedPanel));
 	}
 }
 

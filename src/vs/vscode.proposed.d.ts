@@ -889,26 +889,89 @@ declare module 'vscode' {
 
 	//#region Custom editors, mjbvz
 
-	export interface WebviewEditor extends WebviewPanel {
+	/**
+	 *
+	 */
+	interface WebviewEditorCapabilities {
+		/**
+		 * Invoked when the resource has been renamed in VS Code.
+		 *
+		 * This is called when the resource's new name also matches the custom editor selector.
+		 *
+		 * If this is not implemented—or if the new resource name does not match the existing selector—then VS Code
+		 * will close and reopen the editor on  rename.
+		 *
+		 * @param newResource Full path to the resource.
+		 *
+		 * @return Thenable that signals the save is complete.
+		 */
+		rename?(newResource: Uri): Thenable<void>;
+
+		readonly editingCapability?: WebviewEditorEditingCapability;
+	}
+
+	interface WebviewEditorEditingCapability {
+		/**
+		 * Persist the resource.
+		 */
+		save(resource: Uri): Thenable<void>;
+
+		/**
+		 * Called when the editor exits.
+		 */
+		hotExit(hotExitPath: Uri): Thenable<void>;
+
+		/**
+		 * Signal to VS Code that an edit has occurred.
+		 *
+		 * Edits must be a json serilizable object.
+		 */
+		readonly onEdit: Event<any>;
+
+		/**
+		 * Apply a set of edits.
+		 *
+		 * This is triggered on redo and when restoring a custom editor after restart. Note that is not invoked
+		 * when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
+		 *
+		 * @param edit Array of edits. Sorted from oldest to most recent.
+		 */
+		applyEdits(edits: any[]): Thenable<void>;
+
+		/**
+		 * Undo a set of edits.
+		 *
+		 * This is triggered when a user undoes an edit or when revert is called on a file.
+		 *
+		 * @param edit Array of edits. Sorted from most recent to oldest.
+		 */
+		undoEdits(edits: any[]): Thenable<void>;
 	}
 
 	export interface WebviewEditorProvider {
 		/**
-		* Fills out a `WebviewEditor` for a given resource.
-		*
-		* The provider should take ownership of passed in `editor`.
-		*/
+		 * Fills out a `WebviewEditor` for a given resource.
+		 *
+		 * @param input Information about the resource being resolved.
+		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 *
+		 * @return Thenable to a `WebviewEditorCapabilities` indicating that the webview editor has been resolved.
+		 *   The `WebviewEditorCapabilities` defines how the custom editor interacts with VS Code.
+		 *   **❗️Note**: `WebviewEditorCapabilities` is not actually implemented... yet!
+		 */
 		resolveWebviewEditor(
-			resource: Uri,
-			editor: WebviewEditor
-		): Thenable<void>;
+			input: {
+				readonly resource: Uri
+			},
+			webview: WebviewPanel,
+		): Thenable<WebviewEditorCapabilities>;
 	}
 
 	namespace window {
 		export function registerWebviewEditorProvider(
 			viewType: string,
 			provider: WebviewEditorProvider,
-			options?: WebviewPanelOptions
+			options?: WebviewPanelOptions,
 		): Disposable;
 	}
 
