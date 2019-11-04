@@ -32,15 +32,20 @@ export interface IWatcherOptions {
 	usePolling: boolean;
 }
 
+export interface IDiskFileSystemProviderOptions {
+	bufferSize?: number;
+	watcher?: IWatcherOptions;
+}
+
 export class DiskFileSystemProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	private readonly BUFFER_SIZE = 64 * 1024;
+	private readonly BUFFER_SIZE = this.options?.bufferSize || 64 * 1024;
 
-	constructor(private logService: ILogService, private watcherOptions?: IWatcherOptions) {
+	constructor(private logService: ILogService, private options?: IDiskFileSystemProviderOptions) {
 		super();
 	}
 
@@ -558,9 +563,9 @@ export class DiskFileSystemProvider extends Disposable implements
 				let watcherOptions: IWatcherOptions | undefined = undefined;
 
 				// requires a polling watcher
-				if (this.watcherOptions && this.watcherOptions.usePolling) {
+				if (this.options?.watcher?.usePolling) {
 					watcherImpl = UnixWatcherService;
-					watcherOptions = this.watcherOptions;
+					watcherOptions = this.options?.watcher;
 				}
 
 				// Single Folder Watcher
