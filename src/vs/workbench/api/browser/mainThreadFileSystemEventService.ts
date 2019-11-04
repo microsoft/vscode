@@ -8,6 +8,7 @@ import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { timeout } from 'vs/base/common/async';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
@@ -50,8 +51,14 @@ export class MainThreadFileSystemEventService {
 		}));
 
 		// file operation events
-		this._listener.add(textFileService.onWillRunOperation(e => proxy.$onWillRunFileOperation(e.operation, e.target, e.source)));
 		this._listener.add(textFileService.onDidRunOperation(e => proxy.$onDidRunFileOperation(e.operation, e.target, e.source)));
+		this._listener.add(textFileService.onWillRunOperation(e => {
+			const p1 = proxy.$onWillRunFileOperation(e.operation, e.target, e.source);
+			const p2 = new Promise((_resolve, reject) => {
+				setTimeout(() => reject(new Error('timeout')), 5000);
+			});
+			e.waitUntil(Promise.race([p1, p2]));
+		}));
 	}
 
 	dispose(): void {
