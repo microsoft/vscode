@@ -192,6 +192,8 @@ export class ReleaseNotesManager {
 					body {
 						padding: 10px 20px;
 						line-height: 22px;
+						max-width: 780px;
+						margin: 0 auto;
 					}
 
 					img {
@@ -231,7 +233,6 @@ export class ReleaseNotesManager {
 					h1, h2, h3 {
 						font-weight: normal;
 					}
-
 
 					table {
 						border-collapse: collapse;

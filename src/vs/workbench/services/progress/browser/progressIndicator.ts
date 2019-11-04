@@ -8,11 +8,14 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IProgressRunner, IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/platform/progress/common/progress';
+import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 
-export class ProgressBarIndicator implements IProgressIndicator {
+export class ProgressBarIndicator extends Disposable implements IProgressIndicator {
 
-	constructor(private progressbar: ProgressBar) { }
+	constructor(protected progressbar: ProgressBar) {
+		super();
+	}
 
 	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
@@ -52,6 +55,55 @@ export class ProgressBarIndicator implements IProgressIndicator {
 		} finally {
 			this.progressbar.stop().hide();
 		}
+	}
+}
+
+export class EditorProgressIndicator extends ProgressBarIndicator {
+
+	_serviceBrand: undefined;
+
+	constructor(progressBar: ProgressBar, private readonly group: IEditorGroupView) {
+		super(progressBar);
+
+		this.registerListeners();
+	}
+
+	private registerListeners() {
+		this._register(this.group.onDidCloseEditor(e => {
+			if (this.group.isEmpty) {
+				this.progressbar.stop().hide();
+			}
+		}));
+	}
+
+	show(infinite: true, delay?: number): IProgressRunner;
+	show(total: number, delay?: number): IProgressRunner;
+	show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
+
+		// No editor open: ignore any progress reporting
+		if (this.group.isEmpty) {
+			return emptyProgressRunner;
+		}
+
+		if (infiniteOrTotal === true) {
+			return super.show(true, delay);
+		}
+
+		return super.show(infiniteOrTotal, delay);
+	}
+
+	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+
+		// No editor open: ignore any progress reporting
+		if (this.group.isEmpty) {
+			try {
+				await promise;
+			} catch (error) {
+				// ignore
+			}
+		}
+
+		return super.showWhile(promise, delay);
 	}
 }
 

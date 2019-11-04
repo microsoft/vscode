@@ -215,9 +215,7 @@ export class EditorBreadcrumbsModel {
 		}
 		let item: OutlineGroup | OutlineElement | undefined = model.getItemEnclosingPosition(position);
 		if (!item) {
-			return values(model.children).every(e => this._isFiltered(e))
-				? []
-				: [model];
+			return this._getOutlineElementsRoot(model);
 		}
 		let chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
@@ -239,7 +237,14 @@ export class EditorBreadcrumbsModel {
 			}
 			result.push(element);
 		}
+		if (result.length === 0) {
+			return this._getOutlineElementsRoot(model);
+		}
 		return result;
+	}
+
+	private _getOutlineElementsRoot(model: OutlineModel): (OutlineModel | OutlineGroup | OutlineElement)[] {
+		return values(model.children).every(e => this._isFiltered(e)) ? [] : [model];
 	}
 
 	private _isFiltered(element: TreeElement): boolean {
