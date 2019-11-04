@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { localize } from 'vs/nls';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
@@ -17,7 +19,8 @@ export class MainThreadFileSystemEventService {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService fileService: IFileService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@IProgressService progressService: IProgressService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -49,15 +52,30 @@ export class MainThreadFileSystemEventService {
 			events.deleted.length = 0;
 		}));
 
-		// file operation events
-		this._listener.add(textFileService.onDidRunOperation(e => proxy.$onDidRunFileOperation(e.operation, e.target, e.source)));
+
+		// BEFORE file operation
+		const messages = new Map<FileOperation, string>();
+		messages.set(FileOperation.CREATE, localize('msg-create', "Running 'File Create' participants..."));
+		messages.set(FileOperation.DELETE, localize('msg-delete', "Running 'File Delete' participants..."));
+		messages.set(FileOperation.MOVE, localize('msg-rename', "Running 'File Rename' participants..."));
+
 		this._listener.add(textFileService.onWillRunOperation(e => {
-			const p1 = proxy.$onWillRunFileOperation(e.operation, e.target, e.source);
-			const p2 = new Promise((_resolve, reject) => {
-				setTimeout(() => reject(new Error('timeout')), 5000);
+			const p = progressService.withProgress({ location: ProgressLocation.Window }, progress => {
+
+				progress.report({ message: messages.get(e.operation) });
+
+				const p1 = proxy.$onWillRunFileOperation(e.operation, e.target, e.source);
+				const p2 = new Promise((_resolve, reject) => {
+					setTimeout(() => reject(new Error('timeout')), 5000);
+				});
+				return Promise.race([p1, p2]);
 			});
-			e.waitUntil(Promise.race([p1, p2]));
+
+			e.waitUntil(p);
 		}));
+
+		// AFTER file operation
+		this._listener.add(textFileService.onDidRunOperation(e => proxy.$onDidRunFileOperation(e.operation, e.target, e.source)));
 	}
 
 	dispose(): void {
