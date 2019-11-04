@@ -2033,10 +2033,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 
-		const timeout: boolean = await Promise.race([new Promise(async (resolve) => {
+		const timeout: boolean = await Promise.race([new Promise<boolean>(async (resolve) => {
 			await _createEntries;
 			resolve(false);
-		}), new Promise((resolve) => {
+		}), new Promise<boolean>((resolve) => {
 			const timer = setTimeout(() => {
 				clearTimeout(timer);
 				resolve(true);
@@ -2560,10 +2560,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			});
 		});
 
-		const timeout: boolean = await Promise.race([new Promise(async (resolve) => {
+		const timeout: boolean = await Promise.race([new Promise<boolean>(async (resolve) => {
 			await entries;
 			resolve(false);
-		}), new Promise((resolve) => {
+		}), new Promise<boolean>((resolve) => {
 			const timer = setTimeout(() => {
 				clearTimeout(timer);
 				resolve(true);
