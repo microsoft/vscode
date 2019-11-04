@@ -1261,7 +1261,7 @@ suite('Disk File Service', function () {
 		assert.equal(fileProvider.totalBytesRead, 0);
 	});
 
-	test('readFile - FILE_EXCEED_MEMORY_LIMIT - buffered', async () => {
+	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
 		const resource = URI.file(join(testDir, 'index.html'));
@@ -1274,10 +1274,10 @@ suite('Disk File Service', function () {
 		}
 
 		assert.ok(error);
-		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_EXCEED_MEMORY_LIMIT);
+		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
 	});
 
-	test('readFile - FILE_EXCEED_MEMORY_LIMIT - unbuffered', async () => {
+	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
 		const resource = URI.file(join(testDir, 'index.html'));
@@ -1290,7 +1290,7 @@ suite('Disk File Service', function () {
 		}
 
 		assert.ok(error);
-		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_EXCEED_MEMORY_LIMIT);
+		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
 	});
 
 	test('readFile - FILE_TOO_LARGE - buffered', async () => {

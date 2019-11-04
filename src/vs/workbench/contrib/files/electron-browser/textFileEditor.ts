@@ -55,7 +55,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 	protected handleSetInputError(error: Error, input: FileEditorInput, options: EditorOptions | undefined): void {
 
 		// Allow to restart with higher memory limit if the file is too large
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT) {
 			const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
 			throw createErrorWithActions(toErrorMessage(error), {

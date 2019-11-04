@@ -524,7 +524,7 @@ export class FileService extends Disposable implements IFileService {
 		// Return early if file is too large to load
 		if (options?.limits) {
 			if (typeof options.limits.memory === 'number' && stat.size > options.limits.memory) {
-				throw new FileOperationError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), FileOperationResult.FILE_EXCEED_MEMORY_LIMIT);
+				throw new FileOperationError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
 			}
 
 			if (typeof options.limits.size === 'number' && stat.size > options.limits.size) {
@@ -1079,7 +1079,7 @@ export class FileService extends Disposable implements IFileService {
 		// Return early if file is too large to load
 		if (options?.limits) {
 			if (typeof options.limits.memory === 'number' && totalBytesRead > options.limits.memory) {
-				throw new FileOperationError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), FileOperationResult.FILE_EXCEED_MEMORY_LIMIT);
+				throw new FileOperationError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
 			}
 
 			if (typeof options.limits.size === 'number' && totalBytesRead > options.limits.size) {
