@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/peekViewWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionBar, IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
-import 'vs/css!./media/peekViewWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -35,7 +35,7 @@ export interface IPeekViewService {
 registerSingleton(IPeekViewService, class implements IPeekViewService {
 	_serviceBrand: undefined;
 
-	private _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable }>();
+	private readonly _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable }>();
 
 	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void {
 		const existing = this._widgets.get(editor);
@@ -101,9 +101,10 @@ const defaultOptions: IPeekViewOptions = {
 
 export abstract class PeekViewWidget extends ZoneWidget {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	private readonly _onDidClose = new Emitter<PeekViewWidget>();
+	readonly onDidClose = this._onDidClose.event;
 
 	protected _headElement?: HTMLDivElement;
 	protected _primaryHeading?: HTMLElement;
@@ -117,16 +118,12 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		objects.mixin(this.options, defaultOptions, false);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 		this._onDidClose.fire(this);
 	}
 
-	public get onDidClose(): Event<PeekViewWidget> {
-		return this._onDidClose.event;
-	}
-
-	public style(styles: IPeekViewStyles): void {
+	style(styles: IPeekViewStyles): void {
 		let options = <IPeekViewOptions>this.options;
 		if (styles.headerBackgroundColor) {
 			options.headerBackgroundColor = styles.headerBackgroundColor;
@@ -205,7 +202,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		// implement me
 	}
 
-	public setTitle(primaryHeading: string, secondaryHeading?: string): void {
+	setTitle(primaryHeading: string, secondaryHeading?: string): void {
 		if (this._primaryHeading && this._secondaryHeading) {
 			this._primaryHeading.innerHTML = strings.escape(primaryHeading);
 			this._primaryHeading.setAttribute('aria-label', primaryHeading);
@@ -217,7 +214,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		}
 	}
 
-	public setMetaTitle(value: string): void {
+	setMetaTitle(value: string): void {
 		if (this._metaHeading) {
 			if (value) {
 				this._metaHeading.innerHTML = strings.escape(value);
@@ -229,7 +226,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	protected abstract _fillBody(container: HTMLElement): void;
 
-	public _doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
 
 		if (!this._isShowing && heightInPixel < 0) {
 			// Looks like the view zone got folded away!
