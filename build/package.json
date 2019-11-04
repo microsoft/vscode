@@ -52,5 +52,8 @@
     "watch": "tsc -p tsconfig.build.json --watch",
     "postinstall": "npm run compile",
     "npmCheckJs": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@azure/cosmos": "^3.4.0"
   }
 }
