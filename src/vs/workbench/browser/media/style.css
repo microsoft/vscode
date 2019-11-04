@@ -196,8 +196,9 @@ body.web {
 	position: absolute;
 	top: 0;
 	bottom: 0;
-	right: 4px;
+	right: 6px;
 	margin: auto;
+	pointer-events: none;
 }
 
 /* START Keyboard Focus Indication Styles */
