@@ -81,9 +81,7 @@ export class ReleaseNotesManager {
 				{
 					tryRestoreScrollPosition: true,
 					enableFindWidget: true,
-					localResourceRoots: [
-						URI.parse(require.toUrl('./media'))
-					]
+					localResourceRoots: []
 				},
 				undefined);
 
