@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * A interface that emulates the API shape of a node.js readable
- * stream for use in desktop and web environments.
+ * The payload that flows in readable stream events.
  */
-export interface ReadableStream<T> {
+export type ReadableStreamEventPayload<T> = T | Error | 'end';
+
+export interface ReadableStreamEvents<T> {
 
 	/**
 	 * The 'data' event is emitted whenever the stream is
 	 * relinquishing ownership of a chunk of data to a consumer.
 	 */
-	on(event: 'data', callback: (chunk: T) => void): void;
+	on(event: 'data', callback: (data: T) => void): void;
 
 	/**
 	 * Emitted when any error occurs.
@@ -26,6 +27,13 @@ export interface ReadableStream<T> {
 	 * not be emitted unless the data is completely consumed.
 	 */
 	on(event: 'end', callback: () => void): void;
+}
+
+/**
+ * A interface that emulates the API shape of a node.js readable
+ * stream for use in desktop and web environments.
+ */
+export interface ReadableStream<T> extends ReadableStreamEvents<T> {
 
 	/**
 	 * Stops emitting any events until resume() is called.
@@ -97,11 +105,20 @@ export interface IReducer<T> {
 	(data: T[]): T;
 }
 
-export interface ITransformer<S, T> {
-	(source: S): T;
+export interface IDataTransformer<Original, Transformed> {
+	(data: Original): Transformed;
 }
 
-export function newWriteableStream<T>(reducer: IReducer<T>) {
+export interface IErrorTransformer {
+	(error: Error): Error;
+}
+
+export interface ITransformer<Original, Transformed> {
+	data: IDataTransformer<Original, Transformed>;
+	error?: IErrorTransformer;
+}
+
+export function newWriteableStream<T>(reducer: IReducer<T>): WriteableStream<T> {
 	return new WriteableStreamImpl<T>(reducer);
 }
 
@@ -119,7 +136,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 	};
 
 	private readonly listeners = {
-		data: [] as { (chunk: T): void }[],
+		data: [] as { (data: T): void }[],
 		error: [] as { (error: Error): void }[],
 		end: [] as { (): void }[]
 	};
@@ -302,11 +319,59 @@ export function consumeReadable<T>(readable: Readable<T>, reducer: IReducer<T>):
 	const chunks: T[] = [];
 
 	let chunk: T | null;
-	while (chunk = readable.read()) {
+	while ((chunk = readable.read()) !== null) {
 		chunks.push(chunk);
 	}
 
 	return reducer(chunks);
+}
+
+/**
+ * Helper to read a T readable up to a maximum of chunks. If the limit is
+ * reached, will return a readable instead to ensure all data can still
+ * be read.
+ */
+export function consumeReadableWithLimit<T>(readable: Readable<T>, reducer: IReducer<T>, maxChunks: number): T | Readable<T> {
+	const chunks: T[] = [];
+
+	let chunk: T | null | undefined = undefined;
+	while ((chunk = readable.read()) !== null && chunks.length < maxChunks) {
+		chunks.push(chunk);
+	}
+
+	// If the last chunk is null, it means we reached the end of
+	// the readable and return all the data at once
+	if (chunk === null && chunks.length > 0) {
+		return reducer(chunks);
+	}
+
+	// Otherwise, we still have a chunk, it means we reached the maxChunks
+	// value and as such we return a new Readable that first returns
+	// the existing read chunks and then continues with reading from
+	// the underlying readable.
+	return {
+		read: () => {
+
+			// First consume chunks from our array
+			if (chunks.length > 0) {
+				return chunks.shift()!;
+			}
+
+			// Then ensure to return our last read chunk
+			if (typeof chunk !== 'undefined') {
+				const lastReadChunk = chunk;
+
+				// explicitly use undefined here to indicate that we consumed
+				// the chunk, which could have either been null or valued.
+				chunk = undefined;
+
+				return lastReadChunk;
+			}
+
+			// Finally delegate back to the Readable
+			return readable.read();
+		}
+	};
 }
 
 /**
@@ -316,9 +381,65 @@ export function consumeStream<T>(stream: ReadableStream<T>, reducer: IReducer<T>
 	return new Promise((resolve, reject) => {
 		const chunks: T[] = [];
 
-		stream.on('data', chunk => chunks.push(chunk));
+		stream.on('data', data => chunks.push(data));
 		stream.on('error', error => reject(error));
 		stream.on('end', () => resolve(reducer(chunks)));
+	});
+}
+
+/**
+ * Helper to read a T stream up to a maximum of chunks. If the limit is
+ * reached, will return a stream instead to ensure all data can still
+ * be read.
+ */
+export function consumeStreamWithLimit<T>(stream: ReadableStream<T>, reducer: IReducer<T>, maxChunks: number): Promise<T | ReadableStream<T>> {
+	return new Promise((resolve, reject) => {
+		const chunks: T[] = [];
+
+		let wrapperStream: WriteableStream<T> | undefined = undefined;
+
+		stream.on('data', data => {
+
+			// If we reach maxChunks, we start to return a stream
+			// and make sure that any data we have already read
+			// is in it as well
+			if (!wrapperStream && chunks.length === maxChunks) {
+				wrapperStream = newWriteableStream(reducer);
+				while (chunks.length) {
+					wrapperStream.write(chunks.shift()!);
+				}
+
+				wrapperStream.write(data);
+
+				return resolve(wrapperStream);
+			}
+
+			if (wrapperStream) {
+				wrapperStream.write(data);
+			} else {
+				chunks.push(data);
+			}
+		});
+
+		stream.on('error', error => {
+			if (wrapperStream) {
+				wrapperStream.error(error);
+			} else {
+				return reject(error);
+			}
+		});
+
+		stream.on('end', () => {
+			if (wrapperStream) {
+				while (chunks.length) {
+					wrapperStream.write(chunks.shift()!);
+				}
+
+				wrapperStream.end();
+			} else {
+				return resolve(reducer(chunks));
+			}
+		});
 	});
 }
 
@@ -352,12 +473,15 @@ export function toReadable<T>(t: T): Readable<T> {
 	};
 }
 
-export function transform<S, T>(stream: ReadableStream<S>, transformer: ITransformer<S, T>, reducer: IReducer<T>): ReadableStream<T> {
-	const target = newWriteableStream<T>(reducer);
+/**
+ * Helper to transform a readable stream into another stream.
+ */
+export function transform<Original, Transformed>(stream: ReadableStreamEvents<Original>, transformer: ITransformer<Original, Transformed>, reducer: IReducer<Transformed>): ReadableStream<Transformed> {
+	const target = newWriteableStream<Transformed>(reducer);
 
-	stream.on('data', data => target.write(transformer(data)));
+	stream.on('data', data => target.write(transformer.data(data)));
 	stream.on('end', () => target.end());
-	stream.on('error', error => target.error(error));
+	stream.on('error', error => target.error(transformer.error ? transformer.error(error) : error));
 
 	return target;
 }
