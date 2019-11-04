@@ -10,7 +10,6 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { MIN_MAX_MEMORY_SIZE_MB, FALLBACK_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/node/files';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -58,7 +57,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT) {
 			const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
-			throw createErrorWithActions(toErrorMessage(error), {
+			throw createErrorWithActions(nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), {
 				actions: [
 					new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), undefined, true, () => {
 						return this.electronService.relaunch({
