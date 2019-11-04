@@ -708,20 +708,45 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
+
+	export interface FileCreateEvent {
+		readonly created: ReadonlyArray<Uri>;
+	}
+
+	export interface FileWillCreateEvent {
+		readonly creating: ReadonlyArray<Uri>;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	export interface FileDeleteEvent {
+		readonly deleted: ReadonlyArray<Uri>;
+	}
+
+	export interface FileWillDeleteEvent {
+		readonly deleting: ReadonlyArray<Uri>;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
 	export interface FileRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
+		readonly renamed: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
 	export interface FileWillRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		readonly renaming: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void; // TODO@joh support sync/async
 	}
 
 	export namespace workspace {
-		export const onWillRenameFile: Event<FileWillRenameEvent>;
-		export const onDidRenameFile: Event<FileRenameEvent>;
+
+		export const onWillCreateFiles: Event<FileWillCreateEvent>;
+		export const onDidCreateFiles: Event<FileCreateEvent>;
+
+		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+
+		export const onWillRenameFiles: Event<FileWillRenameEvent>;
+		export const onDidRenameFiles: Event<FileRenameEvent>;
+
 	}
 	//#endregion
 

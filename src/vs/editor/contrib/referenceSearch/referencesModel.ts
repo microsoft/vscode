@@ -18,18 +18,15 @@ import { IMatch } from 'vs/base/common/filters';
 import { Constants } from 'vs/base/common/uint';
 
 export class OneReference {
-	readonly id: string;
 
-	private readonly _onRefChanged = new Emitter<this>();
-	readonly onRefChanged: Event<this> = this._onRefChanged.event;
+	readonly id: string = defaultGenerator.nextId();
 
 	constructor(
+		readonly isProviderFirst: boolean,
 		readonly parent: FileReferences,
 		private _range: IRange,
-		readonly isProviderFirst: boolean
-	) {
-		this.id = defaultGenerator.nextId();
-	}
+		private _rangeCallback: (ref: OneReference) => void
+	) { }
 
 	get uri(): URI {
 		return this.parent.uri;
@@ -41,7 +38,7 @@ export class OneReference {
 
 	set range(value: IRange) {
 		this._range = value;
-		this._onRefChanged.fire(this);
+		this._rangeCallback(this);
 	}
 
 	getAriaMessage(): string {
@@ -56,8 +53,7 @@ export class FilePreview implements IDisposable {
 
 	constructor(
 		private readonly _modelReference: IReference<ITextEditorModel>
-	) {
-	}
+	) { }
 
 	dispose(): void {
 		dispose(this._modelReference);
@@ -88,29 +84,20 @@ export class FilePreview implements IDisposable {
 
 export class FileReferences implements IDisposable {
 
-	private _children: OneReference[];
+	readonly children: OneReference[] = [];
+
 	private _preview?: FilePreview;
 	private _resolved?: boolean;
-	private _loadFailure: any;
+	private _loadFailure?: any;
 
-	constructor(private readonly _parent: ReferencesModel, private readonly _uri: URI) {
-		this._children = [];
-	}
+	constructor(
+		readonly parent: ReferencesModel,
+		readonly uri: URI
+	) { }
 
-	get id(): string {
-		return this._uri.toString();
-	}
-
-	get parent(): ReferencesModel {
-		return this._parent;
-	}
-
-	get children(): OneReference[] {
-		return this._children;
-	}
-
-	get uri(): URI {
-		return this._uri;
+	dispose(): void {
+		dispose(this._preview);
+		this._preview = undefined;
 	}
 
 	get preview(): FilePreview | undefined {
@@ -136,7 +123,7 @@ export class FileReferences implements IDisposable {
 			return Promise.resolve(this);
 		}
 
-		return Promise.resolve(textModelResolverService.createModelReference(this._uri).then(modelReference => {
+		return Promise.resolve(textModelResolverService.createModelReference(this.uri).then(modelReference => {
 			const model = modelReference.object;
 
 			if (!model) {
@@ -150,18 +137,11 @@ export class FileReferences implements IDisposable {
 
 		}, err => {
 			// something wrong here
-			this._children = [];
+			this.children.length = 0;
 			this._resolved = true;
 			this._loadFailure = err;
 			return this;
 		}));
-	}
-
-	dispose(): void {
-		if (this._preview) {
-			this._preview.dispose();
-			this._preview = undefined;
-		}
 	}
 }
 
@@ -174,38 +154,46 @@ export class ReferencesModel implements IDisposable {
 	readonly _onDidChangeReferenceRange = new Emitter<OneReference>();
 	readonly onDidChangeReferenceRange: Event<OneReference> = this._onDidChangeReferenceRange.event;
 
-	constructor(references: LocationLink[]) {
+	constructor(links: LocationLink[]) {
 
 		// grouping and sorting
-		const [providersFirst] = references;
-		references.sort(ReferencesModel._compareReferences);
+		const [providersFirst] = links;
+		links.sort(ReferencesModel._compareReferences);
 
 		let current: FileReferences | undefined;
-		for (let ref of references) {
-			if (!current || current.uri.toString() !== ref.uri.toString()) {
+		for (let link of links) {
+			if (!current || current.uri.toString() !== link.uri.toString()) {
 				// new group
-				current = new FileReferences(this, ref.uri);
+				current = new FileReferences(this, link.uri);
 				this.groups.push(current);
 			}
 
 			// append, check for equality first!
-			if (current.children.length === 0
-				|| !Range.equalsRange(ref.range, current.children[current.children.length - 1].range)) {
+			if (current.children.length === 0 || !Range.equalsRange(link.range, current.children[current.children.length - 1].range)) {
 
-				let oneRef = new OneReference(current, ref.targetSelectionRange || ref.range, providersFirst === ref);
-				this._disposables.add(oneRef.onRefChanged((e) => this._onDidChangeReferenceRange.fire(e)));
+				const oneRef = new OneReference(
+					providersFirst === link, current, link.targetSelectionRange || link.range,
+					ref => this._onDidChangeReferenceRange.fire(ref)
+				);
 				this.references.push(oneRef);
 				current.children.push(oneRef);
 			}
 		}
 	}
 
-	get empty(): boolean {
+	dispose(): void {
+		dispose(this.groups);
+		this._disposables.dispose();
+		this._onDidChangeReferenceRange.dispose();
+		this.groups.length = 0;
+	}
+
+	get isEmpty(): boolean {
 		return this.groups.length === 0;
 	}
 
 	getAriaMessage(): string {
-		if (this.empty) {
+		if (this.isEmpty) {
 			return localize('aria.result.0', "No results found");
 		} else if (this.references.length === 1) {
 			return localize('aria.result.1', "Found 1 symbol in {0}", this.references[0].uri.fsPath);
@@ -272,6 +260,17 @@ export class ReferencesModel implements IDisposable {
 		return undefined;
 	}
 
+	referenceAt(resource: URI, position: Position): OneReference | undefined {
+		for (const ref of this.references) {
+			if (ref.uri.toString() === resource.toString()) {
+				if (Range.containsPosition(ref.range, position)) {
+					return ref;
+				}
+			}
+		}
+		return undefined;
+	}
+
 	firstReference(): OneReference | undefined {
 		for (const ref of this.references) {
 			if (ref.isProviderFirst) {
@@ -281,21 +280,7 @@ export class ReferencesModel implements IDisposable {
 		return this.references[0];
 	}
 
-	dispose(): void {
-		dispose(this.groups);
-		this._disposables.dispose();
-		this.groups.length = 0;
-	}
-
 	private static _compareReferences(a: Location, b: Location): number {
-		const auri = a.uri.toString();
-		const buri = b.uri.toString();
-		if (auri < buri) {
-			return -1;
-		} else if (auri > buri) {
-			return 1;
-		} else {
-			return Range.compareRangesUsingStarts(a.range, b.range);
-		}
+		return strings.compare(a.uri.toString(), b.uri.toString()) || Range.compareRangesUsingStarts(a.range, b.range);
 	}
 }

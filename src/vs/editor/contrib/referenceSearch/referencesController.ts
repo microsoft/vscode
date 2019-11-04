@@ -30,7 +30,7 @@ export interface RequestOptions {
 
 export abstract class ReferencesController implements editorCommon.IEditorContribution {
 
-	public static readonly ID = 'editor.contrib.referencesController';
+	static readonly ID = 'editor.contrib.referencesController';
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _editor: ICodeEditor;
@@ -41,11 +41,11 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 	private readonly _referenceSearchVisible: IContextKey<boolean>;
 
-	public static get(editor: ICodeEditor): ReferencesController {
+	static get(editor: ICodeEditor): ReferencesController {
 		return editor.getContribution<ReferencesController>(ReferencesController.ID);
 	}
 
-	public constructor(
+	constructor(
 		private readonly _defaultTreeKeyboardSupport: boolean,
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -59,7 +59,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._referenceSearchVisible.reset();
 		dispose(this._disposables);
 		if (this._widget) {
@@ -72,7 +72,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		}
 	}
 
-	public toggleWidget(range: Range, modelPromise: CancelablePromise<ReferencesModel>, options: RequestOptions): void {
+	toggleWidget(range: Range, modelPromise: CancelablePromise<ReferencesModel>, options: RequestOptions): void {
 
 		// close current widget and return early is position didn't change
 		let widgetPosition: Position | undefined;
@@ -173,7 +173,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		});
 	}
 
-	public async goToNextOrPreviousReference(fwd: boolean) {
+	async goToNextOrPreviousReference(fwd: boolean) {
 		if (!this._editor.hasModel() || !this._model || !this._widget) {
 			// can be called while still resolving...
 			return;
@@ -195,7 +195,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		}
 	}
 
-	public closeWidget(): void {
+	closeWidget(): void {
 		if (this._widget) {
 			dispose(this._widget);
 			this._widget = undefined;
@@ -247,7 +247,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		});
 	}
 
-	public openReference(ref: Location, sideBySide: boolean): void {
+	openReference(ref: Location, sideBySide: boolean): void {
 		// clear stage
 		if (!sideBySide) {
 			this.closeWidget();

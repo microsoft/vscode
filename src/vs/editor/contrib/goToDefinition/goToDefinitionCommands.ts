@@ -21,41 +21,34 @@ import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/referencesModel';
 import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from './goToDefinition';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from './goToDefinition';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { ISymbolNavigationService } from 'vs/editor/contrib/goToDefinition/goToDefinitionResultsNavigation';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
 
-export class DefinitionActionConfig {
-
-	constructor(
-		public readonly openToSide = false,
-		public readonly openInPeek = false,
-		public readonly filterCurrent = true,
-		public readonly showMessage = true,
-	) {
-		//
-	}
+export interface SymbolNavigationActionConfig {
+	openToSide: boolean;// = false
+	openInPeek: boolean;// = false
+	muteMessage: boolean;// = true
 }
 
-export class DefinitionAction extends EditorAction {
+abstract class SymbolNavigationAction extends EditorAction {
 
-	private readonly _configuration: DefinitionActionConfig;
+	private readonly _configuration: SymbolNavigationActionConfig;
 
-	constructor(configuration: DefinitionActionConfig, opts: IActionOptions) {
+	constructor(configuration: SymbolNavigationActionConfig, opts: IActionOptions) {
 		super(opts);
 		this._configuration = configuration;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (!editor.hasModel()) {
 			return Promise.resolve(undefined);
 		}
@@ -69,45 +62,28 @@ export class DefinitionAction extends EditorAction {
 
 		const cts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-		const definitionPromise = raceCancellation(this._getTargetLocationForPosition(model, pos, cts.token), cts.token).then(async references => {
+		const promise = raceCancellation(this._getLocationModel(model, pos, cts.token), cts.token).then(async references => {
 
-			if (!references || model.isDisposed()) {
-				// new model, no more model
+			if (!references || cts.token.isCancellationRequested) {
 				return;
 			}
 
-			// * remove falsy references
-			// * find reference at the current pos
-			let idxOfCurrent = -1;
-			const result: LocationLink[] = [];
-			for (const reference of references) {
-				if (!reference || !reference.range) {
-					continue;
-				}
-				const newLen = result.push(reference);
-				if (this._configuration.filterCurrent
-					&& isEqual(reference.uri, model.uri)
-					&& Range.containsPosition(reference.range, pos)
-					&& idxOfCurrent === -1
-				) {
-					idxOfCurrent = newLen - 1;
-				}
-			}
+			const referenceUnderCusor = references.referenceAt(model.uri, pos);
+			const referenceCount = references.references.length;
 
-			if (result.length === 0) {
+			if (referenceCount === 0) {
 				// no result -> show message
-				if (this._configuration.showMessage) {
+				if (!this._configuration.muteMessage) {
 					const info = model.getWordAtPosition(pos);
 					MessageController.get(editor).showMessage(this._getNoResultFoundMessage(info), pos);
 				}
-			} else if (result.length === 1 && idxOfCurrent !== -1) {
+			} else if (referenceCount === 1 && referenceUnderCusor) {
 				// only the position at which we are -> adjust selection
-				let [current] = result;
-				return this._openReference(editor, editorService, current, false).then(() => undefined);
+				return this._openReference(editor, editorService, referenceUnderCusor, false).then(() => undefined);
 
 			} else {
 				// handle multile results
-				return this._onResult(editorService, symbolNavService, editor, new ReferencesModel(result));
+				return this._onResult(editorService, symbolNavService, editor, references);
 			}
 
 		}, (err) => {
@@ -117,23 +93,15 @@ export class DefinitionAction extends EditorAction {
 			cts.dispose();
 		});
 
-		progressService.showWhile(definitionPromise, 250);
-		return definitionPromise;
+		progressService.showWhile(promise, 250);
+		return promise;
 	}
 
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
-		return getDefinitionsAtPosition(model, position, token);
-	}
+	protected abstract _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel>;
 
-	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
-		return info && info.word
-			? nls.localize('noResultWord', "No definition found for '{0}'", info.word)
-			: nls.localize('generic.noResults', "No definition found");
-	}
+	protected abstract _getNoResultFoundMessage(info: IWordAtPosition | null): string;
 
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
-	}
+	protected abstract _getMetaTitle(model: ReferencesModel): string;
 
 	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
 
@@ -202,16 +170,39 @@ export class DefinitionAction extends EditorAction {
 	}
 }
 
+//#region --- DEFINITION
+
+export class DefinitionAction extends SymbolNavigationAction {
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getDefinitionsAtPosition(model, position, token));
+	}
+
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
+		return info && info.word
+			? nls.localize('noResultWord', "No definition found for '{0}'", info.word)
+			: nls.localize('generic.noResults', "No definition found");
+	}
+
+	protected _getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
+	}
+}
+
 const goToDefinitionKb = isWeb && !isStandalone
 	? KeyMod.CtrlCmd | KeyCode.F12
 	: KeyCode.F12;
 
-export class GoToDefinitionAction extends DefinitionAction {
+registerEditorAction(class GoToDefinitionAction extends DefinitionAction {
 
 	static readonly id = 'editor.action.revealDefinition';
 
 	constructor() {
-		super(new DefinitionActionConfig(), {
+		super({
+			openToSide: false,
+			openInPeek: false,
+			muteMessage: false
+		}, {
 			id: GoToDefinitionAction.id,
 			label: nls.localize('actions.goToDecl.label', "Go to Definition"),
 			alias: 'Go to Definition',
@@ -226,18 +217,28 @@ export class GoToDefinitionAction extends DefinitionAction {
 			menuOpts: {
 				group: 'navigation',
 				order: 1.1
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 2,
+				title: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
 			}
 		});
 		CommandsRegistry.registerCommandAlias('editor.action.goToDeclaration', GoToDefinitionAction.id);
 	}
-}
+});
 
-export class OpenDefinitionToSideAction extends DefinitionAction {
+registerEditorAction(class OpenDefinitionToSideAction extends DefinitionAction {
 
 	static readonly id = 'editor.action.revealDefinitionAside';
 
 	constructor() {
-		super(new DefinitionActionConfig(true), {
+		super({
+			openToSide: true,
+			openInPeek: false,
+			muteMessage: false
+		}, {
 			id: OpenDefinitionToSideAction.id,
 			label: nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"),
 			alias: 'Open Definition to the Side',
@@ -252,14 +253,18 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 		});
 		CommandsRegistry.registerCommandAlias('editor.action.openDeclarationToTheSide', OpenDefinitionToSideAction.id);
 	}
-}
+});
 
-export class PeekDefinitionAction extends DefinitionAction {
+registerEditorAction(class PeekDefinitionAction extends DefinitionAction {
 
 	static readonly id = 'editor.action.peekDefinition';
 
 	constructor() {
-		super(new DefinitionActionConfig(undefined, true, false), {
+		super({
+			openToSide: false,
+			openInPeek: true,
+			muteMessage: false
+		}, {
 			id: PeekDefinitionAction.id,
 			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
 			alias: 'Peek Definition',
@@ -280,12 +285,16 @@ export class PeekDefinitionAction extends DefinitionAction {
 		});
 		CommandsRegistry.registerCommandAlias('editor.action.previewDeclaration', PeekDefinitionAction.id);
 	}
-}
+});
 
-export class DeclarationAction extends DefinitionAction {
+//#endregion
 
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
-		return getDeclarationsAtPosition(model, position, token);
+//#region --- DECLARATION
+
+class DeclarationAction extends SymbolNavigationAction {
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getDeclarationsAtPosition(model, position, token));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
@@ -299,12 +308,16 @@ export class DeclarationAction extends DefinitionAction {
 	}
 }
 
-export class GoToDeclarationAction extends DeclarationAction {
+registerEditorAction(class GoToDeclarationAction extends DeclarationAction {
 
 	static readonly id = 'editor.action.revealDeclaration';
 
 	constructor() {
-		super(new DefinitionActionConfig(), {
+		super({
+			openToSide: false,
+			openInPeek: false,
+			muteMessage: false
+		}, {
 			id: GoToDeclarationAction.id,
 			label: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
 			alias: 'Go to Declaration',
@@ -327,11 +340,15 @@ export class GoToDeclarationAction extends DeclarationAction {
 	protected _getMetaTitle(model: ReferencesModel): string {
 		return model.references.length > 1 ? nls.localize('decl.meta.title', " – {0} declarations", model.references.length) : '';
 	}
-}
+});
 
-export class PeekDeclarationAction extends DeclarationAction {
+registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
 	constructor() {
-		super(new DefinitionActionConfig(undefined, true, false), {
+		super({
+			openToSide: false,
+			openInPeek: true,
+			muteMessage: false
+		}, {
 			id: 'editor.action.peekDeclaration',
 			label: nls.localize('actions.peekDecl.label', "Peek Declaration"),
 			alias: 'Peek Declaration',
@@ -345,11 +362,16 @@ export class PeekDeclarationAction extends DeclarationAction {
 			}
 		});
 	}
-}
+});
 
-export class ImplementationAction extends DefinitionAction {
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
-		return getImplementationsAtPosition(model, position, token);
+//#endregion
+
+//#region --- IMPLEMENTATION
+
+class ImplementationAction extends SymbolNavigationAction {
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getImplementationsAtPosition(model, position, token));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
@@ -363,12 +385,16 @@ export class ImplementationAction extends DefinitionAction {
 	}
 }
 
-export class GoToImplementationAction extends ImplementationAction {
+registerEditorAction(class GoToImplementationAction extends ImplementationAction {
 
 	public static readonly ID = 'editor.action.goToImplementation';
 
 	constructor() {
-		super(new DefinitionActionConfig(), {
+		super({
+			openToSide: false,
+			openInPeek: false,
+			muteMessage: false
+		}, {
 			id: GoToImplementationAction.ID,
 			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
 			alias: 'Go to Implementation',
@@ -379,17 +405,26 @@ export class GoToImplementationAction extends ImplementationAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 4, title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation")
 			}
 		});
 	}
-}
+});
 
-export class PeekImplementationAction extends ImplementationAction {
+registerEditorAction(class PeekImplementationAction extends ImplementationAction {
 
 	public static readonly ID = 'editor.action.peekImplementation';
 
 	constructor() {
-		super(new DefinitionActionConfig(false, true, false), {
+		super({
+			openToSide: false,
+			openInPeek: true,
+			muteMessage: false
+		}, {
 			id: PeekImplementationAction.ID,
 			label: nls.localize('actions.peekImplementation.label', "Peek Implementation"),
 			alias: 'Peek Implementation',
@@ -403,11 +438,16 @@ export class PeekImplementationAction extends ImplementationAction {
 			}
 		});
 	}
-}
+});
 
-export class TypeDefinitionAction extends DefinitionAction {
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
-		return getTypeDefinitionsAtPosition(model, position, token);
+//#endregion
+
+//#region --- TYPE DEFINITION
+
+class TypeDefinitionAction extends SymbolNavigationAction {
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getTypeDefinitionsAtPosition(model, position, token));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
@@ -421,12 +461,16 @@ export class TypeDefinitionAction extends DefinitionAction {
 	}
 }
 
-export class GoToTypeDefinitionAction extends TypeDefinitionAction {
+registerEditorAction(class GoToTypeDefinitionAction extends TypeDefinitionAction {
 
 	public static readonly ID = 'editor.action.goToTypeDefinition';
 
 	constructor() {
-		super(new DefinitionActionConfig(), {
+		super({
+			openToSide: false,
+			openInPeek: false,
+			muteMessage: false
+		}, {
 			id: GoToTypeDefinitionAction.ID,
 			label: nls.localize('actions.goToTypeDefinition.label', "Go to Type Definition"),
 			alias: 'Go to Type Definition',
@@ -441,17 +485,27 @@ export class GoToTypeDefinitionAction extends TypeDefinitionAction {
 			menuOpts: {
 				group: 'navigation',
 				order: 1.4
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 3,
+				title: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
 			}
 		});
 	}
-}
+});
 
-export class PeekTypeDefinitionAction extends TypeDefinitionAction {
+registerEditorAction(class PeekTypeDefinitionAction extends TypeDefinitionAction {
 
 	public static readonly ID = 'editor.action.peekTypeDefinition';
 
 	constructor() {
-		super(new DefinitionActionConfig(false, true, false), {
+		super({
+			openToSide: false,
+			openInPeek: true,
+			muteMessage: false
+		}, {
 			id: PeekTypeDefinitionAction.ID,
 			label: nls.localize('actions.peekTypeDefinition.label', "Peek Type Definition"),
 			alias: 'Peek Type Definition',
@@ -465,42 +519,78 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 			}
 		});
 	}
+});
+
+//#endregion
+
+//#region --- REFERENCES
+
+class ReferencesAction extends SymbolNavigationAction {
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getReferencesAtPosition(model, position, token));
+	}
+
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
+		return info
+			? nls.localize('references.no', "No references found for '{0}'", info.word)
+			: nls.localize('references.noGeneric', "No references found");
+	}
+
+	protected _getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1
+			? nls.localize('meta.titleReference', " – {0} references", model.references.length)
+			: '';
+	}
 }
 
-registerEditorAction(GoToDefinitionAction);
-registerEditorAction(OpenDefinitionToSideAction);
-registerEditorAction(PeekDefinitionAction);
-registerEditorAction(GoToDeclarationAction);
-registerEditorAction(PeekDeclarationAction);
-registerEditorAction(GoToImplementationAction);
-registerEditorAction(PeekImplementationAction);
-registerEditorAction(GoToTypeDefinitionAction);
-registerEditorAction(PeekTypeDefinitionAction);
+registerEditorAction(class GoToReferencesAction extends ReferencesAction {
 
-// Go to menu
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '4_symbol_nav',
-	command: {
-		id: 'editor.action.goToDeclaration',
-		title: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
-	},
-	order: 2
+	constructor() {
+		super({
+			openToSide: false,
+			openInPeek: false,
+			muteMessage: false
+		}, {
+			id: 'editor.action.goToReferences',
+			label: nls.localize('goToReferences.label', "Go To References"),
+			alias: 'Go To References',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.hasReferenceProvider,
+				PeekContext.notInPeekEditor,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			)
+		});
+	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '4_symbol_nav',
-	command: {
-		id: 'editor.action.goToTypeDefinition',
-		title: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
-	},
-	order: 3
+registerEditorAction(class PeekReferencesAction extends ReferencesAction {
+
+	constructor() {
+		super({
+			openToSide: false,
+			openInPeek: true,
+			muteMessage: false
+		}, {
+			id: 'editor.action.referenceSearch.trigger',
+			label: nls.localize('references.action.label', "Peek References"),
+			alias: 'Peek References',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.hasReferenceProvider,
+				PeekContext.notInPeekEditor,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.Shift | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.5
+			}
+		});
+	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '4_symbol_nav',
-	command: {
-		id: 'editor.action.goToImplementation',
-		title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation")
-	},
-	order: 4
-});
+//#endregion

@@ -25,7 +25,7 @@ export class WebTelemetryAppender implements ITelemetryAppender {
 		data = validateTelemetryData(data);
 		this._logService.trace(`telemetry/${eventName}`, data);
 
-		this._appender.logTelemetry('/monacoworkbench/' + eventName, {
+		this._appender.logTelemetry(eventName, {
 			properties: data.properties,
 			measurements: data.measurements
 		});

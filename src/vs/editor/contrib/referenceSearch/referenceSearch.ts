@@ -9,25 +9,21 @@ import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/commo
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { Location, ReferenceProviderRegistry } from 'vs/editor/common/modes';
+import { ServicesAccessor, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { Location } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { PeekContext, getOuterEditor } from './peekViewWidget';
 import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from './referencesController';
 import { ReferencesModel, OneReference } from './referencesModel';
 import { createCancelablePromise } from 'vs/base/common/async';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextModel } from 'vs/editor/common/model';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { coalesce, flatten } from 'vs/base/common/arrays';
+import { getReferencesAtPosition } from 'vs/editor/contrib/goToDefinition/goToDefinition';
 
 export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -35,7 +31,7 @@ export const defaultReferenceSearchOptions: RequestOptions = {
 	}
 };
 
-export class ReferenceController implements editorCommon.IEditorContribution {
+class ReferenceController implements editorCommon.IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.referenceController';
 
@@ -52,46 +48,8 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 	}
 }
 
-export class ReferenceAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.action.referenceSearch.trigger',
-			label: nls.localize('references.action.label', "Peek References"),
-			alias: 'Peek References',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasReferenceProvider,
-				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyCode.F12,
-				weight: KeybindingWeight.EditorContrib
-			},
-			menuOpts: {
-				group: 'navigation',
-				order: 1.5
-			}
-		});
-	}
-
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = ReferencesController.get(editor);
-		if (!controller) {
-			return;
-		}
-		if (editor.hasModel()) {
-			const range = editor.getSelection();
-			const model = editor.getModel();
-			const references = createCancelablePromise(token => provideReferences(model, range.getStartPosition(), token).then(references => new ReferencesModel(references)));
-			controller.toggleWidget(range, references, defaultReferenceSearchOptions);
-		}
-	}
-}
-
 registerEditorContribution(ReferenceController.ID, ReferenceController);
 
-registerEditorAction(ReferenceAction);
 
 let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition) => {
 	if (!(resource instanceof URI)) {
@@ -112,7 +70,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 			return undefined;
 		}
 
-		let references = createCancelablePromise(token => provideReferences(control.getModel(), Position.lift(position), token).then(references => new ReferencesModel(references)));
+		let references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), Position.lift(position), token).then(references => new ReferencesModel(references)));
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return Promise.resolve(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
 	});
@@ -166,11 +124,11 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-function closeActiveReferenceSearch(accessor: ServicesAccessor, args: any) {
+function closeActiveReferenceSearch(accessor: ServicesAccessor) {
 	withController(accessor, controller => controller.closeWidget());
 }
 
-function openReferenceToSide(accessor: ServicesAccessor, args: any) {
+function openReferenceToSide(accessor: ServicesAccessor) {
 	const listService = accessor.get(IListService);
 
 	const focus = listService.lastFocusedList && listService.lastFocusedList.getFocus();
@@ -269,22 +227,3 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ctxReferenceWidgetSearchTreeFocused),
 	handler: openReferenceToSide
 });
-
-export function provideReferences(model: ITextModel, position: Position, token: CancellationToken): Promise<Location[]> {
-
-	// collect references from all providers
-	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
-		return Promise.resolve(provider.provideReferences(model, position, { includeDeclaration: true }, token)).then(result => {
-			if (Array.isArray(result)) {
-				return <Location[]>result;
-			}
-			return undefined;
-		}, err => {
-			onUnexpectedExternalError(err);
-		});
-	});
-
-	return Promise.all(promises).then(references => flatten(coalesce(references)));
-}
-
-registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => provideReferences(model, position, CancellationToken.None));

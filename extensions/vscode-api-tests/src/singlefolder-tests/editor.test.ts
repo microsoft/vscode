@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection } from 'vscode';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, Uri } from 'vscode';
 import { createRandomFile, deleteFile, closeAllEditors } from '../utils';
 
 suite('editor tests', () => {
@@ -197,11 +197,8 @@ suite('editor tests', () => {
 	});
 
 	test('throw when using invalid edit', async function () {
-
 		await withRandomFileEditor('foo', editor => {
-
 			return new Promise((resolve, reject) => {
-
 				editor.edit(edit => {
 					edit.insert(new Position(0, 0), 'bar');
 					setTimeout(() => {
@@ -216,6 +213,21 @@ suite('editor tests', () => {
 				});
 			});
 		});
-
 	});
+
+	test('editor contents are correctly read (small file)', function () {
+		return testEditorContents('/far.js');
+	});
+
+	test('editor contents are correctly read (large file)', async function () {
+		return testEditorContents('/lorem.txt');
+	});
+
+	async function testEditorContents(relativePath: string) {
+		const root = workspace.workspaceFolders![0]!.uri;
+		const file = Uri.parse(root.toString() + relativePath);
+		const document = await workspace.openTextDocument(file);
+
+		assert.equal(document.getText(), Buffer.from(await workspace.fs.readFile(file)).toString());
+	}
 });

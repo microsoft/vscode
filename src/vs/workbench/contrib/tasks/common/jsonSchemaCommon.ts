@@ -44,10 +44,10 @@ const schema: IJSONSchema = {
 					type: 'array',
 					items: {
 						anyOf: [
-							Schemas.LegacyProblemMatcher,
 							{
 								type: 'string',
-							}
+							},
+							Schemas.LegacyProblemMatcher
 						]
 					}
 				}

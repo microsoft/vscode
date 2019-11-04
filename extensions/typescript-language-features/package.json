@@ -95,6 +95,10 @@
         "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
       },
       {
+        "fileMatch": "babel.config.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+      },
+      {
         "fileMatch": "jsconfig.json",
         "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
       },
