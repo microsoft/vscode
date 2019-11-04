@@ -733,7 +733,7 @@ declare module 'vscode' {
 
 	export interface FileWillRenameEvent {
 		readonly renaming: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void; // TODO@joh support sync/async
 	}
 
 	export namespace workspace {

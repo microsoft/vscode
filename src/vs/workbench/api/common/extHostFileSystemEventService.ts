@@ -142,7 +142,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	$onDidRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): void {
 		switch (operation) {
 			case FileOperation.MOVE:
-				this._onDidRenameFile.fire(Object.freeze({ renamed: [{ oldUri: URI.revive(target), newUri: URI.revive(source!) }] }));
+				this._onDidRenameFile.fire(Object.freeze({ renamed: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }] }));
 				break;
 			case FileOperation.DELETE:
 				this._onDidDeleteFile.fire(Object.freeze({ deleted: [URI.revive(target)] }));
@@ -179,7 +179,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	async $onWillRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): Promise<any> {
 		switch (operation) {
 			case FileOperation.MOVE:
-				await this._fireWillRename(URI.revive(target), URI.revive(source!));
+				await this._fireWillRename(URI.revive(source!), URI.revive(target));
 				break;
 			case FileOperation.DELETE:
 				this._onWillDeleteFile.fireAsync(thenables => (<vscode.FileWillDeleteEvent>{ deleting: [URI.revive(target)], waitUntil: p => thenables.push(Promise.resolve(p)) }));
