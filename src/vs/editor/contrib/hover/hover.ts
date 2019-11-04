@@ -268,7 +268,7 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 				key: 'showDefinitionPreviewHover',
 				comment: [
 					'Label for action that will trigger the showing of definition preview hover in the editor.',
-					'This allows for users to show the ctrl/alt+hover without using the mouse.'
+					'This allows for users to show the definition preview hover without using the mouse.'
 				]
 			}, "Show Definition Preview Hover"),
 			alias: 'Show Definition Preview Hover',
