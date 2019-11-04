@@ -259,19 +259,19 @@ class ShowHoverAction extends EditorAction {
 	}
 }
 
-class ShowCtrlHoverAction extends EditorAction {
+class ShowDefinitionPreviewHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showCtrlHover',
+			id: 'editor.action.showDefinitionPreviewHover',
 			label: nls.localize({
-				key: 'showCtrlHover',
+				key: 'showDefinitionPreviewHover',
 				comment: [
-					'Label for action that will trigger the showing of a ctrl+hover in the editor.',
-					'This allows for users to show the ctrl+hover without using the mouse.'
+					'Label for action that will trigger the showing of definition preview hover in the editor.',
+					'This allows for users to show the definition preview hover without using the mouse.'
 				]
-			}, "Show Control Hover"),
-			alias: 'Show Control Hover',
+			}, "Show Definition Preview Hover"),
+			alias: 'Show Definition Preview Hover',
 			precondition: undefined
 		});
 	}
@@ -302,7 +302,7 @@ class ShowCtrlHoverAction extends EditorAction {
 
 registerEditorContribution(ModesHoverController.ID, ModesHoverController);
 registerEditorAction(ShowHoverAction);
-registerEditorAction(ShowCtrlHoverAction);
+registerEditorAction(ShowDefinitionPreviewHoverAction);
 
 // theming
 registerThemingParticipant((theme, collector) => {
