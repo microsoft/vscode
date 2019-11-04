@@ -177,7 +177,6 @@ body.web {
 /* Custom Dropdown (select) Arrows */
 
 .monaco-workbench select {
-
 	-webkit-appearance: none;
 	-moz-appearance: none;
 }

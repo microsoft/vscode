@@ -112,11 +112,6 @@
 	box-sizing: border-box;
 }
 
-/* Dropdown */
-.monaco-workbench .panel .monaco-action-bar .select-container .monaco-select-box {
-	margin-right: 0;
-}
-
 /** Actions */
 
 .monaco-workbench .panel .monaco-action-bar .action-item.select-container {
