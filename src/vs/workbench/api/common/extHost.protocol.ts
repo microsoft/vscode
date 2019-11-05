@@ -1196,7 +1196,7 @@ export interface ITerminalDimensionsDto {
 }
 
 export interface ExtHostTerminalServiceShape {
-	$acceptTerminalClosed(id: number): void;
+	$acceptTerminalClosed(id: number, exitCode: number | undefined): void;
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;

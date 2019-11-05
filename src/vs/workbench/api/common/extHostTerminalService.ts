@@ -97,6 +97,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private _cols: number | undefined;
 	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
 	private _rows: number | undefined;
+	private _exitStatus: vscode.TerminalExitStatus | undefined;
 
 	public isOpen: boolean = false;
 
@@ -138,6 +139,10 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		this._name = name;
 	}
 
+	public get exitStatus(): vscode.TerminalExitStatus | undefined {
+		return this._exitStatus;
+	}
+
 	public get dimensions(): vscode.TerminalDimensions | undefined {
 		if (this._cols === undefined || this._rows === undefined) {
 			return undefined;
@@ -146,6 +151,10 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 			columns: this._cols,
 			rows: this._rows
 		};
+	}
+
+	public setExitCode(code: number | undefined) {
+		this._exitStatus = Object.freeze({ code });
 	}
 
 	public setDimensions(cols: number, rows: number): boolean {
@@ -381,11 +390,12 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 	}
 
-	public async $acceptTerminalClosed(id: number): Promise<void> {
+	public async $acceptTerminalClosed(id: number, exitCode: number | undefined): Promise<void> {
 		await this._getTerminalByIdEventually(id);
 		const index = this._getTerminalObjectIndexById(this.terminals, id);
 		if (index !== null) {
 			const terminal = this._terminals.splice(index, 1)[0];
+			terminal.setExitCode(exitCode);
 			this._onDidCloseTerminal.fire(terminal);
 		}
 	}

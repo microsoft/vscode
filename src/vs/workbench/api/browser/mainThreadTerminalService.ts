@@ -163,7 +163,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
-		this._proxy.$acceptTerminalClosed(terminalInstance.id);
+		this._proxy.$acceptTerminalClosed(terminalInstance.id, terminalInstance.exitCode);
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
@@ -257,6 +257,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._getTerminalProcess(terminalId).then(e => e.emitReady(pid, cwd));
 	}
 
+	// TODO: This should be number | undefined
 	public $sendProcessExit(terminalId: number, exitCode: number): void {
 		this._getTerminalProcess(terminalId).then(e => e.emitExit(exitCode));
 		this._terminalProcesses.delete(terminalId);
