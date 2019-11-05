@@ -146,7 +146,7 @@ suite('SearchModel', () => {
 		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
 	});
 
-	test('Search Model: Search reports telemetry on search completed', async () => {
+	test.only('Search Model: Search reports telemetry on search completed', async () => {
 		const target = instantiationService.spy(ITelemetryService, 'publicLog');
 		const results = [
 			aRawMatch('file://c:/1',
@@ -154,6 +154,9 @@ suite('SearchModel', () => {
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
 			aRawMatch('file://c:/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('search', { searchOnType: true });
+		instantiationService.stub(IConfigurationService, config);
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
