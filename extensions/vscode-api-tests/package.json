@@ -44,7 +44,25 @@
 				"editor.lineNumbers": "off",
 				"editor.tabSize": 2
 			}
-		}
+		},
+		"taskDefinitions": [
+				{
+					"type": "custombuildscript",
+					"required": [
+						"flavor"
+					],
+					"properties": {
+						"flavor": {
+							"type": "string",
+							"description": "The build flavor. Should be either '32' or '64'."
+						},
+						"flags": {
+							"type": "array",
+							"description": "Additional build flags."
+						}
+					}
+				}
+			]
 	},
 	"scripts": {
 		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",

@@ -811,7 +811,7 @@ export namespace CompletionItem {
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
 		result.range = editorRange.Range.isIRange(suggestion.range) ? Range.to(suggestion.range) : undefined;
-		result.range2 = editorRange.Range.isIRange(suggestion.range) ? undefined : { insert: Range.to(suggestion.range.insert), replace: Range.to(suggestion.range.replace) };
+		result.range2 = editorRange.Range.isIRange(suggestion.range) ? undefined : { inserting: Range.to(suggestion.range.insert), replacing: Range.to(suggestion.range.replace) };
 		result.keepWhitespace = typeof suggestion.insertTextRules === 'undefined' ? false : Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
 		// 'inserText'-logic
 		if (typeof suggestion.insertTextRules !== 'undefined' && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {

@@ -3415,9 +3415,105 @@ declare namespace monaco.editor {
 		 */
 		maxVisibleSuggestions?: number;
 		/**
-		 * Names of suggestion types to filter.
+		 * Show method-suggestions.
 		 */
-		filteredTypes?: Record<string, boolean>;
+		showMethods?: boolean;
+		/**
+		 * Show function-suggestions.
+		 */
+		showFunctions?: boolean;
+		/**
+		 * Show constructor-suggestions.
+		 */
+		showConstructors?: boolean;
+		/**
+		 * Show field-suggestions.
+		 */
+		showFields?: boolean;
+		/**
+		 * Show variable-suggestions.
+		 */
+		showVariables?: boolean;
+		/**
+		 * Show class-suggestions.
+		 */
+		showClasses?: boolean;
+		/**
+		 * Show struct-suggestions.
+		 */
+		showStructs?: boolean;
+		/**
+		 * Show interface-suggestions.
+		 */
+		showInterfaces?: boolean;
+		/**
+		 * Show module-suggestions.
+		 */
+		showModules?: boolean;
+		/**
+		 * Show property-suggestions.
+		 */
+		showProperties?: boolean;
+		/**
+		 * Show event-suggestions.
+		 */
+		showEvents?: boolean;
+		/**
+		 * Show operator-suggestions.
+		 */
+		showOperators?: boolean;
+		/**
+		 * Show unit-suggestions.
+		 */
+		showUnits?: boolean;
+		/**
+		 * Show value-suggestions.
+		 */
+		showValues?: boolean;
+		/**
+		 * Show constant-suggestions.
+		 */
+		showConstants?: boolean;
+		/**
+		 * Show enum-suggestions.
+		 */
+		showEnums?: boolean;
+		/**
+		 * Show enumMember-suggestions.
+		 */
+		showEnumMembers?: boolean;
+		/**
+		 * Show keyword-suggestions.
+		 */
+		showKeywords?: boolean;
+		/**
+		 * Show text-suggestions.
+		 */
+		showWords?: boolean;
+		/**
+		 * Show color-suggestions.
+		 */
+		showColors?: boolean;
+		/**
+		 * Show file-suggestions.
+		 */
+		showFiles?: boolean;
+		/**
+		 * Show reference-suggestions.
+		 */
+		showReferences?: boolean;
+		/**
+		 * Show folder-suggestions.
+		 */
+		showFolders?: boolean;
+		/**
+		 * Show typeParameter-suggestions.
+		 */
+		showTypeParameters?: boolean;
+		/**
+		 * Show snippet-suggestions.
+		 */
+		showSnippets?: boolean;
 	}
 
 	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;

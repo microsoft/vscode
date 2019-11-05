@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
@@ -126,7 +126,7 @@ class BrowserMain extends Disposable {
 	}
 
 	private restoreBaseTheme(): void {
-		addClass(this.domElement, window.localStorage.getItem('baseTheme') || getThemeTypeSelector(DARK));
+		addClass(this.domElement, window.localStorage.getItem('vscode.baseTheme') || getThemeTypeSelector(DARK));
 	}
 
 	private saveBaseTheme(): void {
@@ -134,7 +134,7 @@ class BrowserMain extends Disposable {
 		const baseThemes = [DARK, LIGHT, HIGH_CONTRAST].map(baseTheme => getThemeTypeSelector(baseTheme));
 		for (const baseTheme of baseThemes) {
 			if (classes.indexOf(baseTheme) >= 0) {
-				window.localStorage.setItem('baseTheme', baseTheme);
+				window.localStorage.setItem('vscode.baseTheme', baseTheme);
 				break;
 			}
 		}
@@ -238,7 +238,7 @@ class BrowserMain extends Disposable {
 
 			// Remote file system
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(channel, remoteAgentService.getEnvironment()));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 
 			if (!this.configuration.userDataProvider) {

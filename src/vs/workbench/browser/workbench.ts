@@ -272,7 +272,7 @@ export class Workbench extends Layout {
 	private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
 
 		// Restore (native: use storage service, web: use browser specific local storage)
-		const storedFontInfoRaw = isNative ? storageService.get('editorFontInfo', StorageScope.GLOBAL) : window.localStorage.getItem('editorFontInfo');
+		const storedFontInfoRaw = isNative ? storageService.get('editorFontInfo', StorageScope.GLOBAL) : window.localStorage.getItem('vscode.editorFontInfo');
 		if (storedFontInfoRaw) {
 			try {
 				const storedFontInfo = JSON.parse(storedFontInfoRaw);
@@ -299,7 +299,7 @@ export class Workbench extends Layout {
 			if (isNative) {
 				storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL);
 			} else {
-				window.localStorage.setItem('editorFontInfo', serializedFontInfoRaw);
+				window.localStorage.setItem('vscode.editorFontInfo', serializedFontInfoRaw);
 			}
 		}
 	}

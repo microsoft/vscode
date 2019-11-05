@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ReferencesModel, OneReference } from 'vs/editor/contrib/referenceSearch/referencesModel';
+import { ReferencesModel, OneReference } from 'vs/editor/contrib/gotoSymbol/referencesModel';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

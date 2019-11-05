@@ -22,7 +22,7 @@ import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { VSBufferReadable } from 'vs/base/common/buffer';
+import { VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
 import { Readable } from 'stream';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/editor/common/model';
@@ -42,6 +42,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ConfirmResult } from 'vs/workbench/common/editor';
+import { assign } from 'vs/base/common/objects';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -79,7 +80,16 @@ export class NativeTextFileService extends AbstractTextFileService {
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		const [bufferStream, decoder] = await this.doRead(resource, options);
+		const [bufferStream, decoder] = await this.doRead(resource,
+			assign({
+				// optimization: since we know that the caller does not
+				// care about buffering, we indicate this to the reader.
+				// this reduces all the overhead the buffered reading
+				// has (open, read, close) if the provider supports
+				// unbuffered reading.
+				preferUnbuffered: true
+			}, options || Object.create(null))
+		);
 
 		return {
 			...bufferStream,
@@ -98,13 +108,22 @@ export class NativeTextFileService extends AbstractTextFileService {
 		};
 	}
 
-	private async doRead(resource: URI, options?: IReadTextFileOptions): Promise<[IFileStreamContent, IDecodeStreamResult]> {
+	private async doRead(resource: URI, options?: IReadTextFileOptions & { preferUnbuffered?: boolean }): Promise<[IFileStreamContent, IDecodeStreamResult]> {
 
 		// ensure limits
 		options = this.ensureLimits(options);
 
-		// read stream raw
-		const bufferStream = await this.fileService.readFileStream(resource, options);
+		// read stream raw (either buffered or unbuffered)
+		let bufferStream: IFileStreamContent;
+		if (options.preferUnbuffered) {
+			const content = await this.fileService.readFile(resource, options);
+			bufferStream = {
+				...content,
+				value: bufferToStream(content.value)
+			};
+		} else {
+			bufferStream = await this.fileService.readFileStream(resource, options);
+		}
 
 		// read through encoding library
 		const decoder = await toDecodeStream(streamToNodeReadable(bufferStream.value), {

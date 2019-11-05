@@ -111,7 +111,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		let result: DeltaExtensionsResult;
 
 		// local: only enabled and web'ish extension
-		localExtensions = localExtensions.filter(ext => this._isEnabled(ext) && canExecuteOnWeb(ext, this._productService, this._configService));
+		localExtensions = localExtensions!.filter(ext => this._isEnabled(ext) && canExecuteOnWeb(ext, this._productService, this._configService));
 		this._checkEnableProposedApi(localExtensions);
 
 		if (!remoteEnv) {

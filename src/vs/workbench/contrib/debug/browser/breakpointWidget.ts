@@ -58,7 +58,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private logMessageInput = '';
 	private breakpoint: IBreakpoint | undefined;
 	private context: Context;
-	private heightInPx: number;
+	private heightInPx: number | undefined;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private column: number | undefined, context: Context | undefined,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -252,7 +252,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	private centerInputVertically() {
-		if (this.container) {
+		if (this.container && typeof this.heightInPx === 'number') {
 			const lineHeight = this.input.getOption(EditorOption.lineHeight);
 			const lineNum = this.input.getModel().getLineCount();
 			const newTopMargin = (this.heightInPx - lineNum * lineHeight) / 2;

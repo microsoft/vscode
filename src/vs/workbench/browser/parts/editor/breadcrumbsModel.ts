@@ -14,7 +14,7 @@ import { isEqual, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
-import { DocumentSymbolProviderRegistry, SymbolKinds } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
@@ -22,6 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { FileKind } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 
 export class FileElement {
 	constructor(
@@ -139,7 +140,7 @@ export class EditorBreadcrumbsModel {
 
 		// update when config changes (re-render)
 		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('breadcrumbs.filteredTypes')) {
+			if (e.affectsConfiguration('breadcrumbs')) {
 				this._updateOutline(true);
 			}
 		}));
@@ -214,9 +215,7 @@ export class EditorBreadcrumbsModel {
 		}
 		let item: OutlineGroup | OutlineElement | undefined = model.getItemEnclosingPosition(position);
 		if (!item) {
-			return values(model.children).every(e => this._isFiltered(e))
-				? []
-				: [model];
+			return this._getOutlineElementsRoot(model);
 		}
 		let chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
@@ -238,12 +237,22 @@ export class EditorBreadcrumbsModel {
 			}
 			result.push(element);
 		}
+		if (result.length === 0) {
+			return this._getOutlineElementsRoot(model);
+		}
 		return result;
 	}
 
+	private _getOutlineElementsRoot(model: OutlineModel): (OutlineModel | OutlineGroup | OutlineElement)[] {
+		return values(model.children).every(e => this._isFiltered(e)) ? [] : [model];
+	}
+
 	private _isFiltered(element: TreeElement): boolean {
-		return element instanceof OutlineElement
-			&& !this._configurationService.getValue<boolean>(`breadcrumbs.filteredTypes.${SymbolKinds.toString(element.symbol.kind)}`);
+		if (element instanceof OutlineElement) {
+			const key = `breadcrumbs.${OutlineFilter.kindToConfigName[element.symbol.kind]}`;
+			return !this._configurationService.getValue<boolean>(key);
+		}
+		return false;
 	}
 
 	private _updateOutlineElements(elements: Array<OutlineModel | OutlineGroup | OutlineElement>): void {

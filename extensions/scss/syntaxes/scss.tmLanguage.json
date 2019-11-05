@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-sass/commit/804a935ea1d50504e14a7f602e2bb133fee8450c",
+	"version": "https://github.com/atom/language-sass/commit/d01d29191ab323fb3cf8bde9df0429f8e07902ff",
 	"name": "SCSS",
 	"scopeName": "source.css.scss",
 	"patterns": [
@@ -1421,7 +1421,7 @@
 			}
 		},
 		"selector_class": {
-			"match": "(?x)\n(\\.)                                  # Valid class-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\$                              # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+\n)                                      # Followed by either:\n(?= $                                  # - End of the line\n  | [\\s,.\\#)\\[:{>+~|]               # - Another selector\n  | /\\*                               # - A block comment\n)",
+			"match": "(?x)\n(\\.)                                  # Valid class-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\$                              # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+\n)                                      # Followed by either:\n(?= $                                  # - End of the line\n  | [\\s,.\\#)\\[:{>+~|]               # - Another selector\n  | /\\*                               # - A block comment\n  | ;                                  # - A semicolon\n)",
 			"name": "entity.other.attribute-name.class.css",
 			"captures": {
 				"1": {

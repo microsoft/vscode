@@ -4,28 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memoize } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { DataUri, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { WebviewContentState } from 'vs/editor/common/modes';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { ConfirmResult, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
-	private _state = WebviewContentState.Readonly;
 
 	constructor(
 		resource: URI,
@@ -34,7 +29,6 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		webview: Lazy<UnownedDisposable<WebviewEditorOverlay>>,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super(id, viewType, '', webview, webviewWorkbenchService, lifecycleService);
@@ -111,35 +105,4 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 				return this.longTitle;
 		}
 	}
-
-	public setState(newState: WebviewContentState): void {
-		this._state = newState;
-		this._onDidChangeDirty.fire();
-	}
-
-	public isDirty() {
-		return this._state === WebviewContentState.Dirty;
-	}
-
-	public async confirmSave(): Promise<ConfirmResult> {
-		if (!this.isDirty()) {
-			return ConfirmResult.DONT_SAVE;
-		}
-		return promptSave(this.dialogService, [this.getResource()]);
-	}
-
-	public async save(): Promise<boolean> {
-		if (!this.isDirty) {
-			return true;
-		}
-		const waitingOn: Promise<boolean>[] = [];
-		this._onWillSave.fire({
-			waitUntil: (thenable: Promise<boolean>): void => { waitingOn.push(thenable); },
-		});
-		const result = await Promise.all(waitingOn);
-		return result.every(x => x);
-	}
-
-	private readonly _onWillSave = this._register(new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>());
-	public readonly onWillSave = this._onWillSave.event;
 }

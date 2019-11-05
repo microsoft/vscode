@@ -92,7 +92,7 @@ export function createChannelSender<T>(channel: IChannel, options?: IChannelSend
 	const disableMarshalling = options && options.disableMarshalling;
 
 	return new Proxy({}, {
-		get(_target, propKey, _receiver) {
+		get(_target: T, propKey: PropertyKey) {
 			if (typeof propKey === 'string') {
 
 				// Event

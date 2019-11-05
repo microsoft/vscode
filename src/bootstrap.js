@@ -157,30 +157,10 @@ exports.writeFile = function (file, content) {
  * @param {string} dir
  * @returns {Promise<string>}
  */
-function mkdir(dir) {
+exports.mkdirp = function mkdirp(dir) {
 	const fs = require('fs');
 
-	return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
-}
-
-/**
- * @param {string} dir
- * @returns {Promise<string>}
- */
-exports.mkdirp = function mkdirp(dir) {
-	const path = require('path');
-
-	return mkdir(dir).then(null, err => {
-		if (err && err.code === 'ENOENT') {
-			const parent = path.dirname(dir);
-
-			if (parent !== dir) { // if not arrived at root
-				return mkdirp(parent).then(() => mkdir(dir));
-			}
-		}
-
-		throw err;
-	});
+	return new Promise((c, e) => fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
 };
 //#endregion
 
