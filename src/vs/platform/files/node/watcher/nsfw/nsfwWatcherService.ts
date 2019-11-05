@@ -244,14 +244,14 @@ export class NsfwWatcherService implements IWatcherService {
 	}
 
 	private log(message: string) {
-		this._onLogMessage.fire({ type: 'trace', message: `[File Watcher (nswf)] ` + message });
+		this._onLogMessage.fire({ type: 'trace', message: `[File Watcher (nsfw)] ` + message });
 	}
 
 	private warn(message: string) {
-		this._onLogMessage.fire({ type: 'warn', message: `[File Watcher (nswf)] ` + message });
+		this._onLogMessage.fire({ type: 'warn', message: `[File Watcher (nsfw)] ` + message });
 	}
 
 	private error(message: string) {
-		this._onLogMessage.fire({ type: 'error', message: `[File Watcher (nswf)] ` + message });
+		this._onLogMessage.fire({ type: 'error', message: `[File Watcher (nsfw)] ` + message });
 	}
 }

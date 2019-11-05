@@ -11,12 +11,9 @@
 }
 
 .monaco-list.mouse-support {
-	-webkit-user-select: none;
-	-khtml-user-select: none;
-	-moz-user-select: -moz-none;
-	-ms-user-select: none;
-	-o-user-select: none;
 	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
 }
 
 .monaco-list > .monaco-scrollable-element {
@@ -36,10 +33,7 @@
 
 .monaco-list-row {
 	position: absolute;
-	-moz-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing:	border-box;
 	overflow: hidden;
 	width: 100%;
 }
@@ -57,6 +51,10 @@
 /* Focus */
 .monaco-list.element-focused, .monaco-list.selection-single, .monaco-list.selection-multiple {
 	outline: 0 !important;
+}
+
+.monaco-list:focus .monaco-list-row.selected .codicon {
+	color: inherit;
 }
 
 /* Dnd */
@@ -124,6 +122,7 @@
 
 .monaco-list-type-filter > .controls > .filter {
 	-webkit-appearance: none;
+	-moz-appearance: none;
 	width: 16px;
 	height: 16px;
 	background: url("media/no-filter-light.svg");

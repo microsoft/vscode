@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .search-view .search-widgets-container {
-	margin: 0px 9px 0 2px;
+	margin: 0px 12px 0 2px;
 	padding-top: 6px;
 }
 
@@ -25,7 +25,7 @@
 
 .search-view .search-widget .search-container,
 .search-view .search-widget .replace-container {
-	margin-left: 17px;
+	margin-left: 18px;
 }
 
 .search-view .search-widget .monaco-inputbox > .wrapper {
@@ -66,7 +66,6 @@
 .search-view .search-widget .replace-input {
 	position: relative;
 	display: flex;
-	display: -webkit-flex;
 	vertical-align: middle;
 	width: auto !important;
 }
@@ -82,7 +81,7 @@
 }
 
 .search-view .search-widget .replace-container .monaco-action-bar {
-	margin-left: 3px;
+	margin-left: 0;
 }
 
 .search-view .search-widget .replace-container .monaco-action-bar {
@@ -91,8 +90,12 @@
 
 .search-view .search-widget .replace-container .monaco-action-bar .action-item .codicon {
 	background-repeat: no-repeat;
-	width: 20px;
+	width: 25px;
 	height: 25px;
+	margin-right: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .search-view .query-details {
@@ -103,10 +106,9 @@
 
 .search-view .query-details .more {
 	position: absolute;
-	margin-right: 0.3em;
-	right: 0;
+	right: -2px;
 	cursor: pointer;
-	width: 16px;
+	width: 25px;
 	height: 16px;
 	z-index: 2; /* Force it above the search results message, which has a negative top margin */
 }
@@ -154,6 +156,7 @@
 	margin-bottom: 0px;
 	padding-bottom: 4px;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .search-view .foldermatch,
@@ -245,6 +248,7 @@
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
+	color: inherit;
 }
 
 /* Adjusts spacing in high contrast mode so that actions are vertically centered */

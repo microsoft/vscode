@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
-import { memoize } from 'vs/base/common/decorators';
+import { createMemoizer } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
@@ -22,6 +22,7 @@ import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverServ
 export class UntitledEditorInput extends EditorInput implements IEncodingSupport, IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
+	private static readonly MEMOIZER = createMemoizer();
 
 	private cachedModel: UntitledEditorModel | null = null;
 	private modelResolve: Promise<UntitledEditorModel & IResolvedTextEditorModel> | null = null;
@@ -35,14 +36,15 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	constructor(
 		private readonly resource: URI,
 		private readonly _hasAssociatedFilePath: boolean,
-		private preferredMode: string,
-		private readonly initialValue: string,
-		private preferredEncoding: string,
+		private preferredMode: string | undefined,
+		private readonly initialValue: string | undefined,
+		private preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
+		this._register(this.labelService.onDidChangeFormatters(() => UntitledEditorInput.MEMOIZER.clear()));
 	}
 
 	get hasAssociatedFilePath(): boolean {
@@ -61,17 +63,17 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
 	}
 
-	@memoize
+	@UntitledEditorInput.MEMOIZER
 	private get shortDescription(): string {
 		return this.labelService.getUriBasenameLabel(dirname(this.resource));
 	}
 
-	@memoize
+	@UntitledEditorInput.MEMOIZER
 	private get mediumDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
 	}
 
-	@memoize
+	@UntitledEditorInput.MEMOIZER
 	private get longDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource));
 	}
@@ -92,17 +94,17 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		}
 	}
 
-	@memoize
+	@UntitledEditorInput.MEMOIZER
 	private get shortTitle(): string {
 		return this.getName();
 	}
 
-	@memoize
+	@UntitledEditorInput.MEMOIZER
 	private get mediumTitle(): string {
 		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
-	@memoize
+	@UntitledEditorInput.MEMOIZER
 	private get longTitle(): string {
 		return this.labelService.getUriLabel(this.resource);
 	}
@@ -177,7 +179,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.getName();
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		if (this.cachedModel) {
 			return this.cachedModel.getEncoding();
 		}

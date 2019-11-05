@@ -17,11 +17,13 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 	private _folders: IStoredWorkspaceFolder[] = [];
 	private _settingsModelParser: ConfigurationModelParser;
 	private _launchModel: ConfigurationModel;
+	private _tasksModel: ConfigurationModel;
 
 	constructor(name: string) {
 		super(name);
 		this._settingsModelParser = new ConfigurationModelParser(name, WORKSPACE_SCOPES);
 		this._launchModel = new ConfigurationModel();
+		this._tasksModel = new ConfigurationModel();
 	}
 
 	get folders(): IStoredWorkspaceFolder[] {
@@ -36,6 +38,10 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 		return this._launchModel;
 	}
 
+	get tasksModel(): ConfigurationModel {
+		return this._tasksModel;
+	}
+
 	reprocessWorkspaceSettings(): void {
 		this._settingsModelParser.parse();
 	}
@@ -44,6 +50,7 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 		this._folders = (raw['folders'] || []) as IStoredWorkspaceFolder[];
 		this._settingsModelParser.parseRaw(raw['settings']);
 		this._launchModel = this.createConfigurationModelFrom(raw, 'launch');
+		this._tasksModel = this.createConfigurationModelFrom(raw, 'tasks');
 		return super.doParseRaw(raw);
 	}
 

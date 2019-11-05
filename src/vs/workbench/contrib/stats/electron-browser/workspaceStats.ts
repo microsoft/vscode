@@ -16,6 +16,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
 import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { isWindows } from 'vs/base/common/platform';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -152,7 +153,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		}
 	}
 
-	private report(): void {
+	private async report(): Promise<void> {
+		// Windows-only Edition Event
+		this.reportWindowsEdition();
 
 		// Workspace Stats
 		this.workspaceStatsService.getTags()
@@ -164,19 +167,41 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportProxyStats();
 
 		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
-		diagnosticsChannel.call('reportWorkspaceStats', this.getWorkspaceInformation());
+		this.getWorkspaceInformation().then(stats => diagnosticsChannel.call('reportWorkspaceStats', stats));
 	}
 
-	private getWorkspaceInformation(): IWorkspaceInformation {
+	async reportWindowsEdition(): Promise<void> {
+		if (!isWindows) {
+			return;
+		}
+
+		const Registry = await import('vscode-windows-registry');
+
+		let value;
+		try {
+			value = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', 'EditionID');
+		} catch { }
+
+		if (value === undefined) {
+			value = 'Unknown';
+		}
+
+		this.telemetryService.publicLog2<{ edition: string }, { edition: { classification: 'SystemMetaData', purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
+	}
+
+	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {
 		const workspace = this.contextService.getWorkspace();
 		const state = this.contextService.getWorkbenchState();
-		const id = this.workspaceStatsService.getTelemetryWorkspaceId(workspace, state);
-		return {
-			id: workspace.id,
-			telemetryId: id,
-			folders: workspace.folders,
-			configuration: workspace.configuration
-		};
+		const telemetryId = this.workspaceStatsService.getTelemetryWorkspaceId(workspace, state);
+		return this.telemetryService.getTelemetryInfo().then(info => {
+			return {
+				id: workspace.id,
+				telemetryId,
+				rendererSessionId: info.sessionId,
+				folders: workspace.folders,
+				configuration: workspace.configuration
+			};
+		});
 	}
 
 	private reportWorkspaceTags(tags: Tags): void {

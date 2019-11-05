@@ -31,6 +31,11 @@ export class CompletionItem {
 
 	readonly resolve: (token: CancellationToken) => Promise<void>;
 
+	//
+	readonly editStart: IPosition;
+	readonly editInsertEnd: IPosition;
+	readonly editReplaceEnd: IPosition;
+
 	// perf
 	readonly labelLow: string;
 	readonly sortTextLow?: string;
@@ -53,6 +58,17 @@ export class CompletionItem {
 		this.labelLow = completion.label.toLowerCase();
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
+
+		// normalize ranges
+		if (Range.isIRange(completion.range)) {
+			this.editStart = new Position(completion.range.startLineNumber, completion.range.startColumn);
+			this.editInsertEnd = new Position(completion.range.endLineNumber, completion.range.endColumn);
+			this.editReplaceEnd = new Position(completion.range.endLineNumber, completion.range.endColumn);
+		} else {
+			this.editStart = new Position(completion.range.insert.startLineNumber, completion.range.insert.startColumn);
+			this.editInsertEnd = new Position(completion.range.insert.endLineNumber, completion.range.insert.endColumn);
+			this.editReplaceEnd = new Position(completion.range.replace.endLineNumber, completion.range.replace.endColumn);
+		}
 
 		// create the suggestion resolver
 		const { resolveCompletionItem } = provider;
@@ -122,8 +138,12 @@ export function provideSuggestionItems(
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItem[]> {
 
-	const wordUntil = model.getWordUntilPosition(position);
-	const defaultRange = new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
+	const word = model.getWordAtPosition(position);
+	const defaultReplaceRange = word ? new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn) : Range.fromPositions(position);
+	const defaultInsertRange = defaultReplaceRange.setEndPosition(position.lineNumber, position.column);
+
+	// const wordUntil = model.getWordUntilPosition(position);
+	// const defaultRange = new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
 
 	position = position.clone();
 
@@ -159,7 +179,7 @@ export function provideSuggestionItems(
 
 							// fill in default range when missing
 							if (!suggestion.range) {
-								suggestion.range = defaultRange;
+								suggestion.range = { insert: defaultInsertRange, replace: defaultReplaceRange };
 							}
 							// fill in default sortText when missing
 							if (!suggestion.sortText) {

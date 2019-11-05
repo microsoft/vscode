@@ -7,18 +7,18 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { Disposable, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { Iterator } from 'vs/base/common/iterator';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class DecorationRule {
 
@@ -38,11 +38,21 @@ class DecorationRule {
 	readonly itemBadgeClassName: string;
 	readonly bubbleBadgeClassName: string;
 
+	private _refCounter: number = 0;
+
 	constructor(data: IDecorationData | IDecorationData[]) {
 		this.data = data;
 		this.itemColorClassName = DecorationRule._classNames.nextId();
 		this.itemBadgeClassName = DecorationRule._classNames.nextId();
 		this.bubbleBadgeClassName = DecorationRule._classNames.nextId();
+	}
+
+	acquire(): void {
+		this._refCounter += 1;
+	}
+
+	release(): boolean {
+		return --this._refCounter === 0;
 	}
 
 	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
@@ -75,9 +85,10 @@ class DecorationRule {
 		}
 
 		// bubble badge
+		// TODO @misolori update bubble badge to use class name instead of unicode
 		createCSSRule(
 			`.${this.bubbleBadgeClassName}::after`,
-			`content: "\uf052"; color: ${getColor(theme, color)}; font-family: octicons; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+			`content: "\uea71"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
 			element
 		);
 	}
@@ -87,33 +98,23 @@ class DecorationRule {
 		removeCSSRulesContainingSelector(this.itemBadgeClassName, element);
 		removeCSSRulesContainingSelector(this.bubbleBadgeClassName, element);
 	}
-
-	isUnused(): boolean {
-		return !document.querySelector(`.${this.itemColorClassName}`)
-			&& !document.querySelector(`.${this.itemBadgeClassName}`)
-			&& !document.querySelector(`.${this.bubbleBadgeClassName}`);
-	}
 }
 
-class DecorationStyles extends Disposable {
+class DecorationStyles {
 
 	private readonly _styleElement = createStyleSheet();
 	private readonly _decorationRules = new Map<string, DecorationRule>();
+	private readonly _dispoables = new DisposableStore();
 
 	constructor(
 		private _themeService: IThemeService,
 	) {
-		super();
-		this._register(this._themeService.onThemeChange(this._onThemeChange, this));
+		this._themeService.onThemeChange(this._onThemeChange, this, this._dispoables);
 	}
 
 	dispose(): void {
-		super.dispose();
-
-		const parent = this._styleElement.parentElement;
-		if (parent) {
-			parent.removeChild(this._styleElement);
-		}
+		this._dispoables.dispose();
+		this._styleElement.remove();
 	}
 
 	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {
@@ -131,6 +132,8 @@ class DecorationStyles extends Disposable {
 			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
 		}
 
+		rule.acquire();
+
 		let labelClassName = rule.itemColorClassName;
 		let badgeClassName = rule.itemBadgeClassName;
 		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
@@ -144,7 +147,14 @@ class DecorationStyles extends Disposable {
 		return {
 			labelClassName,
 			badgeClassName,
-			tooltip
+			tooltip,
+			dispose: () => {
+				if (rule && rule.release()) {
+					this._decorationRules.delete(key);
+					rule.removeCSSRules(this._styleElement);
+					rule = undefined;
+				}
+			}
 		};
 	}
 
@@ -152,34 +162,6 @@ class DecorationStyles extends Disposable {
 		this._decorationRules.forEach(rule => {
 			rule.removeCSSRules(this._styleElement);
 			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
-		});
-	}
-
-	cleanUp(iter: Iterator<DecorationProviderWrapper>): void {
-		// remove every rule for which no more
-		// decoration (data) is kept. this isn't cheap
-		let usedDecorations = new Set<string>();
-		for (let e = iter.next(); !e.done; e = iter.next()) {
-			e.value.data.forEach((value, key) => {
-				if (value && !(value instanceof DecorationDataRequest)) {
-					usedDecorations.add(DecorationRule.keyOf(value));
-				}
-			});
-		}
-		this._decorationRules.forEach((value, index) => {
-			const { data } = value;
-			if (value.isUnused()) {
-				let remove: boolean = false;
-				if (Array.isArray(data)) {
-					remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
-				} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
-					remove = true;
-				}
-				if (remove) {
-					value.removeCSSRules(this._styleElement);
-					this._decorationRules.delete(index);
-				}
-			}
 		});
 	}
 }
@@ -223,11 +205,11 @@ class DecorationProviderWrapper {
 	private readonly _dispoable: IDisposable;
 
 	constructor(
-		private readonly _provider: IDecorationsProvider,
+		readonly provider: IDecorationsProvider,
 		private readonly _uriEmitter: Emitter<URI | URI[]>,
 		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
-		this._dispoable = this._provider.onDidChange(uris => {
+		this._dispoable = this.provider.onDidChange(uris => {
 			if (!uris) {
 				// flush event -> drop all data, can affect everything
 				this.data.clear();
@@ -291,7 +273,7 @@ class DecorationProviderWrapper {
 		}
 
 		const source = new CancellationTokenSource();
-		const dataOrThenable = this._provider.provideDecorations(uri, source.token);
+		const dataOrThenable = this.provider.provideDecorations(uri, source.token);
 		if (!isThenable<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrThenable)) {
 			// sync -> we have a result now
 			return this._keepItem(uri, dataOrThenable);
@@ -324,7 +306,7 @@ class DecorationProviderWrapper {
 	}
 }
 
-export class FileDecorationsService implements IDecorationsService {
+export class DecorationsService implements IDecorationsService {
 
 	_serviceBrand: undefined;
 
@@ -332,7 +314,6 @@ export class FileDecorationsService implements IDecorationsService {
 	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
 	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
 	private readonly _decorationStyles: DecorationStyles;
-	private readonly _disposables: IDisposable[];
 
 	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.any(
 		this._onDidChangeDecorations.event,
@@ -344,29 +325,16 @@ export class FileDecorationsService implements IDecorationsService {
 	);
 
 	constructor(
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._decorationStyles = new DecorationStyles(themeService);
-
-		// every so many events we check if there are
-		// css styles that we don't need anymore
-		let count = 0;
-		let reg = this.onDidChangeDecorations(() => {
-			if (++count % 17 === 0) {
-				this._decorationStyles.cleanUp(this._data.iterator());
-			}
-		});
-
-		this._disposables = [
-			reg,
-			this._decorationStyles
-		];
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
-		dispose(this._onDidChangeDecorations);
-		dispose(this._onDidChangeDecorationsDelayed);
+		this._decorationStyles.dispose();
+		this._onDidChangeDecorations.dispose();
+		this._onDidChangeDecorationsDelayed.dispose();
 	}
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {
@@ -396,10 +364,12 @@ export class FileDecorationsService implements IDecorationsService {
 		let data: IDecorationData[] = [];
 		let containsChildren: boolean = false;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
+			const { label } = next.value.provider;
 			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
 				if (!isChild || deco.bubble) {
 					data.push(deco);
 					containsChildren = isChild || containsChildren;
+					this._logService.trace('DecorationsService#getDecoration#getOrRetrieve', label, deco, isChild, uri);
 				}
 			});
 		}
@@ -419,4 +389,4 @@ function getColor(theme: ITheme, color: string | undefined) {
 	return 'inherit';
 }
 
-registerSingleton(IDecorationsService, FileDecorationsService);
+registerSingleton(IDecorationsService, DecorationsService, true);

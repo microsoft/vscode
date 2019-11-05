@@ -263,7 +263,7 @@ export class ContextView extends Disposable {
 		const delegate = this.delegate;
 		this.delegate = null;
 
-		if (delegate && delegate.onHide) {
+		if (delegate?.onHide) {
 			delegate.onHide(data);
 		}
 

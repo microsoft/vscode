@@ -6,7 +6,6 @@
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
 import { ISettingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IStringDictionary } from 'vs/base/common/collections';
 
 export class SettingsMergeChannel implements IServerChannel {
 
@@ -32,11 +31,11 @@ export class SettingsMergeChannelClient implements ISettingsMergeService {
 	constructor(private readonly channel: IChannel) {
 	}
 
-	merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: IStringDictionary<boolean>): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
+	merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[]): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
 		return this.channel.call('merge', [localContent, remoteContent, baseContent, ignoredSettings]);
 	}
 
-	computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: IStringDictionary<boolean>): Promise<string> {
+	computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: string[]): Promise<string> {
 		return this.channel.call('computeRemoteContent', [localContent, remoteContent, ignoredSettings]);
 	}
 

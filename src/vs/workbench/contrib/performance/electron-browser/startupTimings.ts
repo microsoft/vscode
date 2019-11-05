@@ -21,7 +21,6 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { didUseCachedData, ITimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { getEntries } from 'vs/base/common/performance';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class StartupTimings implements IWorkbenchContribution {
 
@@ -34,8 +33,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUpdateService private readonly _updateService: IUpdateService,
-		@IEnvironmentService private readonly _envService: IEnvironmentService,
-		@IHostService private readonly _hostService: IHostService
+		@IEnvironmentService private readonly _envService: IEnvironmentService
 	) {
 		//
 		this._report().catch(onUnexpectedError);
@@ -93,7 +91,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
 			return false;
 		}
-		if (await this._hostService.windowCount !== 1) {
+		if (await this._electronService.getWindowCount() !== 1) {
 			return false;
 		}
 		const activeViewlet = this._viewletService.getActiveViewlet();

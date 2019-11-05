@@ -169,8 +169,7 @@
 		},
 		{
 			"scope": [
-				"meta.preprocessor",
-				"keyword.control.directive"
+				"meta.preprocessor"
 			],
 			"settings": {
 				"foreground": "#0000ff"
@@ -331,6 +330,7 @@
 				"keyword.operator.expression",
 				"keyword.operator.cast",
 				"keyword.operator.sizeof",
+				"keyword.operator.alignof",
 				"keyword.operator.typeid",
 				"keyword.operator.alignas",
 				"keyword.operator.instanceof",

@@ -2,6 +2,7 @@
   "name": "image-preview",
   "displayName": "%displayName%",
   "description": "%description%",
+  "extensionKind": "ui",
   "version": "1.0.0",
   "publisher": "vscode",
   "icon": "icon.png",
@@ -16,21 +17,50 @@
     "Other"
   ],
   "activationEvents": [
-    "onWebviewEditor:imagePreview.previewEditor"
+    "onWebviewEditor:imagePreview.previewEditor",
+    "onCommand:imagePreview.zoomIn",
+    "onCommand:imagePreview.zoomOut"
   ],
   "contributes": {
     "webviewEditors": [
       {
         "viewType": "imagePreview.previewEditor",
         "displayName": "%webviewEditors.displayName%",
+        "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,tga,tif,tiff,webp}",
+            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,tga,webp}",
             "mime": "image/*"
           }
         ]
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "imagePreview.zoomIn",
+        "title": "%command.zoomIn%",
+        "category": "Image Preview"
+      },
+      {
+        "command": "imagePreview.zoomOut",
+        "title": "%command.zoomOut%",
+        "category": "Image Preview"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "imagePreview.zoomIn",
+          "when": "imagePreviewFocus",
+          "group": "1_imagePreview"
+        },
+        {
+          "command": "imagePreview.zoomOut",
+          "when": "imagePreviewFocus",
+          "group": "1_imagePreview"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "gulp compile-extension:image-preview",

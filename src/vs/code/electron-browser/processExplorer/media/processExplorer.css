@@ -29,8 +29,6 @@ body {
 	padding: 0;
 	height: 100%;
 	width: 100%;
-	-webkit-touch-callout: none;
-	-webkit-user-select: none;
 	user-select: none;
 	color: #cccccc;
 }

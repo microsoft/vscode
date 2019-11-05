@@ -12,6 +12,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { EXT_HOST_CREATION_DELAY, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -286,9 +287,13 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
+	private readonly _bufferer: TerminalDataBufferer;
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
+		this._bufferer = new TerminalDataBufferer();
+
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
@@ -364,7 +369,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		if (this._terminalProcesses[id]) {
 			// Extension pty terminal only - when virtual process resize fires it means that the
 			// terminal's maximum dimensions changed
-			this._terminalProcesses[id].resize(cols, rows);
+			this._terminalProcesses[id]?.resize(cols, rows);
 		}
 	}
 
@@ -464,8 +469,11 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
 		p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
-		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
+
+		// Buffer data events to reduce the amount of messages going to the renderer
+		this._bufferer.startBuffering(id, p.onProcessData, this._proxy.$sendProcessData);
 		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
+
 		if (p.onProcessOverrideDimensions) {
 			p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e));
 		}
@@ -473,12 +481,12 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {
-		this._terminalProcesses[id].input(data);
+		this._terminalProcesses[id]?.input(data);
 	}
 
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {
 		try {
-			this._terminalProcesses[id].resize(cols, rows);
+			this._terminalProcesses[id]?.resize(cols, rows);
 		} catch (error) {
 			// We tried to write to a closed pipe / channel.
 			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
@@ -488,15 +496,15 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	}
 
 	public $acceptProcessShutdown(id: number, immediate: boolean): void {
-		this._terminalProcesses[id].shutdown(immediate);
+		this._terminalProcesses[id]?.shutdown(immediate);
 	}
 
 	public $acceptProcessRequestInitialCwd(id: number): void {
-		this._terminalProcesses[id].getInitialCwd().then(initialCwd => this._proxy.$sendProcessInitialCwd(id, initialCwd));
+		this._terminalProcesses[id]?.getInitialCwd().then(initialCwd => this._proxy.$sendProcessInitialCwd(id, initialCwd));
 	}
 
 	public $acceptProcessRequestCwd(id: number): void {
-		this._terminalProcesses[id].getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
+		this._terminalProcesses[id]?.getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
 	}
 
 	public $acceptProcessRequestLatency(id: number): number {
@@ -504,6 +512,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
+		this._bufferer.stopBuffering(id);
+
 		// Remove process reference
 		delete this._terminalProcesses[id];
 

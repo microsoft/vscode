@@ -35,6 +35,7 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -210,7 +211,7 @@ export class SimpleFileDialog {
 		return resources.toLocalResource(URI.from({ scheme: this.scheme, path }), this.scheme === Schemas.file ? undefined : this.remoteAuthority);
 	}
 
-	private getScheme(available: string[] | undefined, defaultUri: URI | undefined): string {
+	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
 		if (available) {
 			if (defaultUri && (available.indexOf(defaultUri.scheme) >= 0)) {
 				return defaultUri.scheme;
@@ -254,16 +255,6 @@ export class SimpleFileDialog {
 			if (!stat || !stat.isDirectory) {
 				homedir = resources.dirname(this.options.defaultUri);
 				this.trailing = resources.basename(this.options.defaultUri);
-			}
-			// append extension
-			if (isSave && !ext && this.options.filters) {
-				for (let i = 0; i < this.options.filters.length; i++) {
-					if (this.options.filters[i].extensions[0] !== '*') {
-						ext = '.' + this.options.filters[i].extensions[0];
-						this.trailing = this.trailing ? this.trailing + ext : ext;
-						break;
-					}
-				}
 			}
 		}
 
@@ -321,7 +312,7 @@ export class SimpleFileDialog {
 				isAcceptHandled = true;
 				isResolving++;
 				if (this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
-					this.options.availableFileSystems.shift();
+					this.options.availableFileSystems = this.options.availableFileSystems.slice(1);
 				}
 				this.filePickBox.hide();
 				if (isSave) {
@@ -382,28 +373,7 @@ export class SimpleFileDialog {
 			});
 
 			this.filePickBox.onDidChangeValue(async value => {
-				try {
-					// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
-					if (this.isValueChangeFromUser()) {
-						// If the user has just entered more bad path, don't change anything
-						if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
-							this.filePickBox.validationMessage = undefined;
-							const filePickBoxUri = this.filePickBoxValue();
-							let updated: UpdateResult = UpdateResult.NotUpdated;
-							if (!resources.isEqual(this.currentFolder, filePickBoxUri, true)) {
-								updated = await this.tryUpdateItems(value, filePickBoxUri);
-							}
-							if (updated === UpdateResult.NotUpdated) {
-								this.setActiveItems(value);
-							}
-						} else {
-							this.filePickBox.activeItems = [];
-							this.userEnteredPathSegment = '';
-						}
-					}
-				} catch {
-					// Since any text can be entered in the input box, there is potential for error causing input. If this happens, do nothing.
-				}
+				return this.handleValueChange(value);
 			});
 			this.filePickBox.onDidHide(() => {
 				this.hidden = true;
@@ -422,6 +392,31 @@ export class SimpleFileDialog {
 			}
 			this.busy = false;
 		});
+	}
+
+	private async handleValueChange(value: string) {
+		try {
+			// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
+			if (this.isValueChangeFromUser()) {
+				// If the user has just entered more bad path, don't change anything
+				if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
+					this.filePickBox.validationMessage = undefined;
+					const filePickBoxUri = this.filePickBoxValue();
+					let updated: UpdateResult = UpdateResult.NotUpdated;
+					if (!resources.isEqual(this.currentFolder, filePickBoxUri, true)) {
+						updated = await this.tryUpdateItems(value, filePickBoxUri);
+					}
+					if (updated === UpdateResult.NotUpdated) {
+						this.setActiveItems(value);
+					}
+				} else {
+					this.filePickBox.activeItems = [];
+					this.userEnteredPathSegment = '';
+				}
+			}
+		} catch {
+			// Since any text can be entered in the input box, there is potential for error causing input. If this happens, do nothing.
+		}
 	}
 
 	private isBadSubpath(value: string) {
@@ -486,7 +481,7 @@ export class SimpleFileDialog {
 					const newPath = this.pathFromUri(item.uri);
 					if (startsWithIgnoreCase(newPath, this.filePickBox.value) && (equalsIgnoreCase(item.label, resources.basename(item.uri)))) {
 						this.filePickBox.valueSelection = [this.pathFromUri(this.currentFolder).length, this.filePickBox.value.length];
-						this.insertText(newPath, item.label);
+						this.insertText(newPath, this.basenameWithTrailingSlash(item.uri));
 					} else if ((item.label === '..') && startsWithIgnoreCase(this.filePickBox.value, newPath)) {
 						this.filePickBox.valueSelection = [newPath.length, this.filePickBox.value.length];
 						this.insertText(newPath, '');
@@ -523,6 +518,16 @@ export class SimpleFileDialog {
 		return undefined;
 	}
 
+	private root(value: URI) {
+		let lastDir = value;
+		let dir = resources.dirname(value);
+		while (!resources.isEqual(lastDir, dir)) {
+			lastDir = dir;
+			dir = resources.dirname(dir);
+		}
+		return dir;
+	}
+
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
 		if ((value.length > 0) && ((value[value.length - 1] === '~') || (value[0] === '~'))) {
 			let newDir = this.userHome;
@@ -530,6 +535,11 @@ export class SimpleFileDialog {
 				newDir = resources.joinPath(newDir, value.substring(1));
 			}
 			await this.updateItems(newDir, true);
+			return UpdateResult.Updated;
+		} else if (value === '\\') {
+			valueUri = this.root(this.currentFolder);
+			value = this.pathFromUri(valueUri);
+			await this.updateItems(valueUri, true);
 			return UpdateResult.Updated;
 		} else if (!resources.isEqual(this.currentFolder, valueUri, true) && (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true)))) {
 			let stat: IFileStat | undefined;
@@ -602,7 +612,7 @@ export class SimpleFileDialog {
 			this.autoCompletePathSegment = '';
 			return false;
 		}
-		const itemBasename = this.trimTrailingSlash(quickPickItem.label);
+		const itemBasename = quickPickItem.label;
 		// Either force the autocomplete, or the old value should be one smaller than the new value and match the new value.
 		if (itemBasename === '..') {
 			// Don't match on the up directory item ever.
@@ -611,7 +621,7 @@ export class SimpleFileDialog {
 			this.activeItem = quickPickItem;
 			if (force) {
 				// clear any selected text
-				this.insertText(this.userEnteredPathSegment, '');
+				document.execCommand('insertText', false, '');
 			}
 			return false;
 		} else if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
@@ -621,7 +631,7 @@ export class SimpleFileDialog {
 			this.autoCompletePathSegment = '';
 			this.filePickBox.activeItems = [quickPickItem];
 			return true;
-		} else if (force && (!equalsIgnoreCase(quickPickItem.label, (this.userEnteredPathSegment + this.autoCompletePathSegment)))) {
+		} else if (force && (!equalsIgnoreCase(this.basenameWithTrailingSlash(quickPickItem.uri), (this.userEnteredPathSegment + this.autoCompletePathSegment)))) {
 			this.userEnteredPathSegment = '';
 			this.autoCompletePathSegment = this.trimTrailingSlash(itemBasename);
 			this.activeItem = quickPickItem;
@@ -640,8 +650,13 @@ export class SimpleFileDialog {
 	private insertText(wholeValue: string, insertText: string) {
 		if (this.filePickBox.inputHasFocus()) {
 			document.execCommand('insertText', false, insertText);
+			if (this.filePickBox.value !== wholeValue) {
+				this.filePickBox.value = wholeValue;
+				this.handleValueChange(wholeValue);
+			}
 		} else {
 			this.filePickBox.value = wholeValue;
+			this.handleValueChange(wholeValue);
 		}
 	}
 
@@ -807,7 +822,7 @@ export class SimpleFileDialog {
 	}
 
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
-		let result: string = uri.fsPath.replace(/\n/g, '');
+		let result: string = normalizeDriveLetter(uri.fsPath).replace(/\n/g, '');
 		if (this.separator === '/') {
 			result = result.replace(/\\/g, this.separator);
 		} else {
@@ -848,7 +863,7 @@ export class SimpleFileDialog {
 	}
 
 	private createBackItem(currFolder: URI): FileQuickPickItem | null {
-		const parentFolder = resources.dirname(currFolder)!;
+		const parentFolder = resources.dirname(currFolder);
 		if (!resources.isEqual(currFolder, parentFolder, true)) {
 			return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
 		}
@@ -913,7 +928,7 @@ export class SimpleFileDialog {
 		try {
 			const stat = await this.fileService.resolve(fullPath);
 			if (stat.isDirectory) {
-				filename = this.basenameWithTrailingSlash(fullPath);
+				filename = resources.basename(fullPath);
 				fullPath = resources.addTrailingPathSeparator(fullPath, this.separator);
 				return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
 			} else if (!stat.isDirectory && this.allowFileSelection && this.filterFile(fullPath)) {

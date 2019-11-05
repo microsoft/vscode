@@ -83,7 +83,7 @@ interface IUserFriendlyViewDescriptor {
 
 	// From 'remoteViewDescriptor' type
 	group?: string;
-	remoteAuthority?: string;
+	remoteName?: string | string[];
 }
 
 const viewDescriptor: IJSONSchema = {
@@ -123,9 +123,12 @@ const remoteViewDescriptor: IJSONSchema = {
 			description: localize('vscode.extension.contributes.view.group', 'Nested group in the viewlet'),
 			type: 'string'
 		},
-		remoteAuthority: {
-			description: localize('vscode.extension.contributes.view.remoteAuthority', 'The remote authority associated with this view'),
-			type: 'string'
+		remoteName: {
+			description: localize('vscode.extension.contributes.view.remoteName', 'The name of the remote type associated with this view'),
+			type: ['string', 'array'],
+			items: {
+				type: 'string'
+			}
 		}
 	}
 };
@@ -363,7 +366,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 			// Generate CSS to show the icon in the activity bar
 			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${cssClass}`;
-			createCSSRule(iconClass, `-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%; -webkit-mask-size: 24px;`);
+			createCSSRule(iconClass, `
+				mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				mask-size: 24px;
+				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				-webkit-mask-size: 24px;`
+			);
 		}
 
 		return viewContainer;
@@ -435,7 +443,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						extensionId: extension.description.identifier,
 						originalContainerId: entry.key,
 						group: item.group,
-						remoteAuthority: item.remoteAuthority
+						remoteAuthority: item.remoteName || (<any>item).remoteAuthority // TODO@roblou - delete after remote extensions are updated
 					};
 
 					viewIds.push(viewDescriptor.id);

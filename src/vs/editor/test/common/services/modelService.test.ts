@@ -365,7 +365,7 @@ assertComputeEdits(file1, file2);
 	}
 }
 
-class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
+export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
 	_serviceBrand: undefined;
 
@@ -375,11 +375,9 @@ class TestTextResourcePropertiesService implements ITextResourcePropertiesServic
 	}
 
 	getEOL(resource: URI, language?: string): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files', { overrideIdentifier: language, resource });
-		if (filesConfiguration && filesConfiguration.eol) {
-			if (filesConfiguration.eol !== 'auto') {
-				return filesConfiguration.eol;
-			}
+		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
+		if (eol && eol !== 'auto') {
+			return eol;
 		}
 		return (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n';
 	}

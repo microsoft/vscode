@@ -38,7 +38,7 @@ export class NativeDirtyFilesTracker extends DirtyFilesTracker {
 		super.onUntitledDidChangeDirty(resource);
 	}
 
-	protected onTextFilesDirty(e: TextFileModelChangeEvent[]): void {
+	protected onTextFilesDirty(e: readonly TextFileModelChangeEvent[]): void {
 		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
 			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
 		}
@@ -46,7 +46,7 @@ export class NativeDirtyFilesTracker extends DirtyFilesTracker {
 		super.onTextFilesDirty(e);
 	}
 
-	protected onTextFilesSaved(e: TextFileModelChangeEvent[]): void {
+	protected onTextFilesSaved(e: readonly TextFileModelChangeEvent[]): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}
@@ -54,7 +54,7 @@ export class NativeDirtyFilesTracker extends DirtyFilesTracker {
 		super.onTextFilesSaved(e);
 	}
 
-	protected onTextFilesSaveError(e: TextFileModelChangeEvent[]): void {
+	protected onTextFilesSaveError(e: readonly TextFileModelChangeEvent[]): void {
 		if (!this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}
@@ -62,7 +62,7 @@ export class NativeDirtyFilesTracker extends DirtyFilesTracker {
 		super.onTextFilesSaveError(e);
 	}
 
-	protected onTextFilesReverted(e: TextFileModelChangeEvent[]): void {
+	protected onTextFilesReverted(e: readonly TextFileModelChangeEvent[]): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}

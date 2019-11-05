@@ -27,7 +27,7 @@ function code() {
 	test -d node_modules || yarn
 
 	# Get electron
-	node build/lib/electron.js || ./node_modules/.bin/gulp electron
+	yarn electron
 
 	# Manage built-in extensions
 	if [[ "$1" == "--builtin" ]]; then
@@ -39,7 +39,7 @@ function code() {
 	node build/lib/builtInExtensions.js
 
 	# Build
-	test -d out || ./node_modules/.bin/gulp compile
+	test -d out || yarn compile
 
 	# Configuration
 	export NODE_ENV=development

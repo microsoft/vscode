@@ -15,6 +15,7 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 
 interface IWorkbenchConstructionOptions {
 
@@ -36,14 +37,9 @@ interface IWorkbenchConstructionOptions {
 	webviewEndpoint?: string;
 
 	/**
-	 * Experimental: An optional folder that is set as workspace context for the workbench.
+	 * Experimental: a handler for opening workspaces and providing the initial workspace.
 	 */
-	folderUri?: URI;
-
-	/**
-	 * Experimental: An optional workspace that is set as workspace context for the workbench.
-	 */
-	workspaceUri?: URI;
+	workspaceProvider?: IWorkspaceProvider;
 
 	/**
 	 * Experimental: The userDataProvider is used to handle user specific application
@@ -92,6 +88,11 @@ interface IWorkbenchConstructionOptions {
 	updateProvider?: IUpdateProvider;
 
 	/**
+	 * Experimental: Support adding additional properties to telemetry.
+	 */
+	resolveCommonTelemetryProperties?: () => { [key: string]: any };
+
+	/**
 	 * Experimental: Resolves an external uri before it is opened.
 	 */
 	readonly resolveExternalUri?: (uri: URI) => Promise<URI>;
@@ -121,6 +122,10 @@ export {
 	IDisposable,
 	Disposable,
 
+	// Workspace
+	IWorkspace,
+	IWorkspaceProvider,
+
 	// FileSystem
 	IFileSystemProvider,
 	FileSystemProviderCapabilities,
@@ -145,5 +150,5 @@ export {
 
 	// Updates
 	IUpdateProvider,
-	IUpdate
+	IUpdate,
 };

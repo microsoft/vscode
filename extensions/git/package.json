@@ -110,6 +110,24 @@
         }
       },
       {
+        "command": "git.stageAllTracked",
+        "title": "%command.stageAllTracked%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/stage.svg",
+          "dark": "resources/icons/dark/stage.svg"
+        }
+      },
+      {
+        "command": "git.stageAllUntracked",
+        "title": "%command.stageAllUntracked%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/stage.svg",
+          "dark": "resources/icons/dark/stage.svg"
+        }
+      },
+      {
         "command": "git.stageSelectedRanges",
         "title": "%command.stageSelectedRanges%",
         "category": "Git"
@@ -172,6 +190,24 @@
       {
         "command": "git.cleanAll",
         "title": "%command.cleanAll%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/clean.svg",
+          "dark": "resources/icons/dark/clean.svg"
+        }
+      },
+      {
+        "command": "git.cleanAllTracked",
+        "title": "%command.cleanAllTracked%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/clean.svg",
+          "dark": "resources/icons/dark/clean.svg"
+        }
+      },
+      {
+        "command": "git.cleanAllUntracked",
+        "title": "%command.cleanAllUntracked%",
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/clean.svg",
@@ -265,6 +301,11 @@
       {
         "command": "git.createTag",
         "title": "%command.createTag%",
+        "category": "Git"
+      },
+      {
+        "command": "git.deleteTag",
+        "title": "%command.deleteTag%",
         "category": "Git"
       },
       {
@@ -363,6 +404,11 @@
         "category": "Git"
       },
       {
+        "command": "git.revealInExplorer",
+        "title": "%command.revealInExplorer%",
+        "category": "Git"
+      },
+      {
         "command": "git.stashIncludeUntracked",
         "title": "%command.stashIncludeUntracked%",
         "category": "Git"
@@ -390,6 +436,11 @@
       {
         "command": "git.stashApplyLatest",
         "title": "%command.stashApplyLatest%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashDrop",
+        "title": "%command.stashDrop%",
         "category": "Git"
       }
     ],
@@ -433,6 +484,14 @@
         },
         {
           "command": "git.stageAll",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stageAllTracked",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stageAllUntracked",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -508,6 +567,10 @@
           "when": "false"
         },
         {
+          "command": "git.revealInExplorer",
+          "when": "false"
+        },
+        {
           "command": "git.undoCommit",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -553,6 +616,10 @@
         },
         {
           "command": "git.createTag",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.deleteTag",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -641,6 +708,10 @@
         },
         {
           "command": "git.stashApplyLatest",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashDrop",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         }
       ],
@@ -796,6 +867,11 @@
           "when": "scmProvider == git"
         },
         {
+          "command": "git.stashDrop",
+          "group": "6_stash",
+          "when": "scmProvider == git"
+        },
+        {
           "command": "git.showOutput",
           "group": "7_repository",
           "when": "scmProvider == git"
@@ -831,22 +907,62 @@
         },
         {
           "command": "git.cleanAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
           "group": "1_modification"
         },
         {
           "command": "git.stageAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
           "group": "1_modification"
         },
         {
           "command": "git.cleanAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
           "group": "inline"
         },
         {
           "command": "git.stageAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
+          "group": "inline"
+        },
+        {
+          "command": "git.cleanAllTracked",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.stageAllTracked",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.cleanAllTracked",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed",
+          "group": "inline"
+        },
+        {
+          "command": "git.stageAllTracked",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed",
+          "group": "inline"
+        },
+        {
+          "command": "git.cleanAllUntracked",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.stageAllUntracked",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.cleanAllUntracked",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "inline"
+        },
+        {
+          "command": "git.stageAllUntracked",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline"
         }
       ],
@@ -914,6 +1030,11 @@
           "group": "inline"
         },
         {
+          "command": "git.revealInExplorer",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "2_view"
+        },
+        {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
           "group": "inline0"
@@ -947,6 +1068,11 @@
           "command": "git.unstage",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "inline"
+        },
+        {
+          "command": "git.revealInExplorer",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "2_view"
         },
         {
           "command": "git.openFile2",
@@ -1006,6 +1132,66 @@
         {
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification@3"
+        },
+        {
+          "command": "git.revealInExplorer",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "2_view"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "navigation"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "navigation"
+        },
+        {
+          "command": "git.openHEADFile",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "navigation"
+        },
+        {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "navigation"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == untracked && !gitFreshRepository",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == untracked && !gitFreshRepository",
+          "group": "inline"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "inline"
+        },
+        {
+          "command": "git.openFile2",
+          "when": "scmProvider == git && scmResourceGroup == untracked && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
+          "group": "inline0"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == untracked && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
+          "group": "inline0"
+        },
+        {
+          "command": "git.ignore",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
         }
       ],
@@ -1150,7 +1336,8 @@
             "%config.countBadge.off%"
           ],
           "description": "%config.countBadge%",
-          "default": "all"
+          "default": "all",
+          "scope": "resource"
         },
         "git.checkoutType": {
           "type": "string",
@@ -1410,6 +1597,22 @@
           ],
           "default": "committerdate",
           "description": "%config.branchSortOrder%"
+        },
+        "git.untrackedChanges": {
+          "type": "string",
+          "enum": [
+            "mixed",
+            "separate",
+            "hidden"
+          ],
+          "enumDescriptions": [
+            "%config.untrackedChanges.mixed%",
+            "%config.untrackedChanges.separate%",
+            "%config.untrackedChanges.hidden%"
+          ],
+          "default": "mixed",
+          "description": "%config.untrackedChanges%",
+          "scope": "resource"
         }
       }
     },
@@ -1571,7 +1774,7 @@
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
-    "@types/node": "^10.14.8",
+    "@types/node": "^12.11.7",
     "@types/which": "^1.0.28",
     "mocha": "^3.2.0"
   }

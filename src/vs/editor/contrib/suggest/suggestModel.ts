@@ -13,7 +13,7 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind, CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
+import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
 import { CompletionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport, SnippetSortOrder, CompletionOptions } from './suggest';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -388,9 +388,7 @@ export class SuggestModel implements IDisposable {
 		this._requestToken = new CancellationTokenSource();
 
 		// kind filter and snippet sort rules
-		const suggestOptions = this._editor.getOption(EditorOption.suggest);
 		const snippetSuggestions = this._editor.getOption(EditorOption.snippetSuggestions);
-		let itemKindFilter = new Set<CompletionItemKind>();
 		let snippetSortOrder = SnippetSortOrder.Inline;
 		switch (snippetSuggestions) {
 			case 'top':
@@ -403,19 +401,9 @@ export class SuggestModel implements IDisposable {
 			case 'bottom':
 				snippetSortOrder = SnippetSortOrder.Bottom;
 				break;
-			case 'none':
-				itemKindFilter.add(CompletionItemKind.Snippet);
-				break;
 		}
 
-		// kind filter
-		for (const key in suggestOptions.filteredTypes) {
-			const kind = completionKindFromString(key, true);
-			if (typeof kind !== 'undefined' && suggestOptions.filteredTypes[key] === false) {
-				itemKindFilter.add(kind);
-			}
-		}
-
+		let itemKindFilter = SuggestModel._createItemKindFilter(this._editor);
 		let wordDistance = WordDistance.create(this._editorWorker, this._editor);
 
 		let items = provideSuggestionItems(
@@ -465,6 +453,48 @@ export class SuggestModel implements IDisposable {
 			this._onNewContext(ctx);
 
 		}).catch(onUnexpectedError);
+	}
+
+	private static _createItemKindFilter(editor: ICodeEditor): Set<CompletionItemKind> {
+		// kind filter and snippet sort rules
+		const result = new Set<CompletionItemKind>();
+
+		// snippet setting
+		const snippetSuggestions = editor.getOption(EditorOption.snippetSuggestions);
+		if (snippetSuggestions === 'none') {
+			result.add(CompletionItemKind.Snippet);
+		}
+
+		// type setting
+		const suggestOptions = editor.getOption(EditorOption.suggest);
+		if (!suggestOptions.showMethods) { result.add(CompletionItemKind.Method); }
+		if (!suggestOptions.showFunctions) { result.add(CompletionItemKind.Function); }
+		if (!suggestOptions.showConstructors) { result.add(CompletionItemKind.Constructor); }
+		if (!suggestOptions.showFields) { result.add(CompletionItemKind.Field); }
+		if (!suggestOptions.showVariables) { result.add(CompletionItemKind.Variable); }
+		if (!suggestOptions.showClasses) { result.add(CompletionItemKind.Class); }
+		if (!suggestOptions.showStructs) { result.add(CompletionItemKind.Struct); }
+		if (!suggestOptions.showInterfaces) { result.add(CompletionItemKind.Interface); }
+		if (!suggestOptions.showModules) { result.add(CompletionItemKind.Module); }
+		if (!suggestOptions.showProperties) { result.add(CompletionItemKind.Property); }
+		if (!suggestOptions.showEvents) { result.add(CompletionItemKind.Event); }
+		if (!suggestOptions.showOperators) { result.add(CompletionItemKind.Operator); }
+		if (!suggestOptions.showUnits) { result.add(CompletionItemKind.Unit); }
+		if (!suggestOptions.showValues) { result.add(CompletionItemKind.Value); }
+		if (!suggestOptions.showConstants) { result.add(CompletionItemKind.Constant); }
+		if (!suggestOptions.showEnums) { result.add(CompletionItemKind.Enum); }
+		if (!suggestOptions.showEnumMembers) { result.add(CompletionItemKind.EnumMember); }
+		if (!suggestOptions.showKeywords) { result.add(CompletionItemKind.Keyword); }
+		if (!suggestOptions.showWords) { result.add(CompletionItemKind.Text); }
+		if (!suggestOptions.showColors) { result.add(CompletionItemKind.Color); }
+		if (!suggestOptions.showFiles) { result.add(CompletionItemKind.File); }
+		if (!suggestOptions.showReferences) { result.add(CompletionItemKind.Reference); }
+		if (!suggestOptions.showColors) { result.add(CompletionItemKind.Customcolor); }
+		if (!suggestOptions.showFolders) { result.add(CompletionItemKind.Folder); }
+		if (!suggestOptions.showTypeParameters) { result.add(CompletionItemKind.TypeParameter); }
+		if (!suggestOptions.showSnippets) { result.add(CompletionItemKind.Snippet); }
+
+		return result;
 	}
 
 	private _onNewContext(ctx: LineContext): void {

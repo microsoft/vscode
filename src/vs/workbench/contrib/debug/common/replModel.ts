@@ -12,6 +12,7 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { endsWith } from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
+import { Emitter } from 'vs/base/common/event';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
@@ -108,6 +109,8 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 
 export class ReplModel {
 	private replElements: IReplElement[] = [];
+	private readonly _onDidChangeElements = new Emitter<void>();
+	readonly onDidChangeElements = this._onDidChangeElements.event;
 
 	getReplElements(): IReplElement[] {
 		return this.replElements;
@@ -150,6 +153,7 @@ export class ReplModel {
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 		}
+		this._onDidChangeElements.fire();
 	}
 
 	logToRepl(session: IDebugSession, sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
@@ -228,6 +232,7 @@ export class ReplModel {
 	removeReplExpressions(): void {
 		if (this.replElements.length > 0) {
 			this.replElements = [];
+			this._onDidChangeElements.fire();
 		}
 	}
 }

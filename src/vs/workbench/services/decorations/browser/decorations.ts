@@ -20,7 +20,7 @@ export interface IDecorationData {
 	readonly bubble?: boolean;
 }
 
-export interface IDecoration {
+export interface IDecoration extends IDisposable {
 	readonly tooltip: string;
 	readonly labelClassName: string;
 	readonly badgeClassName: string;
@@ -28,7 +28,7 @@ export interface IDecoration {
 
 export interface IDecorationsProvider {
 	readonly label: string;
-	readonly onDidChange: Event<URI[]>;
+	readonly onDidChange: Event<readonly URI[]>;
 	provideDecorations(uri: URI, token: CancellationToken): IDecorationData | Promise<IDecorationData | undefined> | undefined;
 }
 

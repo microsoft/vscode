@@ -16,7 +16,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
-import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from './extHost.protocol';
+import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
 
 type ProviderHandle = number;
@@ -213,11 +213,20 @@ export class ExtHostComments implements ExtHostCommentsShape, IDisposable {
 
 	}
 }
+type CommentThreadModification = Partial<{
+	range: vscode.Range,
+	label: string | undefined,
+	contextValue: string | undefined,
+	comments: vscode.Comment[],
+	collapsibleState: vscode.CommentThreadCollapsibleState
+}>;
 
 export class ExtHostCommentThread implements vscode.CommentThread {
 	private static _handlePool: number = 0;
 	readonly handle = ExtHostCommentThread._handlePool++;
 	public commentHandle: number = 0;
+
+	private modifications: CommentThreadModification = Object.create(null);
 
 	set threadId(id: string) {
 		this._id = id;
@@ -245,6 +254,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	set range(range: vscode.Range) {
 		if (!range.isEqual(this._range)) {
 			this._range = range;
+			this.modifications.range = range;
 			this._onDidUpdateCommentThread.fire();
 		}
 	}
@@ -261,6 +271,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set label(label: string | undefined) {
 		this._label = label;
+		this.modifications.label = label;
 		this._onDidUpdateCommentThread.fire();
 	}
 
@@ -272,6 +283,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set contextValue(context: string | undefined) {
 		this._contextValue = context;
+		this.modifications.contextValue = context;
 		this._onDidUpdateCommentThread.fire();
 	}
 
@@ -281,6 +293,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set comments(newComments: vscode.Comment[]) {
 		this._comments = newComments;
+		this.modifications.comments = newComments;
 		this._onDidUpdateCommentThread.fire();
 	}
 
@@ -292,6 +305,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set collapsibleState(newState: vscode.CommentThreadCollapsibleState) {
 		this._collapseState = newState;
+		this.modifications.collapsibleState = newState;
 		this._onDidUpdateCommentThread.fire();
 	}
 
@@ -353,22 +367,34 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._acceptInputDisposables.value = new DisposableStore();
 		}
 
-		const commentThreadRange = extHostTypeConverter.Range.from(this._range);
-		const label = this.label;
-		const contextValue = this.contextValue;
-		const comments = this._comments.map(cmt => { return convertToModeComment(this, this._commentController, cmt, this._commentsMap); });
-		const collapsibleState = convertToCollapsibleState(this._collapseState);
+		const modified = (value: keyof CommentThreadModification): boolean =>
+			Object.prototype.hasOwnProperty.call(this.modifications, value);
+
+		const formattedModifications: CommentThreadChanges = {};
+		if (modified('range')) {
+			formattedModifications.range = extHostTypeConverter.Range.from(this._range);
+		}
+		if (modified('label')) {
+			formattedModifications.label = this.label;
+		}
+		if (modified('contextValue')) {
+			formattedModifications.contextValue = this.contextValue;
+		}
+		if (modified('comments')) {
+			formattedModifications.comments =
+				this._comments.map(cmt => convertToModeComment(this, this._commentController, cmt, this._commentsMap));
+		}
+		if (modified('collapsibleState')) {
+			formattedModifications.collapseState = convertToCollapsibleState(this._collapseState);
+		}
+		this.modifications = {};
 
 		this._proxy.$updateCommentThread(
 			this._commentController.handle,
 			this.handle,
 			this._id!,
 			this._uri,
-			commentThreadRange,
-			label,
-			contextValue,
-			comments,
-			collapsibleState
+			formattedModifications
 		);
 	}
 

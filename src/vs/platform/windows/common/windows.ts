@@ -3,48 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-export const IWindowsService = createDecorator<IWindowsService>('windowsService');
-
-export interface INativeOpenDialogOptions {
-	forceNewWindow?: boolean;
-
-	defaultPath?: string;
-
-	telemetryEventName?: string;
-	telemetryExtraData?: ITelemetryData;
-}
-
-export interface IWindowsService {
-
-	_serviceBrand: undefined;
-
-	readonly onWindowOpen: Event<number>;
-	readonly onWindowFocus: Event<number>;
-	readonly onWindowBlur: Event<number>;
-	readonly onWindowMaximize: Event<number>;
-	readonly onWindowUnmaximize: Event<number>;
-	readonly onRecentlyOpenedChange: Event<void>;
-
-	addRecentlyOpened(recents: IRecent[]): Promise<void>;
-	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
-	clearRecentlyOpened(): Promise<void>;
-	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
-	isFocused(windowId: number): Promise<boolean>;
-}
-
-export const IWindowService = createDecorator<IWindowService>('windowService');
 
 export interface IOpenedWindow {
 	id: number;
@@ -54,18 +19,17 @@ export interface IOpenedWindow {
 	filename?: string;
 }
 
-export interface IOpenInWindowOptions {
-	forceNewWindow?: boolean;
+export interface IBaseOpenWindowsOptions {
 	forceReuseWindow?: boolean;
-	diffMode?: boolean;
-	addMode?: boolean;
-	gotoLineMode?: boolean;
-	noRecentEntry?: boolean;
-	waitMarkerFileURI?: URI;
 }
 
-export interface IOpenEmptyWindowOptions {
-	reuse?: boolean;
+export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
+	forceNewWindow?: boolean;
+
+	noRecentEntry?: boolean;
+}
+
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
 	remoteAuthority?: string;
 }
 
@@ -99,24 +63,18 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 	return !!(uriToOpen as IFileToOpen).fileUri;
 }
 
-export interface IWindowService {
+export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
-	_serviceBrand: undefined;
+export function getMenuBarVisibility(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): MenuBarVisibility {
+	const titleBarStyle = getTitleBarStyle(configurationService, environment, isExtensionDevelopment);
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
 
-	readonly onDidChangeFocus: Event<boolean>;
-	readonly onDidChangeMaximize: Event<boolean>;
-
-	readonly hasFocus: boolean;
-
-	readonly windowId: number;
-
-	getRecentlyOpened(): Promise<IRecentlyOpened>;
-	addRecentlyOpened(recents: IRecent[]): Promise<void>;
-	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
-	isFocused(): Promise<boolean>;
+	if (titleBarStyle === 'native' && menuBarVisibility === 'compact') {
+		return 'default';
+	} else {
+		return menuBarVisibility;
+	}
 }
-
-export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
 
 export interface IWindowsConfiguration {
 	window: IWindowSettings;
@@ -261,8 +219,9 @@ export interface IAddFoldersRequest {
 }
 
 export interface IWindowConfiguration extends ParsedArgs {
-	machineId: string;
-	windowId: number;
+	machineId?: string; // NOTE: This is undefined in the web, the telemetry service directly resolves this.
+	windowId: number; // TODO: should we deprecate this in favor of sessionId?
+	sessionId: string;
 	logLevel: LogLevel;
 
 	mainPid: number;
@@ -287,19 +246,14 @@ export interface IWindowConfiguration extends ParsedArgs {
 	fullscreen?: boolean;
 	maximized?: boolean;
 	highContrast?: boolean;
-	frameless?: boolean;
 	accessibilitySupport?: boolean;
 	partsSplashPath?: string;
 
-	perfStartTime?: number;
-	perfAppReady?: number;
-	perfWindowLoadTime?: number;
 	perfEntries: ExportData;
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
-	termProgram?: string;
 }
 
 export interface IRunActionInWindowRequest {

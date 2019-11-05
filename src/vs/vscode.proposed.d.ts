@@ -16,89 +16,6 @@
 
 declare module 'vscode' {
 
-	//#region Joh - call hierarchy
-
-	export class CallHierarchyItem {
-		/**
-		 * The name of this item.
-		 */
-		name: string;
-
-		/**
-		 * The kind of this item.
-		 */
-		kind: SymbolKind;
-
-		/**
-		 * Tags for this item.
-		 */
-		tags?: ReadonlyArray<SymbolTag>;
-
-		/**
-		 * More detail for this item, e.g. the signature of a function.
-		 */
-		detail?: string;
-
-		/**
-		 * The resource identifier of this item.
-		 */
-		uri: Uri;
-
-		/**
-		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
-		 */
-		range: Range;
-
-		/**
-		 * The range that should be selected and reveal when this symbol is being picked, e.g. the name of a function.
-		 * Must be contained by the [`range`](#CallHierarchyItem.range).
-		 */
-		selectionRange: Range;
-
-		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
-	}
-
-	export class CallHierarchyIncomingCall {
-		source: CallHierarchyItem;
-		sourceRanges: Range[];
-		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
-	}
-
-	export class CallHierarchyOutgoingCall {
-		sourceRanges: Range[];
-		target: CallHierarchyItem;
-		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
-	}
-
-	export interface CallHierarchyItemProvider {
-
-		/**
-		 * Provide a list of callers for the provided item, e.g. all function calling a function.
-		 */
-		provideCallHierarchyIncomingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
-
-		/**
-		 * Provide a list of calls for the provided item, e.g. all functions call from a function.
-		 */
-		provideCallHierarchyOutgoingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
-
-		//  todo@joh this could return as 'prepareCallHierarchy' (similar to the RenameProvider#prepareRename)
-		//
-		// /**
-		//  *
-		//  * Given a document and position compute a call hierarchy item. This is justed as
-		//  * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
-		//  */
-		// resolveCallHierarchyItem(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
-	}
-
-	export namespace languages {
-		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyItemProvider): Disposable;
-	}
-
-	//#endregion
-
-
 	//#region Alex - resolvers
 
 	export interface RemoteAuthorityResolverContext {
@@ -673,56 +590,6 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	/**
-	 * Debug console mode used by debug session, see [options](#DebugSessionOptions).
-	 */
-	export enum DebugConsoleMode {
-		/**
-		 * Debug session should have a separate debug console.
-		 */
-		Separate = 0,
-
-		/**
-		 * Debug session should share debug console with its parent session.
-		 * This value has no effect for sessions which do not have a parent session.
-		 */
-		MergeWithParent = 1
-	}
-
-	/**
-	 * Options for [starting a debug session](#debug.startDebugging).
-	 */
-	export interface DebugSessionOptions {
-
-		/**
-		 * When specified the newly created debug session is registered as a "child" session of this
-		 * "parent" debug session.
-		 */
-		parentSession?: DebugSession;
-
-		/**
-		 * Controls whether this session should have a separate debug console or share it
-		 * with the parent session. Has no effect for sessions which do not have a parent session.
-		 * Defaults to Separate.
-		 */
-		consoleMode?: DebugConsoleMode;
-	}
-
-	export namespace debug {
-		/**
-		 * Start debugging by using either a named launch or named compound configuration,
-		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
-		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
-		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
-		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
-		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
-		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @param parentSessionOrOptions Debug sesison options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
-		 * @return A thenable that resolves when debugging could be successfully started.
-		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
-	}
-
 	//#endregion
 
 	//#region Rob, Matt: logging
@@ -898,20 +765,45 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
+
+	export interface FileCreateEvent {
+		readonly created: ReadonlyArray<Uri>;
+	}
+
+	export interface FileWillCreateEvent {
+		readonly creating: ReadonlyArray<Uri>;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	export interface FileDeleteEvent {
+		readonly deleted: ReadonlyArray<Uri>;
+	}
+
+	export interface FileWillDeleteEvent {
+		readonly deleting: ReadonlyArray<Uri>;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
 	export interface FileRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
+		readonly renamed: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
 	export interface FileWillRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		readonly renaming: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void; // TODO@joh support sync/async
 	}
 
 	export namespace workspace {
-		export const onWillRenameFile: Event<FileWillRenameEvent>;
-		export const onDidRenameFile: Event<FileRenameEvent>;
+
+		export const onWillCreateFiles: Event<FileWillCreateEvent>;
+		export const onDidCreateFiles: Event<FileCreateEvent>;
+
+		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+
+		export const onWillRenameFiles: Event<FileWillRenameEvent>;
+		export const onDidRenameFiles: Event<FileRenameEvent>;
+
 	}
 	//#endregion
 
@@ -928,7 +820,8 @@ declare module 'vscode' {
 
 	export interface TreeView<T> {
 		/**
-		 * The name of the tree view. It is set from the extension package.json and can be changed later.
+		 * The tree view title is initially taken from the extension package.json
+		 * Changes to the title property will be properly reflected in the UI in the title of the view.
 		 */
 		title?: string;
 	}
@@ -966,50 +859,15 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region CustomExecution
-	/**
-	 * Class used to execute an extension callback as a task.
-	 */
-	export class CustomExecution2 {
-		/**
-		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
-		 * @param callback The callback that will be called when the task is started by a user.
-		 */
-		constructor(callback: () => Thenable<Pseudoterminal>);
 
-		/**
-		 * The callback used to execute the task. Cancellation should be handled using
-		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
-		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
-		 */
-		callback: () => Thenable<Pseudoterminal>;
-	}
 
 	/**
 	 * A task to execute
 	 */
 	export class Task2 extends Task {
-		/**
-		 * Creates a new task.
-		 *
-		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 * @param execution The process or shell execution.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
-
-		/**
-		 * The task's execution engine
-		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution2;
+		detail?: string;
 	}
-	//#endregion
 
-	//#region Tasks
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
@@ -1079,146 +937,119 @@ declare module 'vscode' {
 	export namespace env {
 
 		/**
-		 * Creates a Uri that - if opened in a browser - will result in a
-		 * registered [UriHandler](#UriHandler) to fire. The handler's
-		 * Uri will be configured with the path, query and fragment of
-		 * [AppUriOptions](#AppUriOptions) if provided, otherwise it will be empty.
-		 *
-		 * Extensions should not make any assumptions about the resulting
-		 * Uri and should not alter it in anyway. Rather, extensions can e.g.
-		 * use this Uri in an authentication flow, by adding the Uri as
-		 * callback query argument to the server to authenticate to.
-		 *
-		 * Note: If the server decides to add additional query parameters to the Uri
-		 * (e.g. a token or secret), it will appear in the Uri that is passed
-		 * to the [UriHandler](#UriHandler).
-		 *
-		 * **Example** of an authentication flow:
-		 * ```typescript
-		 * vscode.window.registerUriHandler({
-		 *   handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
-		 *     if (uri.path === '/did-authenticate') {
-		 *       console.log(uri.toString());
-		 *     }
-		 *   }
-		 * });
-		 *
-		 * const callableUri = await vscode.env.createAppUri({ payload: { path: '/did-authenticate' } });
-		 * await vscode.env.openExternal(callableUri);
-		 * ```
+		 * @deprecated use `vscode.env.asExternalUri` instead.
 		 */
 		export function createAppUri(options?: AppUriOptions): Thenable<Uri>;
 	}
 
 	//#endregion
 
-	// #region Ben - UIKind
-
-	/**
-	 * Possible kinds of UI that can use extensions.
-	 */
-	export enum UIKind {
-
-		/**
-		 * Extensions are accessed from a desktop application.
-		 */
-		Desktop = 1,
-
-		/**
-		 * Extensions are accessed from a web browser.
-		 */
-		Web = 2
-	}
-
-	export namespace env {
-
-		/**
-		 * The UI kind property indicates from which UI extensions
-		 * are accessed from. For example, extensions could be accessed
-		 * from a desktop application or a web browser.
-		 */
-		export const uiKind: UIKind;
-	}
-
-	//#endregion
-
 	//#region Custom editors, mjbvz
 
-	export enum WebviewEditorState {
+	/**
+	 *
+	 */
+	interface WebviewEditorCapabilities {
 		/**
-		 * The webview editor's content cannot be modified.
+		 * Invoked when the resource has been renamed in VS Code.
 		 *
-		 * This disables save
+		 * This is called when the resource's new name also matches the custom editor selector.
+		 *
+		 * If this is not implemented—or if the new resource name does not match the existing selector—then VS Code
+		 * will close and reopen the editor on  rename.
+		 *
+		 * @param newResource Full path to the resource.
+		 *
+		 * @return Thenable that signals the save is complete.
 		 */
-		Readonly = 1,
+		rename?(newResource: Uri): Thenable<void>;
 
-		/**
-		 * The webview editor's content has not been changed but they can be modified and saved.
-		 */
-		Unchanged = 2,
-
-		/**
-		 * The webview editor's content has been changed and can be saved.
-		 */
-		Dirty = 3,
+		readonly editingCapability?: WebviewEditorEditingCapability;
 	}
 
-	export interface WebviewEditor extends WebviewPanel {
-		state: WebviewEditorState;
+	interface WebviewEditorEditingCapability {
+		/**
+		 * Persist the resource.
+		 */
+		save(resource: Uri): Thenable<void>;
 
 		/**
-		 * Fired when the webview editor is saved.
-		 *
-		 * Both `Unchanged` and `Dirty` editors can be saved.
-		 *
-		 * Extensions should call `waitUntil` to signal when the save operation complete
+		 * Called when the editor exits.
 		 */
-		readonly onWillSave: Event<{ waitUntil: (thenable: Thenable<boolean>) => void }>;
+		hotExit(hotExitPath: Uri): Thenable<void>;
+
+		/**
+		 * Signal to VS Code that an edit has occurred.
+		 *
+		 * Edits must be a json serilizable object.
+		 */
+		readonly onEdit: Event<any>;
+
+		/**
+		 * Apply a set of edits.
+		 *
+		 * This is triggered on redo and when restoring a custom editor after restart. Note that is not invoked
+		 * when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
+		 *
+		 * @param edit Array of edits. Sorted from oldest to most recent.
+		 */
+		applyEdits(edits: any[]): Thenable<void>;
+
+		/**
+		 * Undo a set of edits.
+		 *
+		 * This is triggered when a user undoes an edit or when revert is called on a file.
+		 *
+		 * @param edit Array of edits. Sorted from most recent to oldest.
+		 */
+		undoEdits(edits: any[]): Thenable<void>;
 	}
 
 	export interface WebviewEditorProvider {
 		/**
-		* Fills out a `WebviewEditor` for a given resource.
-		*
-		* The provider should take ownership of passed in `editor`.
-		*/
+		 * Fills out a `WebviewEditor` for a given resource.
+		 *
+		 * @param input Information about the resource being resolved.
+		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 *
+		 * @return Thenable to a `WebviewEditorCapabilities` indicating that the webview editor has been resolved.
+		 *   The `WebviewEditorCapabilities` defines how the custom editor interacts with VS Code.
+		 *   **❗️Note**: `WebviewEditorCapabilities` is not actually implemented... yet!
+		 */
 		resolveWebviewEditor(
-			resource: Uri,
-			editor: WebviewEditor
-		): Thenable<void>;
+			input: {
+				readonly resource: Uri
+			},
+			webview: WebviewPanel,
+		): Thenable<WebviewEditorCapabilities>;
 	}
 
 	namespace window {
 		export function registerWebviewEditorProvider(
 			viewType: string,
 			provider: WebviewEditorProvider,
+			options?: WebviewPanelOptions,
 		): Disposable;
 	}
 
 	//#endregion
 
-	// #region resolveExternalUri — mjbvz
+	//#region joh, insert/replace completions: https://github.com/microsoft/vscode/issues/10266
 
-	namespace env {
+	export interface CompletionItem {
+
 		/**
-		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
-		 * uri to the same resource on the client machine.
+		 * A range or a insert and replace range selecting the text that should be replaced by this completion item.
 		 *
-		 * This is a no-op if the extension is running locally. Currently only supports `https:` and `http:`.
+		 * When omitted, the range of the [current word](#TextDocument.getWordRangeAtPosition) is used as replace-range
+		 * and as insert-range the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position is used.
 		 *
-		 * If the extension is running remotely, this function automatically establishes port forwarding from
-		 * the local machine to `target` on the remote and returns a local uri that can be used to for this connection.
-		 *
-		 * Extensions should not store the result of `resolveExternalUri` as the resolved uri may become invalid due to
-		 * a system or user action — for example, in remote cases, a user may close a port that was forwarded by
-		 * `resolveExternalUri`.
-		 *
-		 * Note: uris passed through `openExternal` are automatically resolved and you should not call `resolveExternalUri`
-		 * on them.
-		 *
-		 * @return A uri that can be used on the client machine.
+		 * *Note 1:* A range must be a [single line](#Range.isSingleLine) and it must
+		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
 		 */
-		export function resolveExternalUri(target: Uri): Thenable<Uri>;
+		range2?: Range | { inserting: Range; replacing: Range; };
 	}
 
 	//#endregion

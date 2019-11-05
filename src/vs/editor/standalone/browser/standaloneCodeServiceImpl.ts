@@ -15,19 +15,19 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 
-	public getActiveCodeEditor(): ICodeEditor | undefined {
-		return undefined; // not supported in the standalone case
+	public getActiveCodeEditor(): ICodeEditor | null {
+		return null; // not supported in the standalone case
 	}
 
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor | undefined, sideBySide?: boolean): Promise<ICodeEditor | undefined> {
+	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		if (!source) {
-			return Promise.resolve(undefined);
+			return Promise.resolve(null);
 		}
 
 		return Promise.resolve(this.doOpenEditor(source, input));
 	}
 
-	private doOpenEditor(editor: ICodeEditor, input: IResourceInput): ICodeEditor | undefined {
+	private doOpenEditor(editor: ICodeEditor, input: IResourceInput): ICodeEditor | null {
 		const model = this.findModel(editor, input.resource);
 		if (!model) {
 			if (input.resource) {
@@ -39,7 +39,7 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 					return editor;
 				}
 			}
-			return undefined;
+			return null;
 		}
 
 		const selection = <IRange>(input.options ? input.options.selection : null);

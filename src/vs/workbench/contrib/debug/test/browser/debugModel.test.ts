@@ -16,7 +16,7 @@ import { IBreakpointUpdateData, IDebugSessionOptions } from 'vs/workbench/contri
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 
 function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
+	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
 }
 
 suite('Debug - Model', () => {
@@ -513,7 +513,11 @@ suite('Debug - Model', () => {
 		const grandChild = createMockSession(model, 'grandChild', { parentSession: child2, repl: 'mergeWithParent' });
 		const child3 = createMockSession(model, 'child3', { parentSession: parent });
 
+		let parentChanges = 0;
+		parent.onDidChangeReplElements(() => ++parentChanges);
+
 		parent.appendToRepl('1\n', severity.Info);
+		assert.equal(parentChanges, 1);
 		assert.equal(parent.getReplElements().length, 1);
 		assert.equal(child1.getReplElements().length, 0);
 		assert.equal(child2.getReplElements().length, 1);
@@ -521,6 +525,7 @@ suite('Debug - Model', () => {
 		assert.equal(child3.getReplElements().length, 0);
 
 		grandChild.appendToRepl('1\n', severity.Info);
+		assert.equal(parentChanges, 2);
 		assert.equal(parent.getReplElements().length, 2);
 		assert.equal(child1.getReplElements().length, 0);
 		assert.equal(child2.getReplElements().length, 2);
@@ -528,6 +533,7 @@ suite('Debug - Model', () => {
 		assert.equal(child3.getReplElements().length, 0);
 
 		child3.appendToRepl('1\n', severity.Info);
+		assert.equal(parentChanges, 2);
 		assert.equal(parent.getReplElements().length, 2);
 		assert.equal(child1.getReplElements().length, 0);
 		assert.equal(child2.getReplElements().length, 2);
@@ -535,6 +541,7 @@ suite('Debug - Model', () => {
 		assert.equal(child3.getReplElements().length, 1);
 
 		child1.appendToRepl('1\n', severity.Info);
+		assert.equal(parentChanges, 2);
 		assert.equal(parent.getReplElements().length, 2);
 		assert.equal(child1.getReplElements().length, 1);
 		assert.equal(child2.getReplElements().length, 2);

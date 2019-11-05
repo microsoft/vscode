@@ -57,13 +57,7 @@ export class ContributableActionProvider implements IActionProvider {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (const contributor of contributors) {
-			if (contributor.hasActions(context)) {
-				return true;
-			}
-		}
-
-		return false;
+		return contributors.some(contributor => contributor.hasActions(context));
 	}
 
 	getActions(tree: ITree, element: unknown): ReadonlyArray<IAction> {
@@ -156,7 +150,7 @@ export interface IActionBarRegistry {
 class ActionBarRegistry implements IActionBarRegistry {
 	private readonly actionBarContributorConstructors: { scope: string; ctor: IConstructorSignature0<ActionBarContributor>; }[] = [];
 	private readonly actionBarContributorInstances: Map<string, ActionBarContributor[]> = new Map();
-	private instantiationService!: IInstantiationService;
+	private instantiationService: IInstantiationService | undefined;
 
 	start(accessor: ServicesAccessor): void {
 		this.instantiationService = accessor.get(IInstantiationService);
@@ -168,13 +162,15 @@ class ActionBarRegistry implements IActionBarRegistry {
 	}
 
 	private createActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void {
-		const instance = this.instantiationService.createInstance(ctor);
-		let target = this.actionBarContributorInstances.get(scope);
-		if (!target) {
-			target = [];
-			this.actionBarContributorInstances.set(scope, target);
+		if (this.instantiationService) {
+			const instance = this.instantiationService.createInstance(ctor);
+			let target = this.actionBarContributorInstances.get(scope);
+			if (!target) {
+				target = [];
+				this.actionBarContributorInstances.set(scope, target);
+			}
+			target.push(instance);
 		}
-		target.push(instance);
 	}
 
 	private getContributors(scope: string): ActionBarContributor[] {

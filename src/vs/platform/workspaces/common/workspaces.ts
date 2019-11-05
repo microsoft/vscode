@@ -17,10 +17,67 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { toSlashes } from 'vs/base/common/extpath';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Event as CommonEvent } from 'vs/base/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
 export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
+
+export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
+
+export interface IWorkspacesService {
+
+	_serviceBrand: undefined;
+
+	// Management
+	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null>;
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
+	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
+	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
+
+	// History
+	readonly onRecentlyOpenedChange: CommonEvent<void>;
+	addRecentlyOpened(recents: IRecent[]): Promise<void>;
+	removeFromRecentlyOpened(workspaces: URI[]): Promise<void>;
+	clearRecentlyOpened(): Promise<void>;
+	getRecentlyOpened(): Promise<IRecentlyOpened>;
+}
+
+export interface IRecentlyOpened {
+	workspaces: Array<IRecentWorkspace | IRecentFolder>;
+	files: IRecentFile[];
+}
+
+export type IRecent = IRecentWorkspace | IRecentFolder | IRecentFile;
+
+export interface IRecentWorkspace {
+	workspace: IWorkspaceIdentifier;
+	label?: string;
+}
+
+export interface IRecentFolder {
+	folderUri: ISingleFolderWorkspaceIdentifier;
+	label?: string;
+}
+
+export interface IRecentFile {
+	fileUri: URI;
+	label?: string;
+}
+
+export function isRecentWorkspace(curr: IRecent): curr is IRecentWorkspace {
+	return curr.hasOwnProperty('workspace');
+}
+
+export function isRecentFolder(curr: IRecent): curr is IRecentFolder {
+	return curr.hasOwnProperty('folderUri');
+}
+
+export function isRecentFile(curr: IRecent): curr is IRecentFile {
+	return curr.hasOwnProperty('fileUri');
+}
 
 /**
  * A single folder workspace identifier is just the path to the folder.
@@ -76,11 +133,6 @@ export interface IStoredWorkspace {
 	remoteAuthority?: string;
 }
 
-export interface IWorkspaceSavedEvent {
-	workspace: IWorkspaceIdentifier;
-	oldConfigPath: string;
-}
-
 export interface IWorkspaceFolderCreationData {
 	uri: URI;
 	name?: string;
@@ -94,21 +146,6 @@ export interface IUntitledWorkspaceInfo {
 export interface IEnterWorkspaceResult {
 	workspace: IWorkspaceIdentifier;
 	backupPath?: string;
-}
-
-export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
-
-export interface IWorkspacesService {
-
-	_serviceBrand: undefined;
-
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
-
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
-
-	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
-
-	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
@@ -134,6 +171,10 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 
 	// Empty workspace
 	return undefined;
+}
+
+export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
+	return isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }
 
 export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
@@ -244,12 +285,9 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 	let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
 
 	// Filter out folders which do not have a path or uri set
-	if (Array.isArray(storedWorkspace.folders)) {
+	if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {
 		storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
-	}
-
-	// Validate
-	if (!Array.isArray(storedWorkspace.folders)) {
+	} else {
 		throw new Error(`${path} looks like an invalid workspace file.`);
 	}
 
@@ -258,12 +296,133 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 
 export function useSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolean {
 	if (isWindows) {
-		for (const folder of storedFolders) {
-			if (isRawFileWorkspaceFolder(folder) && folder.path.indexOf(SLASH) >= 0) {
-				return true;
-			}
-		}
-		return false;
+		return storedFolders.some(folder => isRawFileWorkspaceFolder(folder) && folder.path.indexOf(SLASH) >= 0);
 	}
 	return true;
 }
+
+//#region Workspace Storage
+
+interface ISerializedRecentlyOpened {
+	workspaces3: Array<ISerializedWorkspace | string>; // workspace or URI.toString() // added in 1.32
+	workspaceLabels?: Array<string | null>; // added in 1.33
+	files2: string[]; // files as URI.toString() // added in 1.32
+	fileLabels?: Array<string | null>; // added in 1.33
+}
+
+interface ILegacySerializedRecentlyOpened {
+	workspaces2: Array<ILegacySerializedWorkspace | string>; // legacy, configPath as file path
+	workspaces: Array<ILegacySerializedWorkspace | string | UriComponents>; // legacy (UriComponents was also supported for a few insider builds)
+	files: string[]; // files as paths
+}
+
+interface ISerializedWorkspace { id: string; configURIPath: string; }
+interface ILegacySerializedWorkspace { id: string; configPath: string; }
+
+function isLegacySerializedWorkspace(curr: any): curr is ILegacySerializedWorkspace {
+	return typeof curr === 'object' && typeof curr['id'] === 'string' && typeof curr['configPath'] === 'string';
+}
+
+function isUriComponents(curr: any): curr is UriComponents {
+	return curr && typeof curr['path'] === 'string' && typeof curr['scheme'] === 'string';
+}
+
+export type RecentlyOpenedStorageData = object;
+
+export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefined, logService: ILogService): IRecentlyOpened {
+	const result: IRecentlyOpened = { workspaces: [], files: [] };
+	if (data) {
+		const restoreGracefully = function <T>(entries: T[], func: (entry: T, index: number) => void) {
+			for (let i = 0; i < entries.length; i++) {
+				try {
+					func(entries[i], i);
+				} catch (e) {
+					logService.warn(`Error restoring recent entry ${JSON.stringify(entries[i])}: ${e.toString()}. Skip entry.`);
+				}
+			}
+		};
+
+		const storedRecents = data as ISerializedRecentlyOpened & ILegacySerializedRecentlyOpened;
+		if (Array.isArray(storedRecents.workspaces3)) {
+			restoreGracefully(storedRecents.workspaces3, (workspace, i) => {
+				const label: string | undefined = (Array.isArray(storedRecents.workspaceLabels) && storedRecents.workspaceLabels[i]) || undefined;
+				if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configURIPath === 'string') {
+					result.workspaces.push({ label, workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) } });
+				} else if (typeof workspace === 'string') {
+					result.workspaces.push({ label, folderUri: URI.parse(workspace) });
+				}
+			});
+		} else if (Array.isArray(storedRecents.workspaces2)) {
+			restoreGracefully(storedRecents.workspaces2, workspace => {
+				if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configPath === 'string') {
+					result.workspaces.push({ workspace: { id: workspace.id, configPath: URI.file(workspace.configPath) } });
+				} else if (typeof workspace === 'string') {
+					result.workspaces.push({ folderUri: URI.parse(workspace) });
+				}
+			});
+		} else if (Array.isArray(storedRecents.workspaces)) {
+			// TODO@martin legacy support can be removed at some point (6 month?)
+			// format of 1.25 and before
+			restoreGracefully(storedRecents.workspaces, workspace => {
+				if (typeof workspace === 'string') {
+					result.workspaces.push({ folderUri: URI.file(workspace) });
+				} else if (isLegacySerializedWorkspace(workspace)) {
+					result.workspaces.push({ workspace: { id: workspace.id, configPath: URI.file(workspace.configPath) } });
+				} else if (isUriComponents(workspace)) {
+					// added by 1.26-insiders
+					result.workspaces.push({ folderUri: URI.revive(<UriComponents>workspace) });
+				}
+			});
+		}
+		if (Array.isArray(storedRecents.files2)) {
+			restoreGracefully(storedRecents.files2, (file, i) => {
+				const label: string | undefined = (Array.isArray(storedRecents.fileLabels) && storedRecents.fileLabels[i]) || undefined;
+				if (typeof file === 'string') {
+					result.files.push({ label, fileUri: URI.parse(file) });
+				}
+			});
+		} else if (Array.isArray(storedRecents.files)) {
+			restoreGracefully(storedRecents.files, file => {
+				if (typeof file === 'string') {
+					result.files.push({ fileUri: URI.file(file) });
+				}
+			});
+		}
+	}
+
+	return result;
+}
+
+export function toStoreData(recents: IRecentlyOpened): RecentlyOpenedStorageData {
+	const serialized: ISerializedRecentlyOpened = { workspaces3: [], files2: [] };
+
+	let hasLabel = false;
+	const workspaceLabels: (string | null)[] = [];
+	for (const recent of recents.workspaces) {
+		if (isRecentFolder(recent)) {
+			serialized.workspaces3.push(recent.folderUri.toString());
+		} else {
+			serialized.workspaces3.push({ id: recent.workspace.id, configURIPath: recent.workspace.configPath.toString() });
+		}
+		workspaceLabels.push(recent.label || null);
+		hasLabel = hasLabel || !!recent.label;
+	}
+	if (hasLabel) {
+		serialized.workspaceLabels = workspaceLabels;
+	}
+
+	hasLabel = false;
+	const fileLabels: (string | null)[] = [];
+	for (const recent of recents.files) {
+		serialized.files2.push(recent.fileUri.toString());
+		fileLabels.push(recent.label || null);
+		hasLabel = hasLabel || !!recent.label;
+	}
+	if (hasLabel) {
+		serialized.fileLabels = fileLabels;
+	}
+
+	return serialized;
+}
+
+//#endregion

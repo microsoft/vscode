@@ -26,11 +26,11 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
+export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -99,7 +99,7 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
 	static readonly ID = ShowCurrentReleaseNotesActionId;
-	static LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
+	static readonly LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
 
 	constructor(
 		id = ShowCurrentReleaseNotesAction.ID,
@@ -122,44 +122,42 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWindowService windowService: IWindowService,
+		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService
 	) {
-		windowService.isFocused().then(async isFocused => {
-			if (!isFocused) {
-				return;
-			}
+		if (!hostService.hasFocus) {
+			return;
+		}
 
-			const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
-			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
+		const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 
-			// was there an update? if so, open release notes
-			const releaseNotesUrl = productService.releaseNotesUrl;
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && productService.version !== lastVersion) {
-				showReleaseNotes(instantiationService, productService.version)
-					.then(undefined, () => {
-						notificationService.prompt(
-							severity.Info,
-							nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.version),
-							[{
-								label: nls.localize('releaseNotes', "Release Notes"),
-								run: () => {
-									const uri = URI.parse(releaseNotesUrl);
-									openerService.open(uri);
-								}
-							}],
-							{ sticky: true }
-						);
-					});
-			}
+		// was there an update? if so, open release notes
+		const releaseNotesUrl = productService.releaseNotesUrl;
+		if (shouldShowReleaseNotes && !environmentService.args['skip-release-notes'] && releaseNotesUrl && lastVersion && productService.version !== lastVersion) {
+			showReleaseNotes(instantiationService, productService.version)
+				.then(undefined, () => {
+					notificationService.prompt(
+						severity.Info,
+						nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.version),
+						[{
+							label: nls.localize('releaseNotes', "Release Notes"),
+							run: () => {
+								const uri = URI.parse(releaseNotesUrl);
+								openerService.open(uri);
+							}
+						}],
+						{ sticky: true }
+					);
+				});
+		}
 
-			// should we show the new license?
-			if (productService.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(productService.version, '>=1.0.0')) {
-				notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
-			}
+		// should we show the new license?
+		if (productService.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(productService.version, '>=1.0.0')) {
+			notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
+		}
 
-			storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL);
-		});
+		storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL);
 	}
 }
 
@@ -176,9 +174,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 		this.state = updateService.state;
@@ -214,7 +212,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			case StateType.Idle:
 				if (state.error) {
 					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.environmentService.configuration.windowId) {
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context === this.workbenchEnvironmentService.configuration.sessionId) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -397,7 +395,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerGlobalActivityActions(): void {
-		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates({ windowId: this.environmentService.configuration.windowId }));
+		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '6_update',
 			command: {
@@ -465,9 +463,29 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '6_update',
 			command: {
 				id: 'update.restart',
-				title: nls.localize('restartToUpdate', "Restart to Update")
+				title: nls.localize('restartToUpdate', "Restart to Update (1)")
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});
 	}
 }
+
+export class CheckForVSCodeUpdateAction extends Action {
+
+	static readonly ID = CheckForVSCodeUpdateActionId;
+	static LABEL = nls.localize('checkForUpdates', "Check for Updates...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IUpdateService private readonly updateService: IUpdateService,
+	) {
+		super(id, label, undefined, true);
+	}
+
+	run(): Promise<void> {
+		return this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId);
+	}
+}
+

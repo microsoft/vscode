@@ -22,7 +22,7 @@ import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarCol
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -60,7 +60,7 @@ export class ViewletActivityAction extends ActivityAction {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
+		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
 			this.logAction('hide');
 			this.layoutService.setSideBarHidden(true);
 			return true;
@@ -95,7 +95,7 @@ export class ToggleViewletAction extends Action {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this._viewlet.id) {
+		if (sideBarVisible && activeViewlet?.getId() === this._viewlet.id) {
 			this.layoutService.setSideBarHidden(true);
 			return Promise.resolve();
 		}
@@ -163,15 +163,24 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 	constructor(
-		id: string, name: string, iconUrl: URI,
+		id: string,
+		name: string,
+		iconUrl: URI | undefined,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, layoutService, telemetryService);
 
-		const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
-		DOM.createCSSRule(iconClass, `-webkit-mask: ${DOM.asCSSUrl(iconUrl)} no-repeat 50% 50%; -webkit-mask-size: 24px;`);
+		if (iconUrl) {
+			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
+			DOM.createCSSRule(iconClass, `
+				mask: ${DOM.asCSSUrl(iconUrl)} no-repeat 50% 50%;
+				mask-size: 24px;
+				-webkit-mask: ${DOM.asCSSUrl(iconUrl)} no-repeat 50% 50%;
+				-webkit-mask-size: 24px;
+			`);
+		}
 	}
 
 	setActivity(activity: IActivity): void {
@@ -222,7 +231,7 @@ class SwitchSideBarViewAction extends Action {
 export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 
 	static readonly ID = 'workbench.action.previousSideBarView';
-	static LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
+	static readonly LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
 
 	constructor(
 		id: string,
@@ -241,7 +250,7 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 export class NextSideBarViewAction extends SwitchSideBarViewAction {
 
 	static readonly ID = 'workbench.action.nextSideBarView';
-	static LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
+	static readonly LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
 
 	constructor(
 		id: string,
@@ -266,10 +275,34 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const activeForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activeForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active .action-label,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label:not(.codicon),
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label:not(.codicon),
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label:not(.codicon) {
 				background-color: ${activeForegroundColor} !important;
+			}
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {
+				color: ${activeForegroundColor} !important;
+			}
+		`);
+	}
+
+	const activeBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER);
+	if (activeBorderColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+				border-left-color: ${activeBorderColor};
+			}
+		`);
+	}
+
+	const activeBackgroundColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND);
+	if (activeBackgroundColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+				z-index: 0;
+				background-color: ${activeBackgroundColor};
 			}
 		`);
 	}
@@ -278,7 +311,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outline = theme.getColor(activeContrastBorder);
 	if (outline) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:before {
 				content: "";
 				position: absolute;
 				top: 9px;
@@ -287,26 +320,26 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				width: 32px;
 			}
 
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:hover:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:hover:before {
 				outline: 1px solid;
 			}
 
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover:before {
 				outline: 1px dashed;
 			}
 
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 				border-left-color: ${outline};
 			}
 
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:hover:before,
-			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:hover:before,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover:before {
 				outline-color: ${outline};
 			}
 		`);
@@ -317,7 +350,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const focusBorderColor = theme.getColor(focusBorder);
 		if (focusBorderColor) {
 			collector.addRule(`
-					.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus:before {
+					.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 						border-left-color: ${focusBorderColor};
 					}
 				`);

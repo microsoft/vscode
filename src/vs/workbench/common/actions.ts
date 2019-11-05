@@ -46,10 +46,10 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 			weight: weight,
 			when: (descriptor.keybindingContext || when ? ContextKeyExpr.and(descriptor.keybindingContext, when) : null),
 			primary: keybindings ? keybindings.primary : 0,
-			secondary: keybindings && keybindings.secondary,
-			win: keybindings && keybindings.win,
-			mac: keybindings && keybindings.mac,
-			linux: keybindings && keybindings.linux
+			secondary: keybindings?.secondary,
+			win: keybindings?.win,
+			mac: keybindings?.mac,
+			linux: keybindings?.linux
 		});
 
 		// menu item
@@ -112,7 +112,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// otherwise run and dispose
 		try {
-			const from = args && args.from || 'keybinding';
+			const from = args?.from || 'keybinding';
 			await actionInstance.run(undefined, { from });
 		} finally {
 			actionInstance.dispose();

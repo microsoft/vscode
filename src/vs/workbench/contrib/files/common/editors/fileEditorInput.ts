@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LoadReason, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -31,8 +31,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private static readonly MEMOIZER = createMemoizer();
 
-	private preferredEncoding: string;
-	private preferredMode: string;
+	private preferredEncoding: string | undefined;
+	private preferredMode: string | undefined;
 
 	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
 
@@ -48,7 +48,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -72,6 +73,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		this._register(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
 		this._register(this.labelService.onDidChangeFormatters(() => FileEditorInput.MEMOIZER.clear()));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => FileEditorInput.MEMOIZER.clear()));
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
@@ -82,6 +84,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private onModelOrphanedChanged(e: TextFileModelChangeEvent): void {
 		if (e.resource.toString() === this.resource.toString()) {
+			FileEditorInput.MEMOIZER.clear();
 			this._onDidChangeLabel.fire();
 		}
 	}
@@ -90,7 +93,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.resource;
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		const textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			return textModel.getEncoding();
@@ -99,7 +102,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.preferredEncoding;
 	}
 
-	getPreferredEncoding(): string {
+	getPreferredEncoding(): string | undefined {
 		return this.preferredEncoding;
 	}
 
@@ -209,11 +212,12 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private decorateLabel(label: string): string {
 		const model = this.textFileService.models.get(this.resource);
-		if (model && model.hasState(ModelState.ORPHAN)) {
+
+		if (model?.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted)", label);
 		}
 
-		if (model && model.isReadonly()) {
+		if (model?.isReadonly()) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}
 

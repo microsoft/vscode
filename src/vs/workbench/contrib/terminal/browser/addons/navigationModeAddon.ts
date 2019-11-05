@@ -30,7 +30,7 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 	}
 
 	focusPreviousLine(): void {
-		if (!this._terminal) {
+		if (!this._terminal || !this._terminal.element) {
 			return;
 		}
 
@@ -73,7 +73,7 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 	}
 
 	focusNextLine(): void {
-		if (!this._terminal) {
+		if (!this._terminal || !this._terminal.element) {
 			return;
 		}
 

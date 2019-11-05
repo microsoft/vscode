@@ -246,7 +246,8 @@ export function relativePath(from: URI, to: URI, ignoreCase = hasToIgnoreCase(fr
 }
 
 /**
- * Resolves a absolute or relative path against a base URI.
+ * Resolves an absolute or relative path against a base URI.
+ * The path can be relative or absolute posix or a Windows path
  */
 export function resolvePath(base: URI, path: string): URI {
 	if (base.scheme === Schemas.file) {
@@ -255,6 +256,12 @@ export function resolvePath(base: URI, path: string): URI {
 			authority: newURI.authority,
 			path: newURI.path
 		});
+	}
+	if (path.indexOf('/') === -1) { // no slashes? it's likely a Windows path
+		path = extpath.toSlashes(path);
+		if (/^[a-zA-Z]:(\/|$)/.test(path)) { // starts with a drive letter
+			path = '/' + path;
+		}
 	}
 	return base.with({
 		path: paths.posix.resolve(base.path, path)

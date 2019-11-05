@@ -26,7 +26,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class ContextMenuController implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.contextmenu';
+	public static readonly ID = 'editor.contrib.contextmenu';
 
 	public static get(editor: ICodeEditor): ContextMenuController {
 		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);
@@ -90,8 +90,18 @@ export class ContextMenuController implements IEditorContribution {
 		this._editor.focus();
 
 		// Ensure the cursor is at the position of the mouse click
-		if (e.target.position && !this._editor.getSelection().containsPosition(e.target.position)) {
-			this._editor.setPosition(e.target.position);
+		if (e.target.position) {
+			let hasSelectionAtPosition = false;
+			for (const selection of this._editor.getSelections()) {
+				if (selection.containsPosition(e.target.position)) {
+					hasSelectionAtPosition = true;
+					break;
+				}
+			}
+
+			if (!hasSelectionAtPosition) {
+				this._editor.setPosition(e.target.position);
+			}
 		}
 
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
@@ -209,10 +219,6 @@ export class ContextMenuController implements IEditorContribution {
 		return this._keybindingService.lookupKeybinding(action.id);
 	}
 
-	public getId(): string {
-		return ContextMenuController.ID;
-	}
-
 	public dispose(): void {
 		if (this._contextMenuIsBeingShownCount > 0) {
 			this._contextViewService.hideContextView();
@@ -244,5 +250,5 @@ class ShowContextMenu extends EditorAction {
 	}
 }
 
-registerEditorContribution(ContextMenuController);
+registerEditorContribution(ContextMenuController.ID, ContextMenuController);
 registerEditorAction(ShowContextMenu);

@@ -16,6 +16,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { IEditor } from 'vs/workbench/common/editor';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { equals } from 'vs/base/common/arrays';
 
 export interface IFocusTracker {
 	onGainedFocus(): void;
@@ -124,28 +125,12 @@ export class MainThreadTextEditorProperties {
 		return null;
 	}
 
-	private static _selectionsEqual(a: Selection[], b: Selection[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (!a[i].equalsSelection(b[i])) {
-				return false;
-			}
-		}
-		return true;
+	private static _selectionsEqual(a: readonly Selection[], b: readonly Selection[]): boolean {
+		return equals(a, b, (aValue, bValue) => aValue.equalsSelection(bValue));
 	}
 
-	private static _rangesEqual(a: Range[], b: Range[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (!a[i].equalsRange(b[i])) {
-				return false;
-			}
-		}
-		return true;
+	private static _rangesEqual(a: readonly Range[], b: readonly Range[]): boolean {
+		return equals(a, b, (aValue, bValue) => aValue.equalsRange(bValue));
 	}
 
 	private static _optionsEqual(a: IResolvedTextEditorConfiguration, b: IResolvedTextEditorConfiguration): boolean {

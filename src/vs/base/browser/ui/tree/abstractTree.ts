@@ -7,7 +7,7 @@ import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, MouseController, DefaultKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider, IKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode } from 'vs/base/browser/dom';
+import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -211,6 +211,8 @@ export enum RenderIndentGuides {
 interface ITreeRendererOptions {
 	readonly indent?: number;
 	readonly renderIndentGuides?: RenderIndentGuides;
+	// TODO@joao replace this with collapsible: boolean | 'ondemand'
+	readonly hideTwistiesOfChildlessElements?: boolean;
 }
 
 interface IRenderData<TTemplateData> {
@@ -225,36 +227,33 @@ interface Collection<T> {
 
 class EventCollection<T> implements Collection<T> {
 
-	private disposables = new DisposableStore();
+	readonly onDidChange: Event<T[]>;
 
 	get elements(): T[] {
 		return this._elements;
 	}
 
-	constructor(readonly onDidChange: Event<T[]>, private _elements: T[] = []) {
-		onDidChange(e => this._elements = e, null, this.disposables);
-	}
-
-	dispose() {
-		this.disposables.dispose();
+	constructor(onDidChange: Event<T[]>, private _elements: T[] = []) {
+		this.onDidChange = Event.forEach(onDidChange, elements => this._elements = elements);
 	}
 }
 
 class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
-	private static DefaultIndent = 8;
+	private static readonly DefaultIndent = 8;
 
 	readonly templateId: string;
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, IRenderData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
+	private hideTwistiesOfChildlessElements: boolean = false;
 
-	private _renderIndentGuides: RenderIndentGuides = RenderIndentGuides.None;
+	private shouldRenderIndentGuides: boolean = false;
 	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
 	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
 	private indentGuidesDisposable: IDisposable = Disposable.None;
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
@@ -279,21 +278,24 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		}
 
 		if (typeof options.renderIndentGuides !== 'undefined') {
-			const renderIndentGuides = options.renderIndentGuides;
+			const shouldRenderIndentGuides = options.renderIndentGuides !== RenderIndentGuides.None;
 
-			if (renderIndentGuides !== this._renderIndentGuides) {
-				this._renderIndentGuides = renderIndentGuides;
+			if (shouldRenderIndentGuides !== this.shouldRenderIndentGuides) {
+				this.shouldRenderIndentGuides = shouldRenderIndentGuides;
+				this.indentGuidesDisposable.dispose();
 
-				if (renderIndentGuides) {
+				if (shouldRenderIndentGuides) {
 					const disposables = new DisposableStore();
 					this.activeNodes.onDidChange(this._onDidChangeActiveNodes, this, disposables);
 					this.indentGuidesDisposable = disposables;
 
 					this._onDidChangeActiveNodes(this.activeNodes.elements);
-				} else {
-					this.indentGuidesDisposable.dispose();
 				}
 			}
+		}
+
+		if (typeof options.hideTwistiesOfChildlessElements !== 'undefined') {
+			this.hideTwistiesOfChildlessElements = options.hideTwistiesOfChildlessElements;
 		}
 	}
 
@@ -370,8 +372,12 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 			this.renderer.renderTwistie(node.element, templateData.twistie);
 		}
 
-		toggleClass(templateData.twistie, 'collapsible', node.collapsible);
-		toggleClass(templateData.twistie, 'collapsed', node.collapsible && node.collapsed);
+		if (node.collapsible && (!this.hideTwistiesOfChildlessElements || node.visibleChildrenCount > 0)) {
+			addClasses(templateData.twistie, 'codicon', 'codicon-chevron-down', 'collapsible');
+			toggleClass(templateData.twistie, 'collapsed', node.collapsed);
+		} else {
+			removeClasses(templateData.twistie, 'codicon', 'codicon-chevron-down', 'collapsible', 'collapsed');
+		}
 
 		if (node.collapsible) {
 			templateData.container.setAttribute('aria-expanded', String(!node.collapsed));
@@ -384,7 +390,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		clearNode(templateData.indent);
 		templateData.indentGuidesDisposable.dispose();
 
-		if (this._renderIndentGuides === RenderIndentGuides.None) {
+		if (!this.shouldRenderIndentGuides) {
 			return;
 		}
 
@@ -424,7 +430,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	}
 
 	private _onDidChangeActiveNodes(nodes: ITreeNode<T, TFilterData>[]): void {
-		if (this._renderIndentGuides === RenderIndentGuides.None) {
+		if (!this.shouldRenderIndentGuides) {
 			return;
 		}
 
@@ -433,12 +439,16 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 		nodes.forEach(node => {
 			const ref = model.getNodeLocation(node);
-			const parentRef = model.getParentNodeLocation(ref);
+			try {
+				const parentRef = model.getParentNodeLocation(ref);
 
-			if (node.collapsible && node.children.length > 0 && !node.collapsed) {
-				set.add(node);
-			} else if (parentRef) {
-				set.add(model.getNode(parentRef));
+				if (node.collapsible && node.children.length > 0 && !node.collapsed) {
+					set.add(node);
+				} else if (parentRef) {
+					set.add(model.getNode(parentRef));
+				}
+			} catch {
+				// noop
 			}
 		});
 
@@ -461,7 +471,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		this.renderedNodes.clear();
 		this.renderedElements.clear();
 		this.indentGuidesDisposable.dispose();
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
 	}
 }
 
@@ -474,7 +484,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
 
 	private _pattern: string = '';
 	private _lowercasePattern: string = '';
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	set pattern(pattern: string) {
 		this._pattern = pattern;
@@ -549,7 +559,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
 	}
 }
 
@@ -584,8 +594,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private readonly _onDidChangePattern = new Emitter<string>();
 	readonly onDidChangePattern = this._onDidChangePattern.event;
 
-	private enabledDisposables: IDisposable[] = [];
-	private disposables: IDisposable[] = [];
+	private readonly enabledDisposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private tree: AbstractTree<T, TFilterData, any>,
@@ -660,6 +670,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 		const onKeyDown = Event.chain(domEvent(this.view.getHTMLElement(), 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
+			.filter(e => e.key !== 'Dead' && !/^Media/.test(e.key))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
@@ -685,7 +696,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		}
 
 		this.domNode.remove();
-		this.enabledDisposables = dispose(this.enabledDisposables);
+		this.enabledDisposables.clear();
 		this.tree.refilter();
 		this.render();
 		this._enabled = false;
@@ -747,7 +758,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const containerWidth = container.clientWidth;
 		const midContainerWidth = containerWidth / 2;
 		const width = this.domNode.clientWidth;
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 		let positionClassName = this.positionClassName;
 
 		const updatePosition = () => {
@@ -783,8 +794,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const onDragEnd = () => {
 			this.positionClassName = positionClassName;
 			this.domNode.className = `monaco-list-type-filter ${this.positionClassName}`;
-			this.domNode.style.top = null;
-			this.domNode.style.left = null;
+			this.domNode.style.top = '';
+			this.domNode.style.left = '';
 
 			dispose(disposables);
 		};
@@ -793,13 +804,13 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		removeClass(this.domNode, positionClassName);
 
 		addClass(this.domNode, 'dragging');
-		disposables.push(toDisposable(() => removeClass(this.domNode, 'dragging')));
+		disposables.add(toDisposable(() => removeClass(this.domNode, 'dragging')));
 
 		domEvent(document, 'dragover')(onDragOver, null, disposables);
 		domEvent(this.domNode, 'dragend')(onDragEnd, null, disposables);
 
 		StaticDND.CurrentDragAndDropData = new DragAndDropData('vscode-ui');
-		disposables.push(toDisposable(() => StaticDND.CurrentDragAndDropData = undefined));
+		disposables.add(toDisposable(() => StaticDND.CurrentDragAndDropData = undefined));
 	}
 
 	private onDidSpliceModel(): void {
@@ -858,9 +869,15 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	dispose() {
-		this.disable();
+		if (this._enabled) {
+			this.domNode.remove();
+			this.enabledDisposables.dispose();
+			this._enabled = false;
+			this.triggered = false;
+		}
+
 		this._onDidChangePattern.dispose();
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
 	}
 }
 
@@ -1001,7 +1018,6 @@ class Trait<T> {
 		insertedNodes.forEach(node => dfs(node, insertedNodesVisitor));
 
 		const nodes: ITreeNode<T, any>[] = [];
-		let silent = true;
 
 		for (const node of this.nodes) {
 			const id = this.identityProvider.getId(node.element).toString();
@@ -1014,13 +1030,11 @@ class Trait<T> {
 
 				if (insertedNode) {
 					nodes.push(insertedNode);
-				} else {
-					silent = false;
 				}
 			}
 		}
 
-		this._set(nodes, silent);
+		this._set(nodes, true);
 	}
 
 	private createNodeSet(): Set<ITreeNode<T, any>> {
@@ -1181,7 +1195,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private typeFilterController?: TypeFilterController<T, TFilterData>;
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	private styleElement: HTMLStyleElement;
-	protected disposables: IDisposable[] = [];
+	protected readonly disposables = new DisposableStore();
 
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 
@@ -1228,19 +1242,19 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
-		const onDidChangeActiveNodes = new Emitter<ITreeNode<T, TFilterData>[]>();
+		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
 		const activeNodes = new EventCollection(onDidChangeActiveNodes.event);
-		this.disposables.push(activeNodes);
-
 		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, _options));
-		this.disposables.push(...this.renderers);
+		for (let r of this.renderers) {
+			this.disposables.add(r);
+		}
 
 		let filter: TypeFilter<T> | undefined;
 
 		if (_options.keyboardNavigationLabelProvider) {
 			filter = new TypeFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as any as ITreeFilter<T, FuzzyScore>);
 			_options = { ..._options, filter: filter as ITreeFilter<T, TFilterData> }; // TODO need typescript help here
-			this.disposables.push(filter);
+			this.disposables.add(filter);
 		}
 
 		this.focus = new Trait(_options.identityProvider);
@@ -1250,24 +1264,35 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model = this.createModel(user, this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
-		this.model.onDidSplice(e => {
+		const onDidModelSplice = Event.forEach(this.model.onDidSplice, e => {
 			this.eventBufferer.bufferEvents(() => {
 				this.focus.onDidModelSplice(e);
 				this.selection.onDidModelSplice(e);
 			});
+		});
 
-			const set = new Set<ITreeNode<T, TFilterData>>();
+		// Make sure the `forEach` always runs
+		onDidModelSplice(() => null, null, this.disposables);
 
-			for (const node of this.focus.getNodes()) {
-				set.add(node);
-			}
+		// Active nodes can change when the model changes or when focus or selection change.
+		// We debouce it with 0 delay since these events may fire in the same stack and we only
+		// want to run this once. It also doesn't matter if it runs on the next tick since it's only
+		// a nice to have UI feature.
+		onDidChangeActiveNodes.input = Event.chain(Event.any<any>(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange))
+			.debounce(() => null, 0)
+			.map(() => {
+				const set = new Set<ITreeNode<T, TFilterData>>();
 
-			for (const node of this.selection.getNodes()) {
-				set.add(node);
-			}
+				for (const node of this.focus.getNodes()) {
+					set.add(node);
+				}
 
-			onDidChangeActiveNodes.fire(fromSet(set));
-		}, null, this.disposables);
+				for (const node of this.selection.getNodes()) {
+					set.add(node);
+				}
+
+				return fromSet(set);
+			}).event;
 
 		if (_options.keyboardSupport !== false) {
 			const onKeyDown = Event.chain(this.view.onKeyDown)
@@ -1283,7 +1308,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			const delegate = _options.keyboardNavigationDelegate || DefaultKeyboardNavigationDelegate;
 			this.typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, delegate);
 			this.focusNavigationFilter = node => this.typeFilterController!.shouldAllowFocus(node);
-			this.disposables.push(this.typeFilterController!);
+			this.disposables.add(this.typeFilterController!);
 		}
 
 		this.styleElement = createStyleSheet(this.view.getHTMLElement());
@@ -1358,7 +1383,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	get scrollLeft(): number {
-		return this.view.scrollTop;
+		return this.view.scrollLeft;
 	}
 
 	set scrollLeft(scrollLeft: number) {
@@ -1637,7 +1662,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
 		this.view.dispose();
 	}
 }

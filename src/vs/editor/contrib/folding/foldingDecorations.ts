@@ -10,18 +10,18 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class FoldingDecorationProvider implements IDecorationProvider {
 
-	private static COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
+	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		linesDecorationsClassName: 'codicon codicon-chevron-right'
 	});
 
-	private static EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
+	private static readonly EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		linesDecorationsClassName: 'codicon codicon-chevron-down'
 	});
 
-	private static EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
+	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		linesDecorationsClassName: 'codicon codicon-chevron-down alwaysShowFoldIcons'
 	});

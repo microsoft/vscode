@@ -14,7 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 export class OpenExtensionsFolderAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.openExtensionsFolder';
-	static LABEL = localize('openExtensionsFolder', "Open Extensions Folder");
+	static readonly LABEL = localize('openExtensionsFolder', "Open Extensions Folder");
 
 	constructor(
 		id: string,

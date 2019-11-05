@@ -44,7 +44,7 @@ export class BrowserTextFileService extends AbstractTextFileService {
 
 			if (this.fileService.canHandleResource(dirtyResource)) {
 				const model = this.models.get(dirtyResource);
-				hasBackup = !!(model && model.hasBackup());
+				hasBackup = !!(model?.hasBackup());
 			} else if (dirtyResource.scheme === Schemas.untitled) {
 				hasBackup = this.untitledEditorService.hasBackup(dirtyResource);
 			}
@@ -56,6 +56,10 @@ export class BrowserTextFileService extends AbstractTextFileService {
 		}
 
 		return false; // dirty with backups: no veto
+	}
+
+	protected async getWindowCount(): Promise<number> {
+		return 1; // Browser only ever is 1 window
 	}
 }
 

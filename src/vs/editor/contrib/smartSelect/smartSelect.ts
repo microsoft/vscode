@@ -47,10 +47,10 @@ class SelectionRanges {
 
 class SmartSelectController implements IEditorContribution {
 
-	private static readonly _id = 'editor.contrib.smartSelectController';
+	public static readonly ID = 'editor.contrib.smartSelectController';
 
 	static get(editor: ICodeEditor): SmartSelectController {
-		return editor.getContribution<SmartSelectController>(SmartSelectController._id);
+		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
 	}
 
 	private readonly _editor: ICodeEditor;
@@ -65,10 +65,6 @@ class SmartSelectController implements IEditorContribution {
 
 	dispose(): void {
 		dispose(this._selectionListener);
-	}
-
-	getId(): string {
-		return SmartSelectController._id;
 	}
 
 	run(forward: boolean): Promise<void> | void {
@@ -210,7 +206,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	}
 }
 
-registerEditorContribution(SmartSelectController);
+registerEditorContribution(SmartSelectController.ID, SmartSelectController);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 

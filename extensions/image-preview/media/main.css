@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 html, body {
+	width: 100%;
 	height: 100%;
-	max-height: 100%;
+	text-align: center;
 }
-
 
 body img {
 	max-width: none;
@@ -21,6 +21,7 @@ body img {
 .container {
 	padding: 5px 0 0 10px;
 	box-sizing: border-box;
+	-webkit-user-select: none;
 	user-select: none;
 }
 
@@ -34,6 +35,7 @@ body img {
 	padding: 0;
 	background-position: 0 0, 8px 8px;
 	background-size: 16px 16px;
+	border: 1px solid var(--vscode-imagePreview-border);
 }
 
 .container.image img {
@@ -62,11 +64,11 @@ body img {
 	margin: auto;
 }
 
-.container.zoom-in {
+.container.ready.zoom-in {
 	cursor: zoom-in;
 }
 
-.container.zoom-out {
+.container.ready.zoom-out {
 	cursor: zoom-out;
 }
 
@@ -75,4 +77,40 @@ body img {
 	cursor: pointer;
 	text-decoration: underline;
 	margin-left: 5px;
+}
+
+.container.loading,
+.container.error {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.loading-indicator {
+	width: 30px;
+	height: 30px;
+	background-image: url('./loading.svg');
+	background-size: cover;
+}
+
+.loading-indicator,
+.image-load-error-message {
+	display: none;
+}
+
+.loading .loading-indicator,
+.error .image-load-error-message {
+	display: block;
+}
+
+.image-load-error-message {
+	margin: 1em;
+}
+
+.vscode-dark .loading-indicator {
+	background-image: url('./loading-dark.svg');
+}
+
+.vscode-high-contrast .loading-indicator {
+	background-image: url('./loading-hc.svg');
 }

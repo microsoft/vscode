@@ -41,7 +41,7 @@ function isAvailable(): Promise<boolean> {
 class InstallAction extends Action {
 
 	static readonly ID = 'workbench.action.installCommandLine';
-	static LABEL = nls.localize('install', "Install '{0}' command in PATH", product.applicationName);
+	static readonly LABEL = nls.localize('install', "Install '{0}' command in PATH", product.applicationName);
 
 	constructor(
 		id: string,
@@ -108,7 +108,7 @@ class InstallAction extends Action {
 
 						promisify(cp.exec)(command, {})
 							.then(undefined, _ => Promise.reject(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
-							.then(resolve, reject);
+							.then(() => resolve(), reject);
 						break;
 					case 1 /* Cancel */:
 						reject(new Error(nls.localize('aborted', "Aborted")));
@@ -122,7 +122,7 @@ class InstallAction extends Action {
 class UninstallAction extends Action {
 
 	static readonly ID = 'workbench.action.uninstallCommandLine';
-	static LABEL = nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName);
+	static readonly LABEL = nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName);
 
 	constructor(
 		id: string,
@@ -175,7 +175,7 @@ class UninstallAction extends Action {
 
 					promisify(cp.exec)(command, {})
 						.then(undefined, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
-						.then(resolve, reject);
+						.then(() => resolve(), reject);
 					break;
 				case 1 /* Cancel */:
 					reject(new Error(nls.localize('aborted', "Aborted")));

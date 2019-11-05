@@ -15,7 +15,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
@@ -24,7 +24,7 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { webFrame } from 'electron';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ConsoleLogService, MultiplexLogService, ILogService, ConsoleLogInMainService } from 'vs/platform/log/common/log';
-import { StorageService } from 'vs/platform/storage/node/storageService';
+import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/common/extpath';
@@ -43,8 +43,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
-import { DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationExportHelper';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { SignService } from 'vs/platform/sign/node/signService';
@@ -53,14 +52,16 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { basename } from 'vs/base/common/resources';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
+import { ElectronEnvironmentService, IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
-class CodeRendererMain extends Disposable {
+class DesktopMain extends Disposable {
 
-	private readonly environmentService: WorkbenchEnvironmentService;
+	private readonly environmentService: NativeWorkbenchEnvironmentService;
 
-	constructor(configuration: IWindowConfiguration) {
+	constructor(private configuration: IWindowConfiguration) {
 		super();
-		this.environmentService = new WorkbenchEnvironmentService(configuration, configuration.execPath);
+
+		this.environmentService = new NativeWorkbenchEnvironmentService(configuration, configuration.execPath, configuration.windowId);
 
 		this.init();
 	}
@@ -95,7 +96,7 @@ class CodeRendererMain extends Disposable {
 		}
 
 		const filesToWait = this.environmentService.configuration.filesToWait;
-		const filesToWaitPaths = filesToWait && filesToWait.paths;
+		const filesToWaitPaths = filesToWait?.paths;
 		[filesToWaitPaths, this.environmentService.configuration.filesToOpenOrCreate, this.environmentService.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
@@ -113,18 +114,15 @@ class CodeRendererMain extends Disposable {
 
 	async open(): Promise<void> {
 		const services = await this.initServices();
+
 		await domContentLoaded();
 		mark('willStartWorkbench');
 
 		// Create Workbench
 		const workbench = new Workbench(document.body, services.serviceCollection, services.logService);
 
-		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true, workbench)));
-
-		// Workbench Lifecycle
-		this._register(workbench.onShutdown(() => this.dispose()));
-		this._register(workbench.onWillShutdown(event => event.join(services.storageService.close())));
+		// Listeners
+		this.registerListeners(workbench, services.storageService);
 
 		// Startup
 		const instantiationService = workbench.startup();
@@ -134,16 +132,21 @@ class CodeRendererMain extends Disposable {
 
 		// Driver
 		if (this.environmentService.configuration.driver) {
-			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor)));
-		}
-
-		// Config Exporter
-		if (this.environmentService.configuration['export-default-configuration']) {
-			instantiationService.createInstance(DefaultConfigurationExportHelper);
+			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
 		}
 
 		// Logging
 		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));
+	}
+
+	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
+
+		// Layout
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true, workbench)));
+
+		// Workbench Lifecycle
+		this._register(workbench.onShutdown(() => this.dispose()));
+		this._register(workbench.onWillShutdown(event => event.join(storageService.close())));
 	}
 
 	private onWindowResize(e: Event, retry: boolean, workbench: Workbench): void {
@@ -164,7 +167,7 @@ class CodeRendererMain extends Disposable {
 		}
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: StorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -173,11 +176,15 @@ class CodeRendererMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Main Process
-		const mainProcessService = this._register(new MainProcessService(this.environmentService.configuration.windowId));
+		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		// Environment
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
+		serviceCollection.set(IElectronEnvironmentService, new ElectronEnvironmentService(
+			this.configuration.windowId,
+			this.environmentService.sharedIPCHandle
+		));
 
 		// Product
 		serviceCollection.set(IProductService, { _serviceBrand: undefined, ...product });
@@ -210,7 +217,7 @@ class CodeRendererMain extends Disposable {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(channel, remoteAgentService.getEnvironment()));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
@@ -328,9 +335,9 @@ class CodeRendererMain extends Disposable {
 		}
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService): Promise<StorageService> {
+	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
 		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage'));
-		const storageService = new StorageService(globalStorageDatabase, logService, this.environmentService);
+		const storageService = new NativeStorageService(globalStorageDatabase, logService, this.environmentService);
 
 		try {
 			await storageService.initialize(payload);
@@ -359,7 +366,7 @@ class CodeRendererMain extends Disposable {
 		else {
 			loggers.push(
 				new ConsoleLogService(this.environmentService.configuration.logLevel),
-				new SpdLogService(`renderer${this.environmentService.configuration.windowId}`, environmentService.logsPath, this.environmentService.configuration.logLevel)
+				new SpdLogService(`renderer${this.configuration.windowId}`, environmentService.logsPath, this.environmentService.configuration.logLevel)
 			);
 		}
 
@@ -368,7 +375,7 @@ class CodeRendererMain extends Disposable {
 }
 
 export function main(configuration: IWindowConfiguration): Promise<void> {
-	const renderer = new CodeRendererMain(configuration);
+	const renderer = new DesktopMain(configuration);
 
 	return renderer.open();
 }

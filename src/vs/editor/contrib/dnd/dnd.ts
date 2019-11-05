@@ -31,14 +31,14 @@ function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 
 export class DragAndDropController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.dragAndDrop';
+	public static readonly ID = 'editor.contrib.dragAndDrop';
 
 	private readonly _editor: ICodeEditor;
 	private _dragSelection: Selection | null;
 	private _dndDecorationIds: string[];
 	private _mouseDown: boolean;
 	private _modifierPressed: boolean;
-	static TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
+	static readonly TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
 	static get(editor: ICodeEditor): DragAndDropController {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
@@ -219,10 +219,6 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 			target.type === MouseTargetType.GUTTER_LINE_DECORATIONS;
 	}
 
-	public getId(): string {
-		return DragAndDropController.ID;
-	}
-
 	public dispose(): void {
 		this._removeDecoration();
 		this._dragSelection = null;
@@ -232,4 +228,4 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 	}
 }
 
-registerEditorContribution(DragAndDropController);
+registerEditorContribution(DragAndDropController.ID, DragAndDropController);

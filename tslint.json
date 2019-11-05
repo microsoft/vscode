@@ -93,7 +93,7 @@
 				"restrictions": [
 					"vs/nls",
 					"**/vs/base/{common,browser,node}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -129,7 +129,7 @@
 					"vs/nls",
 					"**/vs/base/{common,browser,node}/**",
 					"**/vs/base/parts/*/{common,browser,node}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -139,7 +139,7 @@
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser,node,electron-browser}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -148,7 +148,7 @@
 					"vs/nls",
 					"**/vs/base/{common,browser,node,electron-main}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-main}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -188,7 +188,7 @@
 					"**/vs/base/{common,browser,node}/**",
 					"**/vs/base/parts/*/{common,browser,node}/**",
 					"**/vs/platform/*/{common,browser,node}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -199,7 +199,7 @@
 					"**/vs/base/{common,browser,node}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
 					"**/vs/platform/*/{common,browser,node,electron-browser}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -209,7 +209,7 @@
 					"**/vs/base/{common,browser,node}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
 					"**/vs/platform/*/{common,browser,node,electron-main}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -414,7 +414,7 @@
 					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
 					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
 					"**/vs/workbench/services/*/{common,browser,node,electron-browser}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -429,7 +429,7 @@
 					"vs/workbench/contrib/files/common/editors/fileEditorInput",
 					"**/vs/workbench/services/**",
 					"**/vs/workbench/test/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -472,8 +472,7 @@
 					"**/vs/workbench/api/{common,browser}/**",
 					"**/vs/workbench/services/**/{common,browser}/**",
 					"vscode-textmate",
-					"onigasm-umd",
-					"@microsoft/applicationinsights-web"
+					"onigasm-umd"
 				]
 			},
 			{
@@ -486,7 +485,7 @@
 					"**/vs/workbench/{common,node}/**",
 					"**/vs/workbench/api/{common,node}/**",
 					"**/vs/workbench/services/**/{common,node}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -499,7 +498,7 @@
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
 					"**/vs/workbench/services/**/{common,browser,node,electron-browser}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -564,7 +563,7 @@
 					"**/vs/base/parts/**/{common,browser,node}/**",
 					"**/vs/platform/**/{common,browser,node}/**",
 					"**/vs/code/**/{common,browser,node}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -576,7 +575,7 @@
 					"**/vs/base/parts/**/{common,browser,node,electron-browser}/**",
 					"**/vs/platform/**/{common,browser,node,electron-browser}/**",
 					"**/vs/code/**/{common,browser,node,electron-browser}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -587,7 +586,7 @@
 					"**/vs/base/parts/**/{common,browser,node,electron-main}/**",
 					"**/vs/platform/**/{common,browser,node,electron-main}/**",
 					"**/vs/code/**/{common,browser,node,electron-main}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{
@@ -600,7 +599,7 @@
 					"**/vs/workbench/**/{common,node}/**",
 					"**/vs/server/**",
 					"**/vs/code/**/{common,node}/**",
-					"*" // node modules
+					"!path" // node modules (except path where we have our own impl)
 				]
 			},
 			{

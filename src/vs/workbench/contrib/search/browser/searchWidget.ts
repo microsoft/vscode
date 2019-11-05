@@ -389,6 +389,7 @@ export class SearchWidget extends Widget {
 		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputBox.inputElement));
 		this._register(this.replaceInputFocusTracker.onDidFocus(() => this.replaceInputBoxFocused.set(true)));
 		this._register(this.replaceInputFocusTracker.onDidBlur(() => this.replaceInputBoxFocused.set(false)));
+		this._register(this.replaceInput.onPreserveCaseKeyDown((keyboardEvent: IKeyboardEvent) => this.onPreserveCaseKeyDown(keyboardEvent)));
 	}
 
 	triggerReplaceAll(): Promise<any> {
@@ -496,11 +497,24 @@ export class SearchWidget extends Widget {
 
 	private onRegexKeyDown(keyboardEvent: IKeyboardEvent) {
 		if (keyboardEvent.equals(KeyCode.Tab)) {
+			if (this.isReplaceShown()) {
+				this.replaceInput.focusOnPreserve();
+				keyboardEvent.preventDefault();
+			}
+		}
+	}
+
+	private onPreserveCaseKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(KeyCode.Tab)) {
 			if (this.isReplaceActive()) {
 				this.focusReplaceAllAction();
 			} else {
 				this._onBlur.fire();
 			}
+			keyboardEvent.preventDefault();
+		}
+		else if (KeyMod.Shift | KeyCode.Tab) {
+			this.focusRegexAction();
 			keyboardEvent.preventDefault();
 		}
 	}

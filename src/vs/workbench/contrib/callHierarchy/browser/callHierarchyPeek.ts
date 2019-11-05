@@ -7,7 +7,7 @@ import 'vs/css!./media/callHierarchy';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyProvider, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
+import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { FuzzyScore } from 'vs/base/common/filters';
 import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
@@ -31,7 +31,7 @@ import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
-import { TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
+import { TreeMouseEventTarget, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { URI } from 'vs/base/common/uri';
 
 const enum State {
@@ -42,19 +42,14 @@ const enum State {
 
 class ChangeHierarchyDirectionAction extends Action {
 
-	constructor(direction: CallHierarchyDirection, updateDirection: (direction: CallHierarchyDirection) => void) {
+	constructor(getDirection: () => CallHierarchyDirection, toggleDirection: () => void) {
 		super('', undefined, '', true, () => {
-			if (direction === CallHierarchyDirection.CallsTo) {
-				direction = CallHierarchyDirection.CallsFrom;
-			} else {
-				direction = CallHierarchyDirection.CallsTo;
-			}
-			updateDirection(direction);
+			toggleDirection();
 			update();
 			return Promise.resolve();
 		});
 		const update = () => {
-			if (direction === CallHierarchyDirection.CallsFrom) {
+			if (getDirection() === CallHierarchyDirection.CallsFrom) {
 				this.label = localize('toggle.from', "Showing Calls");
 				this.class = 'calls-from';
 			} else {
@@ -94,16 +89,17 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	private _parent!: HTMLElement;
 	private _message!: HTMLElement;
 	private _splitView!: SplitView;
-	private _tree!: WorkbenchAsyncDataTree<callHTree.CallHierarchyRoot, callHTree.Call, FuzzyScore>;
+	private _tree!: WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>;
 	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
 	private _editor!: EmbeddedCodeEditorWidget;
 	private _dim!: Dimension;
 	private _layoutInfo!: LayoutInfo;
 
+	private readonly _previewDisposable = new DisposableStore();
+
 	constructor(
 		editor: ICodeEditor,
 		private readonly _where: IPosition,
-		private readonly _provider: CallHierarchyProvider,
 		private _direction: CallHierarchyDirection,
 		@IThemeService themeService: IThemeService,
 		@IPeekViewService private readonly _peekViewService: IPeekViewService,
@@ -117,6 +113,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this._applyTheme(themeService.getTheme());
 		this._disposables.add(themeService.onThemeChange(this._applyTheme, this));
+		this._disposables.add(this._previewDisposable);
 	}
 
 	dispose(): void {
@@ -199,17 +196,18 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		addClass(treeContainer, 'tree');
 		container.appendChild(treeContainer);
 		const options: IAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
+			sorter: new callHTree.Sorter(),
 			identityProvider: new callHTree.IdentityProvider(() => this._direction),
 			ariaLabel: localize('tree.aria', "Call Hierarchy"),
 			expandOnlyOnTwistieClick: true,
 		};
-		this._tree = <any>this._instantiationService.createInstance(
+		this._tree = this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
 			'CallHierarchyPeek',
 			treeContainer,
 			new callHTree.VirtualDelegate(),
 			[this._instantiationService.createInstance(callHTree.CallRenderer)],
-			this._instantiationService.createInstance(callHTree.DataSource, this._provider, () => this._direction),
+			this._instantiationService.createInstance(callHTree.DataSource, () => this._direction),
 			options
 		);
 
@@ -244,81 +242,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			}
 		}));
 
-		// session state
-		const localDispose = new DisposableStore();
-		this._disposables.add(localDispose);
-
 		// update editor
-		this._disposables.add(this._tree.onDidChangeFocus(async e => {
-			const [element] = e.elements;
-			if (!element) {
-				return;
-			}
-
-			localDispose.clear();
-
-			// update: editor and editor highlights
-			const options: IModelDecorationOptions = {
-				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				className: 'call-decoration',
-				overviewRuler: {
-					color: themeColorFromId(referencesWidget.peekViewEditorMatchHighlight),
-					position: OverviewRulerLane.Center
-				},
-			};
-
-			let previewUri: URI;
-			if (this._direction === CallHierarchyDirection.CallsFrom) {
-				// outgoing calls: show caller and highlight focused calls
-				previewUri = element.parent ? element.parent.item.uri : this._tree.getInput()!.model.uri;
-			} else {
-				// incoming calls: show caller and highlight focused calls
-				previewUri = element.item.uri;
-			}
-
-			const value = await this._textModelService.createModelReference(previewUri);
-			this._editor.setModel(value.object.textEditorModel);
-
-			// set decorations for caller ranges (if in the same file)
-			let decorations: IModelDeltaDecoration[] = [];
-			let fullRange: IRange | undefined;
-			for (const loc of element.locations) {
-				if (loc.uri.toString() === previewUri.toString()) {
-					decorations.push({ range: loc.range, options });
-					fullRange = !fullRange ? loc.range : Range.plusRange(loc.range, fullRange);
-				}
-			}
-			if (fullRange) {
-				this._editor.revealRangeInCenter(fullRange, ScrollType.Immediate);
-				const ids = this._editor.deltaDecorations([], decorations);
-				localDispose.add(toDisposable(() => this._editor.deltaDecorations(ids, [])));
-			}
-			localDispose.add(value);
-
-			// update: title and subtitle
-			let node: callHTree.Call | undefined = element;
-			let names = [element.item.name];
-			while (node) {
-				let parent = this._tree.getParentElement(node);
-				let name: string;
-				if (parent instanceof callHTree.Call) {
-					name = parent.item.name;
-					node = parent;
-				} else {
-					name = this._tree.getInput()!.word;
-					node = undefined;
-				}
-				if (this._direction === CallHierarchyDirection.CallsTo) {
-					names.push(name);
-				} else {
-					names.unshift(name);
-				}
-			}
-			const title = this._direction === CallHierarchyDirection.CallsFrom
-				? localize('callFrom', "Calls from '{0}'", this._tree.getInput()!.word)
-				: localize('callsTo', "Callers of '{0}'", this._tree.getInput()!.word);
-			this.setTitle(title, names.join(' → '));
-		}));
+		this._disposables.add(this._tree.onDidChangeFocus(this._updatePreview, this));
 
 		this._disposables.add(this._editor.onMouseDown(e => {
 			const { event, target } = e;
@@ -364,6 +289,60 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		}));
 	}
 
+	private async _updatePreview() {
+		const [element] = this._tree.getFocus();
+		if (!element) {
+			return;
+		}
+
+		this._previewDisposable.clear();
+
+		// update: editor and editor highlights
+		const options: IModelDecorationOptions = {
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			className: 'call-decoration',
+			overviewRuler: {
+				color: themeColorFromId(referencesWidget.peekViewEditorMatchHighlight),
+				position: OverviewRulerLane.Center
+			},
+		};
+
+		let previewUri: URI;
+		if (this._direction === CallHierarchyDirection.CallsFrom) {
+			// outgoing calls: show caller and highlight focused calls
+			previewUri = element.parent ? element.parent.item.uri : element.model.root.uri;
+
+		} else {
+			// incoming calls: show caller and highlight focused calls
+			previewUri = element.item.uri;
+		}
+
+		const value = await this._textModelService.createModelReference(previewUri);
+		this._editor.setModel(value.object.textEditorModel);
+
+		// set decorations for caller ranges (if in the same file)
+		let decorations: IModelDeltaDecoration[] = [];
+		let fullRange: IRange | undefined;
+		for (const loc of element.locations) {
+			if (loc.uri.toString() === previewUri.toString()) {
+				decorations.push({ range: loc.range, options });
+				fullRange = !fullRange ? loc.range : Range.plusRange(loc.range, fullRange);
+			}
+		}
+		if (fullRange) {
+			this._editor.revealRangeInCenter(fullRange, ScrollType.Immediate);
+			const ids = this._editor.deltaDecorations([], decorations);
+			this._previewDisposable.add(toDisposable(() => this._editor.deltaDecorations(ids, [])));
+		}
+		this._previewDisposable.add(value);
+
+		// update: title
+		const title = this._direction === CallHierarchyDirection.CallsFrom
+			? localize('callFrom', "Calls from '{0}'", element.model.root.name)
+			: localize('callsTo', "Callers of '{0}'", element.model.root.name);
+		this.setTitle(title);
+	}
+
 	showLoading(): void {
 		this._parent.dataset['state'] = State.Loading;
 		this.setTitle(localize('title.loading', "Loading..."));
@@ -379,38 +358,53 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._message.focus();
 	}
 
-	async showItem(item: callHTree.CallHierarchyRoot): Promise<void> {
+	async showModel(model: CallHierarchyModel): Promise<void> {
 
 		this._show();
 		const viewState = this._treeViewStates.get(this._direction);
-		await this._tree.setInput(item, viewState);
 
-		if (this._tree.getNode(item).children.length === 0) {
+		await this._tree.setInput(model, viewState);
+
+		const root = <ITreeNode<callHTree.Call>>this._tree.getNode(model).children[0];
+		await this._tree.expand(root.element);
+
+		if (root.children.length === 0) {
 			//
 			this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
-				? localize('empt.callsFrom', "No calls from '{0}'", item.word)
-				: localize('empt.callsTo', "No callers of '{0}'", item.word));
+				? localize('empt.callsFrom', "No calls from '{0}'", model.root.name)
+				: localize('empt.callsTo', "No callers of '{0}'", model.root.name));
 
 		} else {
 			this._parent.dataset['state'] = State.Data;
-			this._tree.domFocus();
 			if (!viewState) {
-				this._tree.focusFirst();
+				this._tree.setFocus([root.children[0].element]);
 			}
+			this._tree.domFocus();
+			this._updatePreview();
 		}
 
 		if (!this._changeDirectionAction) {
-			const changeDirection = (newDirection: CallHierarchyDirection) => {
-				if (this._direction !== newDirection) {
-					this._treeViewStates.set(this._direction, this._tree.getViewState());
-					this._direction = newDirection;
-					this._tree.setFocus([]);
-					this.showItem(this._tree.getInput()!);
-				}
-			};
-			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
+			this._changeDirectionAction = new ChangeHierarchyDirectionAction(() => this._direction, () => this.toggleDirection());
 			this._disposables.add(this._changeDirectionAction);
 			this._actionbarWidget!.push(this._changeDirectionAction, { icon: true, label: false });
+		}
+	}
+
+	getModel(): CallHierarchyModel | undefined {
+		return this._tree.getInput();
+	}
+
+	getFocused(): callHTree.Call | undefined {
+		return this._tree.getFocus()[0];
+	}
+
+	async toggleDirection(): Promise<void> {
+		const model = this._tree.getInput();
+		if (model) {
+			const newDirection = this._direction === CallHierarchyDirection.CallsTo ? CallHierarchyDirection.CallsFrom : CallHierarchyDirection.CallsTo;
+			this._treeViewStates.set(this._direction, this._tree.getViewState());
+			this._direction = newDirection;
+			await this.showModel(model);
 		}
 	}
 

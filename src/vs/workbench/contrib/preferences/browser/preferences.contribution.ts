@@ -374,7 +374,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IWorkspaceContextService private readonly workpsaceContextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILabelService labelService: ILabelService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
@@ -410,8 +410,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		});
 
 		this.updatePreferencesEditorMenuItem();
-		this._register(workpsaceContextService.onDidChangeWorkbenchState(() => this.updatePreferencesEditorMenuItem()));
-		this._register(workpsaceContextService.onDidChangeWorkspaceFolders(() => this.updatePreferencesEditorMenuItemForWorkspaceFolders()));
+		this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.updatePreferencesEditorMenuItem()));
+		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.updatePreferencesEditorMenuItemForWorkspaceFolders()));
 
 		extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
@@ -434,7 +434,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 	private updatePreferencesEditorMenuItem() {
 		const commandId = '_workbench.openWorkspaceSettingsEditor';
-		if (this.workpsaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
 			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings(false));
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
@@ -454,11 +454,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private updatePreferencesEditorMenuItemForWorkspaceFolders() {
-		for (const folder of this.workpsaceContextService.getWorkspace().folders) {
+		for (const folder of this.workspaceContextService.getWorkspace().folders) {
 			const commandId = `_workbench.openFolderSettings.${folder.uri.toString()}`;
 			if (!CommandsRegistry.getCommand(commandId)) {
 				CommandsRegistry.registerCommand(commandId, () => {
-					if (this.workpsaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 						return this.preferencesService.openWorkspaceSettings(false);
 					} else {
 						return this.preferencesService.openFolderSettings(folder.uri, false);

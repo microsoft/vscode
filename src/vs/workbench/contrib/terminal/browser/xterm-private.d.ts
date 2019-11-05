@@ -22,11 +22,6 @@ export interface XTermCore {
 		};
 		_onIntersectionChange: any;
 	};
-
-	// TODO: Remove below once a synchronous write API is added
-	// The below are only used in tests
-	writeBuffer: string[];
-	_innerWrite(): void;
 }
 
 export interface IEventEmitter<T> {

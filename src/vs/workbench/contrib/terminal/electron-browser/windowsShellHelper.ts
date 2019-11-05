@@ -9,11 +9,12 @@ import { IWindowsShellHelper, TitleEventSource } from 'vs/workbench/contrib/term
 import { Terminal as XTermTerminal } from 'xterm';
 import * as WindowsProcessTreeType from 'windows-process-tree';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const SHELL_EXECUTABLES = [
 	'cmd.exe',
 	'powershell.exe',
+	'pwsh.exe',
 	'bash.exe',
 	'wsl.exe',
 	'ubuntu.exe',
@@ -81,6 +82,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess) {
 			this.getShellName().then(title => {
 				if (!this._isDisposed) {
+					this._terminalInstance.setShellType(this.getShellType(title));
 					this._terminalInstance.setTitle(title, TitleEventSource.Process);
 				}
 			});
@@ -137,5 +139,27 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			});
 		});
 		return this._currentRequest;
+	}
+
+	public getShellType(executable: string): TerminalShellType {
+		switch (executable.toLowerCase()) {
+			case 'cmd.exe':
+				return WindowsShellType.CommandPrompt;
+			case 'powershell.exe':
+			case 'pwsh.exe':
+				return WindowsShellType.PowerShell;
+			case 'bash.exe':
+				return WindowsShellType.GitBash;
+			case 'wsl.exe':
+			case 'ubuntu.exe':
+			case 'ubuntu1804.exe':
+			case 'kali.exe':
+			case 'debian.exe':
+			case 'opensuse-42.exe':
+			case 'sles-12.exe':
+				return WindowsShellType.Wsl;
+			default:
+				return undefined;
+		}
 	}
 }
