@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { TaskDefinition } from 'vscode';
 
 /**
  * This is the place for API experiments and proposals.
@@ -819,7 +818,6 @@ declare module 'vscode' {
 		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
 		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
 		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
-		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
 		 * @param callback The callback that will be called when the task is started by a user.
 		 */
 		constructor(callback: (resolvedDefinition?: TaskDefinition) => Thenable<Pseudoterminal>);
