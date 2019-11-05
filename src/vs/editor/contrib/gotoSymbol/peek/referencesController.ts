@@ -276,6 +276,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReference',
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.F4,
+	secondary: [KeyCode.F12],
 	when: ctxReferenceSearchVisible,
 	handler(accessor) {
 		withController(accessor, controller => {
@@ -288,6 +289,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReferenceFromEmbeddedEditor',
 	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyCode.F4,
+	secondary: [KeyCode.F12],
 	when: PeekContext.inPeekEditor,
 	handler(accessor) {
 		withController(accessor, controller => {
@@ -300,6 +302,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToPreviousReference',
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyMod.Shift | KeyCode.F4,
+	secondary: [KeyMod.Shift | KeyCode.F12],
 	when: ctxReferenceSearchVisible,
 	handler(accessor) {
 		withController(accessor, controller => {
@@ -312,6 +315,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToPreviousReferenceFromEmbeddedEditor',
 	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyMod.Shift | KeyCode.F4,
+	secondary: [KeyMod.Shift | KeyCode.F12],
 	when: PeekContext.inPeekEditor,
 	handler(accessor) {
 		withController(accessor, controller => {
