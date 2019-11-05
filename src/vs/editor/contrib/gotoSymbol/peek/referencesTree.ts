@@ -216,12 +216,6 @@ export class OneReferenceRenderer implements ITreeRenderer<OneReference, FuzzySc
 export class AriaProvider implements IAccessibilityProvider<FileReferences | OneReference> {
 
 	getAriaLabel(element: FileReferences | OneReference): string | null {
-		if (element instanceof FileReferences) {
-			return element.getAriaMessage();
-		} else if (element instanceof OneReference) {
-			return element.getAriaMessage();
-		} else {
-			return null;
-		}
+		return element.ariaMessage;
 	}
 }
