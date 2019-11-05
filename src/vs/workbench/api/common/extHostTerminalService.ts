@@ -219,8 +219,8 @@ class ApiRequest {
 export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	private readonly _onProcessData = new Emitter<string>();
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
-	private readonly _onProcessExit = new Emitter<number>();
-	public readonly onProcessExit: Event<number> = this._onProcessExit.event;
+	private readonly _onProcessExit = new Emitter<number | undefined>();
+	public readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 	private readonly _onProcessReady = new Emitter<{ pid: number, cwd: string }>();
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = new Emitter<string>();
@@ -262,7 +262,9 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
-			this._pty.onDidClose(e => this._onProcessExit.fire(e || 0));
+			this._pty.onDidClose((e: number | undefined = undefined) => {
+				this._onProcessExit.fire(e);
+			});
 		}
 		if (this._pty.onDidOverrideDimensions) {
 			this._pty.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
@@ -521,7 +523,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		return id;
 	}
 
-	private _onProcessExit(id: number, exitCode: number): void {
+	private _onProcessExit(id: number, exitCode: number | undefined): void {
 		this._bufferer.stopBuffering(id);
 
 		// Remove process reference

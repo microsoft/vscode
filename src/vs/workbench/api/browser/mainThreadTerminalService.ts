@@ -257,8 +257,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._getTerminalProcess(terminalId).then(e => e.emitReady(pid, cwd));
 	}
 
-	// TODO: This should be number | undefined
-	public $sendProcessExit(terminalId: number, exitCode: number): void {
+	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {
 		this._getTerminalProcess(terminalId).then(e => e.emitExit(exitCode));
 		this._terminalProcesses.delete(terminalId);
 	}
