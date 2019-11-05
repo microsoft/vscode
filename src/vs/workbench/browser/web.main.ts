@@ -100,6 +100,9 @@ class BrowserMain extends Disposable {
 		// Prevent native context menus in web
 		this._register(addDisposableListener(this.domElement, EventType.CONTEXT_MENU, (e) => EventHelper.stop(e, true)));
 
+		// Prevent default navigation on drop
+		this._register(addDisposableListener(this.domElement, EventType.DROP, (e) => EventHelper.stop(e, true)));
+
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
