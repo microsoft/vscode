@@ -80,7 +80,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.diffDecorations': {
 			type: 'string',
-			enum: ['all', 'gutter', 'overview', 'none'],
+			enum: ['all', 'gutter', 'overview', 'minimap', 'none'],
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},

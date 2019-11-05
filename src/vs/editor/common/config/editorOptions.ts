@@ -530,6 +530,12 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 }
 
 /**
+ * @internal
+ * The width of the minimap gutter, in pixels.
+ */
+export const MINIMAP_GUTTER_WIDTH = 8;
+
+/**
  * Configuration options for the diff editor.
  */
 export interface IDiffEditorOptions extends IEditorOptions {
@@ -1697,7 +1703,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth
 			// minimapWidth = ((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
 
-			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)));
+			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth))) + MINIMAP_GUTTER_WIDTH;
 			let minimapColumns = minimapWidth / minimapCharWidth;
 			if (minimapColumns > minimapMaxColumn) {
 				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);

@@ -1193,7 +1193,8 @@ declare namespace monaco.editor {
 	 * Position in the minimap to render the decoration.
 	 */
 	export enum MinimapPosition {
-		Inline = 1
+		Inline = 1,
+		Gutter = 2
 	}
 
 	export interface IDecorationOptions {
