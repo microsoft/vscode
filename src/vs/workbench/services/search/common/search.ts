@@ -329,6 +329,8 @@ export interface ISearchConfigurationProperties {
 	actionsPosition: 'auto' | 'right';
 	maintainFileSearchCache: boolean;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
+	searchOnType: boolean;
+	searchOnTypeDebouncePeriod: number;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

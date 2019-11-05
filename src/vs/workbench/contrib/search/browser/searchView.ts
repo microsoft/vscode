@@ -282,6 +282,7 @@ export class SearchView extends ViewletPanel {
 
 		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true));
 		this.inputPatternExcludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
+		this.inputPatternExcludes.onChangeIgnoreBox(() => this.onQueryChanged(true));
 		this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocused);
 
 		this.messagesElement = dom.append(this.container, $('.messages'));
@@ -796,6 +797,7 @@ export class SearchView extends ViewletPanel {
 
 				this.searchWidget.searchInput.setValue(selectedText);
 				updatedText = true;
+				this.onQueryChanged();
 			}
 		}
 
@@ -919,6 +921,10 @@ export class SearchView extends ViewletPanel {
 
 	hasSearchResults(): boolean {
 		return !this.viewModel.searchResult.isEmpty();
+	}
+
+	hasSearchPattern(): boolean {
+		return this.searchWidget.searchInput.getValue().length > 0;
 	}
 
 	clearSearchResults(): void {

@@ -118,6 +118,8 @@ export class SearchWidget extends Widget {
 	private replaceActive: IContextKey<boolean>;
 	private replaceActionBar!: ActionBar;
 	private _replaceHistoryDelayer: Delayer<void>;
+	private _searchDelayer: Delayer<void>;
+	private _lastSearchString: string;
 
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
@@ -165,6 +167,7 @@ export class SearchWidget extends Widget {
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this._replaceHistoryDelayer = new Delayer<void>(500);
+		this._searchDelayer = new Delayer<void>(this.searchConfiguration.searchOnTypeDebouncePeriod);
 		this.render(container, options);
 
 		this.configurationService.onDidChangeConfiguration(e => {
@@ -477,12 +480,23 @@ export class SearchWidget extends Widget {
 			keyboardEvent.preventDefault();
 		}
 
-		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
-			stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
-		}
+		else {
+			if (keyboardEvent.equals(KeyCode.UpArrow)) {
+				stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
+			}
 
-		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
-			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
+			else if (keyboardEvent.equals(KeyCode.DownArrow)) {
+				stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
+			}
+
+			if (this.searchConfiguration.searchOnType) {
+				this._searchDelayer.trigger(
+					(() => {
+						if (this.searchInput.getValue() !== this._lastSearchString) {
+							this.submitSearch();
+						}
+					}));
+			}
 		}
 	}
 
@@ -568,7 +582,7 @@ export class SearchWidget extends Widget {
 			if (useGlobalFindBuffer) {
 				this.clipboardServce.writeFindText(value);
 			}
-
+			this._lastSearchString = value;
 			this._onSearchSubmit.fire();
 		}
 	}
