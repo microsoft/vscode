@@ -23,6 +23,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container {
 	display: flex;
 	height: 35px;
+	scrollbar-width: none; /* Firefox ^64 */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.scroll {
