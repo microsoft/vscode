@@ -167,11 +167,18 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
+		const shellLaunchConfigDto: IShellLaunchConfigDto = {
+			name: terminalInstance.shellLaunchConfig.name,
+			executable: terminalInstance.shellLaunchConfig.executable,
+			args: terminalInstance.shellLaunchConfig.args,
+			cwd: terminalInstance.shellLaunchConfig.cwd,
+			env: terminalInstance.shellLaunchConfig.env
+		};
 		if (terminalInstance.title) {
-			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title);
+			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title, shellLaunchConfigDto);
 		} else {
 			terminalInstance.waitForTitle().then(title => {
-				this._proxy.$acceptTerminalOpened(terminalInstance.id, title);
+				this._proxy.$acceptTerminalOpened(terminalInstance.id, title, shellLaunchConfigDto);
 			});
 		}
 	}

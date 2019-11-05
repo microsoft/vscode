@@ -701,6 +701,13 @@ declare module 'vscode' {
 
 	export interface Terminal {
 		/**
+		 * The object used to initialize the terminal, this is useful for things like detecting the
+		 * shell type of shells not launched by the extension or detecting what folder the shell was
+		 * launched in.
+		 */
+		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
+
+		/**
 		 * The current dimensions of the terminal. This will be `undefined` immediately after the
 		 * terminal is created as the dimensions are not known until shortly after the terminal is
 		 * created.
