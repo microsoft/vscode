@@ -572,13 +572,17 @@ registerEditorAction(class GoToReferencesAction extends ReferencesAction {
 			muteMessage: false
 		}, {
 			id: 'editor.action.goToReferences',
-			label: nls.localize('goToReferences.label', "Go To References"),
-			alias: 'Go To References',
+			label: nls.localize('goToReferences.label', "Go to References"),
+			alias: 'Go to References',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
-			)
+			),
+			menuOpts: {
+				group: 'navigation',
+				order: 1.45
+			}
 		});
 	}
 });
