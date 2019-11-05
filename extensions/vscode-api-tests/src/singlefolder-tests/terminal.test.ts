@@ -121,6 +121,27 @@ suite('window namespace tests', () => {
 			const terminal = window.createTerminal('b');
 		});
 
+		test('exitStatus.code should be set to undefined after a terminal is disposed', (done) => {
+			disposables.push(window.onDidOpenTerminal(term => {
+				try {
+					equal(term, terminal);
+				} catch (e) {
+					done(e);
+				}
+				disposables.push(window.onDidCloseTerminal(t => {
+					try {
+						deepEqual(t.exitStatus, { code: undefined });
+					} catch (e) {
+						done(e);
+						return;
+					}
+					done();
+				}));
+				terminal.dispose();
+			}));
+			const terminal = window.createTerminal();
+		});
+
 		// test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
 		// 	const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
 		// 		equal(active, terminal);
@@ -386,9 +407,97 @@ suite('window namespace tests', () => {
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidOverrideDimensions: overrideDimensionsEmitter.event,
-					open: () => {
-						overrideDimensionsEmitter.fire({ columns: 10, rows: 5 });
-					},
+					open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('exitStatus.code should be set to the exit code (undefined)', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.exitStatus, undefined);
+					} catch (e) {
+						done(e);
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							deepEqual(terminal.exitStatus, { code: undefined });
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const writeEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => closeEmitter.fire(),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('exitStatus.code should be set to the exit code (zero)', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.exitStatus, undefined);
+					} catch (e) {
+						done(e);
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							deepEqual(terminal.exitStatus, { code: 0 });
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const writeEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => closeEmitter.fire(0),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('exitStatus.code should be set to the exit code (non-zero)', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.exitStatus, undefined);
+					} catch (e) {
+						done(e);
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							deepEqual(terminal.exitStatus, { code: 22 });
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const writeEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => closeEmitter.fire(22),
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
