@@ -1,4 +1,4 @@
-// Type definitions for Electron 7.0.1
+// Type definitions for Electron 7.1.0
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -22,6 +22,7 @@ declare namespace Electron {
 		clipboard: Clipboard;
 		CommandLine: typeof CommandLine;
 		contentTracing: ContentTracing;
+		contextBridge: ContextBridge;
 		Cookies: typeof Cookies;
 		crashReporter: CrashReporter;
 		Debugger: typeof Debugger;
@@ -78,6 +79,7 @@ declare namespace Electron {
 	const autoUpdater: AutoUpdater;
 	const clipboard: Clipboard;
 	const contentTracing: ContentTracing;
+	const contextBridge: ContextBridge;
 	const crashReporter: CrashReporter;
 	const desktopCapturer: DesktopCapturer;
 	const dialog: Dialog;
@@ -3384,6 +3386,13 @@ declare namespace Electron {
 		 * will be returned in the promise.
 		 */
 		stopRecording(resultFilePath?: string): Promise<string>;
+	}
+
+	interface ContextBridge extends NodeJS.EventEmitter {
+
+		// Docs: http://electronjs.org/docs/api/context-bridge
+
+		exposeInMainWorld(apiKey: string, api: Record<string, any>): void;
 	}
 
 	interface Cookie {
