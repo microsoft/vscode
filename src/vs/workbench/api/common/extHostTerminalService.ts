@@ -102,10 +102,12 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
+		private readonly _creationOptions: vscode.TerminalOptions | vscode.ExtensionTerminalOptions,
 		private _name?: string,
 		id?: number
 	) {
 		super(proxy, id);
+		this._creationOptions = Object.freeze(this._creationOptions);
 		this._pidPromise = new Promise<number>(c => this._pidPromiseComplete = c);
 	}
 
@@ -160,6 +162,10 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 	public get processId(): Promise<number | undefined> {
 		return this._pidPromise;
+	}
+
+	public get creationOptions(): Readonly<vscode.TerminalOptions | vscode.ExtensionTerminalOptions> {
+		return this._creationOptions;
 	}
 
 	public sendText(text: string, addNewLine: boolean = true): void {
@@ -310,7 +316,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public abstract $acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, options.name);
+		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
 		terminal.createExtensionTerminal().then(id => this._setupExtHostProcessListeners(id, p));
 		this._terminals.push(terminal);
@@ -390,7 +396,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 	}
 
-	public $acceptTerminalOpened(id: number, name: string): void {
+	public $acceptTerminalOpened(id: number, name: string, shellLaunchConfigDto: IShellLaunchConfigDto): void {
 		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
 			// The terminal has already been created (via createTerminal*), only fire the event
@@ -399,7 +405,14 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			return;
 		}
 
-		const terminal = new ExtHostTerminal(this._proxy, name, id);
+		const creationOptions: vscode.TerminalOptions = {
+			name: shellLaunchConfigDto.name,
+			shellPath: shellLaunchConfigDto.executable,
+			shellArgs: shellLaunchConfigDto.args,
+			cwd: typeof shellLaunchConfigDto.cwd === 'string' ? shellLaunchConfigDto.cwd : URI.revive(shellLaunchConfigDto.cwd),
+			env: shellLaunchConfigDto.env
+		};
+		const terminal = new ExtHostTerminal(this._proxy, creationOptions, name, id);
 		this._terminals.push(terminal);
 		this._onDidOpenTerminal.fire(terminal);
 		terminal.isOpen = true;

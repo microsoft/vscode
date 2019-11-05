@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable } from 'vscode';
-import { doesNotThrow, equal, ok, deepEqual } from 'assert';
+import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
 suite('window namespace tests', () => {
 	suiteSetup(async () => {
@@ -79,6 +79,30 @@ suite('window namespace tests', () => {
 			const terminal = window.createTerminal('a');
 			try {
 				equal(terminal.name, 'a');
+			} catch (e) {
+				done(e);
+			}
+		});
+
+		test('creationOptions should be set and readonly for TerminalOptions terminals', (done) => {
+			disposables.push(window.onDidOpenTerminal(term => {
+				try {
+					equal(terminal, term);
+				} catch (e) {
+					done(e);
+				}
+				terminal.dispose();
+				disposables.push(window.onDidCloseTerminal(() => done()));
+			}));
+			const options = {
+				name: 'foo',
+				hideFromUser: true
+			};
+			const terminal = window.createTerminal(options);
+			try {
+				equal(terminal.name, 'foo');
+				deepEqual(terminal.creationOptions, options);
+				throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
 			} catch (e) {
 				done(e);
 			}
@@ -368,6 +392,33 @@ suite('window namespace tests', () => {
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('creationOptions should be set and readonly for ExtensionTerminalOptions terminals', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+					} catch (e) {
+						done(e);
+					}
+					terminal.dispose();
+					disposables.push(window.onDidCloseTerminal(() => done()));
+				}));
+				const writeEmitter = new EventEmitter<string>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					open: () => { },
+					close: () => { }
+				};
+				const options = { name: 'foo', pty };
+				const terminal = window.createTerminal(options);
+				try {
+					equal(terminal.name, 'foo');
+					deepEqual(terminal.creationOptions, options);
+					throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
+				} catch (e) {
+					done(e);
+				}
 			});
 		});
 	});
