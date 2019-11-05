@@ -192,7 +192,7 @@ export class ReferencesModel implements IDisposable {
 		return this.groups.length === 0;
 	}
 
-	getAriaMessage(): string {
+	get ariaMessage(): string {
 		if (this.isEmpty) {
 			return localize('aria.result.0', "No results found");
 		} else if (this.references.length === 1) {

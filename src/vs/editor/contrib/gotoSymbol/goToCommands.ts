@@ -8,7 +8,7 @@ import { createCancelablePromise, raceCancellation } from 'vs/base/common/async'
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isWeb } from 'vs/base/common/platform';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as corePosition from 'vs/editor/common/core/position';
@@ -35,9 +35,9 @@ import { isStandalone } from 'vs/base/browser/browser';
 import { URI } from 'vs/base/common/uri';
 
 export interface SymbolNavigationActionConfig {
-	openToSide: boolean;// = false
-	openInPeek: boolean;// = false
-	muteMessage: boolean;// = true
+	openToSide: boolean;
+	openInPeek: boolean;
+	muteMessage: boolean;
 }
 
 abstract class SymbolNavigationAction extends EditorAction {
@@ -69,8 +69,10 @@ abstract class SymbolNavigationAction extends EditorAction {
 				return;
 			}
 
-			const referenceUnderCusor = references.referenceAt(model.uri, pos);
+			alert(references.ariaMessage);
+
 			const referenceCount = references.references.length;
+			const altAction = references.referenceAt(model.uri, pos) && editor.getAction(this._getAlternativeCommand());
 
 			if (referenceCount === 0) {
 				// no result -> show message
@@ -78,12 +80,12 @@ abstract class SymbolNavigationAction extends EditorAction {
 					const info = model.getWordAtPosition(pos);
 					MessageController.get(editor).showMessage(this._getNoResultFoundMessage(info), pos);
 				}
-			} else if (referenceCount === 1 && referenceUnderCusor) {
-				// only the position at which we are -> adjust selection
-				return this._openReference(editor, editorService, referenceUnderCusor, false).then(() => undefined);
+			} else if (referenceCount === 1 && altAction) {
+				// already at the only result, run alternative
+				altAction.run();
 
 			} else {
-				// handle multile results
+				// normal results handling
 				return this._onResult(editorService, symbolNavService, editor, references);
 			}
 
@@ -104,20 +106,16 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 	protected abstract _getMetaTitle(model: ReferencesModel): string;
 
-	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
+	protected abstract _getAlternativeCommand(): string;
 
-		const msg = model.getAriaMessage();
-		alert(msg);
+	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: IActiveCodeEditor, model: ReferencesModel): Promise<void> {
 
 		const gotoLocation = editor.getOption(EditorOption.gotoLocation);
 		if (this._configuration.openInPeek || (gotoLocation.multiple === 'peek' && model.references.length > 1)) {
 			this._openInPeek(editorService, editor, model);
 
-		} else if (editor.hasModel()) {
-			const next = model.firstReference();
-			if (!next) {
-				return;
-			}
+		} else {
+			const next = model.firstReference()!;
 			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
 			if (targetEditor && model.references.length > 1 && gotoLocation.multiple === 'gotoAndPeek') {
 				this._openInPeek(editorService, targetEditor, model);
@@ -187,6 +185,10 @@ export class DefinitionAction extends SymbolNavigationAction {
 
 	protected _getMetaTitle(model: ReferencesModel): string {
 		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
+	}
+
+	protected _getAlternativeCommand(): string {
+		return 'editor.action.referenceSearch.trigger';
 	}
 }
 
@@ -307,6 +309,10 @@ class DeclarationAction extends SymbolNavigationAction {
 	protected _getMetaTitle(model: ReferencesModel): string {
 		return model.references.length > 1 ? nls.localize('decl.meta.title', " – {0} declarations", model.references.length) : '';
 	}
+
+	protected _getAlternativeCommand(): string {
+		return 'editor.action.referenceSearch.trigger';
+	}
 }
 
 registerEditorAction(class GoToDeclarationAction extends DeclarationAction {
@@ -367,82 +373,6 @@ registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
 
 //#endregion
 
-//#region --- IMPLEMENTATION
-
-class ImplementationAction extends SymbolNavigationAction {
-
-	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getImplementationsAtPosition(model, position, token));
-	}
-
-	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
-		return info && info.word
-			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
-			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
-	}
-
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('meta.implementations.title', " – {0} implementations", model.references.length) : '';
-	}
-}
-
-registerEditorAction(class GoToImplementationAction extends ImplementationAction {
-
-	public static readonly ID = 'editor.action.goToImplementation';
-
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: false,
-			muteMessage: false
-		}, {
-			id: GoToImplementationAction.ID,
-			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
-			alias: 'Go to Implementation',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasImplementationProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.F12,
-				weight: KeybindingWeight.EditorContrib
-			},
-			menubarOpts: {
-				menuId: MenuId.MenubarGoMenu,
-				group: '4_symbol_nav',
-				order: 4, title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation")
-			}
-		});
-	}
-});
-
-registerEditorAction(class PeekImplementationAction extends ImplementationAction {
-
-	public static readonly ID = 'editor.action.peekImplementation';
-
-	constructor() {
-		super({
-			openToSide: false,
-			openInPeek: true,
-			muteMessage: false
-		}, {
-			id: PeekImplementationAction.ID,
-			label: nls.localize('actions.peekImplementation.label', "Peek Implementation"),
-			alias: 'Peek Implementation',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasImplementationProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-});
-
-//#endregion
-
 //#region --- TYPE DEFINITION
 
 class TypeDefinitionAction extends SymbolNavigationAction {
@@ -459,6 +389,10 @@ class TypeDefinitionAction extends SymbolNavigationAction {
 
 	protected _getMetaTitle(model: ReferencesModel): string {
 		return model.references.length > 1 ? nls.localize('meta.typeDefinitions.title', " – {0} type definitions", model.references.length) : '';
+	}
+
+	protected _getAlternativeCommand(): string {
+		return 'editor.action.referenceSearch.trigger';
 	}
 }
 
@@ -524,6 +458,86 @@ registerEditorAction(class PeekTypeDefinitionAction extends TypeDefinitionAction
 
 //#endregion
 
+//#region --- IMPLEMENTATION
+
+class ImplementationAction extends SymbolNavigationAction {
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getImplementationsAtPosition(model, position, token));
+	}
+
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
+		return info && info.word
+			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
+			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
+	}
+
+	protected _getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 ? nls.localize('meta.implementations.title', " – {0} implementations", model.references.length) : '';
+	}
+
+	protected _getAlternativeCommand(): string {
+		return '';
+	}
+}
+
+registerEditorAction(class GoToImplementationAction extends ImplementationAction {
+
+	public static readonly ID = 'editor.action.goToImplementation';
+
+	constructor() {
+		super({
+			openToSide: false,
+			openInPeek: false,
+			muteMessage: false
+		}, {
+			id: GoToImplementationAction.ID,
+			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
+			alias: 'Go to Implementation',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.hasImplementationProvider,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 4, title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation")
+			}
+		});
+	}
+});
+
+registerEditorAction(class PeekImplementationAction extends ImplementationAction {
+
+	public static readonly ID = 'editor.action.peekImplementation';
+
+	constructor() {
+		super({
+			openToSide: false,
+			openInPeek: true,
+			muteMessage: false
+		}, {
+			id: PeekImplementationAction.ID,
+			label: nls.localize('actions.peekImplementation.label', "Peek Implementation"),
+			alias: 'Peek Implementation',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.hasImplementationProvider,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+});
+
+//#endregion
+
 //#region --- REFERENCES
 
 class ReferencesAction extends SymbolNavigationAction {
@@ -542,6 +556,10 @@ class ReferencesAction extends SymbolNavigationAction {
 		return model.references.length > 1
 			? nls.localize('meta.titleReference', " – {0} references", model.references.length)
 			: '';
+	}
+
+	protected _getAlternativeCommand(): string {
+		return '';
 	}
 }
 
@@ -596,7 +614,7 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 
 //#endregion
 
-//#region ---- REFERENCE search special commands
+//#region --- REFERENCE search special commands
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
