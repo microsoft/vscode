@@ -9,7 +9,8 @@
 }
 
 .monaco-editor .peekview-widget .head .peekview-title {
-	display: inline-block;
+	display: flex;
+	align-items: center;
 	font-size: 13px;
 	margin-left: 20px;
 	cursor: pointer;
