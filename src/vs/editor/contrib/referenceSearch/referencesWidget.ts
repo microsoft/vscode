@@ -10,7 +10,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
 import 'vs/css!./media/referencesWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -31,9 +31,7 @@ import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget, IPeekViewService } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { SplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 
@@ -55,7 +53,7 @@ class DecorationsManager implements IDisposable {
 		this._onModelChanged();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._callOnModelChange.dispose();
 		this._callOnDispose.dispose();
 		this.removeDecorations();
@@ -66,7 +64,7 @@ class DecorationsManager implements IDisposable {
 		const model = this._editor.getModel();
 		if (model) {
 			for (const ref of this._model.groups) {
-				if (ref.uri.toString() === model.uri.toString()) {
+				if (isEqual(ref.uri, model.uri)) {
 					this._addDecorations(ref);
 					return;
 				}
@@ -147,7 +145,7 @@ class DecorationsManager implements IDisposable {
 		this._editor.deltaDecorations(toRemove, []);
 	}
 
-	public removeDecorations(): void {
+	removeDecorations(): void {
 		let toRemove: string[] = [];
 		this._decorations.forEach((value, key) => {
 			toRemove.push(key);
@@ -179,9 +177,9 @@ export class LayoutData {
 }
 
 export interface SelectionEvent {
-	kind: 'goto' | 'show' | 'side' | 'open';
-	source: 'editor' | 'tree' | 'title';
-	element?: Location;
+	readonly kind: 'goto' | 'show' | 'side' | 'open';
+	readonly source: 'editor' | 'tree' | 'title';
+	readonly element?: Location;
 }
 
 export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('referenceSearchTreeFocused', true);
@@ -196,7 +194,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	private readonly _disposeOnNewModel = new DisposableStore();
 	private readonly _callOnDispose = new DisposableStore();
-	private _onDidSelectReference = new Emitter<SelectionEvent>();
+	private readonly _onDidSelectReference = new Emitter<SelectionEvent>();
 
 	private _tree!: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
 	private _treeContainer!: HTMLElement;
@@ -311,7 +309,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
 			identityProvider: new IdentityProvider()
 		};
-		this._tree = this._instantiationService.createInstance<string, HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
+		this._tree = this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
 			'ReferencesWidget',
 			this._treeContainer,
@@ -366,21 +364,6 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._tree.onDidChangeFocus(e => {
 			onEvent(e.elements[0], 'show');
 		});
-		this._tree.onDidChangeSelection(e => {
-			let aside = false;
-			let goto = false;
-			if (e.browserEvent instanceof KeyboardEvent) {
-				// todo@joh make this a command
-				goto = true;
-			}
-			if (aside) {
-				onEvent(e.elements[0], 'side');
-			} else if (goto) {
-				onEvent(e.elements[0], 'goto');
-			} else {
-				onEvent(e.elements[0], 'show');
-			}
-		});
 		this._tree.onDidOpen(e => {
 			const aside = (e.browserEvent instanceof MouseEvent) && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
 			let goto = !e.browserEvent || ((e.browserEvent instanceof MouseEvent) && e.browserEvent.detail === 2);
@@ -414,7 +397,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);
 	}
 
-	public setSelection(selection: OneReference): Promise<any> {
+	setSelection(selection: OneReference): Promise<any> {
 		return this._revealReference(selection, true).then(() => {
 			if (!this._model) {
 				// disposed
@@ -426,7 +409,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
+	setModel(newModel: ReferencesModel | undefined): Promise<any> {
 		// clean up
 		this._disposeOnNewModel.clear();
 		this._model = newModel;
@@ -441,7 +424,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			return Promise.resolve(undefined);
 		}
 
-		if (this._model.empty) {
+		if (this._model.isEmpty) {
 			this.setTitle('');
 			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
 			dom.show(this._messageContainer);

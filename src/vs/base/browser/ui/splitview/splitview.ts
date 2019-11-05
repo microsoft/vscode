@@ -54,10 +54,10 @@ export interface IView {
 }
 
 interface ISashEvent {
-	sash: Sash;
-	start: number;
-	current: number;
-	alt: boolean;
+	readonly sash: Sash;
+	readonly start: number;
+	readonly current: number;
+	readonly alt: boolean;
 }
 
 type ViewItemSize = number | { cachedVisibleSize: number };

@@ -16,9 +16,10 @@ import { debounce } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -26,7 +27,6 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { MainProcessService, IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-browser/issue/issueReporterModel';
@@ -34,12 +34,12 @@ import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssue
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
+import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import { normalizeGitHubUrl } from 'vs/code/common/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -231,7 +231,7 @@ export class IssueReporter extends Disposable {
 
 		styleTag.innerHTML = content.join('\n');
 		document.head.appendChild(styleTag);
-		document.body.style.color = withUndefinedAsNull(styles.color);
+		document.body.style.color = styles.color || '';
 	}
 
 	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
@@ -296,14 +296,15 @@ export class IssueReporter extends Disposable {
 		const mainProcessService = new MainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		serviceCollection.set(IWindowsService, new WindowsService(mainProcessService));
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
 		const logService = new SpdLogService(`issuereporter${configuration.windowId}`, this.environmentService.logsPath, getLogLevel(this.environmentService));
 		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
 		this.logService = new FollowerLogService(loggerClient, logService);
 
-		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
+		const sharedProcessService = createChannelSender<ISharedProcessService>(mainProcessService.getChannel('sharedProcess'));
+
+		const sharedProcess = sharedProcessService.whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
@@ -646,8 +647,8 @@ export class IssueReporter extends Disposable {
 					issueState = $('span.issue-state');
 
 					const issueIcon = $('span.issue-icon');
-					const octicon = new OcticonLabel(issueIcon);
-					octicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
+					const codicon = new CodiconLabel(issueIcon);
+					codicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
 
 					const issueStateLabel = $('span.issue-state.label');
 					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");

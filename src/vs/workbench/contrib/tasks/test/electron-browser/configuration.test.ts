@@ -10,16 +10,18 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { ValidationStatus } from 'vs/base/common/parsers';
 import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { WorkspaceFolder, Workspace, IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
-import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
+import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask, TaskConfigSource } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
 
-const workspaceFolder: IWorkspaceFolder = new WorkspaceFolder({
+const workspaceFolder: WorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),
 	name: 'folderOne',
 	index: 0
 });
+
+const workspace: IWorkspace = new Workspace('id', [workspaceFolder]);
 
 class ProblemReporter implements IProblemReporter {
 
@@ -357,7 +359,7 @@ class PatternBuilder {
 
 function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, Platform.platform, external, reporter);
+	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson);
 	assert.ok(!reporter.receivedMessage);
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
@@ -368,7 +370,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, Platform.platform, external, reporter);
+	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson);
 	if (reporter.receivedMessage) {
 		assert.ok(false, reporter.lastMessage);
 	}

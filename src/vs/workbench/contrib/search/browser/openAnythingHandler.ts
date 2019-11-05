@@ -68,7 +68,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private updateHandlers(configuration: IWorkbenchSearchConfiguration): void {
-		this.includeSymbols = configuration && configuration.search && configuration.search.quickOpen && configuration.search.quickOpen.includeSymbols;
+		this.includeSymbols = configuration?.search?.quickOpen?.includeSymbols;
 
 		// Files
 		this.openFileHandler.setOptions({

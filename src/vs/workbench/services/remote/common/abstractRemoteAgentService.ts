@@ -21,6 +21,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics
 import { Emitter } from 'vs/base/common/event';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export abstract class AbstractRemoteAgentService extends Disposable {
 
@@ -65,6 +66,26 @@ export abstract class AbstractRemoteAgentService extends Disposable {
 		if (connection) {
 			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
 			return client.disableTelemetry();
+		}
+
+		return Promise.resolve(undefined);
+	}
+
+	logTelemetry(eventName: string, data: ITelemetryData): Promise<void> {
+		const connection = this.getConnection();
+		if (connection) {
+			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
+			return client.logTelemetry(eventName, data);
+		}
+
+		return Promise.resolve(undefined);
+	}
+
+	flushTelemetry(): Promise<void> {
+		const connection = this.getConnection();
+		if (connection) {
+			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
+			return client.flushTelemetry();
 		}
 
 		return Promise.resolve(undefined);

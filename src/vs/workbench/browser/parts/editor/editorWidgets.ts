@@ -8,11 +8,11 @@ import { IOverlayWidget, ICodeEditor, IOverlayWidgetPosition, OverlayWidgetPosit
 import { Event, Emitter } from 'vs/base/common/event';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { $, append } from 'vs/base/browser/dom';
+import { $, append, clearNode } from 'vs/base/browser/dom';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
@@ -31,11 +31,13 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	constructor(
 		private editor: ICodeEditor,
 		private label: string,
-		keyBindingAction: string,
+		keyBindingAction: string | null,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
+
+		this._domNode = $('.floating-click-widget');
 
 		if (keyBindingAction) {
 			const keybinding = keybindingService.lookupKeybinding(keyBindingAction);
@@ -60,7 +62,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	}
 
 	render() {
-		this._domNode = $('.floating-click-widget');
+		clearNode(this._domNode);
 
 		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder }, colors => {
 			const backgroundColor = colors.buttonBackground ? colors.buttonBackground : colors.editorBackground;
@@ -73,9 +75,9 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 				this._domNode.style.color = foregroundColor.toString();
 			}
 
-			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : null;
-			this._domNode.style.borderWidth = borderColor ? '1px' : null;
-			this._domNode.style.borderStyle = borderColor ? 'solid' : null;
+			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+			this._domNode.style.borderWidth = borderColor ? '1px' : '';
+			this._domNode.style.borderStyle = borderColor ? 'solid' : '';
 			this._domNode.style.borderColor = borderColor;
 		}));
 
@@ -99,14 +101,14 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 		return editor.getContribution<OpenWorkspaceButtonContribution>(OpenWorkspaceButtonContribution.ID);
 	}
 
-	private static readonly ID = 'editor.contrib.openWorkspaceButton';
+	public static readonly ID = 'editor.contrib.openWorkspaceButton';
 
 	private openWorkspaceButton: FloatingClickWidget | undefined;
 
 	constructor(
 		private editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService
 	) {
@@ -118,10 +120,6 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 
 	private registerListeners(): void {
 		this._register(this.editor.onDidChangeModel(e => this.update()));
-	}
-
-	getId(): string {
-		return OpenWorkspaceButtonContribution.ID;
 	}
 
 	private update(): void {
@@ -163,7 +161,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			this._register(this.openWorkspaceButton.onClick(() => {
 				const model = this.editor.getModel();
 				if (model) {
-					this.windowService.openWindow([{ workspaceUri: model.uri }]);
+					this.hostService.openWindow([{ workspaceUri: model.uri }]);
 				}
 			}));
 

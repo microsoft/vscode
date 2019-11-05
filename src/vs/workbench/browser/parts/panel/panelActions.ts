@@ -21,7 +21,7 @@ import { ActivePanelContext, PanelPositionContext } from 'vs/workbench/common/pa
 export class ClosePanelAction extends Action {
 
 	static readonly ID = 'workbench.action.closePanel';
-	static LABEL = nls.localize('closePanel', "Close Panel");
+	static readonly LABEL = nls.localize('closePanel', "Close Panel");
 
 	constructor(
 		id: string,
@@ -40,7 +40,7 @@ export class ClosePanelAction extends Action {
 export class TogglePanelAction extends Action {
 
 	static readonly ID = 'workbench.action.togglePanel';
-	static LABEL = nls.localize('togglePanel', "Toggle Panel");
+	static readonly LABEL = nls.localize('togglePanel', "Toggle Panel");
 
 	constructor(
 		id: string,
@@ -209,7 +209,7 @@ export class SwitchPanelViewAction extends Action {
 export class PreviousPanelViewAction extends SwitchPanelViewAction {
 
 	static readonly ID = 'workbench.action.previousPanelView';
-	static LABEL = nls.localize('previousPanelView', 'Previous Panel View');
+	static readonly LABEL = nls.localize('previousPanelView', 'Previous Panel View');
 
 	constructor(
 		id: string,
@@ -227,7 +227,7 @@ export class PreviousPanelViewAction extends SwitchPanelViewAction {
 export class NextPanelViewAction extends SwitchPanelViewAction {
 
 	static readonly ID = 'workbench.action.nextPanelView';
-	static LABEL = nls.localize('nextPanelView', 'Next Panel View');
+	static readonly LABEL = nls.localize('nextPanelView', 'Next Panel View');
 
 	constructor(
 		id: string,

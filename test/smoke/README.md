@@ -43,7 +43,12 @@ yarn smoketest --build PATH_TO_NEW_RELEASE_PARENT_FOLDER --stable-build PATH_TO_
 
 ### Develop
 
-Start a watch task in `test/smoke`:
+Start two watch tasks:
+
+```bash
+cd test/automation
+yarn watch
+```
 
 ```bash
 cd test/smoke

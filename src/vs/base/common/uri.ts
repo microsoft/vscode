@@ -10,26 +10,11 @@ const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
 const _doubleSlashStart = /^\/\//;
 
-let _throwOnMissingSchema: boolean = true;
-
-/**
- * @internal
- */
-export function setUriThrowOnMissingScheme(value: boolean): boolean {
-	const old = _throwOnMissingSchema;
-	_throwOnMissingSchema = value;
-	return old;
-}
-
 function _validateUri(ret: URI, _strict?: boolean): void {
 
 	// scheme, must be set
-	if (!ret.scheme) {
-		if (_strict || _throwOnMissingSchema) {
-			throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
-		} else {
-			console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
-		}
+	if (!ret.scheme && _strict) {
+		throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
 	}
 
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
@@ -61,12 +46,8 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 // back to the file-scheme. that should cause the least carnage and still be a
 // clear warning
 function _schemeFix(scheme: string, _strict: boolean): string {
-	if (_strict || _throwOnMissingSchema) {
-		return scheme || _empty;
-	}
-	if (!scheme) {
-		console.trace('BAD uri lacks scheme, falling back to file-scheme.');
-		scheme = 'file';
+	if (!scheme && !_strict) {
+		return 'file';
 	}
 	return scheme;
 }

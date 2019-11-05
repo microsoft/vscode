@@ -42,9 +42,9 @@ declare namespace monaco {
 
 	export class CancellationTokenSource {
 		constructor(parent?: CancellationToken);
-		readonly token: CancellationToken;
+		get token(): CancellationToken;
 		cancel(): void;
-		dispose(): void;
+		dispose(cancel?: boolean): void;
 	}
 
 	export interface CancellationToken {
@@ -55,7 +55,6 @@ declare namespace monaco {
 		 */
 		readonly onCancellationRequested: IEvent<any>;
 	}
-
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
 	 * This class is a simple parser which creates the basic component parts
@@ -118,7 +117,7 @@ declare namespace monaco {
 		 * namely the server name, would be missing. Therefore `Uri#fsPath` exists - it's sugar to ease working
 		 * with URIs that represent files on disk (`file` scheme).
 		 */
-		readonly fsPath: string;
+		get fsPath(): string;
 		with(change: {
 			scheme?: string;
 			authority?: string | null;
@@ -379,8 +378,8 @@ declare namespace monaco {
 	}
 
 	export interface IMarkdownString {
-		value: string;
-		isTrusted?: boolean;
+		readonly value: string;
+		readonly isTrusted?: boolean;
 		uris?: {
 			[href: string]: UriComponents;
 		};
@@ -728,10 +727,6 @@ declare namespace monaco {
 		readonly positionColumn: number;
 		constructor(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number);
 		/**
-		 * Clone this selection.
-		 */
-		clone(): Selection;
-		/**
 		 * Transform to a human-readable representation.
 		 */
 		toString(): string;
@@ -813,7 +808,7 @@ declare namespace monaco.editor {
 	 * `domElement` should be empty (not contain other dom nodes).
 	 * The editor will read the size of `domElement`.
 	 */
-	export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
+	export function create(domElement: HTMLElement, options?: IStandaloneEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
 
 	/**
 	 * Emitted when an editor is created.
@@ -1051,7 +1046,7 @@ declare namespace monaco.editor {
 	/**
 	 * The options to create an editor.
 	 */
-	export interface IEditorConstructionOptions extends IEditorOptions {
+	export interface IStandaloneEditorConstructionOptions extends IEditorConstructionOptions {
 		/**
 		 * The initial model associated with this code editor.
 		 */
@@ -1557,6 +1552,11 @@ declare namespace monaco.editor {
 		 */
 		getValueLengthInRange(range: IRange): number;
 		/**
+		 * Get the character count of text in a certain range.
+		 * @param range The range describing what text length to get.
+		 */
+		getCharacterCountInRange(range: IRange): number;
+		/**
 		 * Get the number of lines in the model.
 		 */
 		getLineCount(): number;
@@ -2061,6 +2061,8 @@ declare namespace monaco.editor {
 		/**
 		 * Instructs the editor to remeasure its container. This method should
 		 * be called when the container of the editor gets resized.
+		 *
+		 * If a dimension is passed in, the passed in value will be used.
 		 */
 		layout(dimension?: IDimension): void;
 		/**
@@ -2207,10 +2209,6 @@ declare namespace monaco.editor {
 	 * An editor contribution that gets created every time a new editor gets created and gets disposed when the editor gets disposed.
 	 */
 	export interface IEditorContribution {
-		/**
-		 * Get a unique identifier for this contribution.
-		 */
-		getId(): string;
 		/**
 		 * Dispose this contribution.
 		 */
@@ -2399,6 +2397,18 @@ declare namespace monaco.editor {
 		 */
 		readonly secondarySelections: Selection[];
 		/**
+		 * The model version id.
+		 */
+		readonly modelVersionId: number;
+		/**
+		 * The old selections.
+		 */
+		readonly oldSelections: Selection[] | null;
+		/**
+		 * The model version id the that `oldSelections` refer to.
+		 */
+		readonly oldModelVersionId: number;
+		/**
 		 * Source of the call that caused the event.
 		 */
 		readonly source: string;
@@ -2473,6 +2483,12 @@ declare namespace monaco.editor {
 		*/
 		cursorSurroundingLines?: number;
 		/**
+		 * Controls when `cursorSurroundingLines` should be enforced
+		 * Defaults to `default`, `cursorSurroundingLines` is not enforced when cursor position is changed
+		 * by mouse.
+		*/
+		cursorSurroundingLinesStyle?: 'default' | 'all';
+		/**
 		 * Render last line number when the file ends with a newline.
 		 * Defaults to true.
 		*/
@@ -2538,7 +2554,7 @@ declare namespace monaco.editor {
 		fixedOverflowWidgets?: boolean;
 		/**
 		 * The number of vertical lanes the overview ruler should render.
-		 * Defaults to 2.
+		 * Defaults to 3.
 		 */
 		overviewRulerLanes?: number;
 		/**
@@ -2579,7 +2595,7 @@ declare namespace monaco.editor {
 		 * Enable font ligatures.
 		 * Defaults to false.
 		 */
-		fontLigatures?: boolean;
+		fontLigatures?: boolean | string;
 		/**
 		 * Disable the use of `will-change` for the editor margin and lines layers.
 		 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
@@ -2918,6 +2934,13 @@ declare namespace monaco.editor {
 		showUnused?: boolean;
 	}
 
+	export interface IEditorConstructionOptions extends IEditorOptions {
+		/**
+		 * The initial editor dimension (to avoid measuring the container).
+		 */
+		dimension?: IDimension;
+	}
+
 	/**
 	 * Configuration options for the diff editor.
 	 */
@@ -2932,6 +2955,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		renderSideBySide?: boolean;
+		/**
+		 * Timeout in milliseconds after which diff computation is cancelled.
+		 * Defaults to 5000.
+		 */
+		maxComputationTime?: number;
 		/**
 		 * Compute the diff by ignoring leading/trailing whitespace
 		 * Defaults to true.
@@ -3024,9 +3052,9 @@ declare namespace monaco.editor {
 		 */
 		seedSearchStringFromSelection?: boolean;
 		/**
-		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
+		 * Controls if Find in Selection flag is turned on in the editor.
 		 */
-		autoFindInSelection?: boolean;
+		autoFindInSelection?: 'never' | 'always' | 'multiline';
 		addExtraSpaceOnTop?: boolean;
 	}
 
@@ -3091,10 +3119,8 @@ declare namespace monaco.editor {
 
 	export enum RenderMinimap {
 		None = 0,
-		Small = 1,
-		Large = 2,
-		SmallBlocks = 3,
-		LargeBlocks = 4
+		Text = 1,
+		Blocks = 2
 	}
 
 	/**
@@ -3229,6 +3255,10 @@ declare namespace monaco.editor {
 		 * Defaults to 120.
 		 */
 		maxColumn?: number;
+		/**
+		 * Relative size of the font in the minimap. Defaults to 1.
+		 */
+		scale?: number;
 	}
 
 	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
@@ -3357,6 +3387,10 @@ declare namespace monaco.editor {
 	 */
 	export interface ISuggestOptions {
 		/**
+		 * Overwrite word ends on accept. Default to false.
+		 */
+		overwriteOnAccept?: boolean;
+		/**
 		 * Enable graceful matching. Defaults to true.
 		 */
 		filterGraceful?: boolean;
@@ -3381,9 +3415,105 @@ declare namespace monaco.editor {
 		 */
 		maxVisibleSuggestions?: number;
 		/**
-		 * Names of suggestion types to filter.
+		 * Show method-suggestions.
 		 */
-		filteredTypes?: Record<string, boolean>;
+		showMethods?: boolean;
+		/**
+		 * Show function-suggestions.
+		 */
+		showFunctions?: boolean;
+		/**
+		 * Show constructor-suggestions.
+		 */
+		showConstructors?: boolean;
+		/**
+		 * Show field-suggestions.
+		 */
+		showFields?: boolean;
+		/**
+		 * Show variable-suggestions.
+		 */
+		showVariables?: boolean;
+		/**
+		 * Show class-suggestions.
+		 */
+		showClasses?: boolean;
+		/**
+		 * Show struct-suggestions.
+		 */
+		showStructs?: boolean;
+		/**
+		 * Show interface-suggestions.
+		 */
+		showInterfaces?: boolean;
+		/**
+		 * Show module-suggestions.
+		 */
+		showModules?: boolean;
+		/**
+		 * Show property-suggestions.
+		 */
+		showProperties?: boolean;
+		/**
+		 * Show event-suggestions.
+		 */
+		showEvents?: boolean;
+		/**
+		 * Show operator-suggestions.
+		 */
+		showOperators?: boolean;
+		/**
+		 * Show unit-suggestions.
+		 */
+		showUnits?: boolean;
+		/**
+		 * Show value-suggestions.
+		 */
+		showValues?: boolean;
+		/**
+		 * Show constant-suggestions.
+		 */
+		showConstants?: boolean;
+		/**
+		 * Show enum-suggestions.
+		 */
+		showEnums?: boolean;
+		/**
+		 * Show enumMember-suggestions.
+		 */
+		showEnumMembers?: boolean;
+		/**
+		 * Show keyword-suggestions.
+		 */
+		showKeywords?: boolean;
+		/**
+		 * Show text-suggestions.
+		 */
+		showWords?: boolean;
+		/**
+		 * Show color-suggestions.
+		 */
+		showColors?: boolean;
+		/**
+		 * Show file-suggestions.
+		 */
+		showFiles?: boolean;
+		/**
+		 * Show reference-suggestions.
+		 */
+		showReferences?: boolean;
+		/**
+		 * Show folder-suggestions.
+		 */
+		showFolders?: boolean;
+		/**
+		 * Show typeParameter-suggestions.
+		 */
+		showTypeParameters?: boolean;
+		/**
+		 * Show snippet-suggestions.
+		 */
+		showSnippets?: boolean;
 	}
 
 	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -4115,6 +4245,7 @@ declare namespace monaco.editor {
 		readonly fontFamily: string;
 		readonly fontWeight: string;
 		readonly fontSize: number;
+		readonly fontFeatureSettings: string;
 		readonly lineHeight: number;
 		readonly letterSpacing: number;
 	}
@@ -4748,7 +4879,10 @@ declare namespace monaco.languages {
 		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 		 */
-		range: IRange;
+		range: IRange | {
+			insert: IRange;
+			replace: IRange;
+		};
 		/**
 		 * An optional set of characters that when pressed while this completion is active will accept it first and
 		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -5127,7 +5261,7 @@ declare namespace monaco.languages {
 
 	/**
 	 * The document symbol provider interface defines the contract between extensions and
-	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
+	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
 	 */
 	export interface DocumentSymbolProvider {
 		displayName?: string;

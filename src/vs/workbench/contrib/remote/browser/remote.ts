@@ -47,6 +47,7 @@ import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -171,7 +172,7 @@ class HelpItem implements IHelpItem {
 			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
 
 			if (action) {
-				await this.openerService.open(URI.parse(action.label));
+				await this.openerService.open(URI.parse(action.description));
 			}
 		} else {
 			await this.openerService.open(URI.parse(this.values[0].url));
@@ -378,7 +379,8 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
@@ -419,7 +421,34 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 
 	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		// too late, already added to the view model
-		return super.onDidAddViews(added);
+		const result = super.onDidAddViews(added);
+
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		if (remoteAuthority) {
+			const actualRemoteAuthority = remoteAuthority.split('+')[0];
+			added.forEach((descriptor) => {
+				const panel = this.getView(descriptor.viewDescriptor.id);
+				if (!panel) {
+					return;
+				}
+
+				const descriptorAuthority = descriptor.viewDescriptor.remoteAuthority;
+				if (typeof descriptorAuthority === 'undefined') {
+					panel.setExpanded(true);
+				} else if (descriptor.viewDescriptor.id === HelpPanel.ID) {
+					// Do nothing, keep the default behavior for Help
+				} else {
+					const descriptorAuthorityArr = Array.isArray(descriptorAuthority) ? descriptorAuthority : [descriptorAuthority];
+					if (descriptorAuthorityArr.indexOf(actualRemoteAuthority) >= 0) {
+						panel.setExpanded(true);
+					} else {
+						panel.setExpanded(false);
+					}
+				}
+			});
+		}
+
+		return result;
 	}
 
 	getTitle(): string {
@@ -432,14 +461,14 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	RemoteViewlet,
 	VIEWLET_ID,
 	nls.localize('remote.explorer', "Remote Explorer"),
-	'remote',
+	'codicon-remote-explorer',
 	4
 ));
 
 class OpenRemoteViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static LABEL = nls.localize('toggleRemoteViewlet', "Show Remote Explorer");
+	static readonly LABEL = nls.localize('toggleRemoteViewlet', "Show Remote Explorer");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
@@ -496,7 +525,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
 			let disposableListener: IDisposable | null = null;
 
-			function showProgress(location: ProgressLocation, buttons?: string[]) {
+			function showProgress(location: ProgressLocation, buttons: { label: string, callback: () => void }[]) {
 				if (currentProgressPromiseResolve) {
 					currentProgressPromiseResolve();
 				}
@@ -507,12 +536,12 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				if (location === ProgressLocation.Dialog) {
 					// Show dialog
 					progressService!.withProgress(
-						{ location: ProgressLocation.Dialog, buttons },
+						{ location: ProgressLocation.Dialog, buttons: buttons.map(button => button.label) },
 						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
 						(choice?) => {
 							// Handle choice from dialog
-							if (choice === 0 && buttons && reconnectWaitEvent) {
-								reconnectWaitEvent.skipWait();
+							if (buttons[choice]) {
+								buttons[choice].callback();
 							} else {
 								showProgress(ProgressLocation.Notification, buttons);
 							}
@@ -522,12 +551,12 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				} else {
 					// Show notification
 					progressService!.withProgress(
-						{ location: ProgressLocation.Notification, buttons },
+						{ location: ProgressLocation.Notification, buttons: buttons.map(button => button.label) },
 						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
 						(choice?) => {
-							// Handle choice from notification
-							if (choice === 0 && buttons && reconnectWaitEvent) {
-								reconnectWaitEvent.skipWait();
+							// Handle choice from dialog
+							if (buttons[choice]) {
+								buttons[choice].callback();
 							} else {
 								hideProgress();
 							}
@@ -543,6 +572,22 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				currentProgressPromiseResolve = null;
 			}
 
+			const reconnectButton = {
+				label: nls.localize('reconnectNow', "Reconnect Now"),
+				callback: () => {
+					if (reconnectWaitEvent) {
+						reconnectWaitEvent.skipWait();
+					}
+				}
+			};
+
+			const reloadButton = {
+				label: nls.localize('reloadWindow', "Reload Window"),
+				callback: () => {
+					commandService.executeCommand(ReloadWindowAction.ID);
+				}
+			};
+
 			connection.onDidStateChange((e) => {
 				if (currentTimer) {
 					currentTimer.dispose();
@@ -557,7 +602,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 					case PersistentConnectionEventType.ConnectionLost:
 						if (!currentProgressPromiseResolve) {
 							progressReporter = new ProgressReporter(null);
-							showProgress(ProgressLocation.Dialog, [nls.localize('reconnectNow', "Reconnect Now")]);
+							showProgress(ProgressLocation.Dialog, [reconnectButton, reloadButton]);
 						}
 
 						progressReporter!.report(nls.localize('connectionLost', "Connection Lost"));
@@ -565,12 +610,12 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 					case PersistentConnectionEventType.ReconnectionWait:
 						hideProgress();
 						reconnectWaitEvent = e;
-						showProgress(lastLocation || ProgressLocation.Notification, [nls.localize('reconnectNow', "Reconnect Now")]);
+						showProgress(lastLocation || ProgressLocation.Notification, [reconnectButton, reloadButton]);
 						currentTimer = new ReconnectionTimer(progressReporter!, Date.now() + 1000 * e.durationSeconds);
 						break;
 					case PersistentConnectionEventType.ReconnectionRunning:
 						hideProgress();
-						showProgress(lastLocation || ProgressLocation.Notification);
+						showProgress(lastLocation || ProgressLocation.Notification, [reloadButton]);
 						progressReporter!.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
 
 						// Register to listen for quick input is opened
@@ -580,7 +625,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 								// Need to move from dialog if being shown and user needs to type in a prompt
 								if (lastLocation === ProgressLocation.Dialog && progressReporter !== null) {
 									hideProgress();
-									showProgress(ProgressLocation.Notification);
+									showProgress(ProgressLocation.Notification, [reloadButton]);
 									progressReporter.report();
 								}
 							}

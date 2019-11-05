@@ -33,14 +33,14 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private dirty: boolean = false;
 	private versionId: number = 0;
 	private readonly contentChangeEventScheduler: RunOnceScheduler;
-	private configuredEncoding: string;
+	private configuredEncoding?: string;
 
 	constructor(
-		private readonly preferredMode: string,
+		private readonly preferredMode: string | undefined,
 		private readonly resource: URI,
 		private _hasAssociatedFilePath: boolean,
-		private readonly initialValue: string,
-		private preferredEncoding: string,
+		private readonly initialValue: string | undefined,
+		private preferredEncoding: string | undefined,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -87,7 +87,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.preferredMode;
 	}
 
-	getEncoding(): string {
+	getEncoding(): string | undefined {
 		return this.preferredEncoding || this.configuredEncoding;
 	}
 
@@ -190,7 +190,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 		// mark the untitled editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this._hasAssociatedFilePath && this.textEditorModel && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+		if (!this._hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
 			this.setDirty(false);
 		}
 

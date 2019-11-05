@@ -16,9 +16,9 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
-	private _onDidCreate = new Emitter<vscode.Uri>();
-	private _onDidChange = new Emitter<vscode.Uri>();
-	private _onDidDelete = new Emitter<vscode.Uri>();
+	private readonly _onDidCreate = new Emitter<vscode.Uri>();
+	private readonly _onDidChange = new Emitter<vscode.Uri>();
+	private readonly _onDidDelete = new Emitter<vscode.Uri>();
 	private _disposable: Disposable;
 	private _config: number;
 

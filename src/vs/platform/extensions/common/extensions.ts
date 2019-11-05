@@ -88,6 +88,14 @@ export interface IColor {
 	defaults: { light: string, dark: string, highContrast: string };
 }
 
+export interface IWebviewEditor {
+	readonly viewType: string;
+	readonly priority: string;
+	readonly selector: readonly {
+		readonly filenamePattern?: string;
+	}[];
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -104,6 +112,7 @@ export interface IExtensionContributions {
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
 	localizations?: ILocalization[];
+	readonly webviewEditors?: readonly IWebviewEditor[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
@@ -134,7 +143,7 @@ export interface IExtensionManifest {
 	readonly activationEvents?: string[];
 	readonly extensionDependencies?: string[];
 	readonly extensionPack?: string[];
-	readonly extensionKind?: ExtensionKind;
+	readonly extensionKind?: ExtensionKind | ExtensionKind[];
 	readonly contributes?: IExtensionContributions;
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };

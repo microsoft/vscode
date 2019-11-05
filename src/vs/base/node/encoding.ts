@@ -111,7 +111,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				});
 			}
 
-			_final(callback: (error: Error | null) => void) {
+			_final(callback: () => void) {
 
 				// normal finish
 				if (this.decodeStream) {
@@ -122,7 +122,11 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				// detection. thus, wrap up starting the stream even
 				// without all the data to get things going
 				else {
-					this._startDecodeStream(() => this.decodeStream!.end(callback));
+					this._startDecodeStream(() => {
+						if (this.decodeStream) {
+							this.decodeStream.end(callback);
+						}
+					});
 				}
 			}
 		};
@@ -140,7 +144,7 @@ export function decode(buffer: Buffer, encoding: string): string {
 }
 
 export function encode(content: string | Buffer, encoding: string, options?: { addBOM?: boolean }): Buffer {
-	return iconv.encode(content, toNodeEncoding(encoding), options);
+	return iconv.encode(content as string /* TODO report into upstream typings */, toNodeEncoding(encoding), options);
 }
 
 export function encodingExists(encoding: string): boolean {

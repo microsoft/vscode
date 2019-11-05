@@ -9,7 +9,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
@@ -107,12 +107,12 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		}
 	}
 
-	public startProfiling(): Promise<any> | null {
+	public async startProfiling(): Promise<any> {
 		if (this._state !== ProfileSessionState.None) {
 			return null;
 		}
 
-		const inspectPort = this._extensionService.getInspectPort();
+		const inspectPort = await this._extensionService.getInspectPort(false);
 		if (!inspectPort) {
 			return this._dialogService.confirm({
 				type: 'info',

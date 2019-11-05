@@ -3,34 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .activitybar > .content .monaco-action-bar .action-label.scm {
-	-webkit-mask: url('scm-activity-bar.svg') no-repeat 50% 50%;
-}
-
-.monaco-workbench .scm-action.toggle-view-mode.list {
-	background: url('list-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .scm-action.toggle-view-mode.list {
-	background: url('list-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .scm-action.toggle-view-mode.list {
-	background: url('list-hc.svg') center center no-repeat;
-}
-
-.monaco-workbench .scm-action.toggle-view-mode.tree {
-	background: url('tree-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .scm-action.toggle-view-mode.tree {
-	background: url('tree-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .scm-action.toggle-view-mode.tree {
-	background: url('tree-hc.svg') center center no-repeat;
-}
-
 .monaco-workbench .viewlet.scm-viewlet .collapsible.header .actions {
 	width: initial;
 	flex: 1;
@@ -65,8 +37,30 @@
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item {
+	padding: 0 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	display: flex;
+	align-items: center;
+}
+
+.scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label {
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label .codicon {
+	font-size: 14px;
+}
+
+.scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item:last-of-type {
+	padding-right: 0;
+}
+
+.scm-viewlet .scm-provider > .name,
+.scm-viewlet .scm-provider > .count {
+	display: flex;
+	align-items: center;
 }
 
 .scm-viewlet .scm-provider > .count {
@@ -120,12 +114,8 @@
 	text-decoration: line-through;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name > .monaco-icon-label::after {
-	padding: 0 8px;
-}
-
 .scm-viewlet .monaco-list-row .resource-group > .count {
-	padding: 0 8px;
+	padding: 0 12px 0 8px;
 	display: flex;
 }
 
@@ -134,6 +124,7 @@
 	height: 100%;
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
+	margin-right: 8px;
 }
 
 .scm-viewlet .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
@@ -170,7 +161,7 @@
 
 .scm-viewlet .scm-editor {
 	box-sizing: border-box;
-	padding: 5px 9px 5px 16px;
+	padding: 5px 12px 5px 16px;
 }
 
 .scm-viewlet .scm-editor.hidden {
@@ -197,4 +188,8 @@
 	background-image: none !important;
 	width: 8px !important;
 	margin-right: 0 !important;
+}
+
+.scm-viewlet .scm-status.show-file-icons.hide-arrows.tree-view-mode .monaco-tl-indent .indent-guide:first-child {
+	border: none;
 }

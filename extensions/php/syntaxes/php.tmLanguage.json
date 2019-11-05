@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/0efbd42e73b52347f95ac5f00c9f288ed4958832",
+	"version": "https://github.com/atom/language-php/commit/43a7b842fb58ac7561184db142344a1b127e0d52",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -448,6 +448,9 @@
 			"end": "(?={)",
 			"name": "meta.function.closure.php",
 			"patterns": [
+				{
+					"include": "#comments"
+				},
 				{
 					"begin": "\\(",
 					"beginCaptures": {
@@ -2736,7 +2739,7 @@
 					"name": "support.function.enchant.php"
 				},
 				{
-					"match": "(?i)\\bsplit(i)?|sql_regcase|ereg(i)?(_replace)?\\b",
+					"match": "(?i)\\b(split(i)?|sql_regcase|ereg(i)?(_replace)?)\\b",
 					"name": "support.function.ereg.php"
 				},
 				{
@@ -2744,7 +2747,7 @@
 					"name": "support.function.errorfunc.php"
 				},
 				{
-					"match": "(?i)\\bshell_exec|system|passthru|proc_(nice|close|terminate|open|get_status)|escapeshell(arg|cmd)|exec\\b",
+					"match": "(?i)\\b(shell_exec|system|passthru|proc_(nice|close|terminate|open|get_status)|escapeshell(arg|cmd)|exec)\\b",
 					"name": "support.function.exec.php"
 				},
 				{
@@ -3315,7 +3318,7 @@
 					"name": "keyword.operator.ternary.php"
 				}
 			},
-			"end": ":",
+			"end": "(?<!:):(?!:)",
 			"endCaptures": {
 				"0": {
 					"name": "keyword.operator.ternary.php"

@@ -132,7 +132,7 @@ export const tocData: ITOCEntry = {
 				{
 					id: 'features/search',
 					label: localize('search', "Search"),
-					settings: ['search.*', 'searchRipgrep.*']
+					settings: ['search.*']
 				}
 				,
 				{
@@ -154,6 +154,11 @@ export const tocData: ITOCEntry = {
 					id: 'features/terminal',
 					label: localize('terminal', "Terminal"),
 					settings: ['terminal.*']
+				},
+				{
+					id: 'features/task',
+					label: localize('task', "Task"),
+					settings: ['task.*']
 				},
 				{
 					id: 'features/problems',
@@ -197,9 +202,9 @@ export const tocData: ITOCEntry = {
 					settings: ['telemetry.*']
 				},
 				{
-					id: 'application/sync',
-					label: localize('sync', "Sync"),
-					settings: ['userConfiguration.*']
+					id: 'application/configurationSync',
+					label: localize('configuration sync', "Configuration Sync"),
+					settings: ['configurationSync.*']
 				}
 			]
 		}

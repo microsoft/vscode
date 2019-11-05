@@ -57,8 +57,8 @@ export namespace PeekContext {
 	export const notInPeekEditor: ContextKeyExpr = inPeekEditor.toNegated();
 }
 
-export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | undefined {
-	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
+	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor instanceof EmbeddedCodeEditorWidget) {
 		return editor.getParentEditor();
 	}
@@ -83,7 +83,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	public _serviceBrand: undefined;
 
-	private _onDidClose = new Emitter<PeekViewWidget>();
+	private readonly _onDidClose = new Emitter<PeekViewWidget>();
 
 	protected _headElement?: HTMLDivElement;
 	protected _primaryHeading?: HTMLElement;

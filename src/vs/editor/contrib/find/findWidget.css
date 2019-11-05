@@ -32,13 +32,17 @@
 .monaco-editor .find-widget {
 	position: absolute;
 	z-index: 10;
-	top: -44px;
 	height: 33px;
 	overflow: hidden;
 	line-height: 19px;
-	transition: top 200ms linear;
+	transition: transform 200ms linear;
 	padding: 0 4px;
 	box-sizing: border-box;
+	transform: translateY(Calc(-100% - 10px)); /* shadow (10px) */
+}
+
+.monaco-editor .find-widget textarea {
+	margin: 0px;
 }
 
 .monaco-editor .find-widget.hiddenEditor {
@@ -46,30 +50,12 @@
 }
 
 /* Find widget when replace is toggled on */
-.monaco-editor .find-widget.replaceToggled {
-	top: -74px; /* find input height + replace input height + shadow (10px) */
-}
 .monaco-editor .find-widget.replaceToggled > .replace-part {
 	display: flex;
-	display: -webkit-flex;
 }
 
-.monaco-editor .find-widget.visible,
-.monaco-editor .find-widget.replaceToggled.visible {
-	top: 0;
-}
-
-/* Multiple line find widget */
-
-.monaco-editor .find-widget.multipleline {
-	top: unset;
-	bottom: 10px;
-}
-
-.monaco-editor .find-widget.multipleline.visible,
-.monaco-editor .find-widget.multipleline.replaceToggled.visible {
-	top: 0px;
-	bottom: unset;
+.monaco-editor .find-widget.visible  {
+	transform: translateY(0);
 }
 
 .monaco-editor .find-widget .monaco-inputbox.synthetic-focus {
@@ -92,7 +78,6 @@
 	margin: 4px 0 0 17px;
 	font-size: 12px;
 	display: flex;
-	display: -webkit-flex;
 }
 
 .monaco-editor .find-widget > .find-part .monaco-inputbox,
@@ -128,7 +113,6 @@
 .monaco-editor .find-widget .monaco-findInput {
 	vertical-align: middle;
 	display: flex;
-	display: -webkit-flex;
 	flex:1;
 }
 
@@ -144,7 +128,6 @@
 
 .monaco-editor .find-widget .matchesCount {
 	display: flex;
-	display: -webkit-flex;
 	flex: initial;
 	margin: 0 0 0 3px;
 	padding: 2px 0 0 2px;
@@ -156,11 +139,9 @@
 }
 
 .monaco-editor .find-widget .button {
-	min-width: 20px;
 	width: 20px;
 	height: 20px;
 	display: flex;
-	display: -webkit-flex;
 	flex: initial;
 	margin-left: 3px;
 	background-position: center center;
@@ -189,14 +170,10 @@
 .monaco-editor .find-widget .button.toggle {
 	position: absolute;
 	top: 0;
-	left: 0;
+	left: 3px;
 	width: 18px;
 	height: 100%;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing: border-box;
 }
 
 .monaco-editor .find-widget .button.toggle.disabled {
@@ -249,7 +226,6 @@
 .monaco-editor .find-widget > .replace-part > .monaco-findInput {
 	position: relative;
 	display: flex;
-	display: -webkit-flex;
 	vertical-align: middle;
 	flex: auto;
 	flex-grow: 0;
@@ -287,12 +263,6 @@
 }
 
 .monaco-editor .findMatch {
-	-webkit-animation-duration: 0;
-	-webkit-animation-name: inherit !important;
-	-moz-animation-duration: 0;
-	-moz-animation-name: inherit !important;
-	-ms-animation-duration: 0;
-	-ms-animation-name: inherit !important;
 	animation-duration: 0;
 	animation-name: inherit !important;
 }

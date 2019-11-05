@@ -19,7 +19,7 @@ import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategor
 import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from '../browser/webviewEditor';
 import { WebviewInput } from '../browser/webviewEditorInput';
-import { IWebviewEditorService, WebviewEditorService } from '../browser/webviewEditorService';
+import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
 	WebviewEditor,
@@ -31,7 +31,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	WebviewEditorInputFactory.ID,
 	WebviewEditorInputFactory);
 
-registerSingleton(IWebviewEditorService, WebviewEditorService, true);
+registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 

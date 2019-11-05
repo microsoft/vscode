@@ -39,7 +39,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -74,14 +73,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IFileService protected readonly fileService: IFileService,
 		@IUntitledEditorService protected readonly untitledEditorService: IUntitledEditorService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@IHostService private readonly hostService: IHostService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -95,7 +93,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this.autoSaveContext = AutoSaveContext.bindTo(contextKeyService);
 
 		const configuration = configurationService.getValue<IFilesConfiguration>();
-		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
+		this.currentFilesAssociationConfig = configuration?.files?.associations;
 
 		this.onFilesConfigurationChange(configuration);
 
@@ -180,7 +178,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			case ShutdownReason.CLOSE:
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 					doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-				} else if (await this.hostService.windowCount > 1 || platform.isMacintosh) {
+				} else if (await this.getWindowCount() > 1 || platform.isMacintosh) {
 					doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
 				} else {
 					doBackup = true; // backup if last window is closed on win/linux where the application quits right after
@@ -212,6 +210,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		return true;
 	}
+
+	protected abstract getWindowCount(): Promise<number>;
 
 	private backupAll(dirtyToBackup: URI[]): Promise<void> {
 
@@ -298,11 +298,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
 		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
-		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
+		const autoSaveMode = configuration?.files?.autoSave || AutoSaveConfiguration.OFF;
 		this.autoSaveContext.set(autoSaveMode);
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
-				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
+				this.configuredAutoSaveDelay = configuration?.files?.autoSaveDelay;
 				this.configuredAutoSaveOnFocusChange = false;
 				this.configuredAutoSaveOnWindowChange = false;
 				break;
@@ -335,14 +335,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Check for change in files associations
-		const filesAssociation = configuration && configuration.files && configuration.files.associations;
+		const filesAssociation = configuration?.files?.associations;
 		if (!objects.equals(this.currentFilesAssociationConfig, filesAssociation)) {
 			this.currentFilesAssociationConfig = filesAssociation;
 			this._onFilesAssociationChange.fire();
 		}
 
 		// Hot exit
-		const hotExitMode = configuration && configuration.files && configuration.files.hotExit;
+		const hotExitMode = configuration?.files?.hotExit;
 		if (hotExitMode === HotExitConfiguration.OFF || hotExitMode === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 			this.configuredHotExit = hotExitMode;
 		} else {
@@ -389,7 +389,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return {
 			...stream,
 			encoding: 'utf8',
-			value: await createTextBufferFactoryFromStream(stream.value, undefined, options && options.acceptTextOnly ? throwOnBinary : undefined)
+			value: await createTextBufferFactoryFromStream(stream.value, undefined, options?.acceptTextOnly ? throwOnBinary : undefined)
 		};
 	}
 
@@ -549,7 +549,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async save(resource: URI, options?: ISaveOptions): Promise<boolean> {
 
 		// Run a forced save if we detect the file is not dirty so that save participants can still run
-		if (options && options.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
+		if (options?.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
 			const model = this._models.get(resource);
 			if (model) {
 				options.reason = SaveReason.EXPLICIT;
@@ -567,15 +567,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
-			if (!this.environmentService.args['extension-development-confirm-save']) {
-				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
-			}
+			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
 		}
 
 		const resourcesToConfirm = this.getDirty(resources);
 		if (resourcesToConfirm.length === 0) {
 			return ConfirmResult.DONT_SAVE;
 		}
+
 		return promptSave(this.dialogService, resourcesToConfirm);
 	}
 
@@ -660,7 +659,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return result;
 	}
 
-	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: readonly string[]): Promise<URI | undefined> {
 
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
@@ -668,7 +667,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileDialogService.pickFileToSave(this.getSaveDialogOptions(defaultUri, availableFileSystems));
 	}
 
-	private getSaveDialogOptions(defaultUri: URI, availableFileSystems?: string[]): ISaveDialogOptions {
+	private getSaveDialogOptions(defaultUri: URI, availableFileSystems?: readonly string[]): ISaveDialogOptions {
 		const options: ISaveDialogOptions = {
 			defaultUri,
 			title: nls.localize('saveAsTitle', "Save As"),
@@ -835,7 +834,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Prefer an existing model if it is already loaded for the given target resource
 		let targetExists: boolean = false;
 		let targetModel = this.models.get(target);
-		if (targetModel && targetModel.isResolved()) {
+		if (targetModel?.isResolved()) {
 			targetExists = true;
 		}
 
@@ -938,7 +937,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private async doRevertAllFiles(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
-		const fileModels = options && options.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
+		const fileModels = options?.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();
 		fileModels.forEach(m => {
@@ -949,7 +948,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		await Promise.all(fileModels.map(async model => {
 			try {
-				await model.revert(options && options.soft);
+				await model.revert(options?.soft);
 
 				if (!model.isDirty()) {
 					const result = mapResourceToResult.get(model.getResource());

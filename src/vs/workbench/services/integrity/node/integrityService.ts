@@ -82,7 +82,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	private _prompt(): void {
 		const storedData = this._storage.get();
-		if (storedData && storedData.dontShowPrompt && storedData.commit === product.commit) {
+		if (storedData?.dontShowPrompt && storedData.commit === product.commit) {
 			return; // Do not prompt
 		}
 

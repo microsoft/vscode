@@ -8,7 +8,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,6 +23,7 @@ import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -117,14 +117,13 @@ export class TextMateWorkerHost {
 
 	constructor(
 		private readonly textMateService: TextMateService,
-		@IFileService private readonly _fileService: IFileService
+		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 	) {
 	}
 
 	async readFile(_resource: UriComponents): Promise<string> {
 		const resource = URI.revive(_resource);
-		const content = await this._fileService.readFile(resource);
-		return content.value.toString();
+		return this._extensionResourceLoaderService.readExtensionResource(resource);
 	}
 
 	async setTokens(_resource: UriComponents, versionId: number, tokens: Uint8Array): Promise<void> {
@@ -142,14 +141,14 @@ export class TextMateService extends AbstractTextMateService {
 	constructor(
 		@IModeService modeService: IModeService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IFileService fileService: IFileService,
+		@IExtensionResourceLoaderService extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
-		super(modeService, themeService, fileService, notificationService, logService, configurationService, storageService);
+		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, storageService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);
@@ -190,7 +189,7 @@ export class TextMateService extends AbstractTextMateService {
 		this._killWorker();
 
 		if (RUN_TEXTMATE_IN_WORKER) {
-			const workerHost = new TextMateWorkerHost(this, this._fileService);
+			const workerHost = new TextMateWorkerHost(this, this._extensionResourceLoaderService);
 			const worker = createWebWorker<TextMateWorker>(this._modelService, {
 				createData: {
 					grammarDefinitions

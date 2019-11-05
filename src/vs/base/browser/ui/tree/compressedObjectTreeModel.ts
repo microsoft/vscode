@@ -75,12 +75,21 @@ function _decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>, index = 0
 		children = Iterator.map(Iterator.from(element.children), el => _decompress(el, 0));
 	}
 
+	if (index === 0 && element.element.incompressible) {
+		return {
+			element: element.element.elements[index],
+			children,
+			incompressible: true,
+			collapsible: element.collapsible,
+			collapsed: element.collapsed
+		};
+	}
+
 	return {
 		element: element.element.elements[index],
 		children,
 		collapsible: element.collapsible,
-		collapsed: element.collapsed,
-		incompressible: index === 0 && element.element.incompressible
+		collapsed: element.collapsed
 	};
 }
 

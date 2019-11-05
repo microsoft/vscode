@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editor';
-import 'vs/css!./media/tokens';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -18,12 +17,12 @@ import { Schemas } from 'vs/base/common/network';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { EditorExtensionsRegistry, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/viewImpl';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
-import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
 import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { CursorColumns, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -67,7 +66,7 @@ export interface ICodeEditorWidgetOptions {
 	 * Contributions to instantiate.
 	 * Defaults to EditorExtensionsRegistry.getEditorContributions().
 	 */
-	contributions?: IEditorContributionCtor[];
+	contributions?: IEditorContributionDescription[];
 
 	/**
 	 * Telemetry data associated with this CodeEditorWidget.
@@ -236,7 +235,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	constructor(
 		domElement: HTMLElement,
-		options: IEditorOptions,
+		options: IEditorConstructionOptions,
 		codeEditorWidgetOptions: ICodeEditorWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -294,17 +293,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._contentWidgets = {};
 		this._overlayWidgets = {};
 
-		let contributions: IEditorContributionCtor[];
+		let contributions: IEditorContributionDescription[];
 		if (Array.isArray(codeEditorWidgetOptions.contributions)) {
 			contributions = codeEditorWidgetOptions.contributions;
 		} else {
 			contributions = EditorExtensionsRegistry.getEditorContributions();
 		}
-		for (let i = 0, len = contributions.length; i < len; i++) {
-			const ctor = contributions[i];
+		for (const desc of contributions) {
 			try {
-				const contribution = this._instantiationService.createInstance(ctor, this);
-				this._contributions[contribution.getId()] = contribution;
+				const contribution = this._instantiationService.createInstance(desc.ctor, this);
+				this._contributions[desc.id] = contribution;
 			} catch (err) {
 				onUnexpectedError(err);
 			}
@@ -329,7 +327,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.addCodeEditor(this);
 	}
 
-	protected _createConfiguration(options: IEditorOptions, accessibilityService: IAccessibilityService): editorCommon.IConfiguration {
+	protected _createConfiguration(options: IEditorConstructionOptions, accessibilityService: IAccessibilityService): editorCommon.IConfiguration {
 		return new Configuration(this.isSimpleWidget, options, this._domElement, accessibilityService);
 	}
 
@@ -498,6 +496,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const tabSize = this._modelData.model.getOptions().tabSize;
 
 		return CursorColumns.visibleColumnFromColumn(this._modelData.model.getLineContent(position.lineNumber), position.column, tabSize) + 1;
+	}
+
+	public getStatusbarColumn(rawPosition: IPosition): number {
+		if (!this._modelData) {
+			return rawPosition.column;
+		}
+
+		const position = this._modelData.model.validatePosition(rawPosition);
+		const tabSize = this._modelData.model.getOptions().tabSize;
+
+		return CursorColumns.toStatusbarColumn(this._modelData.model.getLineContent(position.lineNumber), position.column, tabSize);
 	}
 
 	public getPosition(): Position | null {
@@ -1172,7 +1181,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public hasWidgetFocus(): boolean {
-		return (this._editorWidgetFocus.getValue() === BooleanEventValue.True);
+		return this._focusTracker && this._focusTracker.hasFocus();
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
@@ -1361,6 +1370,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const e2: ICursorSelectionChangedEvent = {
 				selection: e.selections[0],
 				secondarySelections: e.selections.slice(1),
+				modelVersionId: e.modelVersionId,
+				oldSelections: e.oldSelections,
+				oldModelVersionId: e.oldModelVersionId,
 				source: e.source,
 				reason: e.reason
 			};
@@ -1452,13 +1464,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		const viewOutgoingEvents = new ViewOutgoingEvents(viewModel);
-		viewOutgoingEvents.onDidGainFocus = () => {
-			this._editorTextFocus.setValue(true);
-			// In IE, the focus is not synchronous, so we give it a little help
-			this._editorWidgetFocus.setValue(true);
-		};
-
 		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
+		viewOutgoingEvents.onDidGainFocus = () => this._editorTextFocus.setValue(true);
 		viewOutgoingEvents.onDidLoseFocus = () => this._editorTextFocus.setValue(false);
 		viewOutgoingEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
 		viewOutgoingEvents.onMouseDown = (e) => this._onMouseDown.fire(e);
@@ -1546,10 +1553,6 @@ export class BooleanEventEmitter extends Disposable {
 	constructor() {
 		super();
 		this._value = BooleanEventValue.NotSet;
-	}
-
-	public getValue(): BooleanEventValue {
-		return this._value;
 	}
 
 	public setValue(_value: boolean) {

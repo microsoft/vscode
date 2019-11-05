@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export class OutputPanel extends AbstractTextResourceEditor {
@@ -44,9 +44,9 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
-		@IWindowService windowService: IWindowService
+		@IHostService hostService: IHostService
 	) {
-		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, hostService);
 
 		this.scopedInstantiationService = instantiationService;
 	}

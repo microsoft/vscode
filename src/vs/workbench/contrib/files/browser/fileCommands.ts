@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IWindowService, IURIToOpen, IOpenSettings, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -29,7 +29,7 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getResourceForCommand, getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -37,12 +37,12 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { basename, toLocalResource, joinPath } from 'vs/base/common/resources';
+import { basename, toLocalResource, joinPath, isEqual } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
-import { withUndefinedAsNull } from 'vs/base/common/types';
+import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 
 // Commands
 
@@ -78,29 +78,29 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
-export const openWindowCommand = (accessor: ServicesAccessor, urisToOpen: IURIToOpen[], options?: IOpenSettings) => {
-	if (Array.isArray(urisToOpen)) {
-		const windowService = accessor.get(IWindowService);
+export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
+	if (Array.isArray(toOpen)) {
+		const hostService = accessor.get(IHostService);
 		const environmentService = accessor.get(IEnvironmentService);
 
 		// rewrite untitled: workspace URIs to the absolute path on disk
-		urisToOpen = urisToOpen.map(uriToOpen => {
-			if (isWorkspaceToOpen(uriToOpen) && uriToOpen.workspaceUri.scheme === Schemas.untitled) {
+		toOpen = toOpen.map(openable => {
+			if (isWorkspaceToOpen(openable) && openable.workspaceUri.scheme === Schemas.untitled) {
 				return {
-					workspaceUri: joinPath(environmentService.untitledWorkspacesHome, uriToOpen.workspaceUri.path, UNTITLED_WORKSPACE_NAME)
+					workspaceUri: joinPath(environmentService.untitledWorkspacesHome, openable.workspaceUri.path, UNTITLED_WORKSPACE_NAME)
 				};
 			}
 
-			return uriToOpen;
+			return openable;
 		});
 
-		windowService.openWindow(urisToOpen, options);
+		hostService.openWindow(toOpen, options);
 	}
 };
 
-export const newWindowCommand = (accessor: ServicesAccessor, options?: { reuse?: boolean, remoteAuthority?: string }) => {
+export const newWindowCommand = (accessor: ServicesAccessor, options?: IOpenEmptyWindowOptions) => {
 	const hostService = accessor.get(IHostService);
-	hostService.openEmptyWindow(options);
+	hostService.openWindow(options);
 };
 
 async function save(
@@ -138,12 +138,12 @@ async function doSaveAs(
 	editorGroupService: IEditorGroupsService,
 	environmentService: IWorkbenchEnvironmentService
 ): Promise<boolean> {
-	let viewStateOfSource: IEditorViewState | null = null;
+	let viewStateOfSource: IEditorViewState | undefined = undefined;
 	const activeTextEditorWidget = getCodeEditor(editorService.activeTextEditorWidget);
 	if (activeTextEditorWidget) {
 		const activeResource = toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
-		if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && activeResource.toString() === resource.toString()) {
-			viewStateOfSource = activeTextEditorWidget.saveViewState();
+		if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && isEqual(activeResource, resource)) {
+			viewStateOfSource = withNullAsUndefined(activeTextEditorWidget.saveViewState());
 		}
 	}
 
@@ -166,7 +166,7 @@ async function doSaveAs(
 		target = await textFileService.saveAs(resource, undefined, options);
 	}
 
-	if (!target || target.toString() === resource.toString()) {
+	if (!target || isEqual(target, resource)) {
 		return false; // save canceled or same resource used
 	}
 
@@ -174,7 +174,7 @@ async function doSaveAs(
 		resource: target,
 		options: {
 			pinned: true,
-			viewState: viewStateOfSource || undefined
+			viewState: viewStateOfSource
 		}
 	};
 
@@ -196,8 +196,8 @@ async function doSave(
 
 	// Pin the active editor if we are saving it
 	const activeControl = editorService.activeControl;
-	const activeEditorResource = activeControl && activeControl.input && activeControl.input.getResource();
-	if (activeControl && activeEditorResource && activeEditorResource.toString() === resource.toString()) {
+	const activeEditorResource = activeControl?.input?.getResource();
+	if (activeControl && activeEditorResource && isEqual(activeEditorResource, resource)) {
 		activeControl.group.pinEditor(activeControl.input);
 	}
 
@@ -236,7 +236,7 @@ async function saveAll(saveAllArguments: any, editorService: IEditorService, unt
 					encoding: untitledEditorService.getEncoding(resource),
 					resource,
 					options: {
-						inactive: activeEditorResource ? activeEditorResource.toString() !== resource.toString() : true,
+						inactive: activeEditorResource ? !isEqual(activeEditorResource, resource) : true,
 						pinned: true,
 						preserveFocus: true,
 						index: group.getIndexOfEditor(e)
@@ -252,8 +252,8 @@ async function saveAll(saveAllArguments: any, editorService: IEditorService, unt
 	// Update untitled resources to the saved ones, so we open the proper files
 	groupIdToUntitledResourceInput.forEach((inputs, groupId) => {
 		inputs.forEach(i => {
-			const targetResult = result.results.filter(r => r.success && r.source.toString() === i.resource.toString()).pop();
-			if (targetResult && targetResult.target) {
+			const targetResult = result.results.filter(r => r.success && isEqual(r.source, i.resource)).pop();
+			if (targetResult?.target) {
 				i.resource = targetResult.target;
 			}
 		});
@@ -315,7 +315,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_D),
-	handler: (accessor, resource: URI | object) => {
+	handler: async (accessor, resource: URI | object) => {
 		const instantiationService = accessor.get(IInstantiationService);
 		const textModelService = accessor.get(ITextModelService);
 		const editorService = accessor.get(IEditorService);
@@ -337,8 +337,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = basename(uri);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (in file) ↔ {1}", name, name);
 
-			TextFileContentProvider.open(uri, COMPARE_WITH_SAVED_SCHEMA, editorLabel, editorService).then(() => {
-
+			try {
+				await TextFileContentProvider.open(uri, COMPARE_WITH_SAVED_SCHEMA, editorLabel, editorService);
 				// Dispose once no more diff editor is opened with the scheme
 				if (registerEditorListener) {
 					providerDisposables.push(editorService.onDidVisibleEditorsChange(() => {
@@ -347,12 +347,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						}
 					}));
 				}
-			}, error => {
+			} catch {
 				providerDisposables = dispose(providerDisposables);
-			});
+			}
 		}
-
-		return Promise.resolve(true);
 	}
 });
 
@@ -588,7 +586,7 @@ CommandsRegistry.registerCommand({
 		const workspace = contextService.getWorkspace();
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService)).filter(r =>
 			// Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
-			workspace.folders.some(f => f.uri.toString() === r.toString())
+			workspace.folders.some(f => isEqual(f.uri, r))
 		);
 
 		return workspaceEditingService.removeFolders(resources);

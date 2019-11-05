@@ -10,7 +10,6 @@ import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
-import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -26,7 +25,7 @@ import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionba
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { Command } from 'vs/editor/common/modes';
-import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewDescriptor } from 'vs/workbench/common/views';
@@ -82,8 +81,8 @@ class StatusBarActionViewItem extends ActionViewItem {
 	}
 
 	updateLabel(): void {
-		if (this.options.label) {
-			this.label.innerHTML = renderOcticons(this.getAction().label);
+		if (this.options.label && this.label) {
+			this.label.innerHTML = renderCodicons(this.getAction().label);
 		}
 	}
 }
@@ -102,7 +101,7 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 
 	readonly templateId = 'provider';
 
-	private _onDidRenderElement = new Emitter<ISCMRepository>();
+	private readonly _onDidRenderElement = new Emitter<ISCMRepository>();
 	readonly onDidRenderElement = this._onDidRenderElement.event;
 
 	constructor(
@@ -173,7 +172,7 @@ export class MainPanel extends ViewletPanel {
 	static readonly ID = 'scm.mainPanel';
 	static readonly TITLE = localize('scm providers', "Source Control Providers");
 
-	private list: List<ISCMRepository>;
+	private list!: WorkbenchList<ISCMRepository>;
 
 	constructor(
 		protected viewModel: IViewModel,
@@ -194,7 +193,7 @@ export class MainPanel extends ViewletPanel {
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<ISCMRepository>>(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false
 		});

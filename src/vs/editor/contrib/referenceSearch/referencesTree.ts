@@ -101,7 +101,7 @@ export class StringRepresentationProvider implements IKeyboardNavigationLabelPro
 export class IdentityProvider implements IIdentityProvider<TreeElement> {
 
 	getId(element: TreeElement): { toString(): string; } {
-		return element.id;
+		return element.uri;
 	}
 }
 

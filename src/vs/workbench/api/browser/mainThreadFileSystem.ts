@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -121,12 +121,12 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 }
 
-class RemoteFileSystemProvider implements IFileSystemProvider {
+class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileFolderCopyCapability {
 
-	private readonly _onDidChange = new Emitter<IFileChange[]>();
+	private readonly _onDidChange = new Emitter<readonly IFileChange[]>();
 	private readonly _registration: IDisposable;
 
-	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChange.event;
 
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;

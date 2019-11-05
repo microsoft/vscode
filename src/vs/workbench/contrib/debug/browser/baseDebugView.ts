@@ -91,7 +91,8 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 	}
 	if (options.linkDetector) {
 		container.textContent = '';
-		container.appendChild(options.linkDetector.handleLinks(value));
+		const session = (expressionOrValue instanceof ExpressionContainer) ? expressionOrValue.getSession() : undefined;
+		container.appendChild(options.linkDetector.linkify(value, false, session ? session.root : undefined));
 	} else {
 		container.textContent = value;
 	}

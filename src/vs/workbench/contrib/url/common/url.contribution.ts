@@ -35,7 +35,7 @@ export class OpenUrlAction extends Action {
 	run(): Promise<any> {
 		return this.quickInputService.input({ prompt: 'URL to open' }).then(input => {
 			const uri = URI.parse(input);
-			this.urlService.open(uri);
+			this.urlService.open(uri, { trusted: true });
 		});
 	}
 }
@@ -54,7 +54,10 @@ CommandsRegistry.registerCommand(manageTrustedDomainSettingsCommand);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: manageTrustedDomainSettingsCommand.id,
-		title: manageTrustedDomainSettingsCommand.description.description
+		title: {
+			value: manageTrustedDomainSettingsCommand.description.description,
+			original: 'Manage Trusted Domains'
+		}
 	}
 });
 

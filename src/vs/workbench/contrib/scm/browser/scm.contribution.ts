@@ -28,7 +28,7 @@ import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 class OpenSCMViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static LABEL = localize('toggleGitViewlet', "Show Git");
+	static readonly LABEL = localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
@@ -42,7 +42,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	SCMViewlet,
 	VIEWLET_ID,
 	localize('source control', "Source Control"),
-	'scm',
+	'codicon-source-control',
 	2
 ));
 
@@ -90,6 +90,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 3,
 			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
 		},
+		'scm.diffDecorationsGutterVisibility': {
+			type: 'string',
+			enum: ['always', 'hover'],
+			enumDescriptions: [
+				localize('scm.diffDecorationsGutterVisibility.always', "Show the diff decorator in the gutter at all times."),
+				localize('scm.diffDecorationsGutterVisibility.hover', "Show the diff decorator in the gutter only on hover.")
+			],
+			description: localize('scm.diffDecorationsGutterVisibility', "Controls the visibility of the Source Control diff decorator in the gutter."),
+			default: 'always'
+		},
 		'scm.alwaysShowActions': {
 			type: 'boolean',
 			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),
@@ -105,7 +115,22 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.countBadge', "Controls the Source Control count badge."),
 			default: 'all'
-		}
+		},
+		'scm.defaultViewMode': {
+			type: 'string',
+			enum: ['tree', 'list'],
+			enumDescriptions: [
+				localize('scm.defaultViewMode.tree', "Show the repository changes as a tree."),
+				localize('scm.defaultViewMode.list', "Show the repository changes as a list.")
+			],
+			description: localize('scm.defaultViewMode', "Controls the default Source Control repository view mode."),
+			default: 'list'
+		},
+		'scm.autoReveal': {
+			type: 'boolean',
+			description: localize('autoReveal', "Controls whether the SCM view should automatically reveal and select files when opening them."),
+			default: true
+		},
 	}
 });
 

@@ -14,7 +14,7 @@ import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeNode, ICompr
 import { memoize } from 'vs/base/common/decorators';
 
 export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
-	sorter?: ITreeSorter<T>;
+	readonly sorter?: ITreeSorter<T>;
 }
 
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
@@ -57,10 +57,6 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 
 interface ICompressedTreeNodeProvider<T, TFilterData> {
 	getCompressedTreeNode(location: T | null): ITreeNode<ICompressedTreeNode<T> | null, TFilterData>;
-}
-
-export interface ICompressibleObjectTreeOptions<T, TFilterData = void> extends IObjectTreeOptions<T, TFilterData> {
-	readonly elementMapper?: ElementMapper<T>;
 }
 
 export interface ICompressibleTreeRenderer<T, TFilterData = void, TTemplateData = void> extends ITreeRenderer<T, TFilterData, TTemplateData> {
@@ -136,6 +132,7 @@ export interface ICompressibleKeyboardNavigationLabelProvider<T> extends IKeyboa
 }
 
 export interface ICompressibleObjectTreeOptions<T, TFilterData = void> extends IObjectTreeOptions<T, TFilterData> {
+	readonly elementMapper?: ElementMapper<T>;
 	readonly keyboardNavigationLabelProvider?: ICompressibleKeyboardNavigationLabelProvider<T>;
 }
 
@@ -164,7 +161,7 @@ function asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider: () => I
 
 export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
 
-	protected model: CompressibleObjectTreeModel<T, TFilterData>;
+	protected model!: CompressibleObjectTreeModel<T, TFilterData>;
 
 	constructor(
 		user: string,

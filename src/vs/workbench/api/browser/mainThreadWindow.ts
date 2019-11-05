@@ -7,14 +7,12 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
-
-	private handlePool = 1;
 
 	private readonly proxy: ExtHostWindowShape;
 	private readonly disposables = new DisposableStore();
@@ -22,12 +20,12 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
-		Event.latch(windowService.onDidChangeFocus)
+		Event.latch(hostService.onDidChangeFocus)
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 	}
 
@@ -41,7 +39,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	}
 
 	$getWindowVisibility(): Promise<boolean> {
-		return this.windowService.isFocused();
+		return Promise.resolve(this.hostService.hasFocus);
 	}
 
 	async $openUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<boolean> {
@@ -49,23 +47,9 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		return this.openerService.open(uri, { openExternal: true, allowTunneling: options.allowTunneling });
 	}
 
-	async $resolveExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<{ handle: number, result: UriComponents }> {
+	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
 		const uri = URI.revive(uriComponents);
-		const handle = ++this.handlePool;
-
 		const result = await this.openerService.resolveExternalUri(uri, options);
-		this.resolved.set(handle, result);
-
-		return { handle, result: result.resolved };
-	}
-
-	async $releaseResolvedExternalUri(handle: number): Promise<boolean> {
-		const entry = this.resolved.get(handle);
-		if (entry) {
-			entry.dispose();
-			this.resolved.delete(handle);
-			return true;
-		}
-		return false;
+		return result.resolved;
 	}
 }

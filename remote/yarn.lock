@@ -2,87 +2,31 @@
 # yarn lockfile v1
 
 
-"@microsoft/applicationinsights-analytics-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-analytics-js/-/applicationinsights-analytics-js-2.1.1.tgz#6d09c1915f808026e2d45165d04802f09affed59"
-  integrity sha512-VKIutoFKY99CyKwxLUuj6Vnq14/QwXo9/QSQDpYnHEjo+uKn7QmLsHqWw0K9uYNfNAXt4BZimX/zDg6jZtzeXg==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-channel-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-channel-js/-/applicationinsights-channel-js-2.1.1.tgz#e205eddd93e49d17d9e0711a612b4bfc9810888f"
-  integrity sha512-fYr9IAqtaEr9AmaPaL3SLQVT3t3GQzl+n74gpNKyAVakDIm0nYQ/bimjdcAhJMDf1VGNSPg/xICneyuZg7Wxlg==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-common@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-common/-/applicationinsights-common-2.1.1.tgz#27e6074584a7a3a8ca3f11f7ff2b7ff0f395bf2d"
-  integrity sha512-2hkS1Ia1FmAjCuYZ5JlG20/WgObqdsKtmK5YALAFGHIB4KSQ/Za1qazS+7GsG+E0F9UJivNWL1geUIcNqg5Qjg==
-  dependencies:
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-core-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.1.1.tgz#30fb6a519cc1c6119c419c4811ce72c260217d9e"
-  integrity sha512-4t4wf6SKqIcWEQDPg/uOhm+BxtHhu/AFreyEoYZmMfcxzAu33h1FtTQRtxBNbYH1+thiNZCh80yUpnT7d9Hrlw==
-  dependencies:
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-dependencies-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-dependencies-js/-/applicationinsights-dependencies-js-2.1.1.tgz#8154c3efcb24617d015d0bce7c2cc47797a8d3c4"
-  integrity sha512-yhb4EToBp+aI+qLo0h5NDNtoo3sDFV60uyIOK843YjzXqVotcXX/lRShlghTkJtYH09QhrdzDjViUHnD4sMFSQ==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-properties-js@2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-properties-js/-/applicationinsights-properties-js-2.1.1.tgz#ca34232766eb16167b5d87693e2ae5d94f2a1559"
-  integrity sha512-8l+/ppw6xKTam2RL4EHZ52Lcf217olw81j6kyBNKtIcGwSnLNHrFwEeF3vBWIteG2JKzlg1GhGjrkB3oxXsV2g==
-  dependencies:
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    tslib "^1.9.3"
-
-"@microsoft/applicationinsights-web@^2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-web/-/applicationinsights-web-2.1.1.tgz#1a44eddda7c244b88d9eb052dab6c855682e4f05"
-  integrity sha512-crvhCkNsNxkFuPWmttyWNSAA96D5FxBtKS6UA9MV9f9XHevTfchf/E3AuU9JZcsXufWMQLwLrUQ9ZiA1QJ0EWA==
-  dependencies:
-    "@microsoft/applicationinsights-analytics-js" "2.1.1"
-    "@microsoft/applicationinsights-channel-js" "2.1.1"
-    "@microsoft/applicationinsights-common" "2.1.1"
-    "@microsoft/applicationinsights-core-js" "2.1.1"
-    "@microsoft/applicationinsights-dependencies-js" "2.1.1"
-    "@microsoft/applicationinsights-properties-js" "2.1.1"
-
-agent-base@4, agent-base@^4.1.0:
+agent-base@4:
   version "4.2.0"
   resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-4.2.0.tgz#9838b5c3392b962bad031e6a4c5e1024abec45ce"
   integrity sha512-c+R/U5X+2zz2+UCrCFv6odQzJdoqI+YecuhnAJLa1zYaMc13zPfwMwZrr91Pd1DYNo/yPRbiM4WVf9whgwFsIg==
   dependencies:
     es6-promisify "^5.0.0"
 
-agent-base@~4.2.0:
+agent-base@^4.3.0:
+  version "4.3.0"
+  resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-4.3.0.tgz#8165f01c436009bccad0b1d122f05ed770efc6ee"
+  integrity sha512-salcGninV0nPrwpGNn4VTXBb1SOuXQBiqbrNXoeizJsHrsL6ERFM2Ne3JUSBWRE6aeNJI2ROP/WEEIDUiDe3cg==
+  dependencies:
+    es6-promisify "^5.0.0"
+
+agent-base@~4.2.1:
   version "4.2.1"
   resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-4.2.1.tgz#d89e5999f797875674c07d87f260fc41e83e8ca9"
   integrity sha512-JVwXMr9nHYTUXsBFKUqhJwvlcYU/blreOEUkhNR2eXZIvwd+c+o5V4MgDPKWnMS/56awN3TRzIP+KoPn+roQtg==
   dependencies:
     es6-promisify "^5.0.0"
 
-anymatch@^3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-3.1.0.tgz#e609350e50a9313b472789b2f14ef35808ee14d6"
-  integrity sha512-Ozz7l4ixzI7Oxj2+cw+p0tVUt27BpaJ+1+q1TCeANWxHpvyn2+Un+YamBdfKu0uh8xLodGhoa1v7595NhKDAuA==
+anymatch@~3.1.1:
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-3.1.1.tgz#c55ecf02185e2469259399310c173ce31233b142"
+  integrity sha512-mM8522psRCqzV+6LhomX5wgp25YVibjh8Wj23I5RPkPppSVSjyKD2A2mBJmWGa+KN7f2D6LNh9jkBCeyLktzjg==
   dependencies:
     normalize-path "^3.0.0"
     picomatch "^2.0.4"
@@ -108,7 +52,7 @@ bindings@^1.5.0:
   dependencies:
     file-uri-to-path "1.0.0"
 
-braces@^3.0.2:
+braces@~3.0.2:
   version "3.0.2"
   resolved "https://registry.yarnpkg.com/braces/-/braces-3.0.2.tgz#3454e1a462ee8d599e236df336cd9ea4f8afe107"
   integrity sha512-b8um+L1RzM3WDSzvhm6gIz1yfTbBt6YTlcEKAvsmqCZZFw46z626lVj9j1yEPW33H5H+lBQpZMP1k8l+78Ha0A==
@@ -120,20 +64,20 @@ buffer-crc32@~0.2.3:
   resolved "https://registry.yarnpkg.com/buffer-crc32/-/buffer-crc32-0.2.13.tgz#0d333e3f00eac50aa1454abd30ef8c2a5d9a7242"
   integrity sha1-DTM+PwDqxQqhRUq9MO+MKl2ackI=
 
-chokidar@3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/chokidar/-/chokidar-3.1.0.tgz#ff23d077682a90eadd209bfa76eb10ed6d359668"
-  integrity sha512-6vZfo+7W0EOlbSo0nhVKMz4yyssrwiPbBZ8wj1lq8/+l4ZhGZ2U4Md7PspvmijXp1a26D3B7AHEBmIB7aVtaOQ==
+chokidar@3.2.3:
+  version "3.2.3"
+  resolved "https://registry.yarnpkg.com/chokidar/-/chokidar-3.2.3.tgz#b9270a565d14f02f6bfdd537a6a2bbf5549b8c8c"
+  integrity sha512-GtrxGuRf6bzHQmXWRepvsGnXpkQkVU+D2/9a7dAe4a7v1NhrfZOZ2oKf76M3nOs46fFYL8D+Q8JYA4GYeJ8Cjw==
   dependencies:
-    anymatch "^3.1.0"
-    braces "^3.0.2"
-    glob-parent "^5.0.0"
-    is-binary-path "^2.1.0"
-    is-glob "^4.0.1"
-    normalize-path "^3.0.0"
-    readdirp "^3.1.1"
+    anymatch "~3.1.1"
+    braces "~3.0.2"
+    glob-parent "~5.1.0"
+    is-binary-path "~2.1.0"
+    is-glob "~4.0.1"
+    normalize-path "~3.0.0"
+    readdirp "~3.2.0"
   optionalDependencies:
-    fsevents "^2.0.6"
+    fsevents "~2.1.1"
 
 cookie@^0.4.0:
   version "0.4.0"
@@ -199,15 +143,15 @@ fs-extra@^7.0.0:
     jsonfile "^4.0.0"
     universalify "^0.1.0"
 
-fsevents@^2.0.6:
-  version "2.0.7"
-  resolved "https://registry.yarnpkg.com/fsevents/-/fsevents-2.0.7.tgz#382c9b443c6cbac4c57187cdda23aa3bf1ccfc2a"
-  integrity sha512-a7YT0SV3RB+DjYcppwVDLtn13UQnmg0SWZS7ezZD0UjnLwXmy8Zm21GMVGLaFGimIqcvyMQaOJBrop8MyOp1kQ==
+fsevents@~2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/fsevents/-/fsevents-2.1.1.tgz#74c64e21df71721845d0c44fe54b7f56b82995a9"
+  integrity sha512-4FRPXWETxtigtJW/gxzEDsX1LVbPAM93VleB83kZB+ellqbHMkyt2aJfuzNLRvFPnGi6bcE5SvfxgbXPeKteJw==
 
-glob-parent@^5.0.0:
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/glob-parent/-/glob-parent-5.0.0.tgz#1dc99f0f39b006d3e92c2c284068382f0c20e954"
-  integrity sha512-Z2RwiujPRGluePM6j699ktJYxmPpJKCfpGA13jz2hmFZC7gKetzrWvg5KN3+OsIFmydGyZ1AVwERCq1w/ZZwRg==
+glob-parent@~5.1.0:
+  version "5.1.0"
+  resolved "https://registry.yarnpkg.com/glob-parent/-/glob-parent-5.1.0.tgz#5f4c1d1e748d30cd73ad2944b3577a81b081e8c2"
+  integrity sha512-qjtRgnIVmOfnKUE3NJAQEdk+lKrxfw8t5ke7SXtfMTHcjsBfOfWXCQfdb30zfDoZQ2IRSIiidmjtbHZPZ++Ihw==
   dependencies:
     is-glob "^4.0.1"
 
@@ -221,7 +165,7 @@ graceful-fs@^4.1.6:
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.0.tgz#8d8fdc73977cb04104721cb53666c1ca64cd328b"
   integrity sha512-jpSvDPV4Cq/bgtpndIWbI5hmYxhQGHPC4d4cqBPb4DLniCfhJokdXhwhaDuLBGLQdvvRum/UiX6ECVIPvDXqdg==
 
-http-proxy-agent@2.1.0, http-proxy-agent@^2.1.0:
+http-proxy-agent@^2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/http-proxy-agent/-/http-proxy-agent-2.1.0.tgz#e4821beef5b2142a2026bd73926fe537631c5405"
   integrity sha512-qwHbBLV7WviBl0rQsOzH6o5lwyOIvwp/BdFnvVxXORldu5TmjFfjzBcWUWS5kWAZhmv+JtiDhSuQCp4sBfbIgg==
@@ -229,12 +173,12 @@ http-proxy-agent@2.1.0, http-proxy-agent@^2.1.0:
     agent-base "4"
     debug "3.1.0"
 
-https-proxy-agent@2.2.1, https-proxy-agent@^2.2.1:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-2.2.1.tgz#51552970fa04d723e04c56d04178c3f92592bbc0"
-  integrity sha512-HPCTS1LW51bcyMYbxUIOO4HEOlQ1/1qRaFWcyxvwaqUS9TY88aoEuHUY33kuAh1YhVVaDQhLZsnPd+XNARWZlQ==
+https-proxy-agent@^2.2.3:
+  version "2.2.4"
+  resolved "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-2.2.4.tgz#4ee7a737abd92678a293d9b34a1af4d0d08c787b"
+  integrity sha512-OmvfoQ53WLjtA9HeYP9RNrWMJzzAz1JGaSFr1nijg0PVR1JaD/xbJq1mdEIIlxGpXp9eSe/O2LgU9DJmTPd0Eg==
   dependencies:
-    agent-base "^4.1.0"
+    agent-base "^4.3.0"
     debug "^3.1.0"
 
 iconv-lite@0.5.0:
@@ -249,7 +193,7 @@ ip@^1.1.5:
   resolved "https://registry.yarnpkg.com/ip/-/ip-1.1.5.tgz#bdded70114290828c0a039e72ef25f5aaec4354a"
   integrity sha1-vd7XARQpCCjAoDnnLvJfWq7ENUo=
 
-is-binary-path@^2.1.0:
+is-binary-path@~2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/is-binary-path/-/is-binary-path-2.1.0.tgz#ea1f7f3b80f064236e83470f86c09c254fb45b09"
   integrity sha512-ZMERYes6pDydyuGidse7OsHxtbI7WVeUEozgR/g7rd0xUimYNlvZRE/K2MgZTjWy725IfelLeVcEM97mmtRGXw==
@@ -261,7 +205,7 @@ is-extglob@^2.1.1:
   resolved "https://registry.yarnpkg.com/is-extglob/-/is-extglob-2.1.1.tgz#a88c02535791f02ed37c76a1b9ea9773c833f8c2"
   integrity sha1-qIwCU1eR8C7TfHahueqXc8gz+MI=
 
-is-glob@^4.0.1:
+is-glob@^4.0.1, is-glob@~4.0.1:
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/is-glob/-/is-glob-4.0.1.tgz#7567dbe9f2f5e2467bc77ab83c4a29482407a5dc"
   integrity sha512-5G0tKtBTFImOqDnLB2hG6Bp2qcKEFduo4tZu9MT/H6NQv/ghhy30o55ufafxJ/LdH79LLs2Kfrn85TLKyA7BUg==
@@ -312,7 +256,7 @@ ms@2.0.0:
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
   integrity sha1-VgiurfwAvmwpAd9fmGF4jeDVl8g=
 
-nan@^2.0.0, nan@^2.13.2, nan@^2.14.0:
+nan@^2.0.0, nan@^2.14.0:
   version "2.14.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
@@ -327,14 +271,14 @@ node-addon-api@1.6.2:
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-1.6.2.tgz#d8aad9781a5cfc4132cc2fecdbdd982534265217"
   integrity sha512-479Bjw9nTE5DdBSZZWprFryHGjUaQC31y1wHo19We/k0BZlrmhqQitWoUL0cD8+scljCbIUL+E58oRDEakdGGA==
 
-node-pty@0.9.0-beta19:
-  version "0.9.0-beta19"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta19.tgz#0fd381b2006f4665c4c2ee0509219e591842371a"
-  integrity sha512-MkKEvBnauGnzgXNr/oaoWQLVXm1gheIKZs4YQp8883ZiETmbEnpSvD0FU3bELcPXG5VFPRqIGsQJ4KUMBLzkPA==
+node-pty@^0.10.0-beta2:
+  version "0.10.0-beta2"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta2.tgz#6fd0d2fbbe881869e4e19795a05c557ac958da81"
+  integrity sha512-IU2lzlPUZ+gKG7pHJjzBHpnuwPTxWGgT3iyQicZfdL7dwLvP5cm00QxavAXCInBmRkOMhvM4aBSKvfzqQnCDBA==
   dependencies:
-    nan "^2.13.2"
+    nan "^2.14.0"
 
-normalize-path@^3.0.0:
+normalize-path@^3.0.0, normalize-path@~3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-3.0.0.tgz#0dcd69ff23a1c9b11fd0978316644a0388216a65"
   integrity sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==
@@ -371,10 +315,10 @@ picomatch@^2.0.4:
   resolved "https://registry.yarnpkg.com/picomatch/-/picomatch-2.0.7.tgz#514169d8c7cd0bdbeecc8a2609e34a7163de69f6"
   integrity sha512-oLHIdio3tZ0qH76NybpeneBhYVj0QFTfXEFTc/B3zKQspYfYYkWYgFsmzo+4kvId/bQRcNkVeguI3y+CD22BtA==
 
-readdirp@^3.1.1:
-  version "3.1.2"
-  resolved "https://registry.yarnpkg.com/readdirp/-/readdirp-3.1.2.tgz#fa85d2d14d4289920e4671dead96431add2ee78a"
-  integrity sha512-8rhl0xs2cxfVsqzreYCvs8EwBfn/DhVdqtoLmw19uI3SC5avYX9teCurlErfpPXGmYtMHReGaP2RsLnFvz/lnw==
+readdirp@~3.2.0:
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/readdirp/-/readdirp-3.2.0.tgz#c30c33352b12c96dfb4b895421a49fd5a9593839"
+  integrity sha512-crk4Qu3pmXwgxdSgGhgA/eXiJAPQiX4GMOZZMXnqKxHX7TaoL+3gQVo/WeuAiogr07DpnfjIMpXXa+PAIvwPGQ==
   dependencies:
     picomatch "^2.0.4"
 
@@ -393,26 +337,26 @@ semver@^5.3.0:
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.6.0.tgz#7e74256fbaa49c75aa7c7a205cc22799cac80004"
   integrity sha512-RS9R6R35NYgQn++fkDWaOmqGoj4Ek9gGs+DPxNUZKuwE183xjJroKvyo1IzVFeXvUrvmALy6FWD5xrdJT25gMg==
 
-smart-buffer@^4.0.1:
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/smart-buffer/-/smart-buffer-4.0.1.tgz#07ea1ca8d4db24eb4cac86537d7d18995221ace3"
-  integrity sha512-RFqinRVJVcCAL9Uh1oVqE6FZkqsyLiVOYEZ20TqIOjuX7iFVJ+zsbs4RIghnw/pTs7mZvt8ZHhvm1ZUrR4fykg==
+smart-buffer@4.0.2:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/smart-buffer/-/smart-buffer-4.0.2.tgz#5207858c3815cc69110703c6b94e46c15634395d"
+  integrity sha512-JDhEpTKzXusOqXZ0BUIdH+CjFdO/CR3tLlf5CN34IypI+xMmXW1uB16OOY8z3cICbJlDAVJzNbwBhNO0wt9OAw==
 
-socks-proxy-agent@4.0.1:
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/socks-proxy-agent/-/socks-proxy-agent-4.0.1.tgz#5936bf8b707a993079c6f37db2091821bffa6473"
-  integrity sha512-Kezx6/VBguXOsEe5oU3lXYyKMi4+gva72TwJ7pQY5JfqUx2nMk7NXA6z/mpNqIlfQjWYVfeuNvQjexiTaTn6Nw==
+socks-proxy-agent@^4.0.1:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/socks-proxy-agent/-/socks-proxy-agent-4.0.2.tgz#3c8991f3145b2799e70e11bd5fbc8b1963116386"
+  integrity sha512-NT6syHhI9LmuEMSK6Kd2V7gNv5KFZoLE7V5udWmn0de+3Mkj3UMA/AJPLyeNUVmElCurSHtUdM3ETpR3z770Wg==
   dependencies:
-    agent-base "~4.2.0"
-    socks "~2.2.0"
+    agent-base "~4.2.1"
+    socks "~2.3.2"
 
-socks@~2.2.0:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/socks/-/socks-2.2.1.tgz#68ad678b3642fbc5d99c64c165bc561eab0215f9"
-  integrity sha512-0GabKw7n9mI46vcNrVfs0o6XzWzjVa3h6GaSo2UPxtWAROXUWavfJWh1M4PR5tnE0dcnQXZIDFP4yrAysLze/w==
+socks@~2.3.2:
+  version "2.3.2"
+  resolved "https://registry.yarnpkg.com/socks/-/socks-2.3.2.tgz#ade388e9e6d87fdb11649c15746c578922a5883e"
+  integrity sha512-pCpjxQgOByDHLlNqlnh/mNSAxIUkyBBuwwhTcV+enZGbDaClPvHdvm6uvOwZfFJkam7cGhBNbb4JxiP8UZkRvQ==
   dependencies:
     ip "^1.1.5"
-    smart-buffer "^4.0.1"
+    smart-buffer "4.0.2"
 
 spdlog@^0.9.0:
   version "0.9.0"
@@ -430,11 +374,6 @@ to-regex-range@^5.0.1:
   dependencies:
     is-number "^7.0.0"
 
-tslib@^1.9.3:
-  version "1.10.0"
-  resolved "https://registry.yarnpkg.com/tslib/-/tslib-1.10.0.tgz#c3c19f95973fb0a62973fb09d90d961ee43e5c8a"
-  integrity sha512-qOebF53frne81cf0S9B41ByenJ3/IuH8yJKngAX35CmiZySA0khhkovshKK+jGCaMnVomla7gVlIcc3EvKPbTQ==
-
 universalify@^0.1.0:
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.2.tgz#b646f69be3942dabcecc9d6639c80dc105efaa66"
@@ -445,25 +384,25 @@ vscode-minimist@^1.2.1:
   resolved "https://registry.yarnpkg.com/vscode-minimist/-/vscode-minimist-1.2.1.tgz#e63d3f4a9bf3680dcb8f9304eed612323fd6926a"
   integrity sha512-cmB72+qDoiCFJ1UKnGUBdGYfXzdpJ3bQM/D/+XhkVk5v7uZgLbYiCz5JcwVyk7NC7hSi5VGtQ4wihzmi12NeXw==
 
-vscode-proxy-agent@0.4.0:
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.4.0.tgz#574833e65405c6333f350f1b9fef9909deccb6b5"
-  integrity sha512-L+WKjDOXRPxpq31Uj1Wr3++jaNNmhykn8JnGoYcwepbTnUwJKCbyyXRgb/hlBx0LXsF+k3BsnXt+r+5Q8rm97g==
+vscode-proxy-agent@^0.5.1:
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.5.1.tgz#7fd15e157c02176a0dca9f87840ad0991a62ca57"
+  integrity sha512-Nnkc7gBk9iAbbZURYZm3p/wvDvRVwDvdzEvDqF1Jh40p6przwQU/JTlV1XLrmd4cCwh6TOAWD81Z3cq+K7Xdmw==
   dependencies:
-    debug "3.1.0"
-    http-proxy-agent "2.1.0"
-    https-proxy-agent "2.2.1"
-    socks-proxy-agent "4.0.1"
+    debug "^3.1.0"
+    http-proxy-agent "^2.1.0"
+    https-proxy-agent "^2.2.3"
+    socks-proxy-agent "^4.0.1"
 
 vscode-ripgrep@^1.5.7:
   version "1.5.7"
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.7.tgz#acb6b548af488a4bca5d0f1bb5faf761343289ce"
   integrity sha512-/Vsz/+k8kTvui0q3O74pif9FK0nKopgFTiGNVvxicZANxtSA8J8gUE9GQ/4dpi7D/2yI/YVORszwVskFbz46hQ==
 
-vscode-textmate@^4.2.2:
-  version "4.2.2"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.2.2.tgz#0b4dabc69a6fba79a065cb6b615f66eac07c8f4c"
-  integrity sha512-1U4ih0E/KP1zNK/EbpUqyYtI7PY+Ccd2nDGTtiMR/UalLFnmaYkwoWhN1oI7B91ptBN8NdVwWuvyUnvJAulCUw==
+vscode-textmate@^4.3.0:
+  version "4.3.0"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.3.0.tgz#6e1f0f273d84148cfa1e9c7ed85bd16c974f9f61"
+  integrity sha512-MhEZ3hvxOVuYGsrRzW/PZLDR2VdtG2+V6TIKPvmE9JT+RAq/OtPlrFd1+ZQwBefoHEhjRNuRJ0OktcFezuxPmg==
   dependencies:
     oniguruma "^7.2.0"
 
@@ -479,20 +418,20 @@ vscode-windows-registry@1.0.2:
   resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.2.tgz#b863e704a6a69c50b3098a55fbddbe595b0c124a"
   integrity sha512-/CLLvuOSM2Vme2z6aNyB+4Omd7hDxpf4Thrt8ImxnXeQtxzel2bClJpFQvQqK/s4oaXlkBKS7LqVLeZM+uSVIA==
 
-xterm-addon-search@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.2.0.tgz#46659c7c33f9fc268ad3e7e6c5824bb2fdb65852"
-  integrity sha512-C/v2VvFn3hb1qUgjJPo7LxzxNCLBgNJv8n6v/bH2NqPz32/PNUF+IHu0SFf1TaIH+pydUpKXCtob5a/UyZg/+Q==
+xterm-addon-search@0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.3.0.tgz#fc6843bebab1873eff0c89e31f7b74bb3c4d8947"
+  integrity sha512-ZvRmkNBSz2dT00w0qJ3Hd5cwYoOfkVZpHou7Xxy1kO34wQglU/8Ec4DNTvU27sS9BUzEg8kUcTTru0DxhJXrTA==
 
-xterm-addon-web-links@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.0.tgz#b408a0be46211d8d4a0bb5e701d8f3c2bd07d473"
-  integrity sha512-dq81c4Pzli2PgKVBgY2REte9sCVibR3df8AP3SEvCTM9uYFnUFxtxzMTplPnc7+rXabVhFdbU6x+rstIk8HNQg==
+xterm-addon-web-links@0.2.1:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.1.tgz#6d1f2ce613e09870badf17615e7a1170a31542b2"
+  integrity sha512-2KnHtiq0IG7hfwv3jw2/jQeH1RBk2d5CH4zvgwQe00rLofSJqSfgnJ7gwowxxpGHrpbPr6Lv4AmH/joaNw2+HQ==
 
-xterm@4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.0.0.tgz#eac93e08cbe69cf238cbace9185ed9e38873df1a"
-  integrity sha512-Xbx3vvf9FnrUcI1qU31Jww7/fc/NqpXGqgByTvjj7+g3/yPvt/RvLkP/LLMcof2kLAC3evzZGMiovs7NkjdWDw==
+xterm@4.2.0:
+  version "4.2.0"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.2.0.tgz#b9980b2ae18c64ed31bcc95eace3bcecffebbbd9"
+  integrity sha512-oNfLqt+LmghLPOt5UcskP5Km1fXpTBHsTZ99nxJKY2N0MNFXBKIVXUcNNhHCa74JGZFMGhLT58A/UN3HcPXSfg==
 
 yauzl@^2.9.2:
   version "2.10.0"

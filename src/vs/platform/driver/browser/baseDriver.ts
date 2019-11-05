@@ -43,8 +43,6 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 
 export abstract class BaseWindowDriver implements IWindowDriver {
 
-	constructor() { }
-
 	abstract click(selector: string, xoffset?: number, yoffset?: number): Promise<void>;
 	abstract doubleClick(selector: string): Promise<void>;
 

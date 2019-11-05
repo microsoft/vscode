@@ -10,14 +10,14 @@ import * as strings from 'vs/base/common/strings';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass, addDisposableListener } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass, addDisposableListener, addStandardDisposableListener, addClasses } from 'vs/base/browser/dom';
+import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent, IListGestureEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext, CompletionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -39,6 +39,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { FileKind } from 'vs/platform/files/common/files';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { flatten } from 'vs/base/common/arrays';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const expandSuggestionDocsByDefault = false;
 
@@ -47,6 +48,7 @@ interface ISuggestionTemplateData {
 	icon: HTMLElement;
 	colorspan: HTMLElement;
 	iconLabel: IconLabel;
+	iconContainer: HTMLElement;
 	typeLabel: HTMLElement;
 	readMore: HTMLElement;
 	disposables: DisposableStore;
@@ -115,12 +117,14 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
-		data.iconLabel = new IconLabel(main, { supportHighlights: true, supportOcticons: true });
+		data.iconContainer = append(main, $('.icon-label.codicon'));
+
+		data.iconLabel = new IconLabel(main, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
 
 		data.typeLabel = append(main, $('span.type-label'));
 
-		data.readMore = append(main, $('span.readMore'));
+		data.readMore = append(main, $('span.readMore.codicon.codicon-info'));
 		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
@@ -159,7 +163,6 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
 
-
 		const labelOptions: IIconLabelValueOptions = {
 			labelEscapeNewLines: true,
 			matches: createMatches(element.score)
@@ -169,19 +172,21 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		if (suggestion.kind === CompletionItemKind.Color && extractColor(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
+			data.iconContainer.className = 'icon hide';
 			data.colorspan.style.backgroundColor = color[0];
 
 		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
-			labelOptions.extraClasses = flatten([
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FILE),
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE)
-			]);
+			data.iconContainer.className = 'icon hide';
+			const labelClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FILE);
+			const detailClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE);
+			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
 
 		} else if (suggestion.kind === CompletionItemKind.Folder && this._themeService.getIconTheme().hasFolderIcons) {
 			// special logic for 'folder' completion items
 			data.icon.className = 'icon hide';
+			data.iconContainer.className = 'icon hide';
 			labelOptions.extraClasses = flatten([
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FOLDER),
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FOLDER)
@@ -189,9 +194,8 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		} else {
 			// normal icon
 			data.icon.className = 'icon hide';
-			labelOptions.extraClasses = [
-				`suggest-icon ${completionKindToCssClass(suggestion.kind)}`
-			];
+			data.iconContainer.className = '';
+			addClasses(data.iconContainer, `suggest-icon codicon codicon-symbol-${completionKindToCssClass(suggestion.kind)}`);
 		}
 
 		if (suggestion.tags && suggestion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
@@ -268,7 +272,7 @@ class SuggestionDetails {
 		this.disposables.add(this.scrollbar);
 
 		this.header = append(this.body, $('.header'));
-		this.close = append(this.header, $('span.close'));
+		this.close = append(this.header, $('span.codicon.codicon-close'));
 		this.close.title = nls.localize('readLess', "Read less...{0}", this.triggerKeybindingLabel);
 		this.type = append(this.header, $('p.type'));
 
@@ -337,6 +341,8 @@ class SuggestionDetails {
 		}
 
 		this.el.style.height = this.header.offsetHeight + this.docs.offsetHeight + (this.borderWidth * 2) + 'px';
+		this.el.style.userSelect = 'text';
+		this.el.tabIndex = -1;
 
 		this.close.onmousedown = e => {
 			e.preventDefault();
@@ -427,7 +433,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	// Editor.IContentWidget.allowEditorOverflow
 	readonly allowEditorOverflow = true;
-	readonly suppressMouseDown = true;
+	readonly suppressMouseDown = false;
 
 	private state: State | null = null;
 	private isAuto: boolean = false;
@@ -450,10 +456,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private readonly showTimeout = new TimeoutTimer();
 	private readonly toDispose = new DisposableStore();
 
-	private onDidSelectEmitter = new Emitter<ISelectedSuggestion>();
-	private onDidFocusEmitter = new Emitter<ISelectedSuggestion>();
-	private onDidHideEmitter = new Emitter<this>();
-	private onDidShowEmitter = new Emitter<this>();
+	private readonly onDidSelectEmitter = new Emitter<ISelectedSuggestion>();
+	private readonly onDidFocusEmitter = new Emitter<ISelectedSuggestion>();
+	private readonly onDidHideEmitter = new Emitter<this>();
+	private readonly onDidShowEmitter = new Emitter<this>();
 
 	readonly onDidSelect: Event<ISelectedSuggestion> = this.onDidSelectEmitter.event;
 	readonly onDidFocus: Event<ISelectedSuggestion> = this.onDidFocusEmitter.event;
@@ -471,6 +477,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private preferDocPositionTop: boolean = false;
 	private docsPositionPreviousWidgetY: number | null = null;
 	private explainMode: boolean = false;
+
+	private readonly _onDetailsKeydown = new Emitter<IKeyboardEvent>();
+	public readonly onDetailsKeyDown: Event<IKeyboardEvent> = this._onDetailsKeydown.event;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -519,12 +528,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}));
 		this.toDispose.add(themeService.onThemeChange(t => this.onThemeChange(t)));
 		this.toDispose.add(editor.onDidLayoutChange(() => this.onEditorLayoutChange()));
-		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDown(e)));
+		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDownOrTap(e)));
+		this.toDispose.add(this.list.onTap(e => this.onListMouseDownOrTap(e)));
 		this.toDispose.add(this.list.onSelectionChange(e => this.onListSelection(e)));
 		this.toDispose.add(this.list.onFocusChange(e => this.onListFocus(e)));
 		this.toDispose.add(this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()));
 		this.toDispose.add(this.editor.onDidChangeConfiguration(e => e.hasChanged(EditorOption.suggest) && applyIconStyle()));
-
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
 		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
@@ -533,6 +542,25 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.setState(State.Hidden);
 
 		this.onThemeChange(themeService.getTheme());
+
+		this.toDispose.add(addStandardDisposableListener(this.details.element, 'keydown', e => {
+			this._onDetailsKeydown.fire(e);
+		}));
+
+		this.toDispose.add(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
+	}
+
+	private onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+		// Clicking inside details
+		if (this.details.element.contains(mouseEvent.target.element)) {
+			this.details.element.focus();
+		}
+		// Clicking outside details and inside suggest
+		else {
+			if (this.element.contains(mouseEvent.target.element)) {
+				this.editor.focus();
+			}
+		}
 	}
 
 	private onCursorSelectionChanged(): void {
@@ -549,7 +577,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
-	private onListMouseDown(e: IListMouseEvent<CompletionItem>): void {
+	private onListMouseDownOrTap(e: IListMouseEvent<CompletionItem> | IListGestureEvent<CompletionItem>): void {
 		if (typeof e.element === 'undefined' || typeof e.index === 'undefined') {
 			return;
 		}

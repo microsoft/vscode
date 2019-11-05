@@ -5,7 +5,7 @@
 
 import { ExtHostContext, IExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
-import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
+import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/browser/extensionUrlHandler';
@@ -19,7 +19,7 @@ class ExtensionUrlHandler implements IURLHandler {
 		readonly extensionId: ExtensionIdentifier
 	) { }
 
-	handleURL(uri: URI): Promise<boolean> {
+	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		if (!ExtensionIdentifier.equals(this.extensionId, uri.authority)) {
 			return Promise.resolve(false);
 		}
@@ -68,7 +68,11 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		return Promise.resolve(undefined);
 	}
 
-	async $createAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<URI> {
+	async $createAppUri(uri: UriComponents): Promise<URI> {
+		return this.urlService.create(uri);
+	}
+
+	async $proposedCreateAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<URI> {
 		const payload: Partial<UriComponents> = options && options.payload ? options.payload : Object.create(null);
 
 		// we define the authority to be the extension ID to ensure

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -198,9 +198,6 @@ export class OpenFolderSettingsAction extends Action {
 	static readonly ID = 'workbench.action.openFolderSettings';
 	static readonly LABEL = OPEN_FOLDER_SETTINGS_LABEL;
 
-	private disposables: IDisposable[] = [];
-
-
 	constructor(
 		id: string,
 		label: string,
@@ -210,8 +207,8 @@ export class OpenFolderSettingsAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
-		this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.update(), this, this.disposables);
+		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.update(), this));
 	}
 
 	private update(): void {
@@ -227,11 +224,6 @@ export class OpenFolderSettingsAction extends Action {
 
 				return undefined;
 			});
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		super.dispose();
 	}
 }
 

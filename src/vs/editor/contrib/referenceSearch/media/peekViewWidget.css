@@ -4,10 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .peekview-widget .head {
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	-ms-box-sizing: border-box;
 	box-sizing:	border-box;
 	display: flex;
 }
@@ -52,11 +48,15 @@
 	background-position: center center;
 }
 
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label.octicon {
+.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label.codicon {
 	margin: 0;
 }
 
 .monaco-editor .peekview-widget > .body {
 	border-top: 1px solid;
 	position: relative;
+}
+
+.monaco-editor .peekview-widget .head .peekview-title .codicon {
+	margin-right: 4px;
 }

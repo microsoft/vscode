@@ -32,7 +32,7 @@ import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
-import { editorFindMatchHighlight, editorFindMatchHighlightBorder, textLinkForeground, textCodeBlockBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { textLinkForeground, textCodeBlockBackground, focusBorder, listFilterMatchHighlight, listFilterMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isString } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -673,15 +673,15 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 // todo@joh,sandy make this proper and contributable from extensions
 registerThemingParticipant((theme, collector) => {
 
-	const findMatchHighlightColor = theme.getColor(editorFindMatchHighlight);
-	if (findMatchHighlightColor) {
-		collector.addRule(`.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight { color: unset !important; background-color: ${findMatchHighlightColor}; }`);
-		collector.addRule(`.monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; background-color: ${findMatchHighlightColor}; }`);
+	const matchBackgroundColor = theme.getColor(listFilterMatchHighlight);
+	if (matchBackgroundColor) {
+		collector.addRule(`.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight { color: unset !important; background-color: ${matchBackgroundColor}; }`);
+		collector.addRule(`.monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; background-color: ${matchBackgroundColor}; }`);
 	}
-	const findMatchHighlightColorBorder = theme.getColor(editorFindMatchHighlightBorder);
-	if (findMatchHighlightColorBorder) {
-		collector.addRule(`.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${findMatchHighlightColorBorder}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${findMatchHighlightColorBorder}; box-sizing: border-box; }`);
+	const matchBorderColor = theme.getColor(listFilterMatchHighlightBorder);
+	if (matchBorderColor) {
+		collector.addRule(`.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${matchBorderColor}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${matchBorderColor}; box-sizing: border-box; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
@@ -753,6 +753,23 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : resource ? { label: basename(resource) } : undefined;
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
 		const label = treeItemLabel ? treeItemLabel.label : undefined;
+		const matches = (treeItemLabel && treeItemLabel.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
+			if ((Math.abs(start) > label.length) || (Math.abs(end) >= label.length)) {
+				return ({ start: 0, end: 0 });
+			}
+			if (start < 0) {
+				start = label.length + start;
+			}
+			if (end < 0) {
+				end = label.length + end;
+			}
+			if (start > end) {
+				const swap = start;
+				start = end;
+				end = swap;
+			}
+			return ({ start, end });
+		}) : undefined;
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 		const title = node.tooltip ? node.tooltip : resource ? undefined : label;
@@ -762,9 +779,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		if (resource || node.themeIcon) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
-			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: createMatches(element.filterData) });
+			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: matches ? matches : createMatches(element.filterData) });
 		} else {
-			templateData.resourceLabel.setResource({ name: label, description }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: createMatches(element.filterData) });
+			templateData.resourceLabel.setResource({ name: label, description }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: matches ? matches : createMatches(element.filterData) });
 		}
 
 		templateData.icon.style.backgroundImage = iconUrl ? DOM.asCSSUrl(iconUrl) : '';

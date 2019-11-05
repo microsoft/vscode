@@ -10,6 +10,7 @@
 	flex-direction: column;
 	background-color: transparent!important;
 	user-select: initial;
+	-webkit-user-select: initial;
 	position: relative;
 }
 
@@ -104,6 +105,7 @@
 	bottom: 0;
 	left: 0;
 	user-select: none;
+	-webkit-user-select: none;
 }
 .monaco-workbench .panel.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(:last-child) .xterm {
 	/* When vertical and NOT the bottom terminal, align to the top instead to prevent the output jumping around erratically */

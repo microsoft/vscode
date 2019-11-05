@@ -10,13 +10,13 @@ import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { HorizontalRange, VisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { HIGH_CONTRAST, ThemeType } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -77,7 +77,7 @@ export class ViewLineOptions {
 	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
-	public readonly fontLigatures: boolean;
+	public readonly fontLigatures: string;
 
 	constructor(config: IConfiguration, themeType: ThemeType) {
 		this.themeType = themeType;
@@ -89,7 +89,6 @@ export class ViewLineOptions {
 		this.useMonospaceOptimizations = (
 			fontInfo.isMonospace
 			&& !options.get(EditorOption.disableMonospaceOptimizations)
-			&& !options.get(EditorOption.fontLigatures)
 		);
 		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
 		this.lineHeight = options.get(EditorOption.lineHeight);
@@ -218,7 +217,7 @@ export class ViewLine implements IVisibleLine {
 			options.stopRenderingLineAfter,
 			options.renderWhitespace,
 			options.renderControlCharacters,
-			options.fontLigatures,
+			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine
 		);
 
@@ -296,7 +295,7 @@ export class ViewLine implements IVisibleLine {
 		return this._renderedViewLine.getWidthIsFast();
 	}
 
-	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {
+	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): VisibleRanges | null {
 		if (!this._renderedViewLine) {
 			return null;
 		}
@@ -307,21 +306,27 @@ export class ViewLine implements IVisibleLine {
 		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
 
 		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter | 0; // @perf
+		let outsideRenderedLine = false;
 
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
+		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1 && endColumn > stopRenderingLineAfter + 1) {
 			// This range is obviously not visible
-			return null;
+			outsideRenderedLine = true;
 		}
 
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter) {
-			startColumn = stopRenderingLineAfter;
+		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1) {
+			startColumn = stopRenderingLineAfter + 1;
 		}
 
-		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter) {
-			endColumn = stopRenderingLineAfter;
+		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter + 1) {
+			endColumn = stopRenderingLineAfter + 1;
 		}
 
-		return this._renderedViewLine.getVisibleRangesForRange(startColumn, endColumn, context);
+		const horizontalRanges = this._renderedViewLine.getVisibleRangesForRange(startColumn, endColumn, context);
+		if (horizontalRanges && horizontalRanges.length > 0) {
+			return new VisibleRanges(outsideRenderedLine, horizontalRanges);
+		}
+
+		return null;
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {

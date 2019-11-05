@@ -39,14 +39,14 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 
-class TestEnvironmentService extends WorkbenchEnvironmentService {
+class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath);
+		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
@@ -185,7 +185,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, notify: null!, error: null!, info: null!, warn: null!, status: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
 		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
 				(error: ConfigurationEditingError) => {

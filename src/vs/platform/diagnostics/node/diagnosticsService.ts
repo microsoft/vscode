@@ -7,7 +7,7 @@ import { virtualMachineHint } from 'vs/base/node/id';
 import { IMachineInfo, WorkspaceStats, WorkspaceStatItem, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 import { readdir, stat, exists, readFile } from 'fs';
 import { join, basename } from 'vs/base/common/path';
-import { parse, ParseError } from 'vs/base/common/json';
+import { parse, ParseError, getNodeType } from 'vs/base/common/json';
 import { listProcesses } from 'vs/base/node/ps';
 import product from 'vs/platform/product/common/product';
 import { repeat, pad } from 'vs/base/common/strings';
@@ -223,7 +223,7 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 						return resolve([]);
 					}
 
-					if (json['configurations']) {
+					if (getNodeType(json) === 'object' && json['configurations']) {
 						for (const each of json['configurations']) {
 							const type = each['type'];
 							if (type) {
@@ -539,21 +539,46 @@ export class DiagnosticsService implements IDiagnosticsService {
 				collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
 					type WorkspaceStatsClassification = {
 						'workspace.id': { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						fileTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-						configTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-						launchConfigs: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 					};
 					type WorkspaceStatsEvent = {
 						'workspace.id': string | undefined;
-						fileTypes: WorkspaceStatItem[];
-						configTypes: WorkspaceStatItem[];
-						launchConfigs: WorkspaceStatItem[];
+						rendererSessionId: string;
 					};
 					this.telemetryService.publicLog2<WorkspaceStatsEvent, WorkspaceStatsClassification>('workspace.stats', {
 						'workspace.id': workspace.telemetryId,
-						fileTypes: stats.fileTypes,
-						configTypes: stats.configFiles,
-						launchConfigs: stats.launchConfigFiles
+						rendererSessionId: workspace.rendererSessionId
+					});
+					type WorkspaceStatsFileClassification = {
+						rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						type: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					};
+					type WorkspaceStatsFileEvent = {
+						rendererSessionId: string;
+						type: string;
+						count: number;
+					};
+					stats.fileTypes.forEach(e => {
+						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.file', {
+							rendererSessionId: workspace.rendererSessionId,
+							type: e.name,
+							count: e.count
+						});
+					});
+					stats.launchConfigFiles.forEach(e => {
+						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.launchConfigFile', {
+							rendererSessionId: workspace.rendererSessionId,
+							type: e.name,
+							count: e.count
+						});
+					});
+					stats.configFiles.forEach(e => {
+						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.configFiles', {
+							rendererSessionId: workspace.rendererSessionId,
+							type: e.name,
+							count: e.count
+						});
 					});
 				}).catch(_ => {
 					// Report nothing if collecting metadata fails.

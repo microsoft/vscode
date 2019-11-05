@@ -19,13 +19,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
@@ -38,6 +37,7 @@ import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints'
 import { flatten } from 'vs/base/common/arrays';
 import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -67,10 +67,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IWindowService protected readonly _windowService: IWindowService,
 		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
 		@IElectronService private readonly _electronService: IElectronService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@IElectronEnvironmentService private readonly _electronEnvironmentService: IElectronEnvironmentService
 	) {
 		super(
 			instantiationService,
@@ -93,7 +93,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		this._remoteExtensionsEnvironmentData = new Map<string, IRemoteAgentEnvironment>();
 
-		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.windowId}`));
+		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._electronEnvironmentService.windowId}`));
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 		this._deltaExtensionsQueue = [];
 
@@ -445,7 +445,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._checkEnableProposedApi(localExtensions);
 
 		// remove disabled extensions
-		localExtensions = localExtensions.filter(extension => this._isEnabled(extension));
+		localExtensions = remove(localExtensions, extension => this._isDisabled(extension));
 
 		if (remoteAuthority) {
 			let resolvedAuthority: ResolverResult;
@@ -501,18 +501,44 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._checkEnableProposedApi(remoteEnv.extensions);
 
 			// remove disabled extensions
-			remoteEnv.extensions = remoteEnv.extensions.filter(extension => this._isEnabled(extension));
+			remoteEnv.extensions = remove(remoteEnv.extensions, extension => this._isDisabled(extension));
 
-			// remove UI extensions from the remote extensions
-			remoteEnv.extensions = remoteEnv.extensions.filter(extension => !isUIExtension(extension, this._productService, this._configurationService));
+			// Determine where each extension will execute, based on extensionKind
+			const isInstalledLocally = new Set<string>();
+			localExtensions.forEach(ext => isInstalledLocally.add(ExtensionIdentifier.toKey(ext.identifier)));
+
+			const isInstalledRemotely = new Set<string>();
+			remoteEnv.extensions.forEach(ext => isInstalledRemotely.add(ExtensionIdentifier.toKey(ext.identifier)));
+
+			const enum RunningLocation { None, Local, Remote }
+			const pickRunningLocation = (extension: IExtensionDescription): RunningLocation => {
+				for (const extensionKind of getExtensionKind(extension, this._productService, this._configurationService)) {
+					if (extensionKind === 'ui') {
+						// a ui extension can run on both sides for now...
+						if (isInstalledLocally.has(ExtensionIdentifier.toKey(extension.identifier))) {
+							return RunningLocation.Local;
+						}
+						if (isInstalledRemotely.has(ExtensionIdentifier.toKey(extension.identifier))) {
+							return RunningLocation.Remote;
+						}
+					} else if (extensionKind === 'workspace') {
+						if (isInstalledRemotely.has(ExtensionIdentifier.toKey(extension.identifier))) {
+							return RunningLocation.Remote;
+						}
+					}
+				}
+				return RunningLocation.None;
+			};
+
+			const runningLocation = new Map<string, RunningLocation>();
+			localExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
+			remoteEnv.extensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
 
 			// remove non-UI extensions from the local extensions
-			localExtensions = localExtensions.filter(extension => extension.isBuiltin || isUIExtension(extension, this._productService, this._configurationService));
+			localExtensions = localExtensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === RunningLocation.Local);
 
-			// in case of overlap, the remote wins
-			const isRemoteExtension = new Set<string>();
-			remoteEnv.extensions.forEach(extension => isRemoteExtension.add(ExtensionIdentifier.toKey(extension.identifier)));
-			localExtensions = localExtensions.filter(extension => !isRemoteExtension.has(ExtensionIdentifier.toKey(extension.identifier)));
+			// in case of UI extensions overlap, the local extension wins
+			remoteEnv.extensions = remoteEnv.extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === RunningLocation.Remote);
 
 			// save for remote extension's init data
 			this._remoteExtensionsEnvironmentData.set(remoteAuthority, remoteEnv);
@@ -537,24 +563,41 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
 	}
 
-	public getInspectPort(): number {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
 		if (this._extensionHostProcessManagers.length > 0) {
-			return this._extensionHostProcessManagers[0].getInspectPort();
+			return this._extensionHostProcessManagers[0].getInspectPort(tryEnableInspector);
 		}
 		return 0;
 	}
 
 	public _onExtensionHostExit(code: number): void {
-		// Expected development extension termination: When the extension host goes down we also shutdown the window
-		if (!this._isExtensionDevTestFromCli) {
-			this._windowService.closeWindow();
-		}
-
-		// When CLI testing make sure to exit with proper exit code
-		else {
+		if (this._isExtensionDevTestFromCli) {
+			// When CLI testing make sure to exit with proper exit code
 			ipc.send('vscode:exit', code);
+		} else {
+			// Expected development extension termination: When the extension host goes down we also shutdown the window
+			this._electronService.closeWindow();
 		}
 	}
+}
+
+function remove(arr: IExtensionDescription[], predicate: (item: IExtensionDescription) => boolean): IExtensionDescription[];
+function remove(arr: IExtensionDescription[], toRemove: IExtensionDescription[]): IExtensionDescription[];
+function remove(arr: IExtensionDescription[], arg2: ((item: IExtensionDescription) => boolean) | IExtensionDescription[]): IExtensionDescription[] {
+	if (typeof arg2 === 'function') {
+		return _removePredicate(arr, arg2);
+	}
+	return _removeSet(arr, arg2);
+}
+
+function _removePredicate(arr: IExtensionDescription[], predicate: (item: IExtensionDescription) => boolean): IExtensionDescription[] {
+	return arr.filter(extension => !predicate(extension));
+}
+
+function _removeSet(arr: IExtensionDescription[], toRemove: IExtensionDescription[]): IExtensionDescription[] {
+	const toRemoveSet = new Set<string>();
+	toRemove.forEach(extension => toRemoveSet.add(ExtensionIdentifier.toKey(extension.identifier)));
+	return arr.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
 }
 
 registerSingleton(IExtensionService, ExtensionService);

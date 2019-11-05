@@ -12,13 +12,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
@@ -39,8 +39,8 @@ import { RemoteConnectionState, Deprecated_RemoteAuthorityContext, RemoteFileDia
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 
-const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
-const CLOSE_REMOTE_COMMAND_ID = 'remote.closeRemote';
+const WINDOW_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
+const CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
 
 export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -68,13 +68,32 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		this.windowCommandMenu = this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService);
 		this._register(this.windowCommandMenu);
 
-		this._register(CommandsRegistry.registerCommand(WINDOW_ACTIONS_COMMAND_ID, _ => this.showIndicatorActions(this.windowCommandMenu)));
-		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && hostService.openEmptyWindow({ reuse: true })));
+		const category = nls.localize('remote.category', "Remote");
+
+		registerAction({
+			id: WINDOW_ACTIONS_COMMAND_ID,
+			category,
+			title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
+			menu: {
+				menuId: MenuId.CommandPalette
+			},
+			handler: (_accessor) => this.showIndicatorActions(this.windowCommandMenu)
+		});
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.remoteAuthority || '');
 
 		if (this.remoteAuthority) {
+			registerAction({
+				id: CLOSE_REMOTE_COMMAND_ID,
+				category,
+				title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
+				menu: {
+					menuId: MenuId.CommandPalette
+				},
+				handler: (_accessor) => this.remoteAuthority && hostService.openWindow({ forceReuseWindow: true })
+			});
+
 			// Pending entry until extensions are ready
 			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
 			this.connectionState = 'initializing';
@@ -305,6 +324,7 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 	}
 }
 
+
 class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -345,6 +365,18 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveI
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);
 
+const extensionKindSchema = {
+	type: 'string',
+	enum: [
+		'ui',
+		'workspace'
+	],
+	enumDescriptions: [
+		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+	],
+};
+
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		id: 'remote',
@@ -356,16 +388,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				markdownDescription: nls.localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
-						type: 'string',
-						enum: [
-							'ui',
-							'workspace'
-						],
-						enumDescriptions: [
-							nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-							nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
-						],
-						default: 'ui'
+						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
+						default: 'ui',
 					},
 				},
 				default: {

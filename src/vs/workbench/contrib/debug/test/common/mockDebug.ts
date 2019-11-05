@@ -40,7 +40,8 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	public focusStackFrame(focusedStackFrame: IStackFrame): void {
+	public focusStackFrame(focusedStackFrame: IStackFrame): Promise<void> {
+		throw new Error('not implemented');
 	}
 
 	sendAllBreakpoints(session?: IDebugSession): Promise<any> {

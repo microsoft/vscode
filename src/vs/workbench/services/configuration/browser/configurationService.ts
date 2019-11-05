@@ -33,7 +33,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 	public _serviceBrand: undefined;
 
-	private workspace: Workspace;
+	private workspace!: Workspace;
 	private completeWorkspaceBarrier: Barrier;
 	private readonly configurationCache: IConfigurationCache;
 	private _configuration: Configuration;
@@ -59,10 +59,10 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	protected readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = this._register(new Emitter<WorkbenchState>());
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
-	private configurationEditingService: ConfigurationEditingService;
-	private jsonEditingService: JSONEditingService;
-
-	private cyclicDependencyReady: Function;
+	// TODO@sandeep debt with cyclic dependencies
+	private configurationEditingService!: ConfigurationEditingService;
+	private jsonEditingService!: JSONEditingService;
+	private cyclicDependencyReady!: Function;
 	private cyclicDependency = new Promise<void>(resolve => this.cyclicDependencyReady = resolve);
 
 	constructor(

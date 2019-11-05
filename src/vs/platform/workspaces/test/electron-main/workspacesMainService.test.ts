@@ -18,6 +18,7 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { dirname, joinPath } from 'vs/base/common/resources';
+import { TestBackupMainService, TestDialogMainService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('WorkspacesMainService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesservice');
@@ -43,7 +44,7 @@ suite('WorkspacesMainService', () => {
 	let service: WorkspacesMainService;
 
 	setup(async () => {
-		service = new WorkspacesMainService(environmentService, logService);
+		service = new WorkspacesMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
 
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);

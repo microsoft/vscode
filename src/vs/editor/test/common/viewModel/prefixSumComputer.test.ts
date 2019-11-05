@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { toUint32Array } from 'vs/editor/common/core/uint';
+import { toUint32Array } from 'vs/base/common/uint';
 import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
 
 suite('Editor ViewModel - PrefixSumComputer', () => {

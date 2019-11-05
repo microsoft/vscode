@@ -83,6 +83,7 @@ const viewIdNameMappings: { [id: string]: string } = {
 	'extensions.builtInExtensionsList': localize('builtInExtensions', "Features"),
 	'extensions.builtInThemesExtensionsList': localize('builtInThemesExtensions', "Themes"),
 	'extensions.builtInBasicsExtensionsList': localize('builtInBasicsExtensions', "Programming Languages"),
+	'extensions.syncedExtensionsList': localize('syncedExtensions', "My Account"),
 };
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
@@ -310,6 +311,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			weight: 100
 		};
 	}
+
 }
 
 export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensionsViewlet {
@@ -350,7 +352,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 

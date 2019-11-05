@@ -110,7 +110,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	private indexes: number[] = [];
 	private sortedIndexes: number[] = [];
 
-	private _onChange = new Emitter<ITraitChangeEvent>();
+	private readonly _onChange = new Emitter<ITraitChangeEvent>();
 	readonly onChange: Event<ITraitChangeEvent> = this._onChange.event;
 
 	get trait(): string { return this._trait; }
@@ -176,7 +176,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	}
 
 	dispose() {
-		this._onChange = dispose(this._onChange);
+		dispose(this._onChange);
 	}
 }
 
@@ -542,7 +542,7 @@ export class MouseController<T> implements IDisposable {
 			list.onContextMenu(this.onContextMenu, this, this.disposables);
 			list.onMouseDblClick(this.onDoubleClick, this, this.disposables);
 			list.onTouchStart(this.onMouseDown, this, this.disposables);
-			Gesture.addTarget(list.getHTMLElement());
+			this.disposables.add(Gesture.addTarget(list.getHTMLElement()));
 		}
 
 		list.onMouseClick(this.onPointer, this, this.disposables);
@@ -822,7 +822,7 @@ export interface IListOptions<T> extends IListStyles {
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
-	readonly ariaRole?: ListAriaRootRole;
+	readonly ariaRole?: ListAriaRootRole | string;
 	readonly ariaLabel?: string;
 	readonly keyboardSupport?: boolean;
 	readonly multipleSelectionSupport?: boolean;
@@ -1111,10 +1111,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
-	private _onDidOpen = new Emitter<IListEvent<T>>();
+	private readonly _onDidOpen = new Emitter<IListEvent<T>>();
 	readonly onDidOpen: Event<IListEvent<T>> = this._onDidOpen.event;
 
-	private _onDidPin = new Emitter<IListEvent<T>>();
+	private readonly _onDidPin = new Emitter<IListEvent<T>>();
 	readonly onDidPin: Event<IListEvent<T>> = this._onDidPin.event;
 
 	get domId(): string { return this.view.domId; }
@@ -1168,7 +1168,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
 
-	private _onDidDispose = new Emitter<void>();
+	private readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(
@@ -1198,11 +1198,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
 
-		if (typeof _options.ariaRole !== 'string') {
-			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
-		} else {
-			this.view.domNode.setAttribute('role', _options.ariaRole);
-		}
+		this.updateAriaRole();
 
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
@@ -1316,7 +1312,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	set scrollLeft(scrollLeft: number) {
-		this.view.setScrollLeftt(scrollLeft);
+		this.view.setScrollLeft(scrollLeft);
 	}
 
 	get scrollHeight(): number {
@@ -1537,7 +1533,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			const viewItemBottom = elementTop + elementHeight;
 			const wrapperBottom = scrollTop + this.view.renderHeight;
 
-			if (elementTop < scrollTop) {
+			if (elementTop < scrollTop && viewItemBottom >= wrapperBottom) {
+				// The element is already overflowing the viewport, no-op
+			} else if (elementTop < scrollTop) {
 				this.view.setScrollTop(elementTop);
 			} else if (viewItemBottom >= wrapperBottom) {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
@@ -1612,8 +1610,17 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.view.domNode.removeAttribute('aria-activedescendant');
 		}
 
-		this.view.domNode.setAttribute('role', 'tree');
+		this.updateAriaRole();
+
 		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
+	}
+
+	private updateAriaRole(): void {
+		if (typeof this.options.ariaRole !== 'string') {
+			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
+		} else {
+			this.view.domNode.setAttribute('role', this.options.ariaRole);
+		}
 	}
 
 	private _onSelectionChange(): void {

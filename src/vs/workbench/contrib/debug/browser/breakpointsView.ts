@@ -14,7 +14,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IListVirtualDelegate, IListContextMenuEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
@@ -161,21 +161,19 @@ export class BreakpointsView extends ViewletPanel {
 
 		const breakpointType = element instanceof Breakpoint && element.logMessage ? nls.localize('Logpoint', "Logpoint") : nls.localize('Breakpoint', "Breakpoint");
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
-			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), '', true, () => {
+			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), '', true, async () => {
 				if (element instanceof Breakpoint) {
-					return openBreakpointSource(element, false, false, this.debugService, this.editorService).then(editor => {
-						if (editor) {
-							const codeEditor = editor.getControl();
-							if (isCodeEditor(codeEditor)) {
-								codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
-							}
+					const editor = await openBreakpointSource(element, false, false, this.debugService, this.editorService);
+					if (editor) {
+						const codeEditor = editor.getControl();
+						if (isCodeEditor(codeEditor)) {
+							codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
 						}
-					});
+					}
+				} else {
+					this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+					this.onBreakpointsChange();
 				}
-
-				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
-				this.onBreakpointsChange();
-				return Promise.resolve(undefined);
 			}));
 			actions.push(new Separator());
 		}
@@ -655,9 +653,8 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 		};
 	}
 
-	const session = debugService.getViewModel().focusedSession;
 	if (breakpoint instanceof FunctionBreakpoint) {
-		if (session && !session.capabilities.supportsFunctionBreakpoints) {
+		if (!breakpoint.supported) {
 			return {
 				className: 'debug-function-breakpoint-unverified',
 				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
@@ -671,7 +668,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 	}
 
 	if (breakpoint instanceof DataBreakpoint) {
-		if (session && !session.capabilities.supportsDataBreakpoints) {
+		if (!breakpoint.supported) {
 			return {
 				className: 'debug-data-breakpoint-unverified',
 				message: nls.localize('dataBreakpointUnsupported', "Data breakpoints not supported by this debug type"),
@@ -686,30 +683,17 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 
 	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
 		const messages: string[] = [];
-		if (breakpoint.logMessage) {
-			if (session && !session.capabilities.supportsLogPoints) {
-				return {
-					className: 'debug-breakpoint-unsupported',
-					message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
-				};
-			}
 
+		if (!breakpoint.supported) {
+			return {
+				className: 'debug-breakpoint-unsupported',
+				message: nls.localize('breakpointUnsupported', "Breakpoints of this type are not supported by the debugger"),
+			};
+		}
+
+		if (breakpoint.logMessage) {
 			messages.push(nls.localize('logMessage', "Log Message: {0}", breakpoint.logMessage));
 		}
-
-		if (session && breakpoint.condition && !session.capabilities.supportsConditionalBreakpoints) {
-			return {
-				className: 'debug-breakpoint-unsupported',
-				message: nls.localize('conditionalBreakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
-			};
-		}
-		if (session && breakpoint.hitCondition && !session.capabilities.supportsHitConditionalBreakpoints) {
-			return {
-				className: 'debug-breakpoint-unsupported',
-				message: nls.localize('hitBreakpointUnsupported', "Hit conditional breakpoints not supported by this debug type"),
-			};
-		}
-
 		if (breakpoint.condition) {
 			messages.push(nls.localize('expression', "Expression: {0}", breakpoint.condition));
 		}
@@ -721,6 +705,25 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 			className: breakpoint.logMessage ? 'debug-breakpoint-log' : 'debug-breakpoint-conditional',
 			message: appendMessage(messages.join('\n'))
 		};
+	}
+
+	const focusedThread = debugService.getViewModel().focusedThread;
+	if (focusedThread) {
+		const callStack = focusedThread ? focusedThread.getCallStack() : undefined;
+		const topStackFrame = callStack ? callStack[0] : undefined;
+		if (topStackFrame && topStackFrame.source.uri.toString() === breakpoint.uri.toString() && topStackFrame.range.startLineNumber === breakpoint.lineNumber) {
+			if (topStackFrame.range.startColumn === breakpoint.column) {
+				return {
+					className: 'debug-breakpoint-and-top-stack-frame-at-column',
+					message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
+				};
+			} else if (breakpoint.column === undefined) {
+				return {
+					className: 'debug-breakpoint-and-top-stack-frame',
+					message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
+				};
+			}
+		}
 	}
 
 	return {

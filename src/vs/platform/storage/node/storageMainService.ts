@@ -87,7 +87,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	_serviceBrand: undefined;
 
-	private static STORAGE_NAME = 'state.vscdb';
+	private static readonly STORAGE_NAME = 'state.vscdb';
 
 	private readonly _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage: Event<IStorageChangeEvent> = this._onDidChangeStorage.event;

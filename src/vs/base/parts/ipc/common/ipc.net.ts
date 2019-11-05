@@ -137,7 +137,7 @@ export const enum ProtocolConstants {
 	/**
 	 * If there is a message that has been unacknowledged for 10 seconds, consider the connection closed...
 	 */
-	AcknowledgeTimeoutTime = 10000, // 10 seconds
+	AcknowledgeTimeoutTime = 20000, // 20 seconds
 	/**
 	 * Send at least a message every 5s for keep alive reasons.
 	 */
@@ -145,7 +145,7 @@ export const enum ProtocolConstants {
 	/**
 	 * If there is no message received for 10 seconds, consider the connection closed...
 	 */
-	KeepAliveTimeoutTime = 10000, // 10 seconds
+	KeepAliveTimeoutTime = 20000, // 20 seconds
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	 */
@@ -284,8 +284,8 @@ class ProtocolWriter {
 
 	public write(msg: ProtocolMessage) {
 		if (this._isDisposed) {
-			console.warn(`Cannot write message in a disposed ProtocolWriter`);
-			console.warn(msg);
+			// ignore: there could be left-over promises which complete and then
+			// decide to write a response, etc...
 			return;
 		}
 		msg.writtenTime = Date.now();
@@ -351,10 +351,10 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
 
-	private _onMessage = new Emitter<VSBuffer>();
+	private readonly _onMessage = new Emitter<VSBuffer>();
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-	private _onClose = new Emitter<void>();
+	private readonly _onClose = new Emitter<void>();
 	readonly onClose: Event<void> = this._onClose.event;
 
 	constructor(socket: ISocket) {

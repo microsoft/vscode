@@ -54,7 +54,7 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 	private static readonly STATE_KEY = 'workbench.scm.views.state';
 
-	private el: HTMLElement;
+	private el!: HTMLElement;
 	private message: HTMLElement;
 	private menus: SCMMenus;
 	private _repositories: ISCMRepository[] = [];
@@ -62,7 +62,7 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 	private repositoryCountKey: IContextKey<number>;
 	private viewDescriptors: RepositoryViewDescriptor[] = [];
 
-	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
+	private readonly _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
 
 	private _height: number | undefined = undefined;

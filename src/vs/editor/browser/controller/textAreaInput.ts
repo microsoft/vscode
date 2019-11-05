@@ -32,11 +32,24 @@ const enum ReadFromTextArea {
 
 export interface IPasteData {
 	text: string;
+	metadata: ClipboardStoredMetadata | null;
+}
+
+export interface ClipboardDataToCopy {
+	isFromEmptySelection: boolean;
+	multicursorText: string[] | null | undefined;
+	text: string;
+	html: string | null | undefined;
+}
+
+export interface ClipboardStoredMetadata {
+	version: 1;
+	isFromEmptySelection: boolean | undefined;
+	multicursorText: string[] | null | undefined;
 }
 
 export interface ITextAreaInputHost {
-	getPlainTextToCopy(): string;
-	getHTMLToCopy(): string | null;
+	getDataToCopy(html: boolean): ClipboardDataToCopy;
 	getScreenReaderContent(currentState: TextAreaState): TextAreaState;
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
@@ -57,6 +70,39 @@ const enum TextAreaInputEventType {
 interface CompositionEvent extends UIEvent {
 	readonly data: string;
 	readonly locale: string;
+}
+
+interface InMemoryClipboardMetadata {
+	lastCopiedValue: string;
+	data: ClipboardStoredMetadata;
+}
+
+/**
+ * Every time we write to the clipboard, we record a bit of extra metadata here.
+ * Every time we read from the cipboard, if the text matches our last written text,
+ * we can fetch the previous metadata.
+ */
+class InMemoryClipboardMetadataManager {
+	public static readonly INSTANCE = new InMemoryClipboardMetadataManager();
+
+	private _lastState: InMemoryClipboardMetadata | null;
+
+	constructor() {
+		this._lastState = null;
+	}
+
+	public set(lastCopiedValue: string, data: ClipboardStoredMetadata): void {
+		this._lastState = { lastCopiedValue, data };
+	}
+
+	public get(pastedText: string): ClipboardStoredMetadata | null {
+		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
+			// match!
+			return this._lastState.data;
+		}
+		this._lastState = null;
+		return null;
+	}
 }
 
 /**
@@ -279,9 +325,7 @@ export class TextAreaInput extends Disposable {
 				}
 			} else {
 				if (typeInput.text !== '') {
-					this._onPaste.fire({
-						text: typeInput.text
-					});
+					this._firePaste(typeInput.text, null);
 				}
 				this._nextCommand = ReadFromTextArea.Type;
 			}
@@ -314,11 +358,9 @@ export class TextAreaInput extends Disposable {
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
 
 			if (ClipboardEventUtils.canUseTextData(e)) {
-				const pastePlainText = ClipboardEventUtils.getTextData(e);
+				const [pastePlainText, metadata] = ClipboardEventUtils.getTextData(e);
 				if (pastePlainText !== '') {
-					this._onPaste.fire({
-						text: pastePlainText
-					});
+					this._firePaste(pastePlainText, metadata);
 				}
 			} else {
 				if (this._textArea.getSelectionStart() !== this._textArea.getSelectionEnd()) {
@@ -491,19 +533,38 @@ export class TextAreaInput extends Disposable {
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const copyPlainText = this._host.getPlainTextToCopy();
+		const dataToCopy = this._host.getDataToCopy(ClipboardEventUtils.canUseTextData(e) && browser.hasClipboardSupport());
+		const storedMetadata: ClipboardStoredMetadata = {
+			version: 1,
+			isFromEmptySelection: dataToCopy.isFromEmptySelection,
+			multicursorText: dataToCopy.multicursorText
+		};
+		InMemoryClipboardMetadataManager.INSTANCE.set(
+			// When writing "LINE\r\n" to the clipboard and then pasting,
+			// Firefox pastes "LINE\n", so let's work around this quirk
+			(browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
+			storedMetadata
+		);
+
 		if (!ClipboardEventUtils.canUseTextData(e)) {
 			// Looks like an old browser. The strategy is to place the text
 			// we'd like to be copied to the clipboard in the textarea and select it.
-			this._setAndWriteTextAreaState('copy or cut', TextAreaState.selectedText(copyPlainText));
+			this._setAndWriteTextAreaState('copy or cut', TextAreaState.selectedText(dataToCopy.text));
 			return;
 		}
 
-		let copyHTML: string | null = null;
-		if (browser.hasClipboardSupport() && (copyPlainText.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
-			copyHTML = this._host.getHTMLToCopy();
+		ClipboardEventUtils.setTextData(e, dataToCopy.text, dataToCopy.html, storedMetadata);
+	}
+
+	private _firePaste(text: string, metadata: ClipboardStoredMetadata | null): void {
+		if (!metadata) {
+			// try the in-memory store
+			metadata = InMemoryClipboardMetadataManager.INSTANCE.get(text);
 		}
-		ClipboardEventUtils.setTextData(e, copyPlainText, copyHTML);
+		this._onPaste.fire({
+			text: text,
+			metadata: metadata
+		});
 	}
 }
 
@@ -519,10 +580,25 @@ class ClipboardEventUtils {
 		return false;
 	}
 
-	public static getTextData(e: ClipboardEvent): string {
+	public static getTextData(e: ClipboardEvent): [string, ClipboardStoredMetadata | null] {
 		if (e.clipboardData) {
 			e.preventDefault();
-			return e.clipboardData.getData('text/plain');
+
+			const text = e.clipboardData.getData('text/plain');
+			let metadata: ClipboardStoredMetadata | null = null;
+			const rawmetadata = e.clipboardData.getData('vscode-editor-data');
+			if (typeof rawmetadata === 'string') {
+				try {
+					metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
+					if (metadata.version !== 1) {
+						metadata = null;
+					}
+				} catch (err) {
+					// no problem!
+				}
+			}
+
+			return [text, metadata];
 		}
 
 		if ((<any>window).clipboardData) {
@@ -533,12 +609,13 @@ class ClipboardEventUtils {
 		throw new Error('ClipboardEventUtils.getTextData: Cannot use text data!');
 	}
 
-	public static setTextData(e: ClipboardEvent, text: string, richText: string | null): void {
+	public static setTextData(e: ClipboardEvent, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
 		if (e.clipboardData) {
 			e.clipboardData.setData('text/plain', text);
-			if (richText !== null) {
-				e.clipboardData.setData('text/html', richText);
+			if (typeof html === 'string') {
+				e.clipboardData.setData('text/html', html);
 			}
+			e.clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
 			e.preventDefault();
 			return;
 		}

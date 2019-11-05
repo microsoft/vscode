@@ -69,13 +69,15 @@
 	let scale = initialState.scale;
 	let ctrlPressed = false;
 	let altPressed = false;
+	let hasLoadedImage = false;
+	let consumeClick = false;
 
 	// Elements
-	const container =  /** @type {HTMLElement} */(document.querySelector('body'));
+	const container = document.body;
 	const image = document.createElement('img');
 
 	function updateScale(newScale) {
-		if (!image || !image.parentElement) {
+		if (!image || !hasLoadedImage || !image.parentElement) {
 			return;
 		}
 
@@ -87,9 +89,6 @@
 			image.style.width = 'auto';
 			vscode.setState(undefined);
 		} else {
-			const oldWidth = image.width;
-			const oldHeight = image.height;
-
 			scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
 			if (scale >= PIXELATION_THRESHOLD) {
 				image.classList.add('pixelated');
@@ -97,25 +96,19 @@
 				image.classList.remove('pixelated');
 			}
 
-			const { scrollTop, scrollLeft } = image.parentElement;
-			const dx = (scrollLeft + image.parentElement.clientWidth / 2) / image.parentElement.scrollWidth;
-			const dy = (scrollTop + image.parentElement.clientHeight / 2) / image.parentElement.scrollHeight;
+			const dx = (window.scrollX + container.clientWidth / 2) / container.scrollWidth;
+			const dy = (window.scrollY + container.clientHeight / 2) / container.scrollHeight;
 
 			image.classList.remove('scale-to-fit');
 			image.style.minWidth = `${(image.naturalWidth * scale)}px`;
 			image.style.width = `${(image.naturalWidth * scale)}px`;
 
-			const newWidth = image.width;
-			const scaleFactor = (newWidth - oldWidth) / oldWidth;
+			const newScrollX = container.scrollWidth * dx - container.clientWidth / 2;
+			const newScrollY = container.scrollHeight * dy - container.clientHeight / 2;
 
-			const newScrollLeft = ((oldWidth * scaleFactor * dx) + scrollLeft);
-			const newScrollTop = ((oldHeight * scaleFactor * dy) + scrollTop);
-			// scrollbar.setScrollPosition({
-			// 	scrollLeft: newScrollLeft,
-			// 	scrollTop: newScrollTop,
-			// });
+			window.scrollTo(newScrollX, newScrollY);
 
-			vscode.setState({ scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
+			vscode.setState({ scale: scale, offsetX: newScrollX, offsetY: newScrollY });
 		}
 
 		vscode.postMessage({
@@ -124,8 +117,20 @@
 		});
 	}
 
+	function changeActive(value) {
+		if (value) {
+			container.classList.add('zoom-in');
+			consumeClick = true;
+		} else {
+			ctrlPressed = false;
+			altPressed = false;
+			container.classList.remove('zoom-out');
+			container.classList.remove('zoom-in');
+		}
+	}
+
 	function firstZoom() {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -133,8 +138,36 @@
 		updateScale(scale);
 	}
 
+	function zoomIn() {
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		let i = 0;
+		for (; i < zoomLevels.length; ++i) {
+			if (zoomLevels[i] > scale) {
+				break;
+			}
+		}
+		updateScale(zoomLevels[i] || MAX_SCALE);
+	}
+
+	function zoomOut() {
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		let i = zoomLevels.length - 1;
+		for (; i >= 0; --i) {
+			if (zoomLevels[i] < scale) {
+				break;
+			}
+		}
+		updateScale(zoomLevels[i] || MIN_SCALE);
+	}
+
 	window.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 		ctrlPressed = e.ctrlKey;
@@ -147,7 +180,7 @@
 	});
 
 	window.addEventListener('keyup', (/** @type {KeyboardEvent} */ e) => {
-		if (!image) {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -160,8 +193,8 @@
 		}
 	});
 
-	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
-		if (!image) {
+	container.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -169,32 +202,45 @@
 			return;
 		}
 
+		consumeClick = false;
+	});
+
+	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
+		if (!image || !hasLoadedImage) {
+			return;
+		}
+
+		if (e.button !== 0) {
+			return;
+		}
+
+		ctrlPressed = e.ctrlKey;
+		altPressed = e.altKey;
+
+		if (isMac ? altPressed : ctrlPressed) {
+			container.classList.remove('zoom-in');
+			container.classList.add('zoom-out');
+		}
+
+		if (consumeClick) {
+			consumeClick = false;
+			return;
+		}
 		// left click
 		if (scale === 'fit') {
 			firstZoom();
 		}
 
 		if (!(isMac ? altPressed : ctrlPressed)) { // zoom in
-			let i = 0;
-			for (; i < zoomLevels.length; ++i) {
-				if (zoomLevels[i] > scale) {
-					break;
-				}
-			}
-			updateScale(zoomLevels[i] || MAX_SCALE);
+			zoomIn();
 		} else {
-			let i = zoomLevels.length - 1;
-			for (; i >= 0; --i) {
-				if (zoomLevels[i] < scale) {
-					break;
-				}
-			}
-			updateScale(zoomLevels[i] || MIN_SCALE);
+			zoomOut();
 		}
 	});
 
 	container.addEventListener('wheel', (/** @type {WheelEvent} */ e) => {
-		if (!image) {
+		e.preventDefault();
+		if (!image || !hasLoadedImage) {
 			return;
 		}
 
@@ -203,19 +249,18 @@
 			return;
 		}
 
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (scale === 'fit') {
 			firstZoom();
 		}
 
 		let delta = e.deltaY > 0 ? 1 : -1;
 		updateScale(scale * (1 - delta * SCALE_PINCH_FACTOR));
-	});
+	}, { passive: false });
 
-	window.addEventListener('scroll', () => {
-		if (!image || !image.parentElement || scale === 'fit') {
+	window.addEventListener('scroll', e => {
+		e.preventDefault();
+
+		if (!image || !hasLoadedImage || !image.parentElement || scale === 'fit') {
 			return;
 		}
 
@@ -223,25 +268,24 @@
 		if (entry) {
 			vscode.setState({ scale: entry.scale, offsetX: window.scrollX, offsetY: window.scrollY });
 		}
-	});
+	}, { passive: false });
 
 	container.classList.add('image');
-	container.classList.add('zoom-in');
 
 	image.classList.add('scale-to-fit');
-	image.style.visibility = 'hidden';
 
 	image.addEventListener('load', () => {
-		if (!image) {
-			return;
-		}
+		hasLoadedImage = true;
 
 		vscode.postMessage({
 			type: 'size',
 			value: `${image.naturalWidth}x${image.naturalHeight}`,
 		});
 
-		image.style.visibility = 'visible';
+		document.body.classList.remove('loading');
+		document.body.classList.add('ready');
+		document.body.append(image);
+
 		updateScale(scale);
 
 		if (initialState.scale !== 'fit') {
@@ -249,13 +293,30 @@
 		}
 	});
 
+	image.addEventListener('error', () => {
+		hasLoadedImage = true;
+		document.body.classList.add('error');
+		document.body.classList.remove('loading');
+	});
+
 	image.src = decodeURI(settings.src);
-	document.body.append(image);
 
 	window.addEventListener('message', e => {
 		switch (e.data.type) {
 			case 'setScale':
 				updateScale(e.data.scale);
+				break;
+
+			case 'setActive':
+				changeActive(e.data.value);
+				break;
+
+			case 'zoomIn':
+				zoomIn();
+				break;
+
+			case 'zoomOut':
+				zoomOut();
 				break;
 		}
 	});

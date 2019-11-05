@@ -9,32 +9,26 @@ import * as os from 'os';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { ToggleSharedProcessAction, ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, QuickSwitchWindow, RestartWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
-import { SaveWorkspaceAsAction, DuplicateWorkspaceInNewWindowAction, CloseWorkspaceAction } from 'vs/workbench/electron-browser/actions/workspaceActions';
+import { ToggleSharedProcessAction, ToggleDevToolsAction, ConfigureRuntimeArgumentsAction } from 'vs/workbench/electron-browser/actions/developerActions';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, QuickSwitchWindow, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
+import { IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import product from 'vs/platform/product/common/product';
 
 // Actions
 (function registerActions(): void {
 	const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
-	// Actions: File
-	(function registerFileActions(): void {
-		const fileCategory = nls.localize('file', "File");
-
-		registry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', fileCategory, SupportsWorkspacesContext);
-	})();
-
-	// Actions: View
-	(function registerViewActions(): void {
+	// Actions: Zoom
+	(function registerZoomActions(): void {
 		const viewCategory = nls.localize('view', "View");
 
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL, KeyMod.CtrlCmd | KeyCode.NUMPAD_ADD] }), 'View: Zoom In', viewCategory);
@@ -54,8 +48,8 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 			when: ContextKeyExpr.and(NoEditorsVisibleContext, SingleEditorGroupsContext),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 			handler: accessor => {
-				const windowService = accessor.get(IWindowService);
-				windowService.closeWindow();
+				const electronService = accessor.get(IElectronService);
+				electronService.closeWindow();
 			}
 		});
 
@@ -63,21 +57,13 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 			id: 'workbench.action.quit',
 			weight: KeybindingWeight.WorkbenchContrib,
 			handler(accessor: ServicesAccessor) {
-				const windowsService = accessor.get(IWindowsService);
-				windowsService.quit();
+				const electronService = accessor.get(IElectronService);
+				electronService.quit();
 			},
 			when: undefined,
 			mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q },
 			linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q }
 		});
-	})();
-
-	// Actions: Workspaces
-	(function registerWorkspaceActions(): void {
-		const workspacesCategory = nls.localize('workspaces', "Workspaces");
-
-		registry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace As...', workspacesCategory, SupportsWorkspacesContext);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(DuplicateWorkspaceInNewWindowAction, DuplicateWorkspaceInNewWindowAction.ID, DuplicateWorkspaceInNewWindowAction.LABEL), 'Workspaces: Duplicate Workspace in New Window', workspacesCategory, SupportsWorkspacesContext);
 	})();
 
 	// Actions: macOS Native Tabs
@@ -105,7 +91,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 	(function registerDeveloperActions(): void {
 		const developerCategory = nls.localize('developer', "Developer");
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(RestartWithExtensionsDisabledAction, RestartWithExtensionsDisabledAction.ID, RestartWithExtensionsDisabledAction.LABEL), 'Developer: Restart With Extensions Disabled', developerCategory);
+		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Developer: Reload With Extensions Disabled', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
 
 		KeybindingsRegistry.registerKeybindingRule({
@@ -116,41 +102,16 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I }
 		});
 	})();
+
+	// Actions: Runtime Arguments
+	(function registerRuntimeArgumentsAction(): void {
+		const preferencesCategory = nls.localize('preferences', "Preferences");
+		registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureRuntimeArgumentsAction, ConfigureRuntimeArgumentsAction.ID, ConfigureRuntimeArgumentsAction.LABEL), 'Preferences: Configure Runtime Arguments', preferencesCategory);
+	})();
 })();
 
 // Menu
 (function registerMenu(): void {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '3_workspace',
-		command: {
-			id: SaveWorkspaceAsAction.ID,
-			title: nls.localize('miSaveWorkspaceAs', "Save Workspace As...")
-		},
-		order: 2,
-		when: SupportsWorkspacesContext
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '6_close',
-		command: {
-			id: CloseWorkspaceAction.ID,
-			title: nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"),
-			precondition: WorkspaceFolderCountContext.notEqualsTo('0')
-		},
-		order: 3,
-		when: WorkbenchStateContext.notEqualsTo('workspace')
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '6_close',
-		command: {
-			id: CloseWorkspaceAction.ID,
-			title: nls.localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace")
-		},
-		order: 3,
-		when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), SupportsWorkspacesContext)
-	});
-
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		group: '6_close',
 		command: {
@@ -199,14 +160,16 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 		order: 3
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '3_feedback',
-		command: {
-			id: 'workbench.action.openIssueReporter',
-			title: nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
-		},
-		order: 3
-	});
+	if (!!product.reportIssueUrl) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '3_feedback',
+			command: {
+				id: 'workbench.action.openIssueReporter',
+				title: nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
+			},
+			order: 3
+		});
+	}
 
 	// Tools
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
@@ -334,7 +297,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
-				'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
+				'included': isMacintosh && parseFloat(os.release()) >= 17 // Minimum: macOS Sierra (10.13.x = darwin 17.x)
 			},
 			'window.nativeFullScreen': {
 				'type': 'boolean',
@@ -365,6 +328,35 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 				'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to a Microsoft online service. \nThis option requires restart to take effect."),
 				'default': true,
 				'tags': ['usesOnlineServices']
+			}
+		}
+	});
+})();
+
+// JSON Schemas
+(function registerJSONSchemas(): void {
+	const argvDefinitionFileSchemaId = 'vscode://schemas/argv';
+	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+
+	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, {
+		id: argvDefinitionFileSchemaId,
+		allowComments: true,
+		allowTrailingCommas: true,
+		description: 'VSCode static command line definition file',
+		type: 'object',
+		additionalProperties: false,
+		properties: {
+			locale: {
+				type: 'string',
+				description: nls.localize('argv.locale', 'The display Language to use. Picking a different language requires the associated language pack to be installed.')
+			},
+			'disable-hardware-acceleration': {
+				type: 'boolean',
+				description: nls.localize('argv.disableHardwareAcceleration', 'Disables hardware acceleration. ONLY change this option if you encounter graphic issues.')
+			},
+			'disable-color-correct-rendering': {
+				type: 'boolean',
+				description: nls.localize('argv.disableColorCorrectRendering', 'Resolves issues around color profile selection. ONLY change this option if you encounter graphic issues.')
 			}
 		}
 	});

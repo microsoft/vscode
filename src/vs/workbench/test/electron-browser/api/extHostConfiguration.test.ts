@@ -20,7 +20,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 suite('ExtHostConfiguration', function () {
 
 	class RecordingShape extends mock<MainThreadConfigurationShape>() {
-		lastArgs: [ConfigurationTarget, string, any];
+		lastArgs!: [ConfigurationTarget, string, any];
 		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<void> {
 			this.lastArgs = [target, key, value];
 			return Promise.resolve(undefined);

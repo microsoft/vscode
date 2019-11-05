@@ -117,6 +117,8 @@ export class PathIterator implements IKeyIterator {
 	private _from!: number;
 	private _to!: number;
 
+	constructor(private _splitOnBackslash: boolean = true) { }
+
 	reset(key: string): this {
 		this._value = key.replace(/\\$|\/$/, '');
 		this._from = 0;
@@ -134,7 +136,7 @@ export class PathIterator implements IKeyIterator {
 		let justSeps = true;
 		for (; this._to < this._value.length; this._to++) {
 			const ch = this._value.charCodeAt(this._to);
-			if (ch === CharCode.Slash || ch === CharCode.Backslash) {
+			if (ch === CharCode.Slash || this._splitOnBackslash && ch === CharCode.Backslash) {
 				if (justSeps) {
 					this._from++;
 				} else {

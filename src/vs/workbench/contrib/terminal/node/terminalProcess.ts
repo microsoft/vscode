@@ -237,7 +237,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			cols = Math.max(cols, 1);
 			rows = Math.max(rows, 1);
 			this._logService.trace('IPty#resize', cols, rows);
-			this._ptyProcess.resize(cols, rows);
+			try {
+				this._ptyProcess.resize(cols, rows);
+			} catch (e) {
+				// Swallow error if the pty has already exited
+				if (this._exitCode !== undefined) {
+					throw e;
+				}
+			}
 		}
 	}
 
@@ -253,7 +260,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return;
 				}
 				this._logService.trace('IPty#pid');
-				exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+				exec('lsof -OPl -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 					if (stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 					}
