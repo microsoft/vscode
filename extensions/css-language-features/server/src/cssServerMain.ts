@@ -124,7 +124,6 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	languageServices.less = getLESSLanguageService({ customDataProviders, fileSystemProvider, clientCapabilities: params.capabilities });
 
 	const capabilities: ServerCapabilities = {
-		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: TextDocumentSyncKind.Incremental,
 		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/', '-'] } : undefined,
 		hoverProvider: true,
