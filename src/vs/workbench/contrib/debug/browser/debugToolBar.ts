@@ -391,6 +391,4 @@ registerThemingParticipant((theme, collector) => {
 	if (debugIconContinueColor) {
 		collector.addRule(`.monaco-workbench .codicon-debug-continue { color: ${debugIconContinueColor} !important; }`);
 	}
-
-
 });

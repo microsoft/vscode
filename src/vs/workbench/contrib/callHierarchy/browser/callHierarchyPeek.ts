@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/callHierarchy';
-import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
+import * as peekView from 'vs/editor/contrib/peekView/peekView';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
@@ -25,7 +25,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { registerThemingParticipant, themeColorFromId, IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import * as referencesWidget from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -83,7 +82,7 @@ class LayoutInfo {
 	) { }
 }
 
-export class CallHierarchyTreePeekWidget extends PeekViewWidget {
+export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 	private _changeDirectionAction?: ChangeHierarchyDirectionAction;
 	private _parent!: HTMLElement;
@@ -102,7 +101,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		private readonly _where: IPosition,
 		private _direction: CallHierarchyDirection,
 		@IThemeService themeService: IThemeService,
-		@IPeekViewService private readonly _peekViewService: IPeekViewService,
+		@peekView.IPeekViewService private readonly _peekViewService: peekView.IPeekViewService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -129,13 +128,13 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		const borderColor = theme.getColor(referencesWidget.peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(peekView.peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
-			headerBackgroundColor: theme.getColor(referencesWidget.peekViewTitleBackground) || Color.transparent,
-			primaryHeadingColor: theme.getColor(referencesWidget.peekViewTitleForeground),
-			secondaryHeadingColor: theme.getColor(referencesWidget.peekViewTitleInfoForeground)
+			headerBackgroundColor: theme.getColor(peekView.peekViewTitleBackground) || Color.transparent,
+			primaryHeadingColor: theme.getColor(peekView.peekViewTitleForeground),
+			secondaryHeadingColor: theme.getColor(peekView.peekViewTitleInfoForeground)
 		});
 	}
 
@@ -302,7 +301,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className: 'call-decoration',
 			overviewRuler: {
-				color: themeColorFromId(referencesWidget.peekViewEditorMatchHighlight),
+				color: themeColorFromId(peekView.peekViewEditorMatchHighlight),
 				position: OverviewRulerLane.Center
 			},
 		};
@@ -433,31 +432,31 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 }
 
 registerThemingParticipant((theme, collector) => {
-	const referenceHighlightColor = theme.getColor(referencesWidget.peekViewEditorMatchHighlight);
+	const referenceHighlightColor = theme.getColor(peekView.peekViewEditorMatchHighlight);
 	if (referenceHighlightColor) {
 		collector.addRule(`.monaco-editor .call-hierarchy .call-decoration { background-color: ${referenceHighlightColor}; }`);
 	}
-	const referenceHighlightBorder = theme.getColor(referencesWidget.peekViewEditorMatchHighlightBorder);
+	const referenceHighlightBorder = theme.getColor(peekView.peekViewEditorMatchHighlightBorder);
 	if (referenceHighlightBorder) {
 		collector.addRule(`.monaco-editor .call-hierarchy .call-decoration { border: 2px solid ${referenceHighlightBorder}; box-sizing: border-box; }`);
 	}
-	const resultsBackground = theme.getColor(referencesWidget.peekViewResultsBackground);
+	const resultsBackground = theme.getColor(peekView.peekViewResultsBackground);
 	if (resultsBackground) {
 		collector.addRule(`.monaco-editor .call-hierarchy .tree { background-color: ${resultsBackground}; }`);
 	}
-	const resultsMatchForeground = theme.getColor(referencesWidget.peekViewResultsFileForeground);
+	const resultsMatchForeground = theme.getColor(peekView.peekViewResultsFileForeground);
 	if (resultsMatchForeground) {
 		collector.addRule(`.monaco-editor .call-hierarchy .tree { color: ${resultsMatchForeground}; }`);
 	}
-	const resultsSelectedBackground = theme.getColor(referencesWidget.peekViewResultsSelectionBackground);
+	const resultsSelectedBackground = theme.getColor(peekView.peekViewResultsSelectionBackground);
 	if (resultsSelectedBackground) {
 		collector.addRule(`.monaco-editor .call-hierarchy .tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
 	}
-	const resultsSelectedForeground = theme.getColor(referencesWidget.peekViewResultsSelectionForeground);
+	const resultsSelectedForeground = theme.getColor(peekView.peekViewResultsSelectionForeground);
 	if (resultsSelectedForeground) {
 		collector.addRule(`.monaco-editor .call-hierarchy .tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
 	}
-	const editorBackground = theme.getColor(referencesWidget.peekViewEditorBackground);
+	const editorBackground = theme.getColor(peekView.peekViewEditorBackground);
 	if (editorBackground) {
 		collector.addRule(
 			`.monaco-editor .call-hierarchy .editor .monaco-editor .monaco-editor-background,` +
@@ -466,7 +465,7 @@ registerThemingParticipant((theme, collector) => {
 			`}`
 		);
 	}
-	const editorGutterBackground = theme.getColor(referencesWidget.peekViewEditorGutterBackground);
+	const editorGutterBackground = theme.getColor(peekView.peekViewEditorGutterBackground);
 	if (editorGutterBackground) {
 		collector.addRule(
 			`.monaco-editor .call-hierarchy .editor .monaco-editor .margin {` +

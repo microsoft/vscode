@@ -2474,11 +2474,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		super(
 			EditorOption.suggest, 'suggest', defaults,
 			{
-				// 'editor.suggest.overwriteOnAccept': {
-				// 	type: 'boolean',
-				// 	default: defaults.overwriteOnAccept,
-				// 	description: nls.localize('suggest.overwriteOnAccept', "Controls whether words are overwritten when accepting completions.")
-				// },
+				'editor.suggest.overwriteOnAccept': {
+					type: 'boolean',
+					default: defaults.overwriteOnAccept,
+					description: nls.localize('suggest.overwriteOnAccept', "Controls whether words are overwritten when accepting completions.")
+				},
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
 					default: defaults.filterGraceful,

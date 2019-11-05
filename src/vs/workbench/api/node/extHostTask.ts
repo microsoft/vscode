@@ -11,6 +11,7 @@ import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import * as vscode from 'vscode';
 import * as tasks from '../common/shared/tasks';
+import * as Objects from 'vs/base/common/objects';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
@@ -23,6 +24,7 @@ import { ExtHostTaskBase, TaskHandleDTO, TaskDTO, CustomExecutionDTO, HandlerDat
 import { Schemas } from 'vs/base/common/network';
 
 export class ExtHostTask extends ExtHostTaskBase {
+	private _variableResolver: ExtHostVariableResolverService | undefined;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -95,8 +97,41 @@ export class ExtHostTask extends ExtHostTaskBase {
 		return resolvedTaskDTO;
 	}
 
+	private async getVariableResolver(workspaceFolders: vscode.WorkspaceFolder[]): Promise<ExtHostVariableResolverService> {
+		if (this._variableResolver === undefined) {
+			const configProvider = await this._configurationService.getConfigProvider();
+			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider);
+		}
+		return this._variableResolver;
+	}
+
+	protected async resolveDefinition(uri: number | UriComponents | undefined, definition: vscode.TaskDefinition | undefined): Promise<vscode.TaskDefinition | undefined> {
+		if (!uri || (typeof uri === 'number') || !definition) {
+			return definition;
+		}
+		const workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder(URI.revive(uri));
+		const workspaceFolders = await this._workspaceProvider.getWorkspaceFolders2();
+		if (!workspaceFolders || !workspaceFolder) {
+			return definition;
+		}
+		const resolver = await this.getVariableResolver(workspaceFolders);
+		const ws: IWorkspaceFolder = {
+			uri: workspaceFolder.uri,
+			name: workspaceFolder.name,
+			index: workspaceFolder.index,
+			toResource: () => {
+				throw new Error('Not implemented');
+			}
+		};
+		const resolvedDefinition = Objects.deepClone(definition);
+		for (const key in resolvedDefinition) {
+			resolvedDefinition[key] = resolver.resolve(ws, resolvedDefinition[key]);
+		}
+
+		return resolvedDefinition;
+	}
+
 	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
-		const configProvider = await this._configurationService.getConfigProvider();
 		const uri: URI = URI.revive(uriComponents);
 		const result = {
 			process: <unknown>undefined as string,
@@ -107,7 +142,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 		if (!workspaceFolders || !workspaceFolder) {
 			throw new Error('Unexpected: Tasks can only be run in a workspace folder');
 		}
-		const resolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider);
+		const resolver = await this.getVariableResolver(workspaceFolders);
 		const ws: IWorkspaceFolder = {
 			uri: workspaceFolder.uri,
 			name: workspaceFolder.name,

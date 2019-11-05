@@ -38,7 +38,9 @@ suite('env-namespace', () => {
 		} else if (typeof remoteName === 'string') {
 			// running in remote, so we only expect workspace extensions
 			assert.ok(knownWorkspaceExtension);
-			assert.ok(!knownUiExtension); // we currently can only access extensions that run on same host
+			if (env.uiKind === UIKind.Desktop) {
+				assert.ok(!knownUiExtension); // we currently can only access extensions that run on same host
+			}
 			assert.equal(ExtensionKind.Workspace, knownWorkspaceExtension!.extensionKind);
 		} else {
 			assert.fail();

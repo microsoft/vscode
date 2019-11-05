@@ -44,9 +44,9 @@ interface IListElement {
 }
 
 class ListElement implements IListElement {
-	index: number;
-	item: IQuickPickItem;
-	saneLabel: string;
+	index!: number;
+	item!: IQuickPickItem;
+	saneLabel!: string;
 	saneDescription?: string;
 	saneDetail?: string;
 	hidden = false;
@@ -66,7 +66,7 @@ class ListElement implements IListElement {
 	labelHighlights?: IMatch[];
 	descriptionHighlights?: IMatch[];
 	detailHighlights?: IMatch[];
-	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
+	fireButtonTriggered!: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 
 	constructor(init: IListElement) {
 		assign(this, init);
@@ -216,7 +216,7 @@ export class QuickInputList {
 	readonly id: string;
 	private container: HTMLElement;
 	private list: WorkbenchList<ListElement>;
-	private inputElements: Array<IQuickPickItem | IQuickPickSeparator>;
+	private inputElements: Array<IQuickPickItem | IQuickPickSeparator> = [];
 	private elements: ListElement[] = [];
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;

@@ -95,7 +95,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 			});
 
 			// Pending entry until extensions are ready
-			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
+			this.renderWindowIndicator('$(sync~spin) ' + nls.localize('host.open', "Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
 			this.connectionState = 'initializing';
 			RemoteConnectionState.bindTo(this.contextKeyService).set(this.connectionState);
 
@@ -395,6 +395,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: {
 					'pub.name': 'ui'
 				}
+			},
+			'remote.downloadExtensionsLocally': {
+				type: 'boolean',
+				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and installed on remote."),
+				default: false
 			}
 		}
 	});

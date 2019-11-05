@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ReferencesModel, FileReferences, OneReference } from './referencesModel';
+import { ReferencesModel, FileReferences, OneReference } from '../referencesModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -101,7 +101,7 @@ export class StringRepresentationProvider implements IKeyboardNavigationLabelPro
 export class IdentityProvider implements IIdentityProvider<TreeElement> {
 
 	getId(element: TreeElement): { toString(): string; } {
-		return element.id;
+		return element.uri;
 	}
 }
 
@@ -216,12 +216,6 @@ export class OneReferenceRenderer implements ITreeRenderer<OneReference, FuzzySc
 export class AriaProvider implements IAccessibilityProvider<FileReferences | OneReference> {
 
 	getAriaLabel(element: FileReferences | OneReference): string | null {
-		if (element instanceof FileReferences) {
-			return element.getAriaMessage();
-		} else if (element instanceof OneReference) {
-			return element.getAriaMessage();
-		} else {
-			return null;
-		}
+		return element.ariaMessage;
 	}
 }

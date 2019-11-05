@@ -7,17 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import {
-	FileDeleteOptions,
-	FileOverwriteOptions,
-	FileSystemProviderCapabilities,
-	FileType,
-	FileWriteOptions,
-	IFileService,
-	IFileSystemProvider,
-	IStat,
-	IWatchOptions
-} from 'vs/platform/files/common/files';
+import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileService, IStat, IWatchOptions, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -75,7 +65,7 @@ function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDom
 	return content;
 }
 
-export class TrustedDomainsFileSystemProvider implements IFileSystemProvider, IWorkbenchContribution {
+export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IWorkbenchContribution {
 	readonly capabilities = FileSystemProviderCapabilities.FileReadWrite;
 
 	readonly onDidChangeCapabilities = Event.None;

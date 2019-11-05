@@ -99,7 +99,7 @@ class CreateBranchItem implements QuickPickItem {
 
 	constructor(private cc: CommandCenter) { }
 
-	get label(): string { return localize('create branch', '$(plus) Create new branch...'); }
+	get label(): string { return '$(plus) ' + localize('create branch', 'Create new branch...'); }
 	get description(): string { return ''; }
 
 	get alwaysShow(): boolean { return true; }
@@ -113,7 +113,7 @@ class CreateBranchFromItem implements QuickPickItem {
 
 	constructor(private cc: CommandCenter) { }
 
-	get label(): string { return localize('create branch from', '$(plus) Create new branch from...'); }
+	get label(): string { return '$(plus) ' + localize('create branch from', 'Create new branch from...'); }
 	get description(): string { return ''; }
 
 	get alwaysShow(): boolean { return true; }
@@ -136,7 +136,7 @@ class AddRemoteItem implements QuickPickItem {
 
 	constructor(private cc: CommandCenter) { }
 
-	get label(): string { return localize('add remote', '$(plus) Add a new remote...'); }
+	get label(): string { return '$(plus) ' + localize('add remote', 'Add a new remote...'); }
 	get description(): string { return ''; }
 
 	get alwaysShow(): boolean { return true; }

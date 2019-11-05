@@ -9,11 +9,11 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { LocationLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, DeclarationProviderRegistry, ProviderResult } from 'vs/editor/common/modes';
+import { LocationLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, DeclarationProviderRegistry, ProviderResult, ReferenceProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 
-function getDefinitions<T>(
+function getLocationLinks<T>(
 	model: ITextModel,
 	position: Position,
 	registry: LanguageFeatureRegistry<T>,
@@ -35,26 +35,32 @@ function getDefinitions<T>(
 
 
 export function getDefinitionsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getDefinitions(model, position, DefinitionProviderRegistry, (provider, model, position) => {
+	return getLocationLinks(model, position, DefinitionProviderRegistry, (provider, model, position) => {
 		return provider.provideDefinition(model, position, token);
 	});
 }
 
 export function getDeclarationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getDefinitions(model, position, DeclarationProviderRegistry, (provider, model, position) => {
+	return getLocationLinks(model, position, DeclarationProviderRegistry, (provider, model, position) => {
 		return provider.provideDeclaration(model, position, token);
 	});
 }
 
 export function getImplementationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getDefinitions(model, position, ImplementationProviderRegistry, (provider, model, position) => {
+	return getLocationLinks(model, position, ImplementationProviderRegistry, (provider, model, position) => {
 		return provider.provideImplementation(model, position, token);
 	});
 }
 
 export function getTypeDefinitionsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getDefinitions(model, position, TypeDefinitionProviderRegistry, (provider, model, position) => {
+	return getLocationLinks(model, position, TypeDefinitionProviderRegistry, (provider, model, position) => {
 		return provider.provideTypeDefinition(model, position, token);
+	});
+}
+
+export function getReferencesAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
+	return getLocationLinks(model, position, ReferenceProviderRegistry, (provider, model, position) => {
+		return provider.provideReferences(model, position, { includeDeclaration: true }, token);
 	});
 }
 
@@ -62,3 +68,4 @@ registerDefaultLanguageCommand('_executeDefinitionProvider', (model, position) =
 registerDefaultLanguageCommand('_executeDeclarationProvider', (model, position) => getDeclarationsAtPosition(model, position, CancellationToken.None));
 registerDefaultLanguageCommand('_executeImplementationProvider', (model, position) => getImplementationsAtPosition(model, position, CancellationToken.None));
 registerDefaultLanguageCommand('_executeTypeDefinitionProvider', (model, position) => getTypeDefinitionsAtPosition(model, position, CancellationToken.None));
+registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => getReferencesAtPosition(model, position, CancellationToken.None));

@@ -50,8 +50,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private _element: T | undefined;
 	protected get element(): T | undefined { return this._element; }
 
-	private _focused: boolean;
-	protected get focused(): boolean { return this._focused; }
+	private _focused: boolean | undefined;
+	protected get focused(): boolean { return !!this._focused; }
 
 	private readonly _ready: Promise<void>;
 
