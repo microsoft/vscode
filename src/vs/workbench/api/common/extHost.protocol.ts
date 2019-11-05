@@ -420,7 +420,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessTitle(terminalId: number, title: string): void;
 	$sendProcessData(terminalId: number, data: string): void;
 	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
-	$sendProcessExit(terminalId: number, exitCode: number): void;
+	$sendProcessExit(terminalId: number, exitCode: number | undefined): void;
 	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
 	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
@@ -1196,7 +1196,7 @@ export interface ITerminalDimensionsDto {
 }
 
 export interface ExtHostTerminalServiceShape {
-	$acceptTerminalClosed(id: number): void;
+	$acceptTerminalClosed(id: number, exitCode: number | undefined): void;
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;

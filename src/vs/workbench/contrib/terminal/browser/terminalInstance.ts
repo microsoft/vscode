@@ -181,6 +181,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
 	private _isDisposed: boolean;
+	private _exitCode: number | undefined;
 	private _skipTerminalCommands: string[];
 	private _shellType: TerminalShellType;
 	private _title: string = '';
@@ -227,6 +228,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: How does this work with detached processes?
 	// TODO: Should this be an event as it can fire twice?
 	public get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
+	public get exitCode(): number | undefined { return this._exitCode; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
@@ -1011,6 +1013,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 
+		this._exitCode = exitCode;
 		this._isExiting = true;
 		let exitCodeMessage: string | undefined;
 
