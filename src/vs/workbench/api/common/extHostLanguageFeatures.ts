@@ -751,7 +751,7 @@ class SuggestAdapter {
 		}
 
 		// 'overwrite[Before|After]'-logic
-		let range: vscode.Range | { insert: vscode.Range, replace: vscode.Range } | undefined;
+		let range: vscode.Range | { inserting: vscode.Range, replacing: vscode.Range } | undefined;
 		if (item.textEdit) {
 			range = item.textEdit.range;
 		} else if (item.range) {
@@ -770,17 +770,17 @@ class SuggestAdapter {
 
 			} else {
 				if (
-					!SuggestAdapter._isValidRangeForCompletion(range.insert, position)
-					|| !SuggestAdapter._isValidRangeForCompletion(range.replace, position)
-					|| !range.insert.start.isEqual(range.replace.start)
-					|| !range.replace.contains(range.insert)
+					!SuggestAdapter._isValidRangeForCompletion(range.inserting, position)
+					|| !SuggestAdapter._isValidRangeForCompletion(range.replacing, position)
+					|| !range.inserting.start.isEqual(range.replacing.start)
+					|| !range.replacing.contains(range.inserting)
 				) {
 					console.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
 					return undefined;
 				}
 				result[extHostProtocol.ISuggestDataDtoField.range] = {
-					insert: typeConvert.Range.from(range.insert),
-					replace: typeConvert.Range.from(range.replace)
+					insert: typeConvert.Range.from(range.inserting),
+					replace: typeConvert.Range.from(range.replacing)
 				};
 			}
 		}

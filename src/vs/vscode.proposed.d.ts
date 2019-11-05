@@ -992,7 +992,7 @@ declare module 'vscode' {
 		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
 		 */
-		range2?: Range | { insert: Range; replace: Range; };
+		range2?: Range | { inserting: Range; replacing: Range; };
 	}
 
 	//#endregion
