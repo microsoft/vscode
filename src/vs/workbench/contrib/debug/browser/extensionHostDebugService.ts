@@ -17,7 +17,7 @@ import { mapToSerializable } from 'vs/base/common/map';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { endsWith } from 'vs/base/common/strings';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
 
@@ -76,7 +76,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		} else {
 			const fileUriArg = this.findArgument('file-uri', args);
 			if (fileUriArg) {
-				if (endsWith(fileUriArg, '.code-workspace')) {
+				if (hasWorkspaceFileExtension(fileUriArg)) {
 					debugWorkspace = { workspaceUri: URI.parse(fileUriArg) };
 				} else {
 					// TODO: currently it is not possible to open VS Code on a file in the web
