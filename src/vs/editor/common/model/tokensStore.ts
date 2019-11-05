@@ -109,6 +109,205 @@ export class MultilineTokensBuilder {
 	}
 }
 
+export interface IEncodedTokens {
+	empty(): IEncodedTokens;
+	getTokenCount(): number;
+	getDeltaLine(tokenIndex: number): number;
+	getMaxDeltaLine(): number;
+	getStartCharacter(tokenIndex: number): number;
+	getEndCharacter(tokenIndex: number): number;
+	getMetadata(tokenIndex: number): number;
+
+	delete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): IEncodedTokens;
+}
+
+export class SparseEncodedTokens implements IEncodedTokens {
+	/**
+	 * The encoding of tokens is:
+	 *  4*i    deltaLine (from `startLineNumber`)
+	 *  4*i+1  startCharacter (from the line start)
+	 *  4*i+2  endCharacter (from the line start)
+	 *  4*i+3  metadata
+	 */
+	private tokens: Uint32Array;
+
+	constructor(tokens: Uint32Array) {
+		this.tokens = tokens;
+	}
+
+	public empty(): IEncodedTokens {
+		return new SparseEncodedTokens(new Uint32Array(0));
+	}
+
+	public delete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): IEncodedTokens {
+		throw new Error(`Not implemented`); // TODO@semantic
+	}
+
+	public getMaxDeltaLine(): number {
+		const tokenCount = this.getTokenCount();
+		if (tokenCount === 0) {
+			return -1;
+		}
+		return this.getDeltaLine(tokenCount - 1);
+	}
+
+	public getTokenCount(): number {
+		return this.tokens.length / 4;
+	}
+
+	public getDeltaLine(tokenIndex: number): number {
+		return this.tokens[4 * tokenIndex];
+	}
+
+	public getStartCharacter(tokenIndex: number): number {
+		return this.tokens[4 * tokenIndex + 1];
+	}
+
+	public getEndCharacter(tokenIndex: number): number {
+		return this.tokens[4 * tokenIndex + 2];
+	}
+
+	public getMetadata(tokenIndex: number): number {
+		return this.tokens[4 * tokenIndex + 3];
+	}
+}
+
+export class LineTokens2 {
+
+	private readonly _actual: IEncodedTokens;
+	private readonly _startTokenIndex: number;
+	private readonly _endTokenIndex: number;
+
+	constructor(actual: IEncodedTokens, startTokenIndex: number, endTokenIndex: number) {
+		this._actual = actual;
+		this._startTokenIndex = startTokenIndex;
+		this._endTokenIndex = endTokenIndex;
+	}
+
+	public getCount(): number {
+		return this._endTokenIndex - this._startTokenIndex + 1;
+	}
+
+	public getStartCharacter(tokenIndex: number): number {
+		return this._actual.getStartCharacter(this._startTokenIndex + tokenIndex);
+	}
+
+	public getEndCharacter(tokenIndex: number): number {
+		return this._actual.getEndCharacter(this._startTokenIndex + tokenIndex);
+	}
+
+	public getMetadata(tokenIndex: number): number {
+		return this._actual.getMetadata(this._startTokenIndex + tokenIndex);
+	}
+}
+
+export class MultilineTokens2 {
+
+	public startLineNumber: number;
+	public endLineNumber: number;
+	public tokens: IEncodedTokens;
+
+	constructor(startLineNumber: number, tokens: IEncodedTokens) {
+		this.startLineNumber = startLineNumber;
+		this.tokens = tokens;
+		this.endLineNumber = this.startLineNumber + this.tokens.getMaxDeltaLine();
+	}
+
+	private _setTokens(tokens: IEncodedTokens): void {
+		this.tokens = tokens;
+		this.endLineNumber = this.startLineNumber + this.tokens.getMaxDeltaLine();
+	}
+
+	public getLineTokens(lineNumber: number): LineTokens2 | null {
+		if (this.startLineNumber <= lineNumber && lineNumber <= this.endLineNumber) {
+			const findResult = MultilineTokens2._findTokensWithLine(this.tokens, lineNumber - this.startLineNumber);
+			if (findResult) {
+				const [startTokenIndex, endTokenIndex] = findResult;
+				return new LineTokens2(this.tokens, startTokenIndex, endTokenIndex);
+			}
+		}
+		return null;
+	}
+
+	private static _findTokensWithLine(tokens: IEncodedTokens, deltaLine: number): [number, number] | null {
+		let low = 0;
+		let high = tokens.getTokenCount() - 1;
+
+		while (low < high) {
+			const mid = low + Math.floor((high - low) / 2);
+			const midDeltaLine = tokens.getDeltaLine(mid);
+
+			if (midDeltaLine < deltaLine) {
+				low = mid + 1;
+			} else if (midDeltaLine > deltaLine) {
+				high = mid - 1;
+			} else {
+				let min = mid;
+				while (min > low && tokens.getDeltaLine(min - 1) === deltaLine) {
+					min--;
+				}
+				let max = mid;
+				while (max < high && tokens.getDeltaLine(max + 1) === deltaLine) {
+					max++;
+				}
+				return [min, max];
+			}
+		}
+
+		if (tokens.getDeltaLine(low) === deltaLine) {
+			return [low, low];
+		}
+
+		return null;
+	}
+
+	public applyEdit(range: IRange, text: string): void {
+		// const [eolCount, firstLineLength] = countEOL(text);
+		this._acceptDeleteRange(range);
+		// this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
+	}
+
+	private _acceptDeleteRange(range: IRange): void {
+		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
+			// Nothing to delete
+			return;
+		}
+
+		const firstLineIndex = range.startLineNumber - this.startLineNumber;
+		const lastLineIndex = range.endLineNumber - this.startLineNumber;
+
+		if (lastLineIndex < 0) {
+			// this deletion occurs entirely before this block, so we only need to adjust line numbers
+			const deletedLinesCount = lastLineIndex - firstLineIndex;
+			this.startLineNumber -= deletedLinesCount;
+			return;
+		}
+
+		const tokenMaxDeltaLine = this.tokens.getMaxDeltaLine();
+
+		if (firstLineIndex >= tokenMaxDeltaLine + 1) {
+			// this deletion occurs entirely after this block, so there is nothing to do
+			return;
+		}
+
+		if (firstLineIndex < 0 && lastLineIndex >= tokenMaxDeltaLine + 1) {
+			// this deletion completely encompasses this block
+			this.startLineNumber = 0;
+			this._setTokens(this.tokens.empty());
+			return;
+		}
+
+		if (firstLineIndex < 0) {
+			const deletedBefore = -firstLineIndex;
+			this.startLineNumber -= deletedBefore;
+
+			this._setTokens(this.tokens.delete(0, 0, lastLineIndex, range.endColumn - 1));
+		} else {
+			this._setTokens(this.tokens.delete(firstLineIndex, range.startColumn - 1, lastLineIndex, range.endColumn - 1));
+		}
+	}
+}
+
 export class MultilineTokens {
 
 	public startLineNumber: number;
@@ -193,6 +392,7 @@ export class MultilineTokens {
 			// this deletion completely encompasses this block
 			this.startLineNumber = 0;
 			this.tokens = [];
+			return;
 		}
 
 		if (firstLineIndex === lastLineIndex) {
@@ -287,6 +487,130 @@ function toUint32Array(arr: Uint32Array | ArrayBuffer): Uint32Array {
 	} else {
 		return new Uint32Array(arr);
 	}
+}
+
+export class TokensStore2 {
+
+	private _pieces: MultilineTokens2[];
+
+	constructor() {
+		this._pieces = [];
+	}
+
+	public flush(): void {
+		this._pieces = [];
+	}
+
+	public set(pieces: MultilineTokens2[]) {
+		this._pieces = pieces;
+	}
+
+	public addSemanticTokens(lineNumber: number, aTokens: LineTokens): LineTokens {
+		const pieces = this._pieces;
+
+		if (pieces.length === 0) {
+			return aTokens;
+		}
+
+		const pieceIndex = TokensStore2._findFirstPieceWithLine(pieces, lineNumber);
+		const bTokens = this._pieces[pieceIndex].getLineTokens(lineNumber);
+
+		if (!bTokens) {
+			return aTokens;
+		}
+
+		const aLen = aTokens.getCount();
+		const bLen = bTokens.getCount();
+
+		let aIndex = 0;
+		let result: number[] = [], resultLen = 0;
+		for (let bIndex = 0; bIndex < bLen; bIndex++) {
+			const bStartCharacter = bTokens.getStartCharacter(bIndex);
+			const bEndCharacter = bTokens.getEndCharacter(bIndex);
+			const bMetadata = bTokens.getMetadata(bIndex); // TODO@semantic: should use languageId from aTokens :/ :/ :/
+
+			// push any token from `a` that is before `b`
+			while (aIndex < aLen && aTokens.getEndOffset(aIndex) <= bStartCharacter) {
+				result[resultLen++] = aTokens.getEndOffset(aIndex);
+				result[resultLen++] = aTokens.getMetadata(aIndex);
+				aIndex++;
+			}
+
+			// push the token from `a` if it intersects the token from `b`
+			if (aIndex < aLen && aTokens.getStartOffset(aIndex) < bStartCharacter) {
+				result[resultLen++] = bStartCharacter;
+				result[resultLen++] = aTokens.getMetadata(aIndex);
+			}
+
+			// skip any tokens from `a` that are contained inside `b`
+			while (aIndex < aLen && aTokens.getEndOffset(aIndex) <= bEndCharacter) {
+				aIndex++;
+			}
+
+			// push the token from `b`
+			result[resultLen++] = bEndCharacter;
+			result[resultLen++] = bMetadata;
+		}
+
+		// push the remaining tokens from `a`
+		while (aIndex < aLen) {
+			result[resultLen++] = aTokens.getEndOffset(aIndex);
+			result[resultLen++] = aTokens.getMetadata(aIndex);
+			aIndex++;
+		}
+
+		return new LineTokens(new Uint32Array(result), aTokens.getLineContent());
+
+		console.log(result);
+
+		// let currentMetadata = 0;
+
+
+
+
+		// const len = pieces.length;
+		// while (pieceIndex < len) {
+		// }
+		console.log(`addSemanticTokens for ${lineNumber}`);
+		console.log(bTokens);
+
+		// console.log(`pieceIndex: ${pieceIndex}`);
+		return aTokens;
+	}
+
+	// private static _findLine(piece: Multiline)
+
+	private static _findFirstPieceWithLine(pieces: MultilineTokens2[], lineNumber: number): number {
+		let low = 0;
+		let high = pieces.length - 1;
+
+		while (low < high) {
+			let mid = low + Math.floor((high - low) / 2);
+
+			if (pieces[mid].endLineNumber < lineNumber) {
+				low = mid + 1;
+			} else if (pieces[mid].startLineNumber > lineNumber) {
+				high = mid - 1;
+			} else {
+				while (mid > low && pieces[mid - 1].startLineNumber <= lineNumber && lineNumber <= pieces[mid - 1].endLineNumber) {
+					mid--;
+				}
+				return mid;
+			}
+		}
+
+		return low;
+	}
+
+	//#region Editing
+
+	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number): void {
+		console.log(`TODO@semantic --> acceptEdit !!!!`);
+		// this._acceptDeleteRange(range);
+		// this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
+	}
+
+	//#endregion
 }
 
 export class TokensStore {

@@ -22,6 +22,7 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { SparseEncodedTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -524,17 +525,21 @@ class ModelSemanticColoring extends Disposable {
 		}
 		this._currentResponse = tokens;
 		// TODO@semantic: diff here and reduce to only really needed tokens...
+		// TODO@semantic: might also be a good idea to split areas... ?
 		if (this._currentResponse) {
+			const result: MultilineTokens2[] = [];
 			for (const area of this._currentResponse.areas) {
-				const tokenCount = area.data.length / 5;
-				const tokens = new Uint32Array(2 * tokenCount);
+				const srcTokens = area.data;
+				const tokenCount = srcTokens.length / 5;
+				const destTokens = new Uint32Array(4 * tokenCount);
 				for (let i = 0; i < tokenCount; i++) {
-					const offset = 5 * i;
-					const deltaLine = area.data[offset];
-					const startCharacter = area.data[offset + 1];
-					const endCharacter = area.data[offset + 2];
-					const tokenType = area.data[offset + 3];
-					const tokenModifiers = area.data[offset + 4];
+					const srcOffset = 5 * i;
+					const deltaLine = srcTokens[srcOffset];
+					const startCharacter = srcTokens[srcOffset + 1];
+					const endCharacter = srcTokens[srcOffset + 2];
+					// const tokenType = srcTokens[srcOffset + 3];
+					// const tokenModifiers = srcTokens[srcOffset + 4];
+					// TODO@semantic: map here tokenType and tokenModifiers to metadata
 
 					const fontStyle = FontStyle.Italic | FontStyle.Bold | FontStyle.Underline;
 					const foregroundColorId = 3;
@@ -542,12 +547,21 @@ class ModelSemanticColoring extends Disposable {
 						(fontStyle << MetadataConsts.FONT_STYLE_OFFSET)
 						| (foregroundColorId << MetadataConsts.FOREGROUND_OFFSET)
 					) >>> 0;
-					// tokens[2 * i] =
+
+					const destOffset = 4 * i;
+					destTokens[destOffset] = deltaLine;
+					destTokens[destOffset + 1] = startCharacter;
+					destTokens[destOffset + 2] = endCharacter;
+					destTokens[destOffset + 3] = metadata;
 				}
+
+				const tokens = new MultilineTokens2(area.line, new SparseEncodedTokens(destTokens));
+				result.push(tokens);
 			}
-			console.log(`_setSemanticTokens`, tokens);
-			// Convert this into editor friendly tokens
-			// for (let )
+
+			this._model.setSemanticTokens(result);
+		} else {
+			// TODO@semantic: should we clear semantic tokens on the text model here?
 		}
 	}
 

@@ -27,7 +27,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto, ISemanticTokensFullAreaDto, ISemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
+import { encodeSemanticTokensDto, ISemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 
 // --- adapter
 
@@ -665,8 +665,8 @@ class SemanticColoringAdapter {
 		return r;
 	}
 
-	releaseSemanticColoring(semanticColoringResultId: number): Promise<void> {
-	}
+	// releaseSemanticColoring(semanticColoringResultId: number): Promise<void> {
+	// }
 
 	// provideSignatureHelp(resource: URI, token: CancellationToken): Promise<extHostProtocol.ISignatureHelpDto | undefined> {
 	// 	const doc = this._documents.getDocument(resource);

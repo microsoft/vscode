@@ -64,10 +64,21 @@ export function decodeSemanticTokensDto(buff: VSBuffer): ISemanticTokensDto {
 
 function encodeArea(area: ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaDto, buff: VSBuffer, offset: number): number {
 	buff.writeUInt8(area.type === 'full' ? EncodedSemanticTokensAreaType.Full : EncodedSemanticTokensAreaType.Delta, offset); offset += 1;
-	buff.writeUInt32BE(area.line, offset); offset += 4;
+	buff.writeUInt32BE(area.line + 1, offset); offset += 4;
 	if (area.type === 'full') {
-		buff.writeUInt32BE(area.data.byteLength, offset); offset += 4;
-		buff.set(VSBuffer.wrap(area.data), offset); offset += area.data.byteLength;
+		const tokens = area.data;
+		const tokenCount = (tokens.length / 5) | 0;
+		buff.writeUInt32BE(tokenCount, offset); offset += 4;
+		// here we are explicitly iterating an writing the ints again to ensure writing the desired endianness.
+		for (let i = 0; i < tokenCount; i++) {
+			const tokenOffset = 5 * i;
+			buff.writeUInt32BE(tokens[tokenOffset], offset); offset += 4;
+			buff.writeUInt32BE(tokens[tokenOffset + 1], offset); offset += 4;
+			buff.writeUInt32BE(tokens[tokenOffset + 2], offset); offset += 4;
+			buff.writeUInt32BE(tokens[tokenOffset + 3], offset); offset += 4;
+			buff.writeUInt32BE(tokens[tokenOffset + 4], offset); offset += 4;
+		}
+		// buff.set(VSBuffer.wrap(uint8), offset); offset += area.data.byteLength;
 	} else {
 		buff.writeUInt32BE(area.oldIndex, offset); offset += 4;
 	}
@@ -79,8 +90,10 @@ function encodedAreaSize(area: ISemanticTokensFullAreaDto | ISemanticTokensDelta
 	result += 1; // type
 	result += 4; // line
 	if (area.type === 'full') {
-		result += 4; // data byte length
-		result += area.data.byteLength;
+		const tokens = area.data;
+		const tokenCount = (tokens.length / 5) | 0;
+		result += 4; // token count
+		result += tokenCount * 5 * 4;
 		return result;
 	} else {
 		result += 4; // old index
@@ -92,15 +105,21 @@ function decodeArea(buff: VSBuffer, offset: number, areas: (ISemanticTokensFullA
 	const type: EncodedSemanticTokensAreaType = buff.readUInt8(offset); offset += 1;
 	const line = buff.readUInt32BE(offset); offset += 4;
 	if (type === EncodedSemanticTokensAreaType.Full) {
-		const dataByteLength = buff.readUInt32BE(offset); offset += 4;
-		const data = buff.slice(offset, offset + dataByteLength); offset += dataByteLength;
-		const buffer = data.buffer;
-		const bufferByteOffset = buffer.byteOffset;
-		const bufferByteLength = buffer.byteLength;
+		// here we are explicitly iterating and reading the ints again to ensure reading the desired endianness.
+		const tokenCount = buff.readUInt32BE(offset); offset += 4;
+		const data = new Uint32Array(5 * tokenCount);
+		for (let i = 0; i < tokenCount; i++) {
+			const destOffset = 5 * i;
+			data[destOffset] = buff.readUInt32BE(offset); offset += 4;
+			data[destOffset + 1] = buff.readUInt32BE(offset); offset += 4;
+			data[destOffset + 2] = buff.readUInt32BE(offset); offset += 4;
+			data[destOffset + 3] = buff.readUInt32BE(offset); offset += 4;
+			data[destOffset + 4] = buff.readUInt32BE(offset); offset += 4;
+		}
 		areas.push({
 			type: 'full',
 			line: line,
-			data: new Uint32Array(buffer, bufferByteOffset, bufferByteLength / 4)
+			data: data
 		});
 		return offset;
 	} else {

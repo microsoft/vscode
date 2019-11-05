@@ -112,47 +112,5 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient
 ) {
-	const provider = new SemanticColoringProvider(client);
-
-
-	const run = async () => {
-		const ed = vscode.window.activeTextEditor;
-		if (!ed) {
-			return;
-		}
-		// const doc = ed.document;
-		const cancellationTokenSource = new vscode.CancellationTokenSource();
-		provider.provideSemanticColoring(ed.document, cancellationTokenSource.token);
-		// const file = client.toOpenedFilePath(doc);
-		// if (!file) {
-		// 	return;
-		// }
-		// const args: ExperimentalProtocol.EncodedSemanticClassificationsRequestArgs = {
-		// 	file: file,
-		// 	start: 0,
-		// 	length: doc.getText().length,
-		// };
-
-		// const response = await client.execute('encodedSemanticClassifications-full', args, cancellationTokenSource.token);
-
-		// if (response.type !== 'response') {
-		// 	return;
-		// }
-		// if (!response.body) {
-		// 	return;
-		// }
-		// console.log(response.body);
-	};
-
-	vscode.window.onDidChangeActiveTextEditor(run);
-	run();
-
-	console.log(`I am running...`);
-
-	// return vscode.Disposable.from();
-	// return vscode.languages.registerRenameProvider(selector,
-	// 	new TypeScriptRenameProvider(client, fileConfigurationManager));
-
-	return vscode.languages.registerSemanticColoringProvider(selector, provider);
-	// return vscode.languages.registerSemanticColoringProvider(selector, )
+	return vscode.languages.registerSemanticColoringProvider(selector, new SemanticColoringProvider(client));
 }

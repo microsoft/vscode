@@ -32,7 +32,7 @@ import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/comm
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
-import { TokensStore, MultilineTokens, countEOL } from 'vs/editor/common/model/tokensStore';
+import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
 
 function createTextBufferBuilder() {
@@ -276,7 +276,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private _languageIdentifier: LanguageIdentifier;
 	private readonly _languageRegistryListener: IDisposable;
 	private readonly _tokens: TokensStore;
-	private readonly _tokens2: TokensStore;
+	private readonly _tokens2: TokensStore2;
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
@@ -340,7 +340,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._trimAutoWhitespaceLines = null;
 
 		this._tokens = new TokensStore();
-		this._tokens2 = new TokensStore();
+		this._tokens2 = new TokensStore2();
 		this._tokenization = new TextModelTokenization(this);
 	}
 
@@ -1721,8 +1721,14 @@ export class TextModel extends Disposable implements model.ITextModel {
 		});
 	}
 
-	public setSemanticTokens(tokens: MultilineTokens[]): void {
-		
+	public setSemanticTokens(tokens: MultilineTokens2[]): void {
+		this._tokens2.set(tokens);
+
+		// TODO@semantic: could we reduce the event here?
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
+		});
 	}
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
@@ -1785,7 +1791,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	private _getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this.getLineContent(lineNumber);
-		return this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
+		const syntacticTokens = this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
+		return this._tokens2.addSemanticTokens(lineNumber, syntacticTokens);
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {
