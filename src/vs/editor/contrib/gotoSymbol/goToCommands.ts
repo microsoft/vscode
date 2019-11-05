@@ -336,11 +336,18 @@ registerEditorAction(class GoToDeclarationAction extends DeclarationAction {
 			alias: 'Go to Declaration',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDeclarationProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			),
 			menuOpts: {
 				group: 'navigation',
 				order: 1.3
-			}
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 3,
+				title: nls.localize({ key: 'miGotoDeclaration', comment: ['&& denotes a mnemonic'] }, "Go to &&Declaration")
+			},
 		});
 	}
 
@@ -368,11 +375,8 @@ registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDeclarationProvider,
 				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			menuOpts: {
-				group: 'navigation',
-				order: 1.31
-			}
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			),
 		});
 	}
 });
@@ -519,7 +523,8 @@ registerEditorAction(class GoToImplementationAction extends ImplementationAction
 			menubarOpts: {
 				menuId: MenuId.MenubarGoMenu,
 				group: '4_symbol_nav',
-				order: 4, title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation")
+				order: 4,
+				title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementations")
 			},
 			menuOpts: {
 				group: 'navigation',
@@ -544,7 +549,8 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 			alias: 'Peek Implementations',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasImplementationProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12,
@@ -601,15 +607,21 @@ registerEditorAction(class GoToReferencesAction extends ReferencesAction {
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
-			menuOpts: {
-				group: 'navigation',
-				order: 1.45
-			},
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.45
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 5,
+				title: nls.localize({ key: 'miGotoReference', comment: ['&& denotes a mnemonic'] }, "Go to &&References")
+			},
 		});
 	}
 });
