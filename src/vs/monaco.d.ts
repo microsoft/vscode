@@ -3060,6 +3060,8 @@ declare namespace monaco.editor {
 
 	export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
+	export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
+
 	/**
 	 * Configuration options for go to location
 	 */
@@ -3067,7 +3069,12 @@ declare namespace monaco.editor {
 		/**
 		 * Control how goto-command work when having multiple results.
 		 */
-		multiple?: 'peek' | 'gotoAndPeek' | 'goto';
+		multiple?: GoToLocationValues;
+		multipleDefinitions?: GoToLocationValues;
+		multipleTypeDefinitions?: GoToLocationValues;
+		multipleDeclarations?: GoToLocationValues;
+		multipleImplemenations?: GoToLocationValues;
+		multipleReferences?: GoToLocationValues;
 	}
 
 	export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;

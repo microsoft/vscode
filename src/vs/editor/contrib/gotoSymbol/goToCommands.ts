@@ -30,7 +30,7 @@ import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefiniti
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/symbolNavigation';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editorOptions';
 import { isStandalone } from 'vs/base/browser/browser';
 import { URI } from 'vs/base/common/uri';
 
@@ -108,16 +108,18 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 	protected abstract _getAlternativeCommand(): string;
 
+	protected abstract _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues;
+
 	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: IActiveCodeEditor, model: ReferencesModel): Promise<void> {
 
-		const gotoLocation = editor.getOption(EditorOption.gotoLocation);
-		if (this._configuration.openInPeek || (gotoLocation.multiple === 'peek' && model.references.length > 1)) {
+		const gotoLocation = this._getGoToPreference(editor);
+		if (this._configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1)) {
 			this._openInPeek(editorService, editor, model);
 
 		} else {
 			const next = model.firstReference()!;
 			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
-			if (targetEditor && model.references.length > 1 && gotoLocation.multiple === 'gotoAndPeek') {
+			if (targetEditor && model.references.length > 1 && gotoLocation === 'gotoAndPeek') {
 				this._openInPeek(editorService, targetEditor, model);
 			} else {
 				model.dispose();
@@ -125,7 +127,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 			// keep remaining locations around when using
 			// 'goto'-mode
-			if (gotoLocation.multiple === 'goto') {
+			if (gotoLocation === 'goto') {
 				symbolNavService.put(next);
 			}
 		}
@@ -189,6 +191,10 @@ export class DefinitionAction extends SymbolNavigationAction {
 
 	protected _getAlternativeCommand(): string {
 		return 'editor.action.referenceSearch.trigger';
+	}
+
+	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
+		return editor.getOption(EditorOption.gotoLocation).multipleDefinitions;
 	}
 }
 
@@ -309,6 +315,10 @@ class DeclarationAction extends SymbolNavigationAction {
 	protected _getAlternativeCommand(): string {
 		return 'editor.action.referenceSearch.trigger';
 	}
+
+	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
+		return editor.getOption(EditorOption.gotoLocation).multipleDeclarations;
+	}
 }
 
 registerEditorAction(class GoToDeclarationAction extends DeclarationAction {
@@ -389,6 +399,10 @@ class TypeDefinitionAction extends SymbolNavigationAction {
 
 	protected _getAlternativeCommand(): string {
 		return 'editor.action.referenceSearch.trigger';
+	}
+
+	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
+		return editor.getOption(EditorOption.gotoLocation).multipleTypeDefinitions;
 	}
 }
 
@@ -475,6 +489,10 @@ class ImplementationAction extends SymbolNavigationAction {
 	protected _getAlternativeCommand(): string {
 		return '';
 	}
+
+	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
+		return editor.getOption(EditorOption.gotoLocation).multipleImplemenations;
+	}
 }
 
 registerEditorAction(class GoToImplementationAction extends ImplementationAction {
@@ -560,6 +578,10 @@ class ReferencesAction extends SymbolNavigationAction {
 
 	protected _getAlternativeCommand(): string {
 		return '';
+	}
+
+	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
+		return editor.getOption(EditorOption.gotoLocation).multipleReferences;
 	}
 }
 
