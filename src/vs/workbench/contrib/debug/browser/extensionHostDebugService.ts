@@ -17,6 +17,7 @@ import { mapToSerializable } from 'vs/base/common/map';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { endsWith } from 'vs/base/common/strings';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
 
@@ -72,6 +73,16 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		const folderUriArg = this.findArgument('folder-uri', args);
 		if (folderUriArg) {
 			debugWorkspace = { folderUri: URI.parse(folderUriArg) };
+		} else {
+			const fileUriArg = this.findArgument('file-uri', args);
+			if (fileUriArg) {
+				if (endsWith(fileUriArg, '.code-workspace')) {
+					debugWorkspace = { workspaceUri: URI.parse(fileUriArg) };
+				} else {
+					// TODO: currently it is not possible to open VS Code on a file in the web
+					// debugWorkspace = { fileUri: URI.parse(fileUriArg) };
+				}
+			}
 		}
 
 		// Add environment parameters required for debug to work
