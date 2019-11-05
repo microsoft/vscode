@@ -1362,7 +1362,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private getGroupedTasks(type?: string): Promise<TaskMap> {
-		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
+		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			let validTypes: IStringDictionary<boolean> = Object.create(null);
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 			validTypes['shell'] = true;
