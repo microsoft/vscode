@@ -90,13 +90,6 @@
   resolved "https://registry.yarnpkg.com/@types/debug/-/debug-4.1.5.tgz#b14efa8852b7768d898906613c23f688713e02cd"
   integrity sha512-Q1y515GcOdTHgagaVFhHnIFQ38ygs/kmxdNpvpou+raI9UO3YZcHDngBSYKQklcKlvA7iuQlmIKbzvmxcOE9CQ==
 
-"@types/documentdb@1.10.2":
-  version "1.10.2"
-  resolved "https://registry.yarnpkg.com/@types/documentdb/-/documentdb-1.10.2.tgz#6795025cdc51577af5ed531b6f03bd44404f5350"
-  integrity sha512-A+AsxkjKB/mpnuNl2L/YP7azlpd/n/55rtBTTKYj203g5hSrDfv06AnN8v+pO1Qo6vCxm6JsKV/BaEBmgx4gaQ==
-  dependencies:
-    "@types/node" "*"
-
 "@types/events@*":
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/@types/events/-/events-1.2.0.tgz#81a6731ce4df43619e5c8c945383b3e62a89ea86"
@@ -515,11 +508,6 @@ beeper@^1.0.0:
   resolved "https://registry.yarnpkg.com/beeper/-/beeper-1.1.1.tgz#e6d5ea8c5dad001304a70b22638447f69cb2f809"
   integrity sha1-5tXqjF2tABMEpwsiY4RH9pyy+Ak=
 
-binary-search-bounds@2.0.3:
-  version "2.0.3"
-  resolved "https://registry.yarnpkg.com/binary-search-bounds/-/binary-search-bounds-2.0.3.tgz#5ff8616d6dd2ca5388bc85b2d6266e2b9da502dc"
-  integrity sha1-X/hhbW3SylOIvIWy1iZuK52lAtw=
-
 boolbase@~1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/boolbase/-/boolbase-1.0.0.tgz#68dff5fbe60c51eb37725ea9e3ed310dcc1e776e"
@@ -839,16 +827,6 @@ dir-glob@^3.0.1:
   integrity sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==
   dependencies:
     path-type "^4.0.0"
-
-documentdb@1.13.0:
-  version "1.13.0"
-  resolved "https://registry.yarnpkg.com/documentdb/-/documentdb-1.13.0.tgz#bba6f03150b2f42498cec4261bc439d834a33f8b"
-  integrity sha1-u6bwMVCy9CSYzsQmG8Q52DSjP4s=
-  dependencies:
-    binary-search-bounds "2.0.3"
-    priorityqueuejs "1.0.0"
-    semaphore "1.0.5"
-    underscore "1.8.3"
 
 dom-serializer@0, dom-serializer@~0.1.0:
   version "0.1.0"
@@ -1960,7 +1938,7 @@ prettyjson@1.2.1:
     colors "^1.1.2"
     minimist "^1.2.0"
 
-priorityqueuejs@1.0.0, priorityqueuejs@^1.0.0:
+priorityqueuejs@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/priorityqueuejs/-/priorityqueuejs-1.0.0.tgz#2ee4f23c2560913e08c07ce5ccdd6de3df2c5af8"
   integrity sha1-LuTyPCVgkT4IwHzlzN1t498sWvg=
@@ -2171,11 +2149,6 @@ sax@>=0.6.0:
   version "1.2.4"
   resolved "https://registry.yarnpkg.com/sax/-/sax-1.2.4.tgz#2816234e2378bddc4e5354fab5caa895df7100d9"
   integrity sha512-NqVDv9TpANUjFm0N8uM5GxL36UgKi9/atZw+x7YFnQ8ckwFGKrl4xX4yWtrey3UJm5nP1kUbnYgLopqWNSRhWw==
-
-semaphore@1.0.5:
-  version "1.0.5"
-  resolved "https://registry.yarnpkg.com/semaphore/-/semaphore-1.0.5.tgz#b492576e66af193db95d65e25ec53f5f19798d60"
-  integrity sha1-tJJXbmavGT25XWXiXsU/Xxl5jWA=
 
 semaphore@^1.0.5:
   version "1.1.0"
