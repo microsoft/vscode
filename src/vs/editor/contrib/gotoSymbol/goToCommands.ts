@@ -280,10 +280,6 @@ registerEditorAction(class PeekDefinitionAction extends DefinitionAction {
 				primary: KeyMod.Alt | KeyCode.F12,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
 				weight: KeybindingWeight.EditorContrib
-			},
-			menuOpts: {
-				group: 'navigation',
-				order: 1.2
 			}
 		});
 		CommandsRegistry.registerCommandAlias('editor.action.previewDeclaration', PeekDefinitionAction.id);
@@ -506,6 +502,10 @@ registerEditorAction(class GoToImplementationAction extends ImplementationAction
 				menuId: MenuId.MenubarGoMenu,
 				group: '4_symbol_nav',
 				order: 4, title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation")
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.45
 			}
 		});
 	}
@@ -603,10 +603,6 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
-			},
-			menuOpts: {
-				group: 'navigation',
-				order: 1.5
 			}
 		});
 	}
