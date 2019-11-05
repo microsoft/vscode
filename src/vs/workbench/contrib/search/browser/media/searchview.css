@@ -47,6 +47,10 @@
 	height: 24px; /* set initial height before measure */
 }
 
+.search-view .monaco-inputbox > .wrapper > textarea.input {
+	scrollbar-width: none; /* Firefox: hide scrollbar */
+}
+
 .search-view .monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
 	display: none;
 }
