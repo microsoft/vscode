@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ReferencesModel, FileReferences, OneReference } from './referencesModel';
+import { ReferencesModel, FileReferences, OneReference } from '../referencesModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';

@@ -8,7 +8,7 @@ import { createCancelablePromise, raceCancellation } from 'vs/base/common/async'
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isWeb } from 'vs/base/common/platform';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as corePosition from 'vs/editor/common/core/position';
@@ -17,21 +17,22 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { LocationLink, Location, isLocationLink } from 'vs/editor/common/modes';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
-import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
-import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
-import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/referencesModel';
+import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
+import { ReferencesController, RequestOptions } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
+import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from './goToDefinition';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from './goToSymbol';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
-import { ISymbolNavigationService } from 'vs/editor/contrib/goToDefinition/goToDefinitionResultsNavigation';
+import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/symbolNavigation';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isStandalone } from 'vs/base/browser/browser';
+import { URI } from 'vs/base/common/uri';
 
 export interface SymbolNavigationActionConfig {
 	openToSide: boolean;// = false
@@ -591,6 +592,84 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 			}
 		});
 	}
+});
+
+//#endregion
+
+//#region ---- REFERENCE search special commands
+
+const defaultReferenceSearchOptions: RequestOptions = {
+	getMetaTitle(model) {
+		return model.references.length > 1 ? nls.localize('meta.titleReference', " – {0} references", model.references.length) : '';
+	}
+};
+
+CommandsRegistry.registerCommand({
+	id: 'editor.action.findReferences',
+	handler: (accessor: ServicesAccessor, resource: URI, position: corePosition.IPosition) => {
+		if (!(resource instanceof URI)) {
+			throw new Error('illegal argument, uri');
+		}
+		if (!position) {
+			throw new Error('illegal argument, position');
+		}
+
+		const codeEditorService = accessor.get(ICodeEditorService);
+		return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
+			if (!isCodeEditor(control) || !control.hasModel()) {
+				return undefined;
+			}
+
+			const controller = ReferencesController.get(control);
+			if (!controller) {
+				return undefined;
+			}
+
+			const references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), corePosition.Position.lift(position), token).then(references => new ReferencesModel(references)));
+			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+			return Promise.resolve(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
+		});
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'editor.action.showReferences',
+	description: {
+		description: 'Show references at a position in a file',
+		args: [
+			{ name: 'uri', description: 'The text document in which to show references', constraint: URI },
+			{ name: 'position', description: 'The position at which to show', constraint: corePosition.Position.isIPosition },
+			{ name: 'locations', description: 'An array of locations.', constraint: Array },
+		]
+	},
+	handler: (accessor: ServicesAccessor, resource: URI, position: corePosition.IPosition, references: Location[]) => {
+		if (!(resource instanceof URI)) {
+			throw new Error('illegal argument, uri expected');
+		}
+
+		if (!references) {
+			throw new Error('missing references');
+		}
+
+		const codeEditorService = accessor.get(ICodeEditorService);
+
+		return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
+			if (!isCodeEditor(control)) {
+				return undefined;
+			}
+
+			const controller = ReferencesController.get(control);
+			if (!controller) {
+				return undefined;
+			}
+
+			return controller.toggleWidget(
+				new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+				createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
+				defaultReferenceSearchOptions
+			);
+		});
+	},
 });
 
 //#endregion

@@ -13,14 +13,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ReferencesModel, OneReference } from './referencesModel';
+import { ReferencesModel, OneReference } from '../referencesModel';
 import { ReferenceWidget, LayoutData, ctxReferenceWidgetSearchTreeFocused } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { Location } from 'vs/editor/common/modes';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancelablePromise } from 'vs/base/common/async';
-import { getOuterEditor, PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
+import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
