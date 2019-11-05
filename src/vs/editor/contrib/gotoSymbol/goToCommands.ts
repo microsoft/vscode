@@ -506,8 +506,8 @@ registerEditorAction(class GoToImplementationAction extends ImplementationAction
 			muteMessage: false
 		}, {
 			id: GoToImplementationAction.ID,
-			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
-			alias: 'Go to Implementation',
+			label: nls.localize('actions.goToImplementation.label', "Go to Implementations"),
+			alias: 'Go to Implementations',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasImplementationProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
@@ -540,8 +540,8 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 			muteMessage: false
 		}, {
 			id: PeekImplementationAction.ID,
-			label: nls.localize('actions.peekImplementation.label', "Peek Implementation"),
-			alias: 'Peek Implementation',
+			label: nls.localize('actions.peekImplementation.label', "Peek Implementations"),
+			alias: 'Peek Implementations',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasImplementationProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
@@ -604,6 +604,11 @@ registerEditorAction(class GoToReferencesAction extends ReferencesAction {
 			menuOpts: {
 				group: 'navigation',
 				order: 1.45
+			},
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.Shift | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -624,12 +629,7 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
-			),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyCode.F12,
-				weight: KeybindingWeight.EditorContrib
-			}
+			)
 		});
 	}
 });
