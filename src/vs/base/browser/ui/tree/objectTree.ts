@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISequence } from 'vs/base/common/iterator';
-import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
 import { ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
@@ -160,6 +160,10 @@ function asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider: () => I
 	};
 }
 
+export interface ICompressibleObjectTreeOptionsUpdate extends IAbstractTreeOptionsUpdate {
+	readonly compressionEnabled?: boolean;
+}
+
 export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
 
 	protected model!: CompressibleObjectTreeModel<T, TFilterData>;
@@ -184,12 +188,12 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		return new CompressibleObjectTreeModel(user, view, options);
 	}
 
-	isCompressionEnabled(): boolean {
-		return this.model.isCompressionEnabled();
-	}
+	updateOptions(optionsUpdate: ICompressibleObjectTreeOptionsUpdate = {}): void {
+		super.updateOptions(optionsUpdate);
 
-	setCompressionEnabled(enabled: boolean): void {
-		this.model.setCompressionEnabled(enabled);
+		if (typeof optionsUpdate.compressionEnabled !== 'undefined') {
+			this.model.setCompressionEnabled(optionsUpdate.compressionEnabled);
+		}
 	}
 
 	getCompressedTreeNode(element: T | null = null): ITreeNode<ICompressedTreeNode<T> | null, TFilterData> {

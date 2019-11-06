@@ -1025,6 +1025,10 @@ export interface ICompressibleAsyncDataTreeOptions<T, TFilterData = void> extend
 	readonly keyboardNavigationLabelProvider?: ICompressibleKeyboardNavigationLabelProvider<T>;
 }
 
+export interface ICompressibleAsyncDataTreeOptionsUpdate extends IAsyncDataTreeOptionsUpdate {
+	readonly compressionEnabled?: boolean;
+}
+
 export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends AsyncDataTree<TInput, T, TFilterData> {
 
 	protected readonly tree: CompressibleObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>;
@@ -1061,6 +1065,10 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 			incompressible: this.compressionDelegate.isIncompressible(node.element as T),
 			...super.asTreeElement(node, viewStateContext)
 		};
+	}
+
+	updateOptions(options: ICompressibleAsyncDataTreeOptionsUpdate = {}): void {
+		this.tree.updateOptions(options);
 	}
 
 	getViewState(): IAsyncDataTreeViewState {

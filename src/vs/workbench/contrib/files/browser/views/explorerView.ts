@@ -50,6 +50,7 @@ import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { dispose } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -282,9 +283,11 @@ export class ExplorerView extends ViewletPanel {
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
+		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compressSingleChildFolders');
+
 		this.tree = this.instantiationService.createInstance<typeof WorkbenchCompressibleAsyncDataTree, WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [filesRenderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
-			// compressionEnabled: false,
+			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: new ExplorerAccessibilityProvider(),
 			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 			identityProvider: {
@@ -320,6 +323,10 @@ export class ExplorerView extends ViewletPanel {
 			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT
 		});
 		this._register(this.tree);
+
+		// Bind configuration
+		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compressSingleChildFolders'));
+		this._register(onDidChangeCompressionConfiguration(_ => this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
 
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
