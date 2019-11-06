@@ -23,7 +23,7 @@ import * as modes from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
-import { peekViewBorder } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { peekViewBorder } from 'vs/editor/contrib/peekView/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';

@@ -168,13 +168,6 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		webview.setName(value);
 	}
 
-	public $setState(handle: extHostProtocol.WebviewPanelHandle, state: modes.WebviewContentState): void {
-		const webview = this.getWebviewInput(handle);
-		if (webview instanceof CustomFileEditorInput) {
-			webview.setState(state);
-		}
-	}
-
 	public $setIconPath(handle: extHostProtocol.WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
 		const webview = this.getWebviewInput(handle);
 		webview.iconPath = reviveWebviewIcon(value);
@@ -275,12 +268,6 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
-
-				if (webviewInput instanceof CustomFileEditorInput) {
-					webviewInput.onWillSave(e => {
-						e.waitUntil(this._proxy.$save(handle));
-					});
-				}
 
 				try {
 					await this._proxy.$resolveWebviewEditor(

@@ -25,6 +25,7 @@ import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippe
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { SnippetCompletionProvider } from './snippetCompletionProvider';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 namespace snippetExt {
 
@@ -139,6 +140,7 @@ class SnippetsService implements ISnippetsService {
 		@IModeService private readonly _modeService: IModeService,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
+		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
@@ -225,7 +227,7 @@ class SnippetsService implements ISnippetsService {
 							file.defaultScopes = [];
 						}
 					} else {
-						const file = new SnippetFile(SnippetSource.Extension, validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService);
+						const file = new SnippetFile(SnippetSource.Extension, validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService, this._extensionResourceLoaderService);
 						this._files.set(file.location.toString(), file);
 
 						if (this._environmentService.isExtensionDevelopment) {
@@ -318,9 +320,9 @@ class SnippetsService implements ISnippetsService {
 		const key = uri.toString();
 		if (source === SnippetSource.User && ext === '.json') {
 			const langName = resources.basename(uri).replace(/\.json/, '');
-			this._files.set(key, new SnippetFile(source, uri, [langName], undefined, this._fileService));
+			this._files.set(key, new SnippetFile(source, uri, [langName], undefined, this._fileService, this._extensionResourceLoaderService));
 		} else if (ext === '.code-snippets') {
-			this._files.set(key, new SnippetFile(source, uri, undefined, undefined, this._fileService));
+			this._files.set(key, new SnippetFile(source, uri, undefined, undefined, this._fileService, this._extensionResourceLoaderService));
 		}
 		return {
 			dispose: () => this._files.delete(key)

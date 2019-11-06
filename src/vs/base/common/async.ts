@@ -764,5 +764,5 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 		}
 	}
 
-	return Promise.reject(lastError);
+	throw lastError;
 }

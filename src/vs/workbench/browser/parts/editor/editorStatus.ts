@@ -12,10 +12,10 @@ import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
 import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelLanguageChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
@@ -73,8 +73,8 @@ class SideBySideEditorModeSupport implements IModeSupport {
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport | null {
 
-	// Untitled Editor
-	if (input instanceof UntitledEditorInput) {
+	// Untitled Text Editor
+	if (input instanceof UntitledTextEditorInput) {
 		return input;
 	}
 
@@ -102,8 +102,8 @@ function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport | nu
 
 function toEditorWithModeSupport(input: IEditorInput): IModeSupport | null {
 
-	// Untitled Editor
-	if (input instanceof UntitledEditorInput) {
+	// Untitled Text Editor
+	if (input instanceof UntitledTextEditorInput) {
 		return input;
 	}
 
@@ -293,7 +293,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IModeService private readonly modeService: IModeService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -309,7 +309,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private registerListeners(): void {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
-		this._register(this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
+		this._register(this.untitledTextEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
 		this._register(this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange((e.resource))));
 		this._register(TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()));
 	}
@@ -659,7 +659,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				const modeId = textModel.getLanguageIdentifier().language;
-				info = { mode: this.modeService.getLanguageName(modeId) || undefined };
+				info = { mode: withNullAsUndefined(this.modeService.getLanguageName(modeId)) };
 			}
 		}
 
@@ -832,7 +832,7 @@ function isWritableCodeEditor(codeEditor: ICodeEditor | undefined): boolean {
 }
 
 function isWritableBaseEditor(e: IBaseEditor): boolean {
-	return e && isWritableCodeEditor(getCodeEditor(e.getControl()) || undefined);
+	return e && isWritableCodeEditor(withNullAsUndefined(getCodeEditor(e.getControl())));
 }
 
 export class ShowLanguageExtensionsAction extends Action {
@@ -869,7 +869,7 @@ export class ChangeModeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -884,7 +884,7 @@ export class ChangeModeAction extends Action {
 		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 
 		let hasLanguageSupport = !!resource;
-		if (resource?.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource)) {
+		if (resource?.scheme === Schemas.untitled && !this.untitledTextEditorService.hasAssociatedFilePath(resource)) {
 			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
 		}
 
@@ -893,7 +893,7 @@ export class ChangeModeAction extends Action {
 		let modeId: string | undefined;
 		if (textModel) {
 			modeId = textModel.getLanguageIdentifier().language;
-			currentModeId = this.modeService.getLanguageName(modeId) || undefined;
+			currentModeId = withNullAsUndefined(this.modeService.getLanguageName(modeId));
 		}
 
 		// All languages are valid picks
@@ -1152,7 +1152,7 @@ export class ChangeEncodingAction extends Action {
 		}
 
 		let action: IQuickPickItem;
-		if (encodingSupport instanceof UntitledEditorInput) {
+		if (encodingSupport instanceof UntitledTextEditorInput) {
 			action = saveWithEncodingPick;
 		} else if (!isWritableBaseEditor(activeControl)) {
 			action = reopenWithEncodingPick;

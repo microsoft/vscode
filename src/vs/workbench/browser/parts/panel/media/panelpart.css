@@ -110,7 +110,7 @@
 	text-align: center;
 	display: inline-block;
 	box-sizing: border-box;
-	}
+}
 
 /** Actions */
 
@@ -121,7 +121,8 @@
 .monaco-workbench .panel .monaco-action-bar .action-item .monaco-select-box {
 	cursor: pointer;
 	min-width: 110px;
-	margin-right: 10px;
+	min-height: 18px;
+	padding: 2px 8px;
 }
 
 /* Rotate icons when panel is on right */

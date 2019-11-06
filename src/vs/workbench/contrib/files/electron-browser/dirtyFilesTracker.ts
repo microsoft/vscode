@@ -8,7 +8,7 @@ import { platform, Platform } from 'vs/base/common/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DirtyFilesTracker } from 'vs/workbench/contrib/files/common/dirtyFilesTracker';
 import { IElectronService } from 'vs/platform/electron/node/electron';
@@ -21,16 +21,16 @@ export class NativeDirtyFilesTracker extends DirtyFilesTracker {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorService editorService: IEditorService,
 		@IActivityService activityService: IActivityService,
-		@IUntitledEditorService protected readonly untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService protected readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IElectronService private readonly electronService: IElectronService
 	) {
-		super(textFileService, lifecycleService, editorService, activityService, untitledEditorService);
+		super(textFileService, lifecycleService, editorService, activityService, untitledTextEditorService);
 
 		this.isDocumentedEdited = false;
 	}
 
 	protected onUntitledDidChangeDirty(resource: URI): void {
-		const gotDirty = this.untitledEditorService.isDirty(resource);
+		const gotDirty = this.untitledTextEditorService.isDirty(resource);
 		if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
 			this.updateDocumentEdited();
 		}

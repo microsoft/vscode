@@ -265,7 +265,7 @@ export class NoTabsTitleControl extends TitleControl {
 				title = ''; // dont repeat what is already shown
 			}
 
-			editorLabel.setResource({ name, description, resource: resource || undefined }, { title: typeof title === 'string' ? title : undefined, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
+			editorLabel.setResource({ name, description, resource }, { title: typeof title === 'string' ? title : undefined, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
 			if (isGroupActive) {
 				editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
 			} else {

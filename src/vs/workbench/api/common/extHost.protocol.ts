@@ -420,7 +420,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessTitle(terminalId: number, title: string): void;
 	$sendProcessData(terminalId: number, data: string): void;
 	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
-	$sendProcessExit(terminalId: number, exitCode: number): void;
+	$sendProcessExit(terminalId: number, exitCode: number | undefined): void;
 	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
 	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
@@ -558,7 +558,6 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
-	$setState(handle: WebviewPanelHandle, state: modes.WebviewContentState): void;
 	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
@@ -588,13 +587,13 @@ export interface ExtHostWebviewsShape {
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
-	$save(handle: WebviewPanelHandle): Promise<boolean>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
-	$createAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<UriComponents>;
+	$createAppUri(uri: UriComponents): Promise<UriComponents>;
+	$proposedCreateAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<UriComponents>;
 }
 
 export interface ExtHostUrlsShape {
@@ -913,10 +912,11 @@ export interface FileSystemEvents {
 	changed: UriComponents[];
 	deleted: UriComponents[];
 }
+
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onFileRename(oldUri: UriComponents, newUri: UriComponents): void;
-	$onWillRename(oldUri: UriComponents, newUri: UriComponents): Promise<any>;
+	$onWillRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined): Promise<any>;
+	$onDidRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined): void;
 }
 
 export interface ObjectIdentifier {
@@ -1196,8 +1196,8 @@ export interface ITerminalDimensionsDto {
 }
 
 export interface ExtHostTerminalServiceShape {
-	$acceptTerminalClosed(id: number): void;
-	$acceptTerminalOpened(id: number, name: string): void;
+	$acceptTerminalClosed(id: number, exitCode: number | undefined): void;
+	$acceptTerminalOpened(id: number, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$acceptTerminalProcessData(id: number, data: string): void;

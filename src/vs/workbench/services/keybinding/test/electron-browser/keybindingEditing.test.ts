@@ -38,7 +38,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TestBackupFileService, TestContextService, TestEditorGroupsService, TestEditorService, TestLifecycleService, TestTextFileService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
@@ -103,7 +103,7 @@ suite('KeybindingsEditing', () => {
 			fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 			fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
 			instantiationService.stub(IFileService, fileService);
-			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+			instantiationService.stub(IUntitledTextEditorService, instantiationService.createInstance(UntitledTextEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 			instantiationService.stub(IBackupFileService, new TestBackupFileService());

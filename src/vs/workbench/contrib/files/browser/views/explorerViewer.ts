@@ -30,7 +30,7 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
-import { fillResourceDataTransfers, CodeDataTransfers, extractResources } from 'vs/workbench/browser/dnd';
+import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
@@ -473,14 +473,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const effect = (fromDesktop || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
 
 		// Desktop DND
-		if (fromDesktop && originalEvent.dataTransfer) {
-			const types = originalEvent.dataTransfer.types;
-			const typesArray: string[] = [];
-			for (let i = 0; i < types.length; i++) {
-				typesArray.push(types[i].toLowerCase()); // somehow the types are lowercase
-			}
-
-			if (typesArray.indexOf(DataTransfers.FILES.toLowerCase()) === -1 && typesArray.indexOf(CodeDataTransfers.FILES.toLowerCase()) === -1) {
+		if (fromDesktop) {
+			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES)) {
 				return false;
 			}
 		}

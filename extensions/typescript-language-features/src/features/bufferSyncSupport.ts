@@ -361,6 +361,19 @@ export default class BufferSyncSupport extends Disposable {
 		return this.syncedBuffers.has(resource);
 	}
 
+	public ensureHasBuffer(resource: vscode.Uri): boolean {
+		if (this.syncedBuffers.has(resource)) {
+			return true;
+		}
+
+		const existingDocument = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === resource.toString());
+		if (existingDocument) {
+			return this.openTextDocument(existingDocument);
+		}
+
+		return false;
+	}
+
 	public toVsCodeResource(resource: vscode.Uri): vscode.Uri {
 		const filepath = this.client.normalizedPath(resource);
 		for (const buffer of this.syncedBuffers.allBuffers) {
@@ -385,24 +398,25 @@ export default class BufferSyncSupport extends Disposable {
 		}
 	}
 
-	public openTextDocument(document: vscode.TextDocument): void {
+	public openTextDocument(document: vscode.TextDocument): boolean {
 		if (!this.modeIds.has(document.languageId)) {
-			return;
+			return false;
 		}
 		const resource = document.uri;
 		const filepath = this.client.normalizedPath(resource);
 		if (!filepath) {
-			return;
+			return false;
 		}
 
 		if (this.syncedBuffers.has(resource)) {
-			return;
+			return true;
 		}
 
 		const syncedBuffer = new SyncedBuffer(document, filepath, this.client, this.synchronizer);
 		this.syncedBuffers.set(resource, syncedBuffer);
 		syncedBuffer.open();
 		this.requestDiagnostic(syncedBuffer);
+		return true;
 	}
 
 	public closeResource(resource: vscode.Uri): void {

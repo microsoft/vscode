@@ -16,6 +16,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Event, Emitter } from 'vs/base/common/event';
+import { DataTransfers } from 'vs/base/browser/dnd';
+import { isFirefox } from 'vs/base/browser/browser';
 
 export interface IActionViewItem extends IDisposable {
 	actionRunner: IActionRunner;
@@ -113,6 +115,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		const enableDragging = this.options && this.options.draggable;
 		if (enableDragging) {
 			container.draggable = true;
+
+			if (isFirefox) {
+				// Firefox: requires to set a text data transfer to get going
+				this._register(DOM.addDisposableListener(container, DOM.EventType.DRAG_START, e => e.dataTransfer?.setData(DataTransfers.TEXT, this._action.label)));
+			}
 		}
 
 		this._register(DOM.addDisposableListener(element, EventType.Tap, e => this.onClick(e)));

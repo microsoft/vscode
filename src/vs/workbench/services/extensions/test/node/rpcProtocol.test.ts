@@ -200,4 +200,15 @@ suite('RPCProtocol', () => {
 			done(null);
 		});
 	});
+
+	test('undefined arguments arrive as null', function () {
+		delegate = (a1: any, a2: any) => {
+			assert.equal(typeof a1, 'undefined');
+			assert.equal(a2, null);
+			return 7;
+		};
+		return bProxy.$m(undefined, null).then((res) => {
+			assert.equal(res, 7);
+		});
+	});
 });

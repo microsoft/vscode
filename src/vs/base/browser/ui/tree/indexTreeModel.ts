@@ -442,6 +442,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 			if (visibility === TreeVisibility.Hidden) {
 				node.visible = false;
+				node.renderNodeCount = 0;
 				return false;
 			}
 

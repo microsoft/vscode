@@ -330,6 +330,7 @@
 				"keyword.operator.expression",
 				"keyword.operator.cast",
 				"keyword.operator.sizeof",
+				"keyword.operator.alignof",
 				"keyword.operator.typeid",
 				"keyword.operator.alignas",
 				"keyword.operator.instanceof",

@@ -16,7 +16,6 @@ import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRe
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -29,6 +28,7 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IValidGrammarDefinition, IValidEmbeddedLanguagesMap, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 export abstract class AbstractTextMateService extends Disposable implements ITextMateService {
 	public _serviceBrand: undefined;
@@ -48,7 +48,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
 		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
-		@IFileService protected readonly _fileService: IFileService,
+		@IExtensionResourceLoaderService protected readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -191,10 +191,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		this._grammarFactory = new TMGrammarFactory({
 			logTrace: (msg: string) => this._logService.trace(msg),
 			logError: (msg: string, err: any) => this._logService.error(msg, err),
-			readFile: async (resource: URI) => {
-				const content = await this._fileService.readFile(resource);
-				return content.value.toString();
-			}
+			readFile: (resource: URI) => this._extensionResourceLoaderService.readExtensionResource(resource)
 		}, this._grammarDefinitions || [], vscodeTextmate, this._loadOnigLib());
 		this._onDidCreateGrammarFactory(this._grammarDefinitions || []);
 

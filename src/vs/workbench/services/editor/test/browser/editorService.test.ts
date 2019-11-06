@@ -22,7 +22,7 @@ import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/brow
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
@@ -30,7 +30,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 
 export class TestEditorControl extends BaseEditor {
@@ -54,7 +54,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorService'; }
-	resolve(): Promise<IEditorModel> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
+	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
@@ -270,36 +270,36 @@ suite('EditorService', () => {
 
 		// Untyped Input (untitled)
 		input = service.createInput({ options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
+		assert(input instanceof UntitledTextEditorInput);
 
 		// Untyped Input (untitled with contents)
 		input = service.createInput({ contents: 'Hello Untitled', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
-		let model = await input.resolve() as UntitledEditorModel;
+		assert(input instanceof UntitledTextEditorInput);
+		let model = await input.resolve() as UntitledTextEditorModel;
 		assert.equal(model.textEditorModel!.getValue(), 'Hello Untitled');
 
 		// Untyped Input (untitled with mode)
 		input = service.createInput({ mode, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
-		model = await input.resolve() as UntitledEditorModel;
+		assert(input instanceof UntitledTextEditorInput);
+		model = await input.resolve() as UntitledTextEditorModel;
 		assert.equal(model.getMode(), mode);
 
 		// Untyped Input (untitled with file path)
 		input = service.createInput({ resource: URI.file('/some/path.txt'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
-		assert.ok((input as UntitledEditorInput).hasAssociatedFilePath);
+		assert(input instanceof UntitledTextEditorInput);
+		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		// Untyped Input (untitled with untitled resource)
 		input = service.createInput({ resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
-		assert.ok(!(input as UntitledEditorInput).hasAssociatedFilePath);
+		assert(input instanceof UntitledTextEditorInput);
+		assert.ok(!(input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		// Untyped Input (untitled with custom resource)
 		const provider = instantiationService.createInstance(FileServiceProvider, 'untitled-custom');
 
 		input = service.createInput({ resource: URI.parse('untitled-custom://some/path'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
-		assert.ok((input as UntitledEditorInput).hasAssociatedFilePath);
+		assert(input instanceof UntitledTextEditorInput);
+		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		provider.dispose();
 

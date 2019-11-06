@@ -33,7 +33,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 	public _serviceBrand: undefined;
 
-	private workspace: Workspace;
+	private workspace!: Workspace;
 	private completeWorkspaceBarrier: Barrier;
 	private readonly configurationCache: IConfigurationCache;
 	private _configuration: Configuration;

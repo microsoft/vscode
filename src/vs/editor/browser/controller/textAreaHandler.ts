@@ -427,8 +427,7 @@ export class TextAreaHandler extends ViewPart {
 				this._visibleTextArea.top - this._scrollTop,
 				this._contentLeft + this._visibleTextArea.left - this._scrollLeft,
 				this._visibleTextArea.width,
-				this._lineHeight,
-				true
+				this._lineHeight
 			);
 			return;
 		}
@@ -460,29 +459,22 @@ export class TextAreaHandler extends ViewPart {
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
 			this._renderInsideEditor(
 				top, left,
-				canUseZeroSizeTextarea ? 0 : 1, this._lineHeight,
-				true
+				canUseZeroSizeTextarea ? 0 : 1, this._lineHeight
 			);
 			return;
 		}
 
 		this._renderInsideEditor(
 			top, left,
-			canUseZeroSizeTextarea ? 0 : 1, canUseZeroSizeTextarea ? 0 : 1,
-			false
+			canUseZeroSizeTextarea ? 0 : 1, canUseZeroSizeTextarea ? 0 : 1
 		);
 	}
 
-	private _renderInsideEditor(top: number, left: number, width: number, height: number, useEditorFont: boolean): void {
+	private _renderInsideEditor(top: number, left: number, width: number, height: number): void {
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 
-		if (useEditorFont) {
-			Configuration.applyFontInfo(ta, this._fontInfo);
-		} else {
-			ta.setFontSize(1);
-			ta.setLineHeight(this._fontInfo.lineHeight);
-		}
+		Configuration.applyFontInfo(ta, this._fontInfo);
 
 		ta.setTop(top);
 		ta.setLeft(left);

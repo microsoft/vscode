@@ -85,7 +85,7 @@ export class VariablesView extends ViewletPanel {
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>>(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
 			new VariablesDataSource(), {
 			ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
@@ -99,7 +99,7 @@ export class VariablesView extends ViewletPanel {
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
 		if (this.toolbar) {
-			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
+			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all');
 			this.toolbar.setActions([collapseAction])();
 		}
 		this.tree.updateChildren();

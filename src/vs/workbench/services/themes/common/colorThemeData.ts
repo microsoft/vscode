@@ -17,9 +17,9 @@ import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { startsWith } from 'vs/base/common/strings';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 
@@ -167,21 +167,21 @@ export class ColorThemeData implements IColorTheme {
 		}
 	}
 
-	public ensureLoaded(fileService: IFileService): Promise<void> {
-		return !this.isLoaded ? this.load(fileService) : Promise.resolve(undefined);
+	public ensureLoaded(extensionResourceLoaderService: IExtensionResourceLoaderService): Promise<void> {
+		return !this.isLoaded ? this.load(extensionResourceLoaderService) : Promise.resolve(undefined);
 	}
 
-	public reload(fileService: IFileService): Promise<void> {
-		return this.load(fileService);
+	public reload(extensionResourceLoaderService: IExtensionResourceLoaderService): Promise<void> {
+		return this.load(extensionResourceLoaderService);
 	}
 
-	private load(fileService: IFileService): Promise<void> {
+	private load(extensionResourceLoaderService: IExtensionResourceLoaderService): Promise<void> {
 		if (!this.location) {
 			return Promise.resolve(undefined);
 		}
 		this.themeTokenColors = [];
 		this.colorMap = {};
-		return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
+		return _loadColorTheme(extensionResourceLoaderService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
 			this.isLoaded = true;
 		});
 	}
@@ -295,11 +295,11 @@ function toCSSSelector(extensionId: string, path: string) {
 	return str;
 }
 
-function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
+function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
 	if (resources.extname(themeLocation) === '.json') {
-		return fileService.readFile(themeLocation).then(content => {
+		return extensionResourceLoaderService.readExtensionResource(themeLocation).then(content => {
 			let errors: Json.ParseError[] = [];
-			let contentValue = Json.parse(content.value.toString(), errors);
+			let contentValue = Json.parse(content, errors);
 			if (errors.length > 0) {
 				return Promise.reject(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 			} else if (Json.getNodeType(contentValue) !== 'object') {
@@ -307,7 +307,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 			}
 			let includeCompletes: Promise<any> = Promise.resolve(null);
 			if (contentValue.include) {
-				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation), contentValue.include), resultRules, resultColors);
+				includeCompletes = _loadColorTheme(extensionResourceLoaderService, resources.joinPath(resources.dirname(themeLocation), contentValue.include), resultRules, resultColors);
 			}
 			return includeCompletes.then(_ => {
 				if (Array.isArray(contentValue.settings)) {
@@ -333,7 +333,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 						resultRules.push(...tokenColors);
 						return null;
 					} else if (typeof tokenColors === 'string') {
-						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation), tokenColors), resultRules, {});
+						return _loadSyntaxTokens(extensionResourceLoaderService, resources.joinPath(resources.dirname(themeLocation), tokenColors), resultRules, {});
 					} else {
 						return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
 					}
@@ -342,14 +342,14 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 			});
 		});
 	} else {
-		return _loadSyntaxTokens(fileService, themeLocation, resultRules, resultColors);
+		return _loadSyntaxTokens(extensionResourceLoaderService, themeLocation, resultRules, resultColors);
 	}
 }
 
-function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
-	return fileService.readFile(themeLocation).then(content => {
+function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
+	return extensionResourceLoaderService.readExtensionResource(themeLocation).then(content => {
 		try {
-			let contentValue = parsePList(content.value.toString());
+			let contentValue = parsePList(content);
 			let settings: ITokenColorizationRule[] = contentValue.settings;
 			if (!Array.isArray(settings)) {
 				return Promise.reject(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.")));

@@ -23,7 +23,7 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^10.14.8",
+    "@types/node": "^12.11.7",
     "@types/semver": "^5.5.0",
     "@types/rimraf": "2.0.2",
     "vscode": "^1.1.10"
@@ -92,6 +92,10 @@
       },
       {
         "fileMatch": ".babelrc.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+      },
+      {
+        "fileMatch": "babel.config.json",
         "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
       },
       {
