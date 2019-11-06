@@ -22,7 +22,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledResourceInput } from 'vs/workbench/common/editor';
+import { IUntitledTextResourceInput } from 'vs/workbench/common/editor';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
@@ -403,7 +403,7 @@ export class MeasureExtHostLatencyAction extends Action {
 
 	public async run(): Promise<any> {
 		const measurements = await Promise.all(getLatencyTestProviders().map(provider => provider.measure()));
-		this._editorService.openEditor({ contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } } as IUntitledResourceInput);
+		this._editorService.openEditor({ contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } } as IUntitledTextResourceInput);
 	}
 
 	private static _print(m: ExtHostLatencyResult): string {
