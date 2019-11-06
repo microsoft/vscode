@@ -219,10 +219,6 @@ function checkPackageJSON(actualPath) {
 			// missing in root is allowed
 			continue;
 		}
-		if (depName === 'vscode-textmate') {
-			// allow vscode-textmate to diverge for now
-			continue;
-		}
 		if (depVersion !== rootDepVersion) {
 			this.emit('error', `The dependency ${depName} in '${actualPath}' (${depVersion}) is different than in the root package.json (${rootDepVersion})`);
 		}
