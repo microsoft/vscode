@@ -118,7 +118,7 @@ export interface IEncodedTokens {
 	getEndCharacter(tokenIndex: number): number;
 	getMetadata(tokenIndex: number): number;
 
-	delete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): IEncodedTokens;
+	acceptDelete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): IEncodedTokens;
 }
 
 export class SparseEncodedTokens implements IEncodedTokens {
@@ -139,8 +139,152 @@ export class SparseEncodedTokens implements IEncodedTokens {
 		return new SparseEncodedTokens(new Uint32Array(0));
 	}
 
-	public delete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): IEncodedTokens {
-		throw new Error(`Not implemented`); // TODO@semantic
+	public acceptDelete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): IEncodedTokens {
+		// This is a bit complex, here are the cases I used to think about this:
+		//
+		// 1. The token starts before the deletion range
+		// 1a. The token is completely before the deletion range
+		//               -----------
+		//                          xxxxxxxxxxx
+		// 1b. The token starts before, the deletion range ends after the token
+		//               -----------
+		//                      xxxxxxxxxxx
+		// 1c. The token starts before, the deletion range ends precisely with the token
+		//               ---------------
+		//                      xxxxxxxx
+		// 1d. The token starts before, the deletion range is inside the token
+		//               ---------------
+		//                    xxxxx
+		//
+		// 2. The token starts at the same position with the deletion range
+		// 2a. The token starts at the same position, and ends inside the deletion range
+		//               -------
+		//               xxxxxxxxxxx
+		// 2b. The token starts at the same position, and ends at the same position as the deletion range
+		//               ----------
+		//               xxxxxxxxxx
+		// 2c. The token starts at the same position, and ends after the deletion range
+		//               -------------
+		//               xxxxxxx
+		//
+		// 3. The token starts inside the deletion range
+		// 3a. The token is inside the deletion range
+		//                -------
+		//             xxxxxxxxxxxxx
+		// 3b. The token starts inside the deletion range, and ends at the same position as the deletion range
+		//                ----------
+		//             xxxxxxxxxxxxx
+		// 3c. The token starts inside the deletion range, and ends after the deletion range
+		//                ------------
+		//             xxxxxxxxxxx
+		//
+		// 4. The token starts after the deletion range
+		//                  -----------
+		//          xxxxxxxx
+		//
+		const tokens = this.tokens;
+		const tokenCount = this.tokens.length / 4;
+		const deletedLineCount = (endDeltaLine - startDeltaLine);
+		let newTokenCount = 0;
+		let hasDeletedTokens = false;
+		for (let i = 0; i < tokenCount; i++) {
+			const srcOffset = 4 * i;
+			let tokenDeltaLine = tokens[srcOffset];
+			let tokenStartCharacter = tokens[srcOffset + 1];
+			let tokenEndCharacter = tokens[srcOffset + 2];
+			const tokenMetadata = tokens[srcOffset + 3];
+
+			if (tokenDeltaLine < startDeltaLine || (tokenDeltaLine === startDeltaLine && tokenEndCharacter <= startCharacter)) {
+				// 1a. The token is completely before the deletion range
+				// => nothing to do
+				newTokenCount++;
+				continue;
+			} else if (tokenDeltaLine === startDeltaLine && tokenStartCharacter < startCharacter) {
+				// 1b, 1c, 1d
+				// => the token survives, but it needs to shrink
+				if (tokenDeltaLine === endDeltaLine && tokenEndCharacter > endCharacter) {
+					// 1d. The token starts before, the deletion range is inside the token
+					// => the token shrinks by the deletion character count
+					tokenEndCharacter -= (endCharacter - startCharacter);
+				} else {
+					// 1b. The token starts before, the deletion range ends after the token
+					// 1c. The token starts before, the deletion range ends precisely with the token
+					// => the token shrinks its ending to the deletion start
+					tokenEndCharacter = startCharacter;
+				}
+			} else if (tokenDeltaLine === startDeltaLine && tokenStartCharacter === startCharacter) {
+				// 2a, 2b, 2c
+				if (tokenDeltaLine === endDeltaLine && tokenEndCharacter > endCharacter) {
+					// 2c. The token starts at the same position, and ends after the deletion range
+					// => the token shrinks by the deletion character count
+					tokenEndCharacter -= (endCharacter - startCharacter);
+				} else {
+					// 2a. The token starts at the same position, and ends inside the deletion range
+					// 2b. The token starts at the same position, and ends at the same position as the deletion range
+					// => the token is deleted
+					hasDeletedTokens = true;
+					continue;
+				}
+			} else if (tokenDeltaLine < endDeltaLine || (tokenDeltaLine === endDeltaLine && tokenStartCharacter < endCharacter)) {
+				// 3a, 3b, 3c
+				if (tokenDeltaLine === endDeltaLine && tokenEndCharacter > endCharacter) {
+					// 3c. The token starts inside the deletion range, and ends after the deletion range
+					// => the token moves left and shrinks
+					if (tokenDeltaLine === startDeltaLine) {
+						// the deletion started on the same line as the token
+						// => the token moves left and shrinks
+						tokenStartCharacter = startCharacter;
+						tokenEndCharacter = tokenStartCharacter + (tokenEndCharacter - endCharacter);
+					} else {
+						// the deletion started on a line above the token
+						// => the token moves to the beginning of the line
+						tokenStartCharacter = 0;
+						tokenEndCharacter = tokenStartCharacter + (tokenEndCharacter - endCharacter);
+					}
+				} else {
+					// 3a. The token is inside the deletion range
+					// 3b. The token starts inside the deletion range, and ends at the same position as the deletion range
+					// => the token is deleted
+					hasDeletedTokens = true;
+					continue;
+				}
+			} else if (tokenDeltaLine > endDeltaLine) {
+				// 4. (partial) The token starts after the deletion range, on a line below...
+				if (deletedLineCount === 0 && !hasDeletedTokens) {
+					// early stop, there is no need to walk all the tokens and do nothing...
+					newTokenCount = tokenCount;
+					break;
+				}
+				tokenDeltaLine -= deletedLineCount;
+			} else if (tokenDeltaLine === endDeltaLine && tokenStartCharacter >= endCharacter) {
+				// 4. (continued) The token starts after the deletion range, on the last line where a deletion occurs
+				tokenDeltaLine -= deletedLineCount;
+				tokenStartCharacter -= endCharacter;
+				tokenEndCharacter -= endCharacter;
+			} else {
+				throw new Error(`Impossible case!`);
+				console.log(`I NEED TO acceptDelete at token: ${tokenDeltaLine}, ${tokenStartCharacter}, ${tokenEndCharacter}`);
+			}
+
+			const destOffset = 4 * newTokenCount;
+			tokens[destOffset] = tokenDeltaLine;
+			tokens[destOffset + 1] = tokenStartCharacter;
+			tokens[destOffset + 2] = tokenEndCharacter;
+			tokens[destOffset + 3] = tokenMetadata;
+			newTokenCount++;
+		}
+
+		return this;
+
+		// if (hasDeletedTokens) {
+		// 	console.log(`there are deleted tokens!`);
+		// 	throw new Error(`TODO!`);
+		// }
+
+		// // console.log
+
+		// console.log(`TODO - acceptDelete, ${startDeltaLine}, ${startCharacter}, ${endDeltaLine}, ${endCharacter}`);
+		// throw new Error(`Not implemented`); // TODO@semantic
 	}
 
 	public getMaxDeltaLine(): number {
@@ -267,6 +411,10 @@ export class MultilineTokens2 {
 		// this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
 	}
 
+	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number): void {
+		this._acceptDeleteRange(range);
+	}
+
 	private _acceptDeleteRange(range: IRange): void {
 		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
 			// Nothing to delete
@@ -301,9 +449,9 @@ export class MultilineTokens2 {
 			const deletedBefore = -firstLineIndex;
 			this.startLineNumber -= deletedBefore;
 
-			this._setTokens(this.tokens.delete(0, 0, lastLineIndex, range.endColumn - 1));
+			this._setTokens(this.tokens.acceptDelete(0, 0, lastLineIndex, range.endColumn - 1));
 		} else {
-			this._setTokens(this.tokens.delete(firstLineIndex, range.startColumn - 1, lastLineIndex, range.endColumn - 1));
+			this._setTokens(this.tokens.acceptDelete(firstLineIndex, range.startColumn - 1, lastLineIndex, range.endColumn - 1));
 		}
 	}
 }
@@ -527,7 +675,7 @@ export class TokensStore2 {
 		for (let bIndex = 0; bIndex < bLen; bIndex++) {
 			const bStartCharacter = bTokens.getStartCharacter(bIndex);
 			const bEndCharacter = bTokens.getEndCharacter(bIndex);
-			const bMetadata = bTokens.getMetadata(bIndex); // TODO@semantic: should use languageId from aTokens :/ :/ :/
+			const bMetadata = bTokens.getMetadata(bIndex); // TODO@semantic: should use languageId from aTokens :| :| :|
 
 			// push any token from `a` that is before `b`
 			while (aIndex < aLen && aTokens.getEndOffset(aIndex) <= bStartCharacter) {
@@ -560,25 +708,7 @@ export class TokensStore2 {
 		}
 
 		return new LineTokens(new Uint32Array(result), aTokens.getLineContent());
-
-		console.log(result);
-
-		// let currentMetadata = 0;
-
-
-
-
-		// const len = pieces.length;
-		// while (pieceIndex < len) {
-		// }
-		console.log(`addSemanticTokens for ${lineNumber}`);
-		console.log(bTokens);
-
-		// console.log(`pieceIndex: ${pieceIndex}`);
-		return aTokens;
 	}
-
-	// private static _findLine(piece: Multiline)
 
 	private static _findFirstPieceWithLine(pieces: MultilineTokens2[], lineNumber: number): number {
 		let low = 0;
@@ -605,9 +735,9 @@ export class TokensStore2 {
 	//#region Editing
 
 	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number): void {
-		console.log(`TODO@semantic --> acceptEdit !!!!`);
-		// this._acceptDeleteRange(range);
-		// this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
+		for (const piece of this._pieces) {
+			piece.acceptEdit(range, eolCount, firstLineLength);
+		}
 	}
 
 	//#endregion
