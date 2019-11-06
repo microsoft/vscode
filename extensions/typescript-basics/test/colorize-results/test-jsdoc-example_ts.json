@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "@",
-		"t": "source.ts comment.block.documentation.ts storage.type.class.jsdoc punctuation.definition.block.tag.jsdoc",
+		"t": "source.ts comment.block.documentation.ts meta.example.jsdoc storage.type.class.jsdoc punctuation.definition.block.tag.jsdoc",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -34,7 +34,7 @@
 	},
 	{
 		"c": "example",
-		"t": "source.ts comment.block.documentation.ts storage.type.class.jsdoc",
+		"t": "source.ts comment.block.documentation.ts meta.example.jsdoc storage.type.class.jsdoc",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -44,8 +44,8 @@
 		}
 	},
 	{
-		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
+		"c": " * ",
+		"t": "source.ts comment.block.documentation.ts meta.example.jsdoc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -55,74 +55,19 @@
 		}
 	},
 	{
-		"c": " ",
-		"t": "source.ts comment.block.documentation.ts meta.embedded.block.example.source.ts",
+		"c": "1 + 1",
+		"t": "source.ts comment.block.documentation.ts meta.example.jsdoc source.embedded.ts",
 		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
-		}
-	},
-	{
-		"c": "1",
-		"t": "source.ts comment.block.documentation.ts meta.embedded.block.example.source.ts constant.numeric.decimal.tsx",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.ts comment.block.documentation.ts meta.embedded.block.example.source.ts",
-		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
-		}
-	},
-	{
-		"c": "+",
-		"t": "source.ts comment.block.documentation.ts meta.embedded.block.example.source.ts keyword.operator.arithmetic.tsx",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.ts comment.block.documentation.ts meta.embedded.block.example.source.ts",
-		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
-		}
-	},
-	{
-		"c": "1",
-		"t": "source.ts comment.block.documentation.ts meta.embedded.block.example.source.ts constant.numeric.decimal.tsx",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
+		"t": "source.ts comment.block.documentation.ts meta.example.jsdoc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -133,7 +78,7 @@
 	},
 	{
 		"c": " * ",
-		"t": "source.ts comment.block.documentation.ts",
+		"t": "source.ts comment.block.documentation.ts meta.example.jsdoc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
