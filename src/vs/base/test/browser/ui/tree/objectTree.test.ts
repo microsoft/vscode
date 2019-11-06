@@ -348,8 +348,6 @@ suite('CompressibleObjectTree', function () {
 		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
-		assert.equal(tree.isCompressionEnabled(), true);
-
 		tree.setChildren(null, Iterator.fromArray([
 			{
 				element: 1, children: Iterator.fromArray([{
@@ -367,11 +365,11 @@ suite('CompressibleObjectTree', function () {
 		let rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
 		assert.deepEqual(rows, ['1/11/111', '1111', '1112', '1113']);
 
-		tree.setCompressionEnabled(false);
+		tree.updateOptions({ compressionEnabled: false });
 		rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
 		assert.deepEqual(rows, ['1', '11', '111', '1111', '1112', '1113']);
 
-		tree.setCompressionEnabled(true);
+		tree.updateOptions({ compressionEnabled: true });
 		rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
 		assert.deepEqual(rows, ['1/11/111', '1111', '1112', '1113']);
 	});
