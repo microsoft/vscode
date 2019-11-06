@@ -1260,7 +1260,7 @@ export class SearchView extends ViewletPanel {
 
 	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): Thenable<void> {
 		let progressComplete: () => void;
-		this.progressService.withProgress({ location: VIEWLET_ID }, _progress => {
+		this.progressService.withProgress({ location: VIEWLET_ID, delay: 300 }, _progress => {
 			return new Promise(resolve => progressComplete = resolve);
 		});
 
