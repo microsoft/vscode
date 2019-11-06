@@ -23,6 +23,7 @@ import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 export class TestCustomEditorsAction extends Action {
 
@@ -58,14 +59,26 @@ export class TestCustomEditor extends BaseEditor {
 		super(TestCustomEditor.ID, telemetryService, themeService, storageService);
 	}
 
+	updateStyles(): void {
+		super.updateStyles();
+
+		if (this.textArea) {
+			this.textArea.style.backgroundColor = this.getColor(editorBackground)!.toString();
+			this.textArea.style.color = this.getColor(editorForeground)!.toString();
+		}
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		this.textArea = document.createElement('textarea');
 		this.textArea.style.width = '100%';
 		this.textArea.style.height = '100%';
+
 		parent.appendChild(this.textArea);
 
 		addDisposableListener(this.textArea, EventType.CHANGE, e => this.onDidType());
 		addDisposableListener(this.textArea, EventType.KEY_UP, e => this.onDidType());
+
+		this.updateStyles();
 	}
 
 	private onDidType(): void {
@@ -121,7 +134,7 @@ export class TestCustomEditorInput extends EditorInput {
 			this.model.value = value;
 		}
 
-		this.setDirty(true);
+		this.setDirty(value.length > 0);
 	}
 
 	setDirty(dirty: boolean) {
