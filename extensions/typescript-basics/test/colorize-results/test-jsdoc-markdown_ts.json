@@ -11,7 +11,7 @@
 		}
 	},
 	{
-		"c": " * ",
+		"c": " * **Bold**",
 		"t": "source.ts comment.block.documentation.ts",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -22,40 +22,7 @@
 		}
 	},
 	{
-		"c": "**",
-		"t": "source.ts comment.block.documentation.ts markup.bold.markdown punctuation.definition.bold.markdown",
-		"r": {
-			"dark_plus": "markup.bold: #569CD6",
-			"light_plus": "markup.bold: #000080",
-			"dark_vs": "markup.bold: #569CD6",
-			"light_vs": "markup.bold: #000080",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "Bold",
-		"t": "source.ts comment.block.documentation.ts markup.bold.markdown",
-		"r": {
-			"dark_plus": "markup.bold: #569CD6",
-			"light_plus": "markup.bold: #000080",
-			"dark_vs": "markup.bold: #569CD6",
-			"light_vs": "markup.bold: #000080",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "**",
-		"t": "source.ts comment.block.documentation.ts markup.bold.markdown punctuation.definition.bold.markdown",
-		"r": {
-			"dark_plus": "markup.bold: #569CD6",
-			"light_plus": "markup.bold: #000080",
-			"dark_vs": "markup.bold: #569CD6",
-			"light_vs": "markup.bold: #000080",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": " *",
+		"c": " * ```js",
 		"t": "source.ts comment.block.documentation.ts",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -66,40 +33,7 @@
 		}
 	},
 	{
-		"c": " ",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "```",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown punctuation.definition.markdown",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "js",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown fenced_code.block.language.markdown",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": " *",
+		"c": " * 1 + code",
 		"t": "source.ts comment.block.documentation.ts",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -110,96 +44,8 @@
 		}
 	},
 	{
-		"c": " ",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown meta.embedded.block.javascript",
-		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
-		}
-	},
-	{
-		"c": "1",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown meta.embedded.block.javascript constant.numeric.decimal.js",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown meta.embedded.block.javascript",
-		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
-		}
-	},
-	{
-		"c": "+",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown meta.embedded.block.javascript keyword.operator.arithmetic.js",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown meta.embedded.block.javascript",
-		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF"
-		}
-	},
-	{
-		"c": "code",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown meta.embedded.block.javascript variable.other.readwrite.js",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "variable: #9CDCFE"
-		}
-	},
-	{
-		"c": " *",
+		"c": " * ```",
 		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "```",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown punctuation.definition.markdown",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
