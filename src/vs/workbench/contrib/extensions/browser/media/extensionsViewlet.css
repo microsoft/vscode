@@ -198,6 +198,12 @@
 	flex: 1;
 }
 
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count,
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .ratings {
+	display: flex;
+	align-items: center;
+}
+
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count:not(:empty) {
 	font-size: 80%;
 	margin: 0 6px;
