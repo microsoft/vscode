@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -37,6 +38,33 @@ function contextKeyForSupportedActions(kind: CodeActionKind) {
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
 }
 
+const argsSchema: IJSONSchema = {
+	type: 'object',
+	required: ['kind'],
+	defaultSnippets: [{ body: { kind: '' } }],
+	properties: {
+		'kind': {
+			type: 'string',
+			description: nls.localize('args.schema.kind', "Kind of the code action to run."),
+		},
+		'apply': {
+			type: 'string',
+			description: nls.localize('args.schema.apply', "Controls when the returned actions are applied."),
+			default: CodeActionAutoApply.IfSingle,
+			enum: [CodeActionAutoApply.First, CodeActionAutoApply.IfSingle, CodeActionAutoApply.Never],
+			enumDescriptions: [
+				nls.localize('args.schema.apply.first', "Always apply the first returned code action."),
+				nls.localize('args.schema.apply.ifSingle', "Apply the first returned code action if it is the only one."),
+				nls.localize('args.schema.apply.never', "Do not apply the returned code actions."),
+			]
+		},
+		'preferred': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('args.schema.preferred', "Controls if only preferred code actions should be returned."),
+		}
+	}
+};
 
 export class QuickFixController extends Disposable implements IEditorContribution {
 
@@ -237,20 +265,7 @@ export class CodeActionCommand extends EditorCommand {
 				description: `Trigger a code action`,
 				args: [{
 					name: 'args',
-					schema: {
-						'type': 'object',
-						'required': ['kind'],
-						'properties': {
-							'kind': {
-								'type': 'string'
-							},
-							'apply': {
-								'type': 'string',
-								'default': 'ifSingle',
-								'enum': ['first', 'ifSingle', 'never']
-							}
-						}
-					}
+					schema: argsSchema,
 				}]
 			}
 		});
@@ -301,19 +316,7 @@ export class RefactorAction extends EditorAction {
 				description: 'Refactor...',
 				args: [{
 					name: 'args',
-					schema: {
-						'type': 'object',
-						'properties': {
-							'kind': {
-								'type': 'string'
-							},
-							'apply': {
-								'type': 'string',
-								'default': 'never',
-								'enum': ['first', 'ifSingle', 'never']
-							}
-						}
-					}
+					schema: argsSchema
 				}]
 			}
 		});
@@ -356,19 +359,7 @@ export class SourceAction extends EditorAction {
 				description: 'Source Action...',
 				args: [{
 					name: 'args',
-					schema: {
-						'type': 'object',
-						'properties': {
-							'kind': {
-								'type': 'string'
-							},
-							'apply': {
-								'type': 'string',
-								'default': 'never',
-								'enum': ['first', 'ifSingle', 'never']
-							}
-						}
-					}
+					schema: argsSchema
 				}]
 			}
 		});
