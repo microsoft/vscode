@@ -119,16 +119,14 @@ export class SearchWidget extends Widget {
 	private replaceActionBar!: ActionBar;
 	private _replaceHistoryDelayer: Delayer<void>;
 	private _searchDelayer: Delayer<void>;
-	private _lastSearchString: string;
-
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
 
 	private _onSearchSubmit = this._register(new Emitter<void>());
 	readonly onSearchSubmit: Event<void> = this._onSearchSubmit.event;
 
-	private _onSearchCancel = this._register(new Emitter<void>());
-	readonly onSearchCancel: Event<void> = this._onSearchCancel.event;
+	private _onSearchCancel = this._register(new Emitter<{ focus: boolean }>());
+	readonly onSearchCancel: Event<{ focus: boolean }> = this._onSearchCancel.event;
 
 	private _onReplaceToggled = this._register(new Emitter<void>());
 	readonly onReplaceToggled: Event<void> = this._onReplaceToggled.event;
@@ -467,7 +465,7 @@ export class SearchWidget extends Widget {
 		}
 
 		else if (keyboardEvent.equals(KeyCode.Escape)) {
-			this._onSearchCancel.fire();
+			this._onSearchCancel.fire({ focus: true });
 			keyboardEvent.preventDefault();
 		}
 
@@ -480,23 +478,24 @@ export class SearchWidget extends Widget {
 			keyboardEvent.preventDefault();
 		}
 
-		else {
-			if (keyboardEvent.equals(KeyCode.UpArrow)) {
-				stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
-			}
+		if (keyboardEvent.equals(KeyCode.UpArrow)) {
+			stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
+		}
 
-			else if (keyboardEvent.equals(KeyCode.DownArrow)) {
-				stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
-			}
+		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
+			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
+		}
 
-			if (this.searchConfiguration.searchOnType) {
-				this._searchDelayer.trigger(
-					(() => {
-						if (this.searchInput.getValue() !== this._lastSearchString) {
-							this.submitSearch();
-						}
-					}));
-			}
+		if ((keyboardEvent.browserEvent.key.length === 1 ||
+			keyboardEvent.equals(KeyCode.Backspace) ||
+			keyboardEvent.equals(KeyCode.UpArrow) ||
+			keyboardEvent.equals(KeyCode.DownArrow))
+			&& this.searchConfiguration.searchOnType) {
+
+			// Check to see if this input changes the query, being either a printable key (`key` is length 1), or backspace, or history scroll
+			// If so, trigger a new search eventually, and preemptively cancel the old one as it's results will soon be discarded anyways.
+			this._onSearchCancel.fire({ focus: false });
+			this._searchDelayer.trigger((() => this.submitSearch()));
 		}
 	}
 
@@ -582,7 +581,6 @@ export class SearchWidget extends Widget {
 			if (useGlobalFindBuffer) {
 				this.clipboardServce.writeFindText(value);
 			}
-			this._lastSearchString = value;
 			this._onSearchSubmit.fire();
 		}
 	}

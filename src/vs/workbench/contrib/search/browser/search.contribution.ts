@@ -116,7 +116,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 		if (searchView) {
-			searchView.cancelSearch();
+			searchView.cancelSearch(true);
 		}
 	}
 });
