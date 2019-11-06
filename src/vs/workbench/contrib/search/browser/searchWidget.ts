@@ -486,13 +486,13 @@ export class SearchWidget extends Widget {
 			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
 		}
 
-		if ((keyboardEvent.browserEvent.key.length === 1 ||
+		if ((keyboardEvent.browserEvent.key.length === 1 && !(keyboardEvent.ctrlKey || keyboardEvent.metaKey) ||
 			keyboardEvent.equals(KeyCode.Backspace) ||
 			keyboardEvent.equals(KeyCode.UpArrow) ||
 			keyboardEvent.equals(KeyCode.DownArrow))
 			&& this.searchConfiguration.searchOnType) {
 
-			// Check to see if this input changes the query, being either a printable key (`key` is length 1), or backspace, or history scroll
+			// Check to see if this input changes the query, being either a printable key (`key` is length 1, and not modified), or backspace, or history scroll
 			// If so, trigger a new search eventually, and preemptively cancel the old one as it's results will soon be discarded anyways.
 			this._onSearchCancel.fire({ focus: false });
 			this._searchDelayer.trigger((() => this.submitSearch()));
