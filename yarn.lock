@@ -927,11 +927,6 @@ bcrypt-pbkdf@^1.0.0:
   dependencies:
     tweetnacl "^0.14.3"
 
-big-integer@^1.6.25:
-  version "1.6.25"
-  resolved "https://registry.yarnpkg.com/big-integer/-/big-integer-1.6.25.tgz#1de45a9f57542ac20121c682f8d642220a34e823"
-  integrity sha1-HeRan1dUKsIBIcaC+NZCIgo06CM=
-
 big.js@^3.1.3:
   version "3.2.0"
   resolved "https://registry.yarnpkg.com/big.js/-/big.js-3.2.0.tgz#a5fc298b81b9e0dca2e458824784b65c52ba588e"
@@ -951,11 +946,6 @@ binary-extensions@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/binary-extensions/-/binary-extensions-2.0.0.tgz#23c0df14f6a88077f5f986c0d167ec03c3d5537c"
   integrity sha512-Phlt0plgpIIBOGTT/ehfFnbNlfsDEiqmzE2KRXoX1bLIlir4X/MR+zSyBEkL05ffWgnRSf/DXv+WrUAVr93/ow==
-
-binary-search-bounds@2.0.3:
-  version "2.0.3"
-  resolved "https://registry.yarnpkg.com/binary-search-bounds/-/binary-search-bounds-2.0.3.tgz#5ff8616d6dd2ca5388bc85b2d6266e2b9da502dc"
-  integrity sha1-X/hhbW3SylOIvIWy1iZuK52lAtw=
 
 binary@^0.3.0:
   version "0.3.0"
@@ -2296,18 +2286,6 @@ doctrine@^2.1.0:
   integrity sha512-35mSku4ZXK0vfCuHEDAwt55dg2jNajHZ1odvF+8SSr82EsZY4QmXfuWso8oEd8zRhVObSN18aM0CjSdoBX7zIw==
   dependencies:
     esutils "^2.0.2"
-
-documentdb@^1.5.1:
-  version "1.14.1"
-  resolved "https://registry.yarnpkg.com/documentdb/-/documentdb-1.14.1.tgz#1a4716c0b38a40daf375dc9a4b2a2beb4e26294a"
-  integrity sha512-i5PR6/NqDBeYmv2EDEeL9nuw0/7uErFS1h6wRTYIuBMIVswJg2wYjdsGnMFH0bfCgpPk13p24NbPbmMHZNuzxw==
-  dependencies:
-    big-integer "^1.6.25"
-    binary-search-bounds "2.0.3"
-    int64-buffer "^0.1.9"
-    priorityqueuejs "1.0.0"
-    semaphore "1.0.5"
-    underscore "1.8.3"
 
 dom-serializer@0, dom-serializer@~0.1.0:
   version "0.1.0"
@@ -4217,11 +4195,6 @@ inquirer@^6.1.0:
     string-width "^2.1.0"
     strip-ansi "^5.0.0"
     through "^2.3.6"
-
-int64-buffer@^0.1.9:
-  version "0.1.9"
-  resolved "https://registry.yarnpkg.com/int64-buffer/-/int64-buffer-0.1.9.tgz#9e039da043b24f78b196b283e04653ef5e990f61"
-  integrity sha1-ngOdoEOyT3ixlrKD4EZT716ZD2E=
 
 interpret@1.2.0:
   version "1.2.0"
@@ -6769,11 +6742,6 @@ prettyjson@^1.2.1:
     colors "^1.1.2"
     minimist "^1.2.0"
 
-priorityqueuejs@1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/priorityqueuejs/-/priorityqueuejs-1.0.0.tgz#2ee4f23c2560913e08c07ce5ccdd6de3df2c5af8"
-  integrity sha1-LuTyPCVgkT4IwHzlzN1t498sWvg=
-
 process-nextick-args@^1.0.6, process-nextick-args@^1.0.7, process-nextick-args@~1.0.6:
   version "1.0.7"
   resolved "https://registry.yarnpkg.com/process-nextick-args/-/process-nextick-args-1.0.7.tgz#150e20b756590ad3f91093f25a4f2ad8bff30ba3"
@@ -7514,11 +7482,6 @@ schema-utils@^0.4.4, schema-utils@^0.4.5:
   dependencies:
     ajv "^6.1.0"
     ajv-keywords "^3.1.0"
-
-semaphore@1.0.5:
-  version "1.0.5"
-  resolved "https://registry.yarnpkg.com/semaphore/-/semaphore-1.0.5.tgz#b492576e66af193db95d65e25ec53f5f19798d60"
-  integrity sha1-tJJXbmavGT25XWXiXsU/Xxl5jWA=
 
 semver-greatest-satisfied-range@^1.1.0:
   version "1.1.0"
@@ -8538,10 +8501,10 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@3.7.1-rc:
-  version "3.7.1-rc"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.7.1-rc.tgz#2054b872d67f8dc732e36c1df397f9327f37ada0"
-  integrity sha512-2rMtWppLsaPvmpXsoIAXWDBQVnJMw1ITGGSnidMuayLj9iCmMRT69ncKZw/Mk5rXfJkilApKucWQZxproALoRw==
+typescript@3.7.2:
+  version "3.7.2"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.7.2.tgz#27e489b95fa5909445e9fef5ee48d81697ad18fb"
+  integrity sha512-ml7V7JfiN2Xwvcer+XAf2csGO1bPBdRbFCkYBczNZggrBZ9c7G3riSUeJmqEU5uOtXNPMhE3n+R4FA/3YOAWOQ==
 
 typescript@^2.6.2:
   version "2.6.2"

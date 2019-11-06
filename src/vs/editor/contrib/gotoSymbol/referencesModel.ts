@@ -41,7 +41,7 @@ export class OneReference {
 		this._rangeCallback(this);
 	}
 
-	getAriaMessage(): string {
+	get ariaMessage(): string {
 		return localize(
 			'aria.oneReference', "symbol in {0} on line {1} at column {2}",
 			basename(this.uri), this.range.startLineNumber, this.range.startColumn
@@ -56,7 +56,7 @@ export class FilePreview implements IDisposable {
 	) { }
 
 	dispose(): void {
-		dispose(this._modelReference);
+		this._modelReference.dispose();
 	}
 
 	preview(range: IRange, n: number = 8): { value: string; highlight: IMatch } | undefined {
@@ -108,7 +108,7 @@ export class FileReferences implements IDisposable {
 		return this._loadFailure;
 	}
 
-	getAriaMessage(): string {
+	get ariaMessage(): string {
 		const len = this.children.length;
 		if (len === 1) {
 			return localize('aria.fileReferences.1', "1 symbol in {0}, full path {1}", basename(this.uri), this.uri.fsPath);
@@ -192,7 +192,7 @@ export class ReferencesModel implements IDisposable {
 		return this.groups.length === 0;
 	}
 
-	getAriaMessage(): string {
+	get ariaMessage(): string {
 		if (this.isEmpty) {
 			return localize('aria.result.0', "No results found");
 		} else if (this.references.length === 1) {

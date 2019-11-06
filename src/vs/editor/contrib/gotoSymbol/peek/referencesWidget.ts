@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./referencesWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -11,7 +12,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
-import 'vs/css!./media/referencesWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -21,16 +21,16 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/modes';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement, StringRepresentationProvider, IdentityProvider } from 'vs/editor/contrib/referenceSearch/referencesTree';
+import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement, StringRepresentationProvider, IdentityProvider } from 'vs/editor/contrib/gotoSymbol/peek/referencesTree';
 import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PeekViewWidget, IPeekViewService } from './peekViewWidget';
-import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
+import * as peekView from 'vs/editor/contrib/peekView/peekView';
+import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
 import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { SplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -187,7 +187,7 @@ export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('r
 /**
  * ZoneWidget that is shown inside the editor
  */
-export class ReferenceWidget extends PeekViewWidget {
+export class ReferenceWidget extends peekView.PeekViewWidget {
 
 	private _model?: ReferencesModel;
 	private _decorationsManager?: DecorationsManager;
@@ -213,7 +213,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		@IThemeService themeService: IThemeService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IPeekViewService private readonly _peekViewService: IPeekViewService,
+		@peekView.IPeekViewService private readonly _peekViewService: peekView.IPeekViewService,
 		@ILabelService private readonly _uriLabel: ILabelService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
@@ -237,13 +237,13 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(peekView.peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
-			headerBackgroundColor: theme.getColor(peekViewTitleBackground) || Color.transparent,
-			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
-			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
+			headerBackgroundColor: theme.getColor(peekView.peekViewTitleBackground) || Color.transparent,
+			primaryHeadingColor: theme.getColor(peekView.peekViewTitleForeground),
+			secondaryHeadingColor: theme.getColor(peekView.peekViewTitleInfoForeground)
 		});
 	}
 
@@ -535,34 +535,17 @@ export class ReferenceWidget extends PeekViewWidget {
 
 // theming
 
-export const peekViewTitleBackground = registerColor('peekViewTitle.background', { dark: '#1E1E1E', light: '#FFFFFF', hc: '#0C141F' }, nls.localize('peekViewTitleBackground', 'Background color of the peek view title area.'));
-export const peekViewTitleForeground = registerColor('peekViewTitleLabel.foreground', { dark: '#FFFFFF', light: '#333333', hc: '#FFFFFF' }, nls.localize('peekViewTitleForeground', 'Color of the peek view title.'));
-export const peekViewTitleInfoForeground = registerColor('peekViewTitleDescription.foreground', { dark: '#ccccccb3', light: '#6c6c6cb3', hc: '#FFFFFF99' }, nls.localize('peekViewTitleInfoForeground', 'Color of the peek view title info.'));
-export const peekViewBorder = registerColor('peekView.border', { dark: '#007acc', light: '#007acc', hc: contrastBorder }, nls.localize('peekViewBorder', 'Color of the peek view borders and arrow.'));
-
-export const peekViewResultsBackground = registerColor('peekViewResult.background', { dark: '#252526', light: '#F3F3F3', hc: Color.black }, nls.localize('peekViewResultsBackground', 'Background color of the peek view result list.'));
-export const peekViewResultsMatchForeground = registerColor('peekViewResult.lineForeground', { dark: '#bbbbbb', light: '#646465', hc: Color.white }, nls.localize('peekViewResultsMatchForeground', 'Foreground color for line nodes in the peek view result list.'));
-export const peekViewResultsFileForeground = registerColor('peekViewResult.fileForeground', { dark: Color.white, light: '#1E1E1E', hc: Color.white }, nls.localize('peekViewResultsFileForeground', 'Foreground color for file nodes in the peek view result list.'));
-export const peekViewResultsSelectionBackground = registerColor('peekViewResult.selectionBackground', { dark: '#3399ff33', light: '#3399ff33', hc: null }, nls.localize('peekViewResultsSelectionBackground', 'Background color of the selected entry in the peek view result list.'));
-export const peekViewResultsSelectionForeground = registerColor('peekViewResult.selectionForeground', { dark: Color.white, light: '#6C6C6C', hc: Color.white }, nls.localize('peekViewResultsSelectionForeground', 'Foreground color of the selected entry in the peek view result list.'));
-export const peekViewEditorBackground = registerColor('peekViewEditor.background', { dark: '#001F33', light: '#F2F8FC', hc: Color.black }, nls.localize('peekViewEditorBackground', 'Background color of the peek view editor.'));
-export const peekViewEditorGutterBackground = registerColor('peekViewEditorGutter.background', { dark: peekViewEditorBackground, light: peekViewEditorBackground, hc: peekViewEditorBackground }, nls.localize('peekViewEditorGutterBackground', 'Background color of the gutter in the peek view editor.'));
-
-export const peekViewResultsMatchHighlight = registerColor('peekViewResult.matchHighlightBackground', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('peekViewResultsMatchHighlight', 'Match highlight color in the peek view result list.'));
-export const peekViewEditorMatchHighlight = registerColor('peekViewEditor.matchHighlightBackground', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('peekViewEditorMatchHighlight', 'Match highlight color in the peek view editor.'));
-export const peekViewEditorMatchHighlightBorder = registerColor('peekViewEditor.matchHighlightBorder', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('peekViewEditorMatchHighlightBorder', 'Match highlight border in the peek view editor.'));
-
 
 registerThemingParticipant((theme, collector) => {
-	const findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
+	const findMatchHighlightColor = theme.getColor(peekView.peekViewResultsMatchHighlight);
 	if (findMatchHighlightColor) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { background-color: ${findMatchHighlightColor}; }`);
 	}
-	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
+	const referenceHighlightColor = theme.getColor(peekView.peekViewEditorMatchHighlight);
 	if (referenceHighlightColor) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
 	}
-	const referenceHighlightBorder = theme.getColor(peekViewEditorMatchHighlightBorder);
+	const referenceHighlightBorder = theme.getColor(peekView.peekViewEditorMatchHighlightBorder);
 	if (referenceHighlightBorder) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { border: 2px solid ${referenceHighlightBorder}; box-sizing: border-box; }`);
 	}
@@ -570,27 +553,27 @@ registerThemingParticipant((theme, collector) => {
 	if (hcOutline) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
 	}
-	const resultsBackground = theme.getColor(peekViewResultsBackground);
+	const resultsBackground = theme.getColor(peekView.peekViewResultsBackground);
 	if (resultsBackground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
 	}
-	const resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
+	const resultsMatchForeground = theme.getColor(peekView.peekViewResultsMatchForeground);
 	if (resultsMatchForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
 	}
-	const resultsFileForeground = theme.getColor(peekViewResultsFileForeground);
+	const resultsFileForeground = theme.getColor(peekView.peekViewResultsFileForeground);
 	if (resultsFileForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
 	}
-	const resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
+	const resultsSelectedBackground = theme.getColor(peekView.peekViewResultsSelectionBackground);
 	if (resultsSelectedBackground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
 	}
-	const resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
+	const resultsSelectedForeground = theme.getColor(peekView.peekViewResultsSelectionForeground);
 	if (resultsSelectedForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
 	}
-	const editorBackground = theme.getColor(peekViewEditorBackground);
+	const editorBackground = theme.getColor(peekView.peekViewEditorBackground);
 	if (editorBackground) {
 		collector.addRule(
 			`.monaco-editor .reference-zone-widget .preview .monaco-editor .monaco-editor-background,` +
@@ -598,7 +581,7 @@ registerThemingParticipant((theme, collector) => {
 			`	background-color: ${editorBackground};` +
 			`}`);
 	}
-	const editorGutterBackground = theme.getColor(peekViewEditorGutterBackground);
+	const editorGutterBackground = theme.getColor(peekView.peekViewEditorGutterBackground);
 	if (editorGutterBackground) {
 		collector.addRule(
 			`.monaco-editor .reference-zone-widget .preview .monaco-editor .margin {` +

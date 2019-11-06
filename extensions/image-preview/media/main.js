@@ -70,7 +70,8 @@
 	let ctrlPressed = false;
 	let altPressed = false;
 	let hasLoadedImage = false;
-	let consumeClick = false;
+	let consumeClick = true;
+	let isActive = false;
 
 	// Elements
 	const container = document.body;
@@ -117,10 +118,16 @@
 		});
 	}
 
-	function changeActive(value) {
+	function setActive(value) {
+		isActive = value;
 		if (value) {
-			container.classList.add('zoom-in');
-			consumeClick = true;
+			if (isMac ? altPressed : ctrlPressed) {
+				container.classList.remove('zoom-in');
+				container.classList.add('zoom-out');
+			} else {
+				container.classList.remove('zoom-out');
+				container.classList.add('zoom-in');
+			}
 		} else {
 			ctrlPressed = false;
 			altPressed = false;
@@ -202,7 +209,10 @@
 			return;
 		}
 
-		consumeClick = false;
+		ctrlPressed = e.ctrlKey;
+		altPressed = e.altKey;
+
+		consumeClick = !isActive;
 	});
 
 	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
@@ -212,14 +222,6 @@
 
 		if (e.button !== 0) {
 			return;
-		}
-
-		ctrlPressed = e.ctrlKey;
-		altPressed = e.altKey;
-
-		if (isMac ? altPressed : ctrlPressed) {
-			container.classList.remove('zoom-in');
-			container.classList.add('zoom-out');
 		}
 
 		if (consumeClick) {
@@ -308,7 +310,7 @@
 				break;
 
 			case 'setActive':
-				changeActive(e.data.value);
+				setActive(e.data.value);
 				break;
 
 			case 'zoomIn':

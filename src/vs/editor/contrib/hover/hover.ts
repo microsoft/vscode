@@ -26,7 +26,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/goToDefinition/goToDefinitionAtPosition';
+import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 
 export class ModesHoverController implements IEditorContribution {
 

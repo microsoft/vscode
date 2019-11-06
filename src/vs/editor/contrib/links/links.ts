@@ -18,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LinkProviderRegistry } from 'vs/editor/common/modes';
-import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
+import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
 import { Link, getLinks, LinksList } from 'vs/editor/contrib/links/getLinks';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';

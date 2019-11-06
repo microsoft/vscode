@@ -395,6 +395,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: {
 					'pub.name': 'ui'
 				}
+			},
+			'remote.downloadExtensionsLocally': {
+				type: 'boolean',
+				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and installed on remote."),
+				default: false
 			}
 		}
 	});
