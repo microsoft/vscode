@@ -77,6 +77,9 @@ export class MarkersFilterAction extends Action {
 
 	public static readonly ID: string = 'workbench.actions.problems.filter';
 
+	private readonly _onFocus: Emitter<void> = this._register(new Emitter<void>());
+	readonly onFocus: Event<void> = this._onFocus.event;
+
 	constructor(options: IMarkersFilterActionOptions) {
 		super(MarkersFilterAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
 		this._filterText = options.filterText;
@@ -107,6 +110,18 @@ export class MarkersFilterAction extends Action {
 			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ useFilesExclude: true });
 		}
 	}
+
+	focus(): void {
+		this._onFocus.fire();
+	}
+
+	layout(width: number): void {
+		if (width < 400) {
+			this.class = 'markers-panel-action-filter small';
+		} else {
+			this.class = 'markers-panel-action-filter';
+		}
+	}
 }
 
 export interface IMarkerFilterController {
@@ -118,7 +133,6 @@ export interface IMarkerFilterController {
 export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private delayedFilterUpdate: Delayer<void>;
-	private container: HTMLElement | null = null;
 	private filterInputBox: HistoryInputBox | null = null;
 	private filterBadge: HTMLElement | null = null;
 	private focusContextKey: IContextKey<boolean>;
@@ -136,15 +150,16 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.focusContextKey = Constants.MarkerPanelFilterFocusContextKey.bindTo(contextKeyService);
 		this.delayedFilterUpdate = new Delayer<void>(200);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
+		this._register(action.onFocus(() => this.focus()));
 	}
 
 	render(container: HTMLElement): void {
-		this.container = container;
-		DOM.addClass(this.container, 'markers-panel-action-filter-container');
+		DOM.addClass(container, 'markers-panel-action-filter-container');
 
-		const filterContainer = DOM.append(this.container, DOM.$('.markers-panel-action-filter'));
-		this.createInput(filterContainer);
-		this.createControls(filterContainer);
+		this.element = DOM.append(container, DOM.$(''));
+		this.element.className = this.action.class || '';
+		this.createInput(this.element);
+		this.createControls(this.element);
 
 		this.adjustInputBox();
 	}
@@ -152,13 +167,6 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	focus(): void {
 		if (this.filterInputBox) {
 			this.filterInputBox.focus();
-		}
-	}
-
-	toggleLayout(small: boolean) {
-		if (this.container) {
-			DOM.toggleClass(this.container, 'small', small);
-			this.adjustInputBox();
 		}
 	}
 
@@ -249,8 +257,8 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private adjustInputBox(): void {
-		if (this.container && this.filterInputBox && this.filterBadge) {
-			this.filterInputBox.inputElement.style.paddingRight = DOM.hasClass(this.container, 'small') || DOM.hasClass(this.filterBadge, 'hidden') ? '25px' : '150px';
+		if (this.element && this.filterInputBox && this.filterBadge) {
+			this.filterInputBox.inputElement.style.paddingRight = DOM.hasClass(this.element, 'small') || DOM.hasClass(this.filterBadge, 'hidden') ? '25px' : '150px';
 		}
 	}
 
@@ -292,6 +300,13 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 			}
 		*/
 		this.telemetryService.publicLog('problems.filter', data);
+	}
+
+	protected updateClass(): void {
+		if (this.element) {
+			this.element.className = this.action.class || '';
+			this.adjustInputBox();
+		}
 	}
 }
 

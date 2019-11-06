@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable } from 'vscode';
-import { doesNotThrow, equal, ok, deepEqual } from 'assert';
+import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
 suite('window namespace tests', () => {
 	suiteSetup(async () => {
@@ -84,6 +84,30 @@ suite('window namespace tests', () => {
 			}
 		});
 
+		test('creationOptions should be set and readonly for TerminalOptions terminals', (done) => {
+			disposables.push(window.onDidOpenTerminal(term => {
+				try {
+					equal(terminal, term);
+				} catch (e) {
+					done(e);
+				}
+				terminal.dispose();
+				disposables.push(window.onDidCloseTerminal(() => done()));
+			}));
+			const options = {
+				name: 'foo',
+				hideFromUser: true
+			};
+			const terminal = window.createTerminal(options);
+			try {
+				equal(terminal.name, 'foo');
+				deepEqual(terminal.creationOptions, options);
+				throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
+			} catch (e) {
+				done(e);
+			}
+		});
+
 		test('onDidOpenTerminal should fire when a terminal is created', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
@@ -95,6 +119,27 @@ suite('window namespace tests', () => {
 				terminal.dispose();
 			}));
 			const terminal = window.createTerminal('b');
+		});
+
+		test('exitStatus.code should be set to undefined after a terminal is disposed', (done) => {
+			disposables.push(window.onDidOpenTerminal(term => {
+				try {
+					equal(term, terminal);
+				} catch (e) {
+					done(e);
+				}
+				disposables.push(window.onDidCloseTerminal(t => {
+					try {
+						deepEqual(t.exitStatus, { code: undefined });
+					} catch (e) {
+						done(e);
+						return;
+					}
+					done();
+				}));
+				terminal.dispose();
+			}));
+			const terminal = window.createTerminal();
 		});
 
 		// test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
@@ -362,12 +407,127 @@ suite('window namespace tests', () => {
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidOverrideDimensions: overrideDimensionsEmitter.event,
-					open: () => {
-						overrideDimensionsEmitter.fire({ columns: 10, rows: 5 });
-					},
+					open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('exitStatus.code should be set to the exit code (undefined)', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.exitStatus, undefined);
+					} catch (e) {
+						done(e);
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							deepEqual(terminal.exitStatus, { code: undefined });
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const writeEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => closeEmitter.fire(),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('exitStatus.code should be set to the exit code (zero)', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.exitStatus, undefined);
+					} catch (e) {
+						done(e);
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							deepEqual(terminal.exitStatus, { code: 0 });
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const writeEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => closeEmitter.fire(0),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('exitStatus.code should be set to the exit code (non-zero)', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.exitStatus, undefined);
+					} catch (e) {
+						done(e);
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							deepEqual(terminal.exitStatus, { code: 22 });
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const writeEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => closeEmitter.fire(22),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('creationOptions should be set and readonly for ExtensionTerminalOptions terminals', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+					} catch (e) {
+						done(e);
+					}
+					terminal.dispose();
+					disposables.push(window.onDidCloseTerminal(() => done()));
+				}));
+				const writeEmitter = new EventEmitter<string>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					open: () => { },
+					close: () => { }
+				};
+				const options = { name: 'foo', pty };
+				const terminal = window.createTerminal(options);
+				try {
+					equal(terminal.name, 'foo');
+					deepEqual(terminal.creationOptions, options);
+					throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
+				} catch (e) {
+					done(e);
+				}
 			});
 		});
 	});

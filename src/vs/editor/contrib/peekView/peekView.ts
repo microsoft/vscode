@@ -36,7 +36,7 @@ export interface IPeekViewService {
 registerSingleton(IPeekViewService, class implements IPeekViewService {
 	_serviceBrand: undefined;
 
-	private readonly _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable }>();
+	private readonly _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable; }>();
 
 	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void {
 		const existing = this._widgets.get(editor);
@@ -219,8 +219,9 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		if (this._metaHeading) {
 			if (value) {
 				this._metaHeading.innerHTML = strings.escape(value);
+				dom.show(this._metaHeading);
 			} else {
-				dom.clearNode(this._metaHeading);
+				dom.hide(this._metaHeading);
 			}
 		}
 	}

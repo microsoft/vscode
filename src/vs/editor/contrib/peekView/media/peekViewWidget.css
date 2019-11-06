@@ -9,7 +9,8 @@
 }
 
 .monaco-editor .peekview-widget .head .peekview-title {
-	display: inline-block;
+	display: flex;
+	align-items: center;
 	font-size: 13px;
 	margin-left: 20px;
 	cursor: pointer;
@@ -18,6 +19,11 @@
 .monaco-editor .peekview-widget .head .peekview-title .dirname:not(:empty) {
 	font-size: 0.9em;
 	margin-left: 0.5em;
+}
+
+.monaco-editor .peekview-widget .head .peekview-title .meta::before {
+	content: '-';
+	padding: 0 0.3em;
 }
 
 .monaco-editor .peekview-widget .head .peekview-actions {

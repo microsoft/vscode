@@ -6,32 +6,32 @@ import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
 import { join } from 'vs/base/common/path';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { timeout } from 'vs/base/common/async';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
-export class TestUntitledEditorService extends UntitledEditorService {
+export class TestUntitledTextEditorService extends UntitledTextEditorService {
 	get(resource: URI) { return super.get(resource); }
-	getAll(resources?: URI[]): UntitledEditorInput[] { return super.getAll(resources); }
+	getAll(resources?: URI[]): UntitledTextEditorInput[] { return super.getAll(resources); }
 }
 
 class ServiceAccessor {
 	constructor(
-		@IUntitledEditorService public untitledEditorService: TestUntitledEditorService,
+		@IUntitledTextEditorService public untitledTextEditorService: TestUntitledTextEditorService,
 		@IModeService public modeService: ModeServiceImpl,
 		@IConfigurationService public testConfigurationService: TestConfigurationService) {
 	}
 }
 
-suite('Workbench untitled editors', () => {
+suite('Workbench untitled text editors', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
@@ -42,12 +42,12 @@ suite('Workbench untitled editors', () => {
 	});
 
 	teardown(() => {
-		accessor.untitledEditorService.revertAll();
-		accessor.untitledEditorService.dispose();
+		accessor.untitledTextEditorService.revertAll();
+		accessor.untitledTextEditorService.dispose();
 	});
 
-	test('Untitled Editor Service', async (done) => {
-		const service = accessor.untitledEditorService;
+	test('Untitled Text Editor Service', async (done) => {
+		const service = accessor.untitledTextEditorService;
 		assert.equal(service.getAll().length, 0);
 
 		const input1 = service.createOrGet();
@@ -98,7 +98,7 @@ suite('Workbench untitled editors', () => {
 	});
 
 	test('Untitled with associated resource', () => {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
 		const untitled = service.createOrGet(file);
 
@@ -108,7 +108,7 @@ suite('Workbench untitled editors', () => {
 	});
 
 	test('Untitled no longer dirty when content gets empty', async () => {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet();
 
 		// dirty
@@ -121,7 +121,7 @@ suite('Workbench untitled editors', () => {
 	});
 
 	test('Untitled via loadOrCreate', async () => {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 
 		const model1 = await service.loadOrCreate();
 
@@ -153,14 +153,14 @@ suite('Workbench untitled editors', () => {
 	});
 
 	test('Untitled suggest name', function () {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet();
 
 		assert.ok(service.suggestFileName(input.getResource()));
 	});
 
 	test('Untitled with associated path remains dirty when content gets empty', async () => {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
 		const input = service.createOrGet(file);
 
@@ -174,7 +174,7 @@ suite('Workbench untitled editors', () => {
 	});
 
 	test('Untitled with initial content is dirty', async () => {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet(undefined, undefined, 'Hello World');
 
 		// dirty
@@ -188,7 +188,7 @@ suite('Workbench untitled editors', () => {
 		const config = accessor.testConfigurationService;
 		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
 
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet();
 
 		assert.equal(input.getMode(), defaultLanguage);
@@ -204,7 +204,7 @@ suite('Workbench untitled editors', () => {
 		const config = accessor.testConfigurationService;
 		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
 
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet(null!, mode);
 
 		assert.equal(input.getMode(), mode);
@@ -221,7 +221,7 @@ suite('Workbench untitled editors', () => {
 			id: mode,
 		});
 
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet(null!, mode);
 
 		assert.equal(input.getMode(), mode);
@@ -237,7 +237,7 @@ suite('Workbench untitled editors', () => {
 	});
 
 	test('encoding change event', async () => {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet();
 
 		let counter = 0;
@@ -255,10 +255,10 @@ suite('Workbench untitled editors', () => {
 	});
 
 	test('onDidChangeContent event', async () => {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet();
 
-		UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
+		UntitledTextEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
 
 		let counter = 0;
 
@@ -293,7 +293,7 @@ suite('Workbench untitled editors', () => {
 	});
 
 	test('onDidDisposeModel event', async () => {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet();
 
 		let counter = 0;

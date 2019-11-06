@@ -42,7 +42,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`
 			.monaco-workbench .zone-widget .codicon-warning,
 			.monaco-workbench .markers-panel .marker-icon.codicon-warning,
-			.monaco-workbench .extensions-viewlet > .extensions .codicon-warning {
+			.monaco-workbench .extensions-viewlet > .extensions .codicon-warning,
+			.monaco-workbench .extension-editor .codicon-warning {
 				color: ${warningIconForeground};
 			}
 		`);
@@ -52,7 +53,9 @@ registerThemingParticipant((theme, collector) => {
 	if (errorIconForeground) {
 		collector.addRule(`
 			.monaco-workbench .zone-widget .codicon-info,
-			.monaco-workbench .markers-panel .marker-icon.codicon-info {
+			.monaco-workbench .markers-panel .marker-icon.codicon-info,
+			.monaco-workbench .extensions-viewlet > .extensions .codicon-info,
+			.monaco-workbench .extension-editor .codicon-info {
 				color: ${infoIconForeground};
 			}
 		`);

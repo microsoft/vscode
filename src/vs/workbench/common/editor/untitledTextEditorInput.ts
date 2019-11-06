@@ -9,7 +9,7 @@ import { createMemoizer } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
-import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -19,13 +19,13 @@ import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverServ
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledEditorInput extends EditorInput implements IEncodingSupport, IModeSupport {
+export class UntitledTextEditorInput extends EditorInput implements IEncodingSupport, IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 	private static readonly MEMOIZER = createMemoizer();
 
-	private cachedModel: UntitledEditorModel | null = null;
-	private modelResolve: Promise<UntitledEditorModel & IResolvedTextEditorModel> | null = null;
+	private cachedModel: UntitledTextEditorModel | null = null;
+	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | null = null;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidModelChangeContent: Event<void> = this._onDidModelChangeContent.event;
@@ -44,7 +44,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
-		this._register(this.labelService.onDidChangeFormatters(() => UntitledEditorInput.MEMOIZER.clear()));
+		this._register(this.labelService.onDidChangeFormatters(() => UntitledTextEditorInput.MEMOIZER.clear()));
 	}
 
 	get hasAssociatedFilePath(): boolean {
@@ -52,7 +52,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	getTypeId(): string {
-		return UntitledEditorInput.ID;
+		return UntitledTextEditorInput.ID;
 	}
 
 	getResource(): URI {
@@ -63,17 +63,17 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
 	}
 
-	@UntitledEditorInput.MEMOIZER
+	@UntitledTextEditorInput.MEMOIZER
 	private get shortDescription(): string {
 		return this.labelService.getUriBasenameLabel(dirname(this.resource));
 	}
 
-	@UntitledEditorInput.MEMOIZER
+	@UntitledTextEditorInput.MEMOIZER
 	private get mediumDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
 	}
 
-	@UntitledEditorInput.MEMOIZER
+	@UntitledTextEditorInput.MEMOIZER
 	private get longDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource));
 	}
@@ -94,17 +94,17 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		}
 	}
 
-	@UntitledEditorInput.MEMOIZER
+	@UntitledTextEditorInput.MEMOIZER
 	private get shortTitle(): string {
 		return this.getName();
 	}
 
-	@UntitledEditorInput.MEMOIZER
+	@UntitledTextEditorInput.MEMOIZER
 	private get mediumTitle(): string {
 		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
-	@UntitledEditorInput.MEMOIZER
+	@UntitledTextEditorInput.MEMOIZER
 	private get longTitle(): string {
 		return this.labelService.getUriLabel(this.resource);
 	}
@@ -161,7 +161,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 			this.cachedModel.revert();
 		}
 
-		this.dispose(); // a reverted untitled editor is no longer valid, so we dispose it
+		this.dispose(); // a reverted untitled text editor is no longer valid, so we dispose it
 
 		return Promise.resolve(true);
 	}
@@ -211,7 +211,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.preferredMode;
 	}
 
-	resolve(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
+	resolve(): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
 
 		// Join a model resolve if we have had one before
 		if (this.modelResolve) {
@@ -225,8 +225,8 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.modelResolve;
 	}
 
-	private createModel(): UntitledEditorModel {
-		const model = this._register(this.instantiationService.createInstance(UntitledEditorModel, this.preferredMode, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
+	private createModel(): UntitledTextEditorModel {
+		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, this.preferredMode, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
 
 		// re-emit some events from the model
 		this._register(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
@@ -242,7 +242,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		}
 
 		// Otherwise compare by properties
-		if (otherInput instanceof UntitledEditorInput) {
+		if (otherInput instanceof UntitledTextEditorInput) {
 			return otherInput.resource.toString() === this.resource.toString();
 		}
 

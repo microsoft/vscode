@@ -132,7 +132,7 @@ async function handleRoot(req, res) {
 	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
 			staticExtensions,
-			folderUri: { scheme: 'memfs', path: `/` }
+			folderUri: { scheme: 'memfs', path: `/sample-folder` }
 		})))
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');

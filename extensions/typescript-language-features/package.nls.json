@@ -75,5 +75,7 @@
 	"typescript.suggest.enabled": "Enabled/disable autocomplete suggestions.",
 	"configuration.surveys.enabled": "Enabled/disable occasional surveys that help us improve VS Code's JavaScript and TypeScript support.",
 	"configuration.suggest.completeJSDocs": "Enable/disable suggestion to complete JSDoc comments.",
-	"typescript.preferences.renameShorthandProperties": "Enable/disable introducing aliases for object shorthand properties during renames. Requires using TypeScript 3.4 or newer in the workspace."
+	"typescript.preferences.renameShorthandProperties": "Enable/disable introducing aliases for object shorthand properties during renames. Requires using TypeScript 3.4 or newer in the workspace.",
+	"codeActions.refactor.extract.constant": "Extract constant",
+	"codeActions.source.organizeImports": "Organize imports"
 }
