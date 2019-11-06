@@ -5,7 +5,7 @@
 
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
-import { equalsIgnoreCase, startsWith } from 'vs/base/common/strings';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
