@@ -347,7 +347,7 @@ function updateDiagnostics(document: vscode.TextDocument, collection: vscode.Dia
 		collection.set(document.uri, [{
 			code: '',
 			message: 'cannot assign twice to immutable variable `storeHouses`',
-			range: new vscode.Range(new vscode.Position(4, 15), new vscode.Position(4, 35)),
+			range: new vscode.Range(new vscode.Position(4, 12), new vscode.Position(4, 32)),
 			severity: vscode.DiagnosticSeverity.Error,
 			source: '',
 			relatedInformation: [
@@ -356,7 +356,7 @@ function updateDiagnostics(document: vscode.TextDocument, collection: vscode.Dia
 		}, {
 			code: '',
 			message: 'function does not follow naming conventions',
-			range: new vscode.Range(new vscode.Position(7, 13), new vscode.Position(7, 26)),
+			range: new vscode.Range(new vscode.Position(7, 10), new vscode.Position(7, 23)),
 			severity: vscode.DiagnosticSeverity.Warning,
 			source: ''
 		}]);
