@@ -146,7 +146,7 @@ suite('SearchModel', () => {
 		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
 	});
 
-	test.only('Search Model: Search reports telemetry on search completed', async () => {
+	test('Search Model: Search reports telemetry on search completed', async () => {
 		const target = instantiationService.spy(ITelemetryService, 'publicLog');
 		const results = [
 			aRawMatch('file://c:/1',
