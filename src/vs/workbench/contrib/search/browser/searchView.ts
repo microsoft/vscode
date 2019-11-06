@@ -128,6 +128,7 @@ export class SearchView extends ViewletPanel {
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
 	private currentSearchQ = Promise.resolve();
+	private addToSearchHistoryDelayer: Delayer<void>;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -181,6 +182,8 @@ export class SearchView extends ViewletPanel {
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
+
+		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(500));
 
 		this.actions = [
 			this._register(this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)),
@@ -1247,7 +1250,7 @@ export class SearchView extends ViewletPanel {
 	}
 
 	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): void {
-		this.searchWidget.searchInput.onSearchSubmit();
+		this.addToSearchHistoryDelayer.trigger(() => this.searchWidget.searchInput.onSearchSubmit());
 		this.inputPatternExcludes.onSearchSubmit();
 		this.inputPatternIncludes.onSearchSubmit();
 

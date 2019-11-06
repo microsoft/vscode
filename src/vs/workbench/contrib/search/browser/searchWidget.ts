@@ -165,7 +165,7 @@ export class SearchWidget extends Widget {
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this._replaceHistoryDelayer = new Delayer<void>(500);
-		this._searchDelayer = new Delayer<void>(this.searchConfiguration.searchOnTypeDebouncePeriod);
+		this._searchDelayer = this._register(new Delayer<void>(this.searchConfiguration.searchOnTypeDebouncePeriod));
 		this.render(container, options);
 
 		this.configurationService.onDidChangeConfiguration(e => {
@@ -324,9 +324,6 @@ export class SearchWidget extends Widget {
 		this.searchInput.setRegex(!!options.isRegex);
 		this.searchInput.setCaseSensitive(!!options.isCaseSensitive);
 		this.searchInput.setWholeWords(!!options.isWholeWords);
-		this._register(this.onSearchSubmit(() => {
-			this.searchInput.inputBox.addToHistory();
-		}));
 		this._register(this.searchInput.onCaseSensitiveKeyDown((keyboardEvent: IKeyboardEvent) => this.onCaseSensitiveKeyDown(keyboardEvent)));
 		this._register(this.searchInput.onRegexKeyDown((keyboardEvent: IKeyboardEvent) => this.onRegexKeyDown(keyboardEvent)));
 		this._register(this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged()));
