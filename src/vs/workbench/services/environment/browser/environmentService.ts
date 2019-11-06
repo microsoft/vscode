@@ -37,10 +37,6 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	@memoize
 	get backupWorkspaceResource(): URI { return joinPath(this.environment.backupHome, this.options.workspaceId); }
 
-	// TODO@rachel TODO@sbatten fix me, should be stable between sessions
-	@memoize
-	get machineId(): string { return generateUuid(); }
-
 	// Currently unsupported in web
 	get filesToOpenOrCreate(): IPath[] | undefined { return undefined; }
 	get filesToDiff(): IPath[] | undefined { return undefined; }
