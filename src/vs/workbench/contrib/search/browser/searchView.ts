@@ -128,6 +128,7 @@ export class SearchView extends ViewletPanel {
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
 	private currentSearchQ = Promise.resolve();
+	private addToSearchHistoryDelayer: Delayer<void>;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -181,6 +182,8 @@ export class SearchView extends ViewletPanel {
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
+
+		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(500));
 
 		this.actions = [
 			this._register(this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)),
@@ -282,6 +285,7 @@ export class SearchView extends ViewletPanel {
 
 		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true));
 		this.inputPatternExcludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
+		this.inputPatternExcludes.onChangeIgnoreBox(() => this.onQueryChanged(true));
 		this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocused);
 
 		this.messagesElement = dom.append(this.container, $('.messages'));
@@ -382,7 +386,7 @@ export class SearchView extends ViewletPanel {
 		}
 
 		this._register(this.searchWidget.onSearchSubmit(() => this.onQueryChanged()));
-		this._register(this.searchWidget.onSearchCancel(() => this.cancelSearch()));
+		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.onQueryChanged(true)));
 
 		this._register(this.searchWidget.onDidHeightChange(() => this.reLayout()));
@@ -796,6 +800,7 @@ export class SearchView extends ViewletPanel {
 
 				this.searchWidget.searchInput.setValue(selectedText);
 				updatedText = true;
+				this.onQueryChanged();
 			}
 		}
 
@@ -921,6 +926,10 @@ export class SearchView extends ViewletPanel {
 		return !this.viewModel.searchResult.isEmpty();
 	}
 
+	hasSearchPattern(): boolean {
+		return this.searchWidget.searchInput.getValue().length > 0;
+	}
+
 	clearSearchResults(): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
@@ -934,9 +943,9 @@ export class SearchView extends ViewletPanel {
 		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
 	}
 
-	cancelSearch(): boolean {
+	cancelSearch(focus: boolean = true): boolean {
 		if (this.viewModel.cancelSearch()) {
-			this.searchWidget.focus();
+			if (focus) { this.searchWidget.focus(); }
 			return true;
 		}
 		return false;
@@ -1241,7 +1250,7 @@ export class SearchView extends ViewletPanel {
 	}
 
 	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): void {
-		this.searchWidget.searchInput.onSearchSubmit();
+		this.addToSearchHistoryDelayer.trigger(() => this.searchWidget.searchInput.onSearchSubmit());
 		this.inputPatternExcludes.onSearchSubmit();
 		this.inputPatternIncludes.onSearchSubmit();
 
@@ -1254,7 +1263,7 @@ export class SearchView extends ViewletPanel {
 
 	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): Thenable<void> {
 		let progressComplete: () => void;
-		this.progressService.withProgress({ location: VIEWLET_ID }, _progress => {
+		this.progressService.withProgress({ location: VIEWLET_ID, delay: 300 }, _progress => {
 			return new Promise(resolve => progressComplete = resolve);
 		});
 
