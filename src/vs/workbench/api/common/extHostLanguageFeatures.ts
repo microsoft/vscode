@@ -885,7 +885,6 @@ class SuggestAdapter {
 	}
 }
 
-
 class SignatureHelpAdapter {
 
 	private readonly _cache = new Cache<vscode.SignatureHelp>('SignatureHelp');
@@ -1527,11 +1526,6 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName, token), undefined);
 	}
 
-	$provideSemanticColoring(handle: number, resource: UriComponents, previousSemanticColoringResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
-		return this._withAdapter(handle, SemanticColoringAdapter, adapter => adapter.provideSemanticColoring(URI.revive(resource), previousSemanticColoringResultId, token), null);
-	}
-
-
 	$resolveRenameLocation(handle: number, resource: URI, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position, token), undefined);
 	}
@@ -1542,6 +1536,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const handle = this._addNewAdapter(new SemanticColoringAdapter(this._documents, provider), extension);
 		this._proxy.$registerSemanticColoringProvider(handle, this._transformDocumentSelector(selector), provider.getLegend());
 		return this._createDisposable(handle);
+	}
+
+	$provideSemanticColoring(handle: number, resource: UriComponents, previousSemanticColoringResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
+		return this._withAdapter(handle, SemanticColoringAdapter, adapter => adapter.provideSemanticColoring(URI.revive(resource), previousSemanticColoringResultId, token), null);
 	}
 
 	//#endregion
