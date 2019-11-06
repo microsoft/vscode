@@ -869,38 +869,26 @@
     ],
     "codeActions": [
       {
-        "kind": "refactor.extract.constant",
-        "title": "%codeActions.refactor.extract.constant%",
-        "selector": [
+        "languages": [
+          "javascript",
+          "javascriptreact",
+          "typescript",
+          "typescriptreact"
+        ],
+        "actions": [
           {
-            "language": "javascript"
+            "kind": "refactor.extract.constant",
+            "title": "%codeActions.refactor.extract.constant.title%",
+            "description": "%codeActions.refactor.extract.constant.description%"
           },
           {
-            "language": "javascriptreact"
+            "kind": "refactor.extract.function",
+            "title": "%codeActions.refactor.extract.function.title%",
+            "description": "%codeActions.refactor.extract.function.description%"
           },
           {
-            "language": "typescript"
-          },
-          {
-            "language": "typescriptreact"
-          }
-        ]
-      },
-      {
-        "kind": "source.organizeImports",
-        "title": "%codeActions.source.organizeImports%",
-        "selector": [
-          {
-            "language": "javascript"
-          },
-          {
-            "language": "javascriptreact"
-          },
-          {
-            "language": "typescript"
-          },
-          {
-            "language": "typescriptreact"
+            "kind": "source.organizeImports",
+            "title": "%codeActions.source.organizeImports.title%"
           }
         ]
       }
