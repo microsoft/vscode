@@ -182,7 +182,7 @@ export class DefinitionAction extends SymbolNavigationAction {
 	}
 
 	protected _getAlternativeCommand(): string {
-		return 'editor.action.referenceSearch.trigger';
+		return 'editor.action.goToReferences';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
@@ -305,7 +305,7 @@ class DeclarationAction extends SymbolNavigationAction {
 	}
 
 	protected _getAlternativeCommand(): string {
-		return 'editor.action.referenceSearch.trigger';
+		return 'editor.action.goToReferences';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
@@ -394,7 +394,7 @@ class TypeDefinitionAction extends SymbolNavigationAction {
 	}
 
 	protected _getAlternativeCommand(): string {
-		return 'editor.action.referenceSearch.trigger';
+		return 'editor.action.goToReferences';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
