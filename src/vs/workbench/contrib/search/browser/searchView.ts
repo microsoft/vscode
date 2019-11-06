@@ -940,7 +940,7 @@ export class SearchView extends ViewletPanel {
 		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
 	}
 
-	cancelSearch(focus: boolean): boolean {
+	cancelSearch(focus: boolean = true): boolean {
 		if (this.viewModel.cancelSearch()) {
 			if (focus) { this.searchWidget.focus(); }
 			return true;

@@ -387,7 +387,7 @@ export class CancelSearchAction extends Action {
 	run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
-			searchView.cancelSearch(true);
+			searchView.cancelSearch();
 		}
 
 		return Promise.resolve(undefined);

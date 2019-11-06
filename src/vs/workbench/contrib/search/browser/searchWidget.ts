@@ -581,6 +581,7 @@ export class SearchWidget extends Widget {
 			if (useGlobalFindBuffer) {
 				this.clipboardServce.writeFindText(value);
 			}
+
 			this._onSearchSubmit.fire();
 		}
 	}
