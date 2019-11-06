@@ -19,18 +19,13 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { Location } from 'vs/editor/common/modes';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
-
-export interface RequestOptions {
-	getMetaTitle(model: ReferencesModel): string;
-	onGoto?: (reference: Location) => Promise<any>;
-}
 
 export abstract class ReferencesController implements editorCommon.IEditorContribution {
 
@@ -40,6 +35,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 	private _widget?: ReferenceWidget;
 	private _model?: ReferencesModel;
+	private _peekMode?: boolean;
 	private _requestIdPool = 0;
 	private _ignoreModelChangeEvent = false;
 
@@ -72,7 +68,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._model = undefined;
 	}
 
-	toggleWidget(range: Range, modelPromise: CancelablePromise<ReferencesModel>, options: RequestOptions): void {
+	toggleWidget(range: Range, modelPromise: CancelablePromise<ReferencesModel>, peekMode: boolean): void {
 
 		// close current widget and return early is position didn't change
 		let widgetPosition: Position | undefined;
@@ -84,6 +80,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			return;
 		}
 
+		this._peekMode = peekMode;
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
@@ -110,27 +107,25 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 		this._disposables.add(this._widget.onDidSelectReference(event => {
 			let { element, kind } = event;
+			if (!element) {
+				return;
+			}
 			switch (kind) {
 				case 'open':
-					if (event.source === 'editor'
-						&& this._configurationService.getValue('editor.stablePeek')) {
-
+					if (event.source !== 'editor' || !this._configurationService.getValue('editor.stablePeek')) {
 						// when stable peek is configured we don't close
 						// the peek window on selecting the editor
-						break;
-					}
-				case 'side':
-					if (element) {
-						this.openReference(element, kind === 'side');
+						this.openReference(element, false);
 					}
 					break;
+				case 'side':
+					this.openReference(element, true);
+					break;
 				case 'goto':
-					if (element) {
-						if (options.onGoto) {
-							options.onGoto(element);
-						} else {
-							this._gotoReference(element);
-						}
+					if (peekMode) {
+						this._gotoReference(element);
+					} else {
+						this.openReference(element, false);
 					}
 					break;
 			}
@@ -154,8 +149,15 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			// show widget
 			return this._widget.setModel(this._model).then(() => {
 				if (this._widget && this._model && this._editor.hasModel()) { // might have been closed
+
 					// set title
-					this._widget.setMetaTitle(options.getMetaTitle(this._model));
+					if (this._model.references.length === 1) {
+						this._widget.setMetaTitle(nls.localize('metaTitle.1', "1 result"));
+					} else if (!this._model.isEmpty) {
+						this._widget.setMetaTitle(nls.localize('metaTitle.N', "{0} results", this._model.references.length));
+					} else {
+						this._widget.setMetaTitle('');
+					}
 
 					// set 'best' selection
 					let uri = this._editor.getModel().uri;
@@ -196,16 +198,12 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	}
 
 	closeWidget(): void {
-		if (this._widget) {
-			dispose(this._widget);
-			this._widget = undefined;
-		}
 		this._referenceSearchVisible.reset();
 		this._disposables.clear();
-		if (this._model) {
-			dispose(this._model);
-			this._model = undefined;
-		}
+		dispose(this._widget);
+		dispose(this._model);
+		this._widget = undefined;
+		this._model = undefined;
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests
 	}
@@ -224,21 +222,31 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		}, this._editor).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 
-			if (!openedEditor || openedEditor !== this._editor) {
-				// TODO@Alex TODO@Joh
-				// when opening the current reference we might end up
-				// in a different editor instance. that means we also have
-				// a different instance of this reference search controller
-				// and cannot hold onto the widget (which likely doesn't
-				// exist). Instead of bailing out we should find the
-				// 'sister' action and pass our current model on to it.
+			if (!openedEditor || !this._widget) {
+				// something went wrong...
 				this.closeWidget();
 				return;
 			}
 
-			if (this._widget) {
+			if (this._editor === openedEditor) {
+				//
 				this._widget.show(range);
 				this._widget.focus();
+
+			} else {
+				// we opened a different editor instance which means a different controller instance.
+				// therefore we stop with this controller and continue with the other
+				const other = ReferencesController.get(openedEditor);
+				const model = this._model!.clone();
+
+				this.closeWidget();
+				openedEditor.focus();
+
+				other.toggleWidget(
+					range,
+					createCancelablePromise(_ => Promise.resolve(model)),
+					this._peekMode ?? false
+				);
 			}
 
 		}, (err) => {

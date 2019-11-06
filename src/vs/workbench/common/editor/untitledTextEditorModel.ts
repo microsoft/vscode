@@ -17,7 +17,7 @@ import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
-export class UntitledEditorModel extends BaseTextEditorModel implements IEncodingSupport {
+export class UntitledTextEditorModel extends BaseTextEditorModel implements IEncodingSupport {
 
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 
@@ -48,7 +48,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	) {
 		super(modelService, modeService);
 
-		this.contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
+		this.contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledTextEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
 
 		this.registerListeners();
 	}
@@ -137,7 +137,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
 	}
 
-	async load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
+	async load(): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
 
 		// Check for backups first
 		let backup: IResolvedBackup<object> | undefined = undefined;
@@ -178,7 +178,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		// Listen to mode changes
 		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
-		return this as UntitledEditorModel & IResolvedTextEditorModel;
+		return this as UntitledTextEditorModel & IResolvedTextEditorModel;
 	}
 
 	private onModelContentChanged(): void {
@@ -188,7 +188,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 		this.versionId++;
 
-		// mark the untitled editor as non-dirty once its content becomes empty and we do
+		// mark the untitled text editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
 		if (!this._hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
 			this.setDirty(false);

@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { HotExitConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
@@ -26,7 +26,7 @@ class ServiceAccessor {
 	constructor(
 		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledEditorService public untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkspaceContextService public contextService: TestContextService,
 		@IModelService public modelService: ModelServiceImpl,
 		@IFileService public fileService: TestFileService,
@@ -62,7 +62,7 @@ suite('Files - TextFileService', () => {
 		}
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledEditorService.revertAll();
+		accessor.untitledTextEditorService.revertAll();
 	});
 
 	test('confirm onWillShutdown - no veto', async function () {
@@ -156,7 +156,7 @@ suite('Files - TextFileService', () => {
 		assert.equal(service.getDirty().length, 1);
 		assert.equal(service.getDirty([model.getResource()])[0].toString(), model.getResource().toString());
 
-		const untitled = accessor.untitledEditorService.createOrGet();
+		const untitled = accessor.untitledTextEditorService.createOrGet();
 		const untitledModel = await untitled.resolve();
 
 		assert.ok(!service.isDirty(untitled.getResource()));
@@ -192,8 +192,8 @@ suite('Files - TextFileService', () => {
 		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8', undefined);
 		const loadOrCreateStub = sinon.stub(accessor.textFileService.models, 'loadOrCreate', () => Promise.resolve(mockedEditorInput));
 
-		sinon.stub(accessor.untitledEditorService, 'exists', () => true);
-		sinon.stub(accessor.untitledEditorService, 'hasAssociatedFilePath', () => true);
+		sinon.stub(accessor.untitledTextEditorService, 'exists', () => true);
+		sinon.stub(accessor.untitledTextEditorService, 'hasAssociatedFilePath', () => true);
 		sinon.stub(accessor.modelService, 'updateModel', () => { });
 
 		await model.load();

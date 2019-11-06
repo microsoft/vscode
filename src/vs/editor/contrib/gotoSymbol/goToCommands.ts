@@ -18,7 +18,7 @@ import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { LocationLink, Location, isLocationLink } from 'vs/editor/common/modes';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
-import { ReferencesController, RequestOptions } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
+import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -114,13 +114,13 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 		const gotoLocation = this._getGoToPreference(editor);
 		if (this._configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1)) {
-			this._openInPeek(editorService, editor, model);
+			this._openInPeek(editor, model);
 
 		} else {
 			const next = model.firstReference()!;
 			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
 			if (targetEditor && model.references.length > 1 && gotoLocation === 'gotoAndPeek') {
-				this._openInPeek(editorService, targetEditor, model);
+				this._openInPeek(targetEditor, model);
 			} else {
 				model.dispose();
 			}
@@ -153,18 +153,10 @@ abstract class SymbolNavigationAction extends EditorAction {
 		}, editor, sideBySide);
 	}
 
-	private _openInPeek(editorService: ICodeEditorService, target: ICodeEditor, model: ReferencesModel) {
+	private _openInPeek(target: ICodeEditor, model: ReferencesModel) {
 		let controller = ReferencesController.get(target);
 		if (controller && target.hasModel()) {
-			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), {
-				getMetaTitle: (model) => {
-					return this._getMetaTitle(model);
-				},
-				onGoto: (reference) => {
-					controller.closeWidget();
-					return this._openReference(target, editorService, reference, false);
-				}
-			});
+			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this._configuration.openInPeek);
 		} else {
 			model.dispose();
 		}
@@ -190,7 +182,7 @@ export class DefinitionAction extends SymbolNavigationAction {
 	}
 
 	protected _getAlternativeCommand(): string {
-		return 'editor.action.referenceSearch.trigger';
+		return 'editor.action.goToReferences';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
@@ -280,7 +272,8 @@ registerEditorAction(class PeekDefinitionAction extends DefinitionAction {
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDefinitionProvider,
 				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.F12,
@@ -313,7 +306,7 @@ class DeclarationAction extends SymbolNavigationAction {
 	}
 
 	protected _getAlternativeCommand(): string {
-		return 'editor.action.referenceSearch.trigger';
+		return 'editor.action.goToReferences';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
@@ -402,7 +395,7 @@ class TypeDefinitionAction extends SymbolNavigationAction {
 	}
 
 	protected _getAlternativeCommand(): string {
-		return 'editor.action.referenceSearch.trigger';
+		return 'editor.action.goToReferences';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
@@ -460,12 +453,9 @@ registerEditorAction(class PeekTypeDefinitionAction extends TypeDefinitionAction
 			alias: 'Peek Type Definition',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasTypeDefinitionProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: 0,
-				weight: KeybindingWeight.EditorContrib
-			}
+				PeekContext.notInPeekEditor,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			)
 		});
 	}
 });
@@ -549,6 +539,7 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 			alias: 'Peek Implementations',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasImplementationProvider,
+				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
 			kbOpts: {
@@ -650,12 +641,6 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 
 //#region --- REFERENCE search special commands
 
-const defaultReferenceSearchOptions: RequestOptions = {
-	getMetaTitle(model) {
-		return model.references.length > 1 ? nls.localize('meta.titleReference', " – {0} references", model.references.length) : '';
-	}
-};
-
 CommandsRegistry.registerCommand({
 	id: 'editor.action.findReferences',
 	handler: (accessor: ServicesAccessor, resource: URI, position: corePosition.IPosition) => {
@@ -679,7 +664,7 @@ CommandsRegistry.registerCommand({
 
 			const references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), corePosition.Position.lift(position), token).then(references => new ReferencesModel(references)));
 			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-			return Promise.resolve(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
+			return Promise.resolve(controller.toggleWidget(range, references, false));
 		});
 	}
 });
@@ -718,7 +703,7 @@ CommandsRegistry.registerCommand({
 			return controller.toggleWidget(
 				new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 				createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
-				defaultReferenceSearchOptions
+				false
 			);
 		});
 	},

@@ -11,7 +11,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import * as arrays from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -24,7 +24,7 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IUntitledEditorService protected readonly untitledEditorService: IUntitledEditorService
+		@IUntitledTextEditorService protected readonly untitledTextEditorService: IUntitledTextEditorService
 	) {
 		super();
 
@@ -34,7 +34,7 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 	private registerListeners(): void {
 
 		// Local text file changes
-		this._register(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
+		this._register(this.untitledTextEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this._register(this.textFileService.models.onModelsDirty(e => this.onTextFilesDirty(e)));
 		this._register(this.textFileService.models.onModelsSaved(e => this.onTextFilesSaved(e)));
 		this._register(this.textFileService.models.onModelsSaveError(e => this.onTextFilesSaveError(e)));
@@ -49,7 +49,7 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 	}
 
 	protected onUntitledDidChangeDirty(resource: URI): void {
-		const gotDirty = this.untitledEditorService.isDirty(resource);
+		const gotDirty = this.untitledTextEditorService.isDirty(resource);
 
 		if (gotDirty || this.hasDirtyCount) {
 			this.updateActivityBadge();

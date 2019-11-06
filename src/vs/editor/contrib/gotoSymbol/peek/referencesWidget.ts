@@ -194,7 +194,9 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 	private readonly _disposeOnNewModel = new DisposableStore();
 	private readonly _callOnDispose = new DisposableStore();
+
 	private readonly _onDidSelectReference = new Emitter<SelectionEvent>();
+	readonly onDidSelectReference = this._onDidSelectReference.event;
 
 	private _tree!: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
 	private _treeContainer!: HTMLElement;
@@ -245,10 +247,6 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			primaryHeadingColor: theme.getColor(peekView.peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekView.peekViewTitleInfoForeground)
 		});
-	}
-
-	get onDidSelectReference(): Event<SelectionEvent> {
-		return this._onDidSelectReference.event;
 	}
 
 	show(where: IRange) {
@@ -365,17 +363,14 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			onEvent(e.elements[0], 'show');
 		});
 		this._tree.onDidOpen(e => {
-			const aside = (e.browserEvent instanceof MouseEvent) && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
-			let goto = !e.browserEvent || ((e.browserEvent instanceof MouseEvent) && e.browserEvent.detail === 2);
-			if (e.browserEvent instanceof KeyboardEvent) {
-				// todo@joh make this a command
-				goto = true;
-			}
-			if (aside) {
+			if (e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey)) {
+				// modifier-click -> open to the side
 				onEvent(e.elements[0], 'side');
-			} else if (goto) {
+			} else if (e.browserEvent instanceof KeyboardEvent || (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2)) {
+				// keybinding (list service command) OR double click -> close widget and goto target
 				onEvent(e.elements[0], 'goto');
 			} else {
+				// preview location
 				onEvent(e.elements[0], 'show');
 			}
 		});
