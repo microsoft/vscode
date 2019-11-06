@@ -6,7 +6,7 @@
 .monaco-action-bar .action-item.markers-panel-action-filter-container {
 	cursor: default;
 	margin-right: 10px;
-	min-width: 150px;
+	min-width: 215px;
 	max-width: 500px;
 	display: flex;
 }
