@@ -59,8 +59,16 @@ export function getTypeDefinitionsAtPosition(model: ITextModel, position: Positi
 }
 
 export function getReferencesAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, ReferenceProviderRegistry, (provider, model, position) => {
-		return provider.provideReferences(model, position, { includeDeclaration: true }, token);
+	return getLocationLinks(model, position, ReferenceProviderRegistry, async (provider, model, position) => {
+		const result = await provider.provideReferences(model, position, { includeDeclaration: true }, token);
+		if (!result || result.length !== 2) {
+			return result;
+		}
+		const resultWithoutDeclaration = await provider.provideReferences(model, position, { includeDeclaration: false }, token);
+		if (resultWithoutDeclaration && resultWithoutDeclaration.length === 1) {
+			return resultWithoutDeclaration;
+		}
+		return result;
 	});
 }
 
