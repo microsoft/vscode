@@ -806,6 +806,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 				if (recursive) {
 					if (result.collapsed) {
+						asyncDataTreeNode.children.forEach(node => dfs(node, node => this.nodes.delete(node.element as T)));
 						asyncDataTreeNode.children.splice(0, asyncDataTreeNode.children.length);
 						asyncDataTreeNode.stale = true;
 					} else {
