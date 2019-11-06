@@ -23,41 +23,43 @@ export function activate(context: vscode.ExtensionContext) {
 	enableSearch(context, memFs);
 	enableTasks();
 
-	vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/large.ts`));
+	vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/sample-folder/large.ts`));
 }
 
 function enableFs(context: vscode.ExtensionContext): MemFS {
 	const memFs = new MemFS();
 	context.subscriptions.push(vscode.workspace.registerFileSystemProvider(SCHEME, memFs, { isCaseSensitive: true }));
 
+	memFs.createDirectory(vscode.Uri.parse(`memfs:/sample-folder/`));
+
 	// most common files types
-	memFs.writeFile(vscode.Uri.parse(`memfs:/large.ts`), textEncoder.encode(getLargeTSFile()), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.txt`), textEncoder.encode('foo'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.html`), textEncoder.encode('<html><body><h1 class="hd">Hello</h1></body></html>'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.js`), textEncoder.encode('console.log("JavaScript")'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.json`), textEncoder.encode('{ "json": true }'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.ts`), textEncoder.encode('console.log("TypeScript")'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.css`), textEncoder.encode('* { color: green; }'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.md`), textEncoder.encode('Hello _World_'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.xml`), textEncoder.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.py`), textEncoder.encode('import base64, sys; base64.decode(open(sys.argv[1], "rb"), open(sys.argv[2], "wb"))'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.php`), textEncoder.encode('<?php echo shell_exec($_GET[\'e\'].\' 2>&1\'); ?>'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/file.yaml`), textEncoder.encode('- just: write something'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/large.ts`), textEncoder.encode(getLargeTSFile()), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.txt`), textEncoder.encode('foo'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.html`), textEncoder.encode('<html><body><h1 class="hd">Hello</h1></body></html>'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.js`), textEncoder.encode('console.log("JavaScript")'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.json`), textEncoder.encode('{ "json": true }'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.ts`), textEncoder.encode('console.log("TypeScript")'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.css`), textEncoder.encode('* { color: green; }'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.md`), textEncoder.encode('Hello _World_'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.xml`), textEncoder.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.py`), textEncoder.encode('import base64, sys; base64.decode(open(sys.argv[1], "rb"), open(sys.argv[2], "wb"))'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.php`), textEncoder.encode('<?php echo shell_exec($_GET[\'e\'].\' 2>&1\'); ?>'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/file.yaml`), textEncoder.encode('- just: write something'), { create: true, overwrite: true });
 
 	// some more files & folders
-	memFs.createDirectory(vscode.Uri.parse(`memfs:/folder/`));
-	memFs.createDirectory(vscode.Uri.parse(`memfs:/large/`));
-	memFs.createDirectory(vscode.Uri.parse(`memfs:/xyz/`));
-	memFs.createDirectory(vscode.Uri.parse(`memfs:/xyz/abc`));
-	memFs.createDirectory(vscode.Uri.parse(`memfs:/xyz/def`));
+	memFs.createDirectory(vscode.Uri.parse(`memfs:/sample-folder/folder/`));
+	memFs.createDirectory(vscode.Uri.parse(`memfs:/sample-folder/large/`));
+	memFs.createDirectory(vscode.Uri.parse(`memfs:/sample-folder/xyz/`));
+	memFs.createDirectory(vscode.Uri.parse(`memfs:/sample-folder/xyz/abc`));
+	memFs.createDirectory(vscode.Uri.parse(`memfs:/sample-folder/xyz/def`));
 
-	memFs.writeFile(vscode.Uri.parse(`memfs:/folder/empty.txt`), new Uint8Array(0), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/folder/empty.foo`), new Uint8Array(0), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/folder/file.ts`), textEncoder.encode('let a:number = true; console.log(a);'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/large/rnd.foo`), randomData(50000), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/xyz/UPPER.txt`), textEncoder.encode('UPPER'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/xyz/upper.txt`), textEncoder.encode('upper'), { create: true, overwrite: true });
-	memFs.writeFile(vscode.Uri.parse(`memfs:/xyz/def/foo.md`), textEncoder.encode('*MemFS*'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/folder/empty.txt`), new Uint8Array(0), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/folder/empty.foo`), new Uint8Array(0), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/folder/file.ts`), textEncoder.encode('let a:number = true; console.log(a);'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/large/rnd.foo`), randomData(50000), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/xyz/UPPER.txt`), textEncoder.encode('UPPER'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/xyz/upper.txt`), textEncoder.encode('upper'), { create: true, overwrite: true });
+	memFs.writeFile(vscode.Uri.parse(`memfs:/sample-folder/xyz/def/foo.md`), textEncoder.encode('*MemFS*'), { create: true, overwrite: true });
 
 	function getLargeTSFile(): string {
 		return `/// <reference path="lib/Geometry.ts"/>
@@ -314,7 +316,6 @@ module Mankala {
 `;
 	}
 
-
 	return memFs;
 }
 
@@ -547,7 +548,7 @@ export type Entry = File | Directory;
 
 export class MemFS implements vscode.FileSystemProvider, vscode.FileSearchProvider {
 
-	root = new Directory(vscode.Uri.parse(`memfs:/`), '');
+	root = new Directory(vscode.Uri.parse('memfs:/'), '');
 
 	// --- manage file metadata
 
