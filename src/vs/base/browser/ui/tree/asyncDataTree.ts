@@ -1011,6 +1011,7 @@ function asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options?: IComp
 }
 
 export interface ICompressibleAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptions<T, TFilterData> {
+	readonly compressionEnabled?: boolean;
 	readonly keyboardNavigationLabelProvider?: ICompressibleKeyboardNavigationLabelProvider<T>;
 }
 

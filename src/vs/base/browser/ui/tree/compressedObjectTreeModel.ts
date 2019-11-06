@@ -106,7 +106,9 @@ function splice<T>(treeElement: ICompressedTreeElement<T>, element: T, children:
 	return { ...treeElement, children: Iterator.map(Iterator.from(treeElement.children), e => splice(e, element, children)) };
 }
 
-interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<ICompressedTreeNode<T>, TFilterData> { }
+interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<ICompressedTreeNode<T>, TFilterData> {
+	readonly compressionEnabled?: boolean;
+}
 
 // Exported only for test reasons, do not use directly
 export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
@@ -119,7 +121,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	private model: ObjectTreeModel<ICompressedTreeNode<T>, TFilterData>;
 	private nodes = new Map<T | null, ICompressedTreeNode<T>>();
-	private enabled: boolean = true;
+	private enabled: boolean;
 
 	get size(): number { return this.nodes.size; }
 
@@ -129,6 +131,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		options: ICompressedObjectTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.model = new ObjectTreeModel(user, list, options);
+		this.enabled = typeof options.compressionEnabled === 'undefined' ? true : options.compressionEnabled;
 	}
 
 	setChildren(
@@ -365,6 +368,7 @@ function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwra
 }
 
 export interface ICompressibleObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<T, TFilterData> {
+	readonly compressionEnabled?: boolean;
 	readonly elementMapper?: ElementMapper<T>;
 }
 
