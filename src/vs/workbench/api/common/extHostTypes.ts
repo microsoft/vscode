@@ -741,8 +741,8 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number?: number): SnippetString {
-		this.appendPlaceholder(values.toString(), number)
-		this.value = this.value.replace(/:/g, '|').replace(/}/g, '|}')
+		this.appendPlaceholder(values.toString(), number);
+		this.value = this.value.replace(/:/g, '|').replace(/}/g, '|}');
 		return this;
 	}
 

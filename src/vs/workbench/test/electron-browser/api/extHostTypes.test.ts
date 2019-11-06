@@ -528,11 +528,11 @@ suite('ExtHostTypes', function () {
 		assert.equal(string.value, '${BAR}');
 
 		string = new types.SnippetString();
-		string.appendChoice(['b', 'a', 'r'])
+		string.appendChoice(['b', 'a', 'r']);
 		assert.equal(string.value, '${1|b,a,r|}');
 
 		string = new types.SnippetString();
-		string.appendChoice(['b', 'a', 'r'], 0)
+		string.appendChoice(['b', 'a', 'r'], 0);
 		assert.equal(string.value, '${0|b,a,r|}');
 	});
 
