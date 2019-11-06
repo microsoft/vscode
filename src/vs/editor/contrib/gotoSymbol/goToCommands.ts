@@ -33,6 +33,9 @@ import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/symbolNav
 import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editorOptions';
 import { isStandalone } from 'vs/base/browser/browser';
 import { URI } from 'vs/base/common/uri';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { assertType } from 'vs/base/common/types';
 
 export interface SymbolNavigationActionConfig {
 	openToSide: boolean;
@@ -100,7 +103,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 		return promise;
 	}
 
-	protected abstract _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel>;
+	protected abstract _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel | undefined>;
 
 	protected abstract _getNoResultFoundMessage(info: IWordAtPosition | null): string;
 
@@ -639,17 +642,85 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 
 //#endregion
 
+
+//#region --- GENERIC goto symbols command
+
+class GenericGoToLocationAction extends SymbolNavigationAction {
+
+	constructor(
+		private readonly _references: Location[]
+	) {
+		super({
+			muteMessage: true,
+			openInPeek: false,
+			openToSide: false
+		}, {
+			id: 'editor.action.goToLocation',
+			label: nls.localize('label.generic', "Go To Any Symbol"),
+			alias: 'Go To Any Symbol',
+			precondition: ContextKeyExpr.and(
+				PeekContext.notInPeekEditor,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			),
+		});
+	}
+
+	protected async _getLocationModel(_model: ITextModel, _position: corePosition.Position, _token: CancellationToken): Promise<ReferencesModel | undefined> {
+		return new ReferencesModel(this._references);
+	}
+
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
+		return info && nls.localize('generic.noResult', "No results for '{0}'", info.word) || '';
+	}
+
+	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
+		return editor.getOption(EditorOption.gotoLocation).multipleReferences;
+	}
+
+	protected _getMetaTitle() { return ''; }
+	protected _getAlternativeCommand() { return ''; }
+}
+
+CommandsRegistry.registerCommand({
+	id: 'editor.action.goToLocations',
+	description: {
+		description: 'Go to locations from a position in a file',
+		args: [
+			{ name: 'uri', description: 'The text document in which to start', constraint: URI },
+			{ name: 'position', description: 'The position at which to start', constraint: corePosition.Position.isIPosition },
+			{ name: 'locations', description: 'An array of locations.', constraint: Array },
+		]
+	},
+	handler: async (accessor: ServicesAccessor, resource: any, position: any, references: any) => {
+		assertType(URI.isUri(resource));
+		assertType(corePosition.Position.isIPosition(position));
+		assertType(Array.isArray(references));
+
+		const editorService = accessor.get(ICodeEditorService);
+		const editor = await editorService.openCodeEditor({ resource }, editorService.getFocusedCodeEditor());
+
+		if (isCodeEditor(editor)) {
+			editor.setPosition(position);
+			editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
+
+			return editor.invokeWithinContext(accessor => {
+				const command = new GenericGoToLocationAction(references);
+				accessor.get(IInstantiationService).invokeFunction(command.run.bind(command), editor);
+			});
+		}
+	}
+});
+
+//#endregion
+
+
 //#region --- REFERENCE search special commands
 
 CommandsRegistry.registerCommand({
 	id: 'editor.action.findReferences',
-	handler: (accessor: ServicesAccessor, resource: URI, position: corePosition.IPosition) => {
-		if (!(resource instanceof URI)) {
-			throw new Error('illegal argument, uri');
-		}
-		if (!position) {
-			throw new Error('illegal argument, position');
-		}
+	handler: (accessor: ServicesAccessor, resource: any, position: any) => {
+		assertType(URI.isUri(resource));
+		assertType(corePosition.Position.isIPosition(position));
 
 		const codeEditorService = accessor.get(ICodeEditorService);
 		return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
@@ -669,44 +740,7 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'editor.action.showReferences',
-	description: {
-		description: 'Show references at a position in a file',
-		args: [
-			{ name: 'uri', description: 'The text document in which to show references', constraint: URI },
-			{ name: 'position', description: 'The position at which to show', constraint: corePosition.Position.isIPosition },
-			{ name: 'locations', description: 'An array of locations.', constraint: Array },
-		]
-	},
-	handler: (accessor: ServicesAccessor, resource: URI, position: corePosition.IPosition, references: Location[]) => {
-		if (!(resource instanceof URI)) {
-			throw new Error('illegal argument, uri expected');
-		}
-
-		if (!references) {
-			throw new Error('missing references');
-		}
-
-		const codeEditorService = accessor.get(ICodeEditorService);
-
-		return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
-			if (!isCodeEditor(control)) {
-				return undefined;
-			}
-
-			const controller = ReferencesController.get(control);
-			if (!controller) {
-				return undefined;
-			}
-
-			return controller.toggleWidget(
-				new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-				createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
-				false
-			);
-		});
-	},
-});
+// use NEW command
+CommandsRegistry.registerCommandAlias('editor.action.showReferences', 'editor.action.goToLocations');
 
 //#endregion
