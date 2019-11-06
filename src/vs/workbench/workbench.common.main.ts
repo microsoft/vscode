@@ -253,4 +253,7 @@ import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
+// Test Custom Editors
+import 'vs/workbench/contrib/testCustomEditors/browser/testCustomEditors';
+
 //#endregion

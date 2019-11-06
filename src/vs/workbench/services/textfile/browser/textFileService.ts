@@ -52,13 +52,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private readonly _onFilesAssociationChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onFilesAssociationChange: Event<void> = this._onFilesAssociationChange.event;
 
-
 	private _onWillRunOperation = this._register(new AsyncEmitter<FileOperationWillRunEvent>());
 	readonly onWillRunOperation = this._onWillRunOperation.event;
 
 	private _onDidRunOperation = this._register(new Emitter<FileOperationDidRunEvent>());
 	readonly onDidRunOperation = this._onDidRunOperation.event;
-
 
 	private _models: TextFileEditorModelManager;
 	get models(): ITextFileEditorModelManager { return this._models; }
@@ -444,18 +442,21 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 
+		// before event
 		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.DELETE, resource));
 
 		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource));
 		await this.revertAll(dirtyFiles, { soft: true });
 
 		await this.fileService.del(resource, options);
+
+		// after event
 		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.DELETE, resource));
 	}
 
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 
-		// before events
+		// before event
 		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.MOVE, target, source));
 
 		// find all models that related to either source or target (can be many if resource is a folder)
