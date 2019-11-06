@@ -36,13 +36,13 @@ declare module 'node-pty' {
 		env?: { [key: string]: string };
 		encoding?: string;
 		/**
-		 * Whether to use the experimental ConPTY system on Windows. When this is not set, ConPTY will
-		 * be used when the Windows build number is >= 18309 (it's available in 17134 and 17692 but is
-		 * too unstable to enable by default).
+		 * Whether to use the ConPTY system on Windows. When this is not set, ConPTY will be used when
+		 * the Windows build number is >= 18309 (instead of winpty). Note that ConPTY is available from
+		 * build 17134 but is too unstable to enable by default.
 		 *
 		 * This setting does nothing on non-Windows.
 		 */
-		experimentalUseConpty?: boolean;
+		useConpty?: boolean;
 		/**
 		 * Whether to use PSEUDOCONSOLE_INHERIT_CURSOR in conpty.
 		 * @see https://docs.microsoft.com/en-us/windows/console/createpseudoconsole
