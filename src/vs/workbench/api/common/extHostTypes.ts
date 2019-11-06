@@ -740,6 +740,12 @@ export class SnippetString {
 		return this;
 	}
 
+	appendChoice(values: string[], number?: number): SnippetString {
+		this.appendPlaceholder(values.toString(), number)
+		this.value = this.value.replace(/:/g, '|').replace(/}/g, '|}')
+		return this;
+	}
+
 	appendVariable(name: string, defaultValue?: string | ((snippet: SnippetString) => any)): SnippetString {
 
 		if (typeof defaultValue === 'function') {
