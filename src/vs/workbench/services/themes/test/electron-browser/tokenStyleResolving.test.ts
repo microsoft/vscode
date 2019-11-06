@@ -15,6 +15,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-browser/extensionResourceLoaderService';
 
 let tokenClassificationRegistry = getTokenClassificationRegistry();
 
@@ -69,6 +70,8 @@ suite('Themes - TokenStyleResolving', () => {
 
 
 	const fileService = new FileService(new NullLogService());
+	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService);
+
 	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
@@ -77,12 +80,12 @@ suite('Themes - TokenStyleResolving', () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
 		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-monokai/themes/monokai-color-theme.json');
 		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(fileService);
+		await themeData.ensureLoaded(extensionResourceLoaderService);
 
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#75715E', unsetStyle),
+			[comments]: ts('#88846f', unsetStyle),
 			[variables]: ts('#F8F8F2', unsetStyle),
 			[types]: ts('#A6E22E', { underline: true, bold: false, italic: false }),
 			[functions]: ts('#A6E22E', unsetStyle),
@@ -97,7 +100,7 @@ suite('Themes - TokenStyleResolving', () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
 		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-defaults/themes/dark_plus.json');
 		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(fileService);
+		await themeData.ensureLoaded(extensionResourceLoaderService);
 
 		assert.equal(themeData.isLoaded, true);
 
@@ -117,7 +120,7 @@ suite('Themes - TokenStyleResolving', () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
 		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-defaults/themes/light_vs.json');
 		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(fileService);
+		await themeData.ensureLoaded(extensionResourceLoaderService);
 
 		assert.equal(themeData.isLoaded, true);
 
@@ -137,7 +140,7 @@ suite('Themes - TokenStyleResolving', () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
 		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-defaults/themes/hc_black.json');
 		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(fileService);
+		await themeData.ensureLoaded(extensionResourceLoaderService);
 
 		assert.equal(themeData.isLoaded, true);
 
@@ -157,7 +160,7 @@ suite('Themes - TokenStyleResolving', () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
 		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-kimbie-dark/themes/kimbie-dark-color-theme.json');
 		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(fileService);
+		await themeData.ensureLoaded(extensionResourceLoaderService);
 
 		assert.equal(themeData.isLoaded, true);
 
@@ -177,7 +180,7 @@ suite('Themes - TokenStyleResolving', () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
 		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-abyss/themes/abyss-color-theme.json');
 		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(fileService);
+		await themeData.ensureLoaded(extensionResourceLoaderService);
 
 		assert.equal(themeData.isLoaded, true);
 
