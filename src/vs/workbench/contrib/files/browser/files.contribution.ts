@@ -38,6 +38,7 @@ import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerServi
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -339,10 +340,7 @@ configurationRegistry.registerConfiguration({
 });
 
 configurationRegistry.registerConfiguration({
-	id: 'editor',
-	order: 5,
-	title: nls.localize('editorConfigurationTitle', "Editor"),
-	type: 'object',
+	...editorConfigurationBaseNode,
 	properties: {
 		'editor.formatOnSave': {
 			'type': 'boolean',

@@ -16,6 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { CodeActionExtensionPointFields, CodeActionsExtensionPoint } from 'vs/workbench/contrib/codeActions/common/extensionPoint';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 
 const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 	'source.fixAll': {
@@ -35,11 +36,7 @@ const codeActionsOnSaveSchema: IJSONSchema = {
 };
 
 export const editorConfiguration = Object.freeze<IConfigurationNode>({
-	id: 'editor',
-	order: 5,
-	type: 'object',
-	title: nls.localize('editorConfigurationTitle', "Editor"),
-	overridable: true,
+	...editorConfigurationBaseNode,
 	properties: {
 		'editor.codeActionsOnSave': codeActionsOnSaveSchema,
 		'editor.codeActionsOnSaveTimeout': {
