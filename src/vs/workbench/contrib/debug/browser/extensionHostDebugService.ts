@@ -75,18 +75,18 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			debugWorkspace = { folderUri: URI.parse(folderUriArg) };
 		} else {
 			const fileUriArg = this.findArgument('file-uri', args);
-			if (fileUriArg) {
-				if (hasWorkspaceFileExtension(fileUriArg)) {
-					debugWorkspace = { workspaceUri: URI.parse(fileUriArg) };
-				} else {
-					// TODO: currently it is not possible to open VS Code on a file in the web
-					// debugWorkspace = { fileUri: URI.parse(fileUriArg) };
-				}
+			if (fileUriArg && hasWorkspaceFileExtension(fileUriArg)) {
+				debugWorkspace = { workspaceUri: URI.parse(fileUriArg) };
 			}
 		}
 
 		// Add environment parameters required for debug to work
 		const environment = new Map<string, string>();
+
+		const fileUriArg = this.findArgument('file-uri', args);
+		if (fileUriArg && !hasWorkspaceFileExtension(fileUriArg)) {
+			environment.set('openFile', fileUriArg);
+		}
 
 		const extensionDevelopmentPath = this.findArgument('extensionDevelopmentPath', args);
 		if (extensionDevelopmentPath) {
