@@ -253,4 +253,7 @@ import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
+// Code Actions
+import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
+
 //#endregion
