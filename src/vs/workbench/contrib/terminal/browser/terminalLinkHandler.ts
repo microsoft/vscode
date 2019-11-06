@@ -7,13 +7,13 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
+import { TerminalWidgetManager, WidgetVerticalAlignment } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Terminal, ILinkMatcherOptions } from 'xterm';
+import { Terminal, ILinkMatcherOptions, IViewportRange } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -71,7 +71,7 @@ export class TerminalLinkHandler {
 	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
-	private readonly _tooltipCallback: (event: MouseEvent, uri: string) => boolean | void;
+	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void;
 	private readonly _leaveCallback: () => void;
 
 	constructor(
@@ -89,15 +89,42 @@ export class TerminalLinkHandler {
 		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
 		this._gitDiffPostImagePattern = /^\+\+\+ b\/(\S*)/;
 
-		this._tooltipCallback = (e: MouseEvent) => {
+		this._tooltipCallback = (e: MouseEvent, uri: string, location: IViewportRange) => {
 			if (!this._widgetManager) {
 				return;
 			}
+
+			// Get the row bottom up
+			let offsetRow = this._xterm.rows - location.start.y;
+			let verticalAlignment = WidgetVerticalAlignment.Bottom;
+
+			// Show the tooltip on the top of the next row to avoid obscuring the first row
+			if (location.start.y <= 0) {
+				offsetRow = this._xterm.rows - 1;
+				verticalAlignment = WidgetVerticalAlignment.Top;
+				// The start of the wrapped line is above the viewport, move to start of the line
+				if (location.start.y < 0) {
+					location.start.x = 0;
+				}
+			}
+
 			if (this._configHelper.config.rendererType === 'dom') {
-				const target = (e.target as HTMLElement);
-				this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
+				const font = this._configHelper.getFont();
+				const charWidth = font.charWidth;
+				const charHeight = font.charHeight;
+
+				const leftPosition = location.start.x * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
+				const bottomPosition = offsetRow * (Math.ceil(charHeight! * window.devicePixelRatio) * font.lineHeight) / window.devicePixelRatio;
+
+				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(), verticalAlignment);
 			} else {
-				this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString());
+				const target = (e.target as HTMLElement);
+				const colWidth = target.offsetWidth / this._xterm.cols;
+				const rowHeight = target.offsetHeight / this._xterm.rows;
+
+				const leftPosition = location.start.x * colWidth;
+				const bottomPosition = offsetRow * rowHeight;
+				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(), verticalAlignment);
 			}
 		};
 		this._leaveCallback = () => {

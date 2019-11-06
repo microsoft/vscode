@@ -131,12 +131,20 @@ export interface CommentProviderFeatures {
 	reactionHandler?: boolean;
 }
 
+export type CommentThreadChanges = Partial<{
+	range: IRange,
+	label: string,
+	contextValue: string,
+	comments: modes.Comment[],
+	collapseState: modes.CommentThreadCollapsibleState
+}>;
+
 export interface MainThreadCommentsShape extends IDisposable {
 	$registerCommentController(handle: number, id: string, label: string): void;
 	$unregisterCommentController(handle: number): void;
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
 	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, extensionId: ExtensionIdentifier): modes.CommentThread | undefined;
-	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, label: string | undefined, contextValue: string | undefined, comments: modes.Comment[], collapseState: modes.CommentThreadCollapsibleState): void;
+	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }
@@ -412,7 +420,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessTitle(terminalId: number, title: string): void;
 	$sendProcessData(terminalId: number, data: string): void;
 	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
-	$sendProcessExit(terminalId: number, exitCode: number): void;
+	$sendProcessExit(terminalId: number, exitCode: number | undefined): void;
 	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
 	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
@@ -540,24 +548,27 @@ export interface WebviewPanelShowOptions {
 	readonly preserveFocus?: boolean;
 }
 
+export interface WebviewExtensionDescription {
+	readonly id: ExtensionIdentifier;
+	readonly location: UriComponents;
+}
+
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
+	$createWebviewPanel(extension: WebviewExtensionDescription, handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
-	$setState(handle: WebviewPanelHandle, state: modes.WebviewContentState): void;
 	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void;
-	$setExtension(handle: WebviewPanelHandle, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
 
 	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
 
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 
-	$registerEditorProvider(viewType: string): void;
+	$registerEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
 }
 
@@ -575,14 +586,14 @@ export interface ExtHostWebviewsShape {
 	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
-	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
-	$save(handle: WebviewPanelHandle): Promise<boolean>;
+	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
-	$createAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<UriComponents>;
+	$createAppUri(uri: UriComponents): Promise<UriComponents>;
+	$proposedCreateAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<UriComponents>;
 }
 
 export interface ExtHostUrlsShape {
@@ -901,10 +912,11 @@ export interface FileSystemEvents {
 	changed: UriComponents[];
 	deleted: UriComponents[];
 }
+
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onFileRename(oldUri: UriComponents, newUri: UriComponents): void;
-	$onWillRename(oldUri: UriComponents, newUri: UriComponents): Promise<any>;
+	$onWillRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined): Promise<any>;
+	$onDidRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined): void;
 }
 
 export interface ObjectIdentifier {
@@ -966,7 +978,7 @@ export interface ISuggestDataDto {
 	[ISuggestDataDtoField.preselect]?: boolean;
 	[ISuggestDataDtoField.insertText]?: string;
 	[ISuggestDataDtoField.insertTextRules]?: modes.CompletionItemInsertTextRule;
-	[ISuggestDataDtoField.range]?: IRange;
+	[ISuggestDataDtoField.range]?: IRange | { insert: IRange, replace: IRange };
 	[ISuggestDataDtoField.commitCharacters]?: string[];
 	[ISuggestDataDtoField.additionalTextEdits]?: ISingleEditOperation[];
 	[ISuggestDataDtoField.command]?: modes.Command;
@@ -977,7 +989,7 @@ export interface ISuggestDataDto {
 
 export interface ISuggestResultDto {
 	x?: number;
-	a: IRange;
+	a: { insert: IRange, replace: IRange };
 	b: ISuggestDataDto[];
 	c?: boolean;
 }
@@ -1100,6 +1112,7 @@ export interface ICodeLensDto {
 }
 
 export interface ICallHierarchyItemDto {
+	id: string;
 	kind: modes.SymbolKind;
 	name: string;
 	detail?: string;
@@ -1142,8 +1155,10 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined>;
 	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]>;
-	$provideCallHierarchyIncomingCalls(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
-	$provideCallHierarchyOutgoingCalls(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
+	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<{ sessionId: string, root: ICallHierarchyItemDto } | undefined>;
+	$provideCallHierarchyIncomingCalls(handle: number, itemId: string, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
+	$provideCallHierarchyOutgoingCalls(handle: number, itemId: string, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
+	$releaseCallHierarchy(handle: number, sessionId: string): void;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -1181,8 +1196,8 @@ export interface ITerminalDimensionsDto {
 }
 
 export interface ExtHostTerminalServiceShape {
-	$acceptTerminalClosed(id: number): void;
-	$acceptTerminalOpened(id: number, name: string): void;
+	$acceptTerminalClosed(id: number, exitCode: number | undefined): void;
+	$acceptTerminalOpened(id: number, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$acceptTerminalProcessData(id: number, data: string): void;

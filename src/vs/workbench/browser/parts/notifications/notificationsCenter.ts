@@ -26,7 +26,7 @@ import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 
 export class NotificationsCenter extends Themable {
 
-	private static MAX_DIMENSIONS = new Dimension(450, 400);
+	private static readonly MAX_DIMENSIONS = new Dimension(450, 400);
 
 	private readonly _onDidChangeVisibility: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeVisibility: Event<void> = this._onDidChangeVisibility.event;
@@ -38,6 +38,7 @@ export class NotificationsCenter extends Themable {
 	private _isVisible: boolean | undefined;
 	private workbenchDimensions: Dimension | undefined;
 	private notificationsCenterVisibleContextKey: IContextKey<boolean>;
+	private clearAllAction: ClearAllNotificationsAction | undefined;
 
 	constructor(
 		private container: HTMLElement,
@@ -107,12 +108,14 @@ export class NotificationsCenter extends Themable {
 	}
 
 	private updateTitle(): void {
-		const notificationsCenterTitle = assertIsDefined(this.notificationsCenterTitle);
+		const [notificationsCenterTitle, clearAllAction] = assertAllDefined(this.notificationsCenterTitle, this.clearAllAction);
 
 		if (this.model.notifications.length === 0) {
 			notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
+			clearAllAction.enabled = false;
 		} else {
 			notificationsCenterTitle.textContent = localize('notifications', "Notifications");
+			clearAllAction.enabled = true;
 		}
 	}
 
@@ -144,11 +147,11 @@ export class NotificationsCenter extends Themable {
 			actionRunner
 		}));
 
+		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
+		notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
+
 		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
-
-		const clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
-		notificationsToolBar.push(clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(clearAllAction) });
 
 		// Notifications List
 		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
@@ -227,16 +230,16 @@ export class NotificationsCenter extends Themable {
 	protected updateStyles(): void {
 		if (this.notificationsCenterContainer && this.notificationsCenterHeader) {
 			const widgetShadowColor = this.getColor(widgetShadow);
-			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
+			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : '';
 
 			const borderColor = this.getColor(NOTIFICATIONS_CENTER_BORDER);
-			this.notificationsCenterContainer.style.border = borderColor ? `1px solid ${borderColor}` : null;
+			this.notificationsCenterContainer.style.border = borderColor ? `1px solid ${borderColor}` : '';
 
 			const headerForeground = this.getColor(NOTIFICATIONS_CENTER_HEADER_FOREGROUND);
 			this.notificationsCenterHeader.style.color = headerForeground ? headerForeground.toString() : null;
 
 			const headerBackground = this.getColor(NOTIFICATIONS_CENTER_HEADER_BACKGROUND);
-			this.notificationsCenterHeader.style.background = headerBackground ? headerBackground.toString() : null;
+			this.notificationsCenterHeader.style.background = headerBackground ? headerBackground.toString() : '';
 		}
 	}
 

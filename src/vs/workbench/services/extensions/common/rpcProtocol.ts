@@ -58,7 +58,7 @@ const noop = () => { };
 
 export class RPCProtocol extends Disposable implements IRPCProtocol {
 
-	private static UNRESPONSIVE_TIME = 3 * 1000; // 3s
+	private static readonly UNRESPONSIVE_TIME = 3 * 1000; // 3s
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
@@ -543,10 +543,16 @@ class MessageBuffer {
 			const el = arr[i];
 			const elType = arrType[i];
 			size += 1; // arg type
-			if (elType === ArgType.String) {
-				size += this.sizeLongString(el);
-			} else {
-				size += this.sizeVSBuffer(el);
+			switch (elType) {
+				case ArgType.String:
+					size += this.sizeLongString(el);
+					break;
+				case ArgType.VSBuffer:
+					size += this.sizeVSBuffer(el);
+					break;
+				case ArgType.Undefined:
+					// empty...
+					break;
 			}
 		}
 		return size;
@@ -557,19 +563,25 @@ class MessageBuffer {
 		for (let i = 0, len = arr.length; i < len; i++) {
 			const el = arr[i];
 			const elType = arrType[i];
-			if (elType === ArgType.String) {
-				this.writeUInt8(ArgType.String);
-				this.writeLongString(el);
-			} else {
-				this.writeUInt8(ArgType.VSBuffer);
-				this.writeVSBuffer(el);
+			switch (elType) {
+				case ArgType.String:
+					this.writeUInt8(ArgType.String);
+					this.writeLongString(el);
+					break;
+				case ArgType.VSBuffer:
+					this.writeUInt8(ArgType.VSBuffer);
+					this.writeVSBuffer(el);
+					break;
+				case ArgType.Undefined:
+					this.writeUInt8(ArgType.Undefined);
+					break;
 			}
 		}
 	}
 
-	public readMixedArray(): Array<string | VSBuffer> {
+	public readMixedArray(): Array<string | VSBuffer | undefined> {
 		const arrLen = this._buff.readUInt8(this._offset); this._offset += 1;
-		let arr: Array<string | VSBuffer> = new Array(arrLen);
+		let arr: Array<string | VSBuffer | undefined> = new Array(arrLen);
 		for (let i = 0; i < arrLen; i++) {
 			const argType = <ArgType>this.readUInt8();
 			switch (argType) {
@@ -579,6 +591,9 @@ class MessageBuffer {
 				case ArgType.VSBuffer:
 					arr[i] = this.readVSBuffer();
 					break;
+				case ArgType.Undefined:
+					arr[i] = undefined;
+					break;
 			}
 		}
 		return arr;
@@ -587,9 +602,12 @@ class MessageBuffer {
 
 class MessageIO {
 
-	private static _arrayContainsBuffer(arr: any[]): boolean {
+	private static _arrayContainsBufferOrUndefined(arr: any[]): boolean {
 		for (let i = 0, len = arr.length; i < len; i++) {
 			if (arr[i] instanceof VSBuffer) {
+				return true;
+			}
+			if (typeof arr[i] === 'undefined') {
 				return true;
 			}
 		}
@@ -597,7 +615,7 @@ class MessageIO {
 	}
 
 	public static serializeRequest(req: number, rpcId: number, method: string, args: any[], usesCancellationToken: boolean, replacer: JSONStringifyReplacer | null): VSBuffer {
-		if (this._arrayContainsBuffer(args)) {
+		if (this._arrayContainsBufferOrUndefined(args)) {
 			let massagedArgs: VSBuffer[] = [];
 			let massagedArgsType: ArgType[] = [];
 			for (let i = 0, len = args.length; i < len; i++) {
@@ -605,6 +623,9 @@ class MessageIO {
 				if (arg instanceof VSBuffer) {
 					massagedArgs[i] = arg;
 					massagedArgsType[i] = ArgType.VSBuffer;
+				} else if (typeof arg === 'undefined') {
+					massagedArgs[i] = VSBuffer.alloc(0);
+					massagedArgsType[i] = ArgType.Undefined;
 				} else {
 					massagedArgs[i] = VSBuffer.fromString(safeStringify(arg, replacer));
 					massagedArgsType[i] = ArgType.String;
@@ -772,5 +793,6 @@ const enum MessageType {
 
 const enum ArgType {
 	String = 1,
-	VSBuffer = 2
+	VSBuffer = 2,
+	Undefined = 3
 }

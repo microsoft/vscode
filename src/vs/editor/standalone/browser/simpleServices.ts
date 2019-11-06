@@ -37,7 +37,7 @@ import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/com
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -233,6 +233,8 @@ export class SimpleNotificationService implements INotificationService {
 	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
+
+	public setFilter(filter: NotificationsFilter): void { }
 }
 
 export class StandaloneCommandService implements ICommandService {
@@ -515,12 +517,10 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 	) {
 	}
 
-	getEOL(resource: URI): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
-		if (filesConfiguration && filesConfiguration.eol) {
-			if (filesConfiguration.eol !== 'auto') {
-				return filesConfiguration.eol;
-			}
+	getEOL(resource: URI, language?: string): string {
+		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
+		if (eol && eol !== 'auto') {
+			return eol;
 		}
 		return (isLinux || isMacintosh) ? '\n' : '\r\n';
 	}
@@ -551,7 +551,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: undefined;
 
-	private static SCHEME = 'inmemory';
+	private static readonly SCHEME = 'inmemory';
 
 	private readonly _onDidChangeWorkspaceName = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
@@ -648,7 +648,9 @@ export class SimpleBulkEditService implements IBulkEditService {
 		let totalEdits = 0;
 		let totalFiles = 0;
 		edits.forEach((edits, model) => {
-			model.applyEdits(edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
+			model.pushStackElement();
+			model.pushEditOperations([], edits.map((e) => EditOperation.replaceMove(Range.lift(e.range), e.text)), () => []);
+			model.pushStackElement();
 			totalFiles += 1;
 			totalEdits += edits.length;
 		});

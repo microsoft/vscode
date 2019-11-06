@@ -45,7 +45,7 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	/**
 	 * Returns a panel by id.
 	 */
-	getPanel(id: string): PanelDescriptor | null {
+	getPanel(id: string): PanelDescriptor | undefined {
 		return this.getComposite(id);
 	}
 
@@ -107,7 +107,7 @@ export abstract class TogglePanelAction extends Action {
 	private isPanelActive(): boolean {
 		const activePanel = this.panelService.getActivePanel();
 
-		return !!activePanel && activePanel.getId() === this.panelId;
+		return activePanel?.getId() === this.panelId;
 	}
 
 	private isPanelFocused(): boolean {

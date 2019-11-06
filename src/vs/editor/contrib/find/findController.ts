@@ -70,7 +70,7 @@ export interface IFindStartOptions {
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.findController';
+	public static readonly ID = 'editor.contrib.findController';
 
 	protected _editor: ICodeEditor;
 	private readonly _findWidgetVisible: IContextKey<boolean>;
@@ -141,10 +141,6 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 			this._model.dispose();
 			this._model = null;
 		}
-	}
-
-	public getId(): string {
-		return CommonFindController.ID;
 	}
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
@@ -399,10 +395,26 @@ export class FindController extends CommonFindController implements IFindControl
 			this._createFindWidget();
 		}
 
-		if (!this._widget!.getPosition() && this._editor.getOption(EditorOption.find).autoFindInSelection) {
-			// not visible yet so we need to set search scope if `editor.find.autoFindInSelection` is `true`
-			opts.updateSearchScope = true;
+		const selection = this._editor.getSelection();
+		let updateSearchScope = false;
+
+		switch (this._editor.getOption(EditorOption.find).autoFindInSelection) {
+			case 'always':
+				updateSearchScope = true;
+				break;
+			case 'never':
+				updateSearchScope = false;
+				break;
+			case 'multiline':
+				const isSelectionMultipleLine = !!selection && selection.startLineNumber !== selection.endLineNumber;
+				updateSearchScope = isSelectionMultipleLine;
+				break;
+
+			default:
+				break;
 		}
+
+		opts.updateSearchScope = updateSearchScope;
 
 		super._start(opts);
 
@@ -493,7 +505,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: true,
 				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.FocusFindInput,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
 				updateSearchScope: false
 			});
@@ -735,7 +747,7 @@ export class StartFindReplaceAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(FindController);
+registerEditorContribution(CommonFindController.ID, FindController);
 
 registerEditorAction(StartFindAction);
 registerEditorAction(StartFindWithSelectionAction);

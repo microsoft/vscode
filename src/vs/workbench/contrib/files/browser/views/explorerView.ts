@@ -323,7 +323,7 @@ export class ExplorerView extends ViewletPanel {
 		const explorerNavigator = new TreeResourceNavigator2(this.tree);
 		this._register(explorerNavigator);
 		// Open when selecting via keyboard
-		this._register(explorerNavigator.onDidOpenResource(e => {
+		this._register(explorerNavigator.onDidOpenResource(async e => {
 			const selection = this.tree.getSelection();
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
@@ -335,8 +335,7 @@ export class ExplorerView extends ViewletPanel {
 					return;
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
-					.then(undefined, onUnexpectedError);
+				await this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			}
 		}));
 
@@ -358,7 +357,7 @@ export class ExplorerView extends ViewletPanel {
 	// React on events
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
+		this.autoReveal = configuration?.explorer?.autoReveal;
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
@@ -524,7 +523,12 @@ export class ExplorerView extends ViewletPanel {
 		return withNullAsUndefined(toResource(input, { supportSideBySide: SideBySideEditor.MASTER }));
 	}
 
-	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal): Promise<void> {
+	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
+		// do no retry more than once to prevent inifinite loops in cases of inconsistent model
+		if (retry === 2) {
+			return;
+		}
+
 		if (!resource || !this.isBodyVisible()) {
 			return;
 		}
@@ -535,12 +539,18 @@ export class ExplorerView extends ViewletPanel {
 			.sort((first, second) => second.resource.path.length - first.resource.path.length)[0];
 
 		while (item && item.resource.toString() !== resource.toString()) {
+			if (item.isDisposed) {
+				return this.onSelectResource(resource, reveal, retry + 1);
+			}
 			await this.tree.expand(item);
 			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
 		}
 
 		if (item && item.parent) {
 			if (reveal) {
+				if (item.isDisposed) {
+					return this.onSelectResource(resource, reveal, retry + 1);
+				}
 				this.tree.reveal(item, 0.5);
 			}
 

@@ -15,10 +15,9 @@ export async function resolveWorkbenchCommonProperties(
 	machineId: string,
 	msftInternalDomains: string[] | undefined,
 	installSourcePath: string,
-	remoteAuthority?: string,
-	resolveAdditionalProperties?: () => { [key: string]: any }
+	remoteAuthority?: string
 ): Promise<{ [name: string]: string | boolean | undefined }> {
-	const result = await resolveCommonProperties(commit, version, machineId, msftInternalDomains, installSourcePath, undefined, resolveAdditionalProperties);
+	const result = await resolveCommonProperties(commit, version, machineId, msftInternalDomains, installSourcePath, undefined);
 	const instanceId = storageService.get(instanceStorageKey, StorageScope.GLOBAL)!;
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;

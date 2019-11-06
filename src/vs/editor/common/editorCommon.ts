@@ -316,6 +316,12 @@ export interface IEditor {
 	getVisibleColumnFromPosition(position: IPosition): number;
 
 	/**
+	 * Given a position, returns a column number that takes tab-widths into account.
+	 * @internal
+	 */
+	getStatusbarColumn(position: IPosition): number;
+
+	/**
 	 * Returns the primary position of the cursor.
 	 */
 	getPosition(): Position | null;
@@ -489,10 +495,6 @@ export interface IDiffEditor extends IEditor {
  */
 export interface IEditorContribution {
 	/**
-	 * Get a unique identifier for this contribution.
-	 */
-	getId(): string;
-	/**
 	 * Dispose this contribution.
 	 */
 	dispose(): void;
@@ -504,6 +506,17 @@ export interface IEditorContribution {
 	 * Restore view state.
 	 */
 	restoreViewState?(state: any): void;
+}
+
+/**
+ * A diff editor contribution that gets created every time a new  diffeditor gets created and gets disposed when the diff editor gets disposed.
+ * @internal
+ */
+export interface IDiffEditorContribution {
+	/**
+	 * Dispose this contribution.
+	 */
+	dispose(): void;
 }
 
 /**

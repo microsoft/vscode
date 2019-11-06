@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product/common/product';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -59,8 +59,8 @@ const enum WindowError {
 
 export class CodeWindow extends Disposable implements ICodeWindow {
 
-	private static readonly MIN_WIDTH = 200;
-	private static readonly MIN_HEIGHT = 120;
+	private static readonly MIN_WIDTH = 600;
+	private static readonly MIN_HEIGHT = 600;
 
 	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
@@ -152,12 +152,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (isMacintosh) {
 				options.acceptFirstMouse = true; // enabled by default
 
-				if (windowConfig && windowConfig.clickThroughInactive === false) {
+				if (windowConfig?.clickThroughInactive === false) {
 					options.acceptFirstMouse = false;
 				}
 			}
 
-			const useNativeTabs = isMacintosh && windowConfig && windowConfig.nativeTabs === true;
+			const useNativeTabs = isMacintosh && windowConfig?.nativeTabs === true;
 			if (useNativeTabs) {
 				options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 			}
@@ -635,11 +635,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Set window ID
 		windowConfiguration.windowId = this._win.id;
+		windowConfiguration.sessionId = `window:${this._win.id}`;
 		windowConfiguration.logLevel = this.logService.getLevel();
 
 		// Set zoomlevel
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		const zoomLevel = windowConfig && windowConfig.zoomLevel;
+		const zoomLevel = windowConfig?.zoomLevel;
 		if (typeof zoomLevel === 'number') {
 			windowConfiguration.zoomLevel = zoomLevel;
 		}
@@ -649,15 +650,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Set Accessibility Config
 		let autoDetectHighContrast = true;
-		if (windowConfig && windowConfig.autoDetectHighContrast === false) {
+		if (windowConfig?.autoDetectHighContrast === false) {
 			autoDetectHighContrast = false;
 		}
 		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
-		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
+		windowConfiguration.accessibilitySupport = app.accessibilitySupportEnabled;
 
 		// Title style related
 		windowConfiguration.maximized = this._win.isMaximized();
-		windowConfiguration.frameless = this.hasHiddenTitleBarStyle && !isMacintosh;
 
 		// Dump Perf Counters
 		windowConfiguration.perfEntries = perf.exportEntries();
@@ -825,7 +825,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Multi Montior (fullscreen): try to find the previously used display
 		if (state.display && state.mode === WindowMode.Fullscreen) {
 			const display = displays.filter(d => d.id === state.display)[0];
-			if (display && display.bounds && typeof display.bounds.x === 'number' && typeof display.bounds.y === 'number') {
+			if (display && typeof display.bounds?.x === 'number' && typeof display.bounds?.y === 'number') {
 				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
 				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
 				defaults.y = display.bounds.y;
@@ -936,12 +936,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		if (!windowConfig || !windowConfig.menuBarVisibility) {
-			return 'default';
-		}
-
-		let menuBarVisibility = windowConfig.menuBarVisibility;
+		let menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService, !!this.config?.extensionDevelopmentPath);
 		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
 			menuBarVisibility = 'default';
 		}

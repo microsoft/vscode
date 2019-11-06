@@ -16,6 +16,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Event, Emitter } from 'vs/base/common/event';
+import { DataTransfers } from 'vs/base/browser/dnd';
+import { isFirefox } from 'vs/base/browser/browser';
 
 export interface IActionViewItem extends IDisposable {
 	actionRunner: IActionRunner;
@@ -113,6 +115,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		const enableDragging = this.options && this.options.draggable;
 		if (enableDragging) {
 			container.draggable = true;
+
+			if (isFirefox) {
+				// Firefox: requires to set a text data transfer to get going
+				this._register(DOM.addDisposableListener(container, DOM.EventType.DRAG_START, e => e.dataTransfer?.setData(DataTransfers.TEXT, this._action.label)));
+			}
 		}
 
 		this._register(DOM.addDisposableListener(element, EventType.Tap, e => this.onClick(e)));
@@ -224,7 +231,6 @@ export class Separator extends Action {
 	constructor(label?: string) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
 		this.checked = false;
-		this.radio = false;
 		this.enabled = false;
 	}
 }
@@ -769,9 +775,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.updateFocus(true);
 	}
 
-	protected updateFocus(fromRight?: boolean): void {
+	protected updateFocus(fromRight?: boolean, preventScroll?: boolean): void {
 		if (typeof this.focusedItem === 'undefined') {
-			this.actionsList.focus();
+			this.actionsList.focus({ preventScroll });
 		}
 
 		for (let i = 0; i < this.viewItems.length; i++) {
@@ -783,7 +789,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 					if (actionViewItem.isEnabled() && types.isFunction(actionViewItem.focus)) {
 						actionViewItem.focus(fromRight);
 					} else {
-						this.actionsList.focus();
+						this.actionsList.focus({ preventScroll });
 					}
 				}
 			} else {

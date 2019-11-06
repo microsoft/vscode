@@ -152,7 +152,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		for (const handler of this.openEditorHandlers) {
 			const result = handler(event.editor, event.options, group);
-			const override = result ? result.override : undefined;
+			const override = result?.override;
 			if (override) {
 				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
 				break;
@@ -161,9 +161,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	get activeControl(): IVisibleEditor | undefined {
-		const activeGroup = this.editorGroupService.activeGroup;
-
-		return activeGroup ? activeGroup.activeControl : undefined;
+		return this.editorGroupService.activeGroup?.activeControl;
 	}
 
 	get activeTextEditorWidget(): ICodeEditor | IDiffEditor | undefined {
@@ -307,7 +305,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const groupsByLastActive = this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 
 			// Respect option to reveal an editor if it is already visible in any group
-			if (options && options.revealIfVisible) {
+			if (options?.revealIfVisible) {
 				for (const group of groupsByLastActive) {
 					if (group.isActive(input)) {
 						targetGroup = group;
@@ -319,7 +317,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Respect option to reveal an editor if it is open (not necessarily visible)
 			// Still prefer to reveal an editor in a group where the editor is active though.
 			if (!targetGroup) {
-				if ((options && options.revealIfOpened) || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
+				if (options?.revealIfOpened || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
 					let groupWithInputActive: IEditorGroup | undefined = undefined;
 					let groupWithInputOpened: IEditorGroup | undefined = undefined;
 

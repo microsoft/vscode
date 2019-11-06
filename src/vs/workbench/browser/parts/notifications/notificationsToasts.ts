@@ -18,7 +18,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -41,8 +41,8 @@ enum ToastVisibility {
 
 export class NotificationsToasts extends Themable {
 
-	private static MAX_WIDTH = 450;
-	private static MAX_NOTIFICATIONS = 3;
+	private static readonly MAX_WIDTH = 450;
+	private static readonly MAX_NOTIFICATIONS = 3;
 
 	private static PURGE_TIMEOUT: { [severity: number]: number } = (() => {
 		const intervals = Object.create(null);
@@ -92,6 +92,13 @@ export class NotificationsToasts extends Themable {
 			// Update toasts on notification changes
 			this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 		});
+
+		// Filter
+		this._register(this.model.onDidFilterChange(filter => {
+			if (filter === NotificationsFilter.SILENT || filter === NotificationsFilter.ERROR) {
+				this.hide();
+			}
+		}));
 	}
 
 	private async onCanShowNotifications(): Promise<void> {
@@ -157,6 +164,7 @@ export class NotificationsToasts extends Themable {
 
 		// Create toast with item and show
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
+			ariaRole: 'dialog', // https://github.com/microsoft/vscode/issues/82728
 			ariaLabel: localize('notificationsToast', "Notification Toast"),
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
@@ -414,10 +422,10 @@ export class NotificationsToasts extends Themable {
 	protected updateStyles(): void {
 		this.mapNotificationToToast.forEach(t => {
 			const widgetShadowColor = this.getColor(widgetShadow);
-			t.toast.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
+			t.toast.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : '';
 
 			const borderColor = this.getColor(NOTIFICATIONS_TOAST_BORDER);
-			t.toast.style.border = borderColor ? `1px solid ${borderColor}` : null;
+			t.toast.style.border = borderColor ? `1px solid ${borderColor}` : '';
 		});
 	}
 

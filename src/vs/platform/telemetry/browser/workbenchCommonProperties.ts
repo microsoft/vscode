@@ -9,15 +9,29 @@ export const instanceStorageKey = 'telemetry.instanceId';
 export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
 export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
+export const machineIdKey = 'telemetry.machineId';
 
 import * as Platform from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
+import { mixin } from 'vs/base/common/objects';
 
-export async function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string | undefined, version: string | undefined, machineId: string, remoteAuthority?: string): Promise<{ [name: string]: string | undefined }> {
+export async function resolveWorkbenchCommonProperties(
+	storageService: IStorageService,
+	commit: string | undefined,
+	version: string | undefined,
+	remoteAuthority?: string,
+	resolveAdditionalProperties?: () => { [key: string]: any }
+): Promise<{ [name: string]: string | undefined }> {
 	const result: { [name: string]: string | undefined; } = Object.create(null);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
+
+	let machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
+	if (!machineId) {
+		machineId = uuid.generateUuid();
+		storageService.store(machineIdKey, machineId, StorageScope.GLOBAL);
+	}
 
 	/**
 	 * Note: In the web, session date information is fetched from browser storage, so these dates are tied to a specific
@@ -67,6 +81,10 @@ export async function resolveWorkbenchCommonProperties(storageService: IStorageS
 			enumerable: true
 		}
 	});
+
+	if (resolveAdditionalProperties) {
+		mixin(result, resolveAdditionalProperties());
+	}
 
 	return result;
 }

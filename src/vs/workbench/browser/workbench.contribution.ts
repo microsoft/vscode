@@ -60,6 +60,16 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 				],
 				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs.")
 			},
+			'workbench.editor.splitSizing': {
+				'type': 'string',
+				'enum': ['distribute', 'split'],
+				'default': 'distribute',
+				'enumDescriptions': [
+					nls.localize('workbench.editor.splitSizingDistribute', "Splits all the editor groups to equal parts."),
+					nls.localize('workbench.editor.splitSizingSplit', "Splits the active editor group to equal parts.")
+				],
+				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "Controls the sizing of editor groups when splitting them.")
+			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',
 				'description': nls.localize('focusRecentEditorAfterClose', "Controls whether tabs are closed in most recently used order or from left to right."),
@@ -77,7 +87,7 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether opened editors from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),
+				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),
 				'default': true
 			},
 			'workbench.editor.closeOnFileDelete': {
@@ -287,7 +297,7 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
 					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
 					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
-					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar.")
+					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when 'window.titleBarStyle' is 'native'.")
 				],
 				'default': isWeb ? 'compact' : 'default',
 				'scope': ConfigurationScope.APPLICATION,
@@ -364,6 +374,11 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 				'type': 'boolean',
 				'default': false,
 				'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
+			},
+			'zenMode.silentNotifications': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, only error notifications will pop out.")
 			}
 		}
 	});

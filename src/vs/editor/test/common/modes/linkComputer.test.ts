@@ -202,4 +202,11 @@ suite('Editor Modes - Link Computer', () => {
 			'         http://[::1]:5000/connect/token  '
 		);
 	});
+
+	test('issue #70254: bold links dont open in markdown file using editor mode with ctrl + click', () => {
+		assertLink(
+			'2. Navigate to **https://portal.azure.com**',
+			'                 https://portal.azure.com  '
+		);
+	});
 });

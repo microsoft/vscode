@@ -214,12 +214,12 @@ export class DebugViewlet extends ViewContainerViewlet {
 
 class ToggleReplAction extends TogglePanelAction {
 	static readonly ID = 'debug.toggleRepl';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
+	static readonly LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
 
 	constructor(id: string, label: string,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IPanelService panelService: IPanelService
 	) {
-		super(id, label, REPL_ID, panelService, layoutService, 'debug-action toggle-repl');
+		super(id, label, REPL_ID, panelService, layoutService, 'debug-action codicon-terminal');
 	}
 }

@@ -17,7 +17,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IComputedEditorOptions, EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
@@ -770,7 +770,7 @@ export class DiffReview extends Disposable {
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
-			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations) && !options.get(EditorOption.fontLigatures)),
+			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations)),
 			fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
@@ -784,7 +784,7 @@ export class DiffReview extends Disposable {
 			options.get(EditorOption.stopRenderingLineAfter),
 			options.get(EditorOption.renderWhitespace),
 			options.get(EditorOption.renderControlCharacters),
-			options.get(EditorOption.fontLigatures),
+			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
 			null
 		));
 

@@ -32,7 +32,7 @@ export class ElectronWebviewService implements IWebviewService {
 		if (useExternalEndpoint) {
 			return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, this.webviewThemeDataProvider);
 		} else {
-			return this._instantiationService.createInstance(ElectronWebviewBasedWebview, options, contentOptions, this.webviewThemeDataProvider);
+			return this._instantiationService.createInstance(ElectronWebviewBasedWebview, id, options, contentOptions, this.webviewThemeDataProvider);
 		}
 	}
 

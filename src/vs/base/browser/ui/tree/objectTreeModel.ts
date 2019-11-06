@@ -257,7 +257,12 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			throw new TreeError(this.user, `Invalid getParentNodeLocation call`);
 		}
 
-		const node = this.nodes.get(element)!;
+		const node = this.nodes.get(element);
+
+		if (!node) {
+			throw new TreeError(this.user, `Tree element not found: ${element}`);
+		}
+
 		const location = this.model.getNodeLocation(node);
 		const parentLocation = this.model.getParentNodeLocation(location);
 		const parent = this.model.getNode(parentLocation);

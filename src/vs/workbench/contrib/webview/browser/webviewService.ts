@@ -18,7 +18,7 @@ export class WebviewService implements IWebviewService {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		this._instantiationService.createInstance(WebviewThemeDataProvider);
+		this._webviewThemeDataProvider = this._instantiationService.createInstance(WebviewThemeDataProvider);
 	}
 
 	createWebview(

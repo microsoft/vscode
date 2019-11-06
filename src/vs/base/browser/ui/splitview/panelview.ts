@@ -9,10 +9,12 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, addClass, removeClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
+import { $, append, addClass, removeClass, toggleClass, trackFocus, EventHelper } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
+import { isFirefox } from 'vs/base/browser/browser';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export interface IPanelOptions {
 	ariaHeaderLabel?: string;
@@ -229,8 +231,8 @@ export abstract class Panel extends Disposable implements IView {
 		this.header.setAttribute('aria-expanded', String(expanded));
 
 		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : null;
-		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : null;
-		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : null;
+		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : '';
+		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : '';
 		this._dropBackground = this.styles.dropBackground;
 	}
 
@@ -271,6 +273,11 @@ class PanelDraggable extends Disposable {
 		}
 
 		e.dataTransfer.effectAllowed = 'move';
+
+		if (isFirefox) {
+			// Firefox: requires to set a text data transfer to get going
+			e.dataTransfer?.setData(DataTransfers.TEXT, this.panel.draggableElement.textContent || '');
+		}
 
 		const dragImage = append(document.body, $('.monaco-drag-image', {}, this.panel.draggableElement.textContent || ''));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
@@ -323,6 +330,8 @@ class PanelDraggable extends Disposable {
 			return;
 		}
 
+		EventHelper.stop(e);
+
 		this.dragOverCounter = 0;
 		this.render();
 
@@ -340,7 +349,7 @@ class PanelDraggable extends Disposable {
 			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
 		}
 
-		this.panel.dropTargetElement.style.backgroundColor = backgroundColor;
+		this.panel.dropTargetElement.style.backgroundColor = backgroundColor || '';
 	}
 }
 

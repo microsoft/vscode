@@ -42,7 +42,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
-import { withUndefinedAsNull } from 'vs/base/common/types';
+import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 
 // Commands
 
@@ -138,12 +138,12 @@ async function doSaveAs(
 	editorGroupService: IEditorGroupsService,
 	environmentService: IWorkbenchEnvironmentService
 ): Promise<boolean> {
-	let viewStateOfSource: IEditorViewState | null = null;
+	let viewStateOfSource: IEditorViewState | undefined = undefined;
 	const activeTextEditorWidget = getCodeEditor(editorService.activeTextEditorWidget);
 	if (activeTextEditorWidget) {
 		const activeResource = toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && isEqual(activeResource, resource)) {
-			viewStateOfSource = activeTextEditorWidget.saveViewState();
+			viewStateOfSource = withNullAsUndefined(activeTextEditorWidget.saveViewState());
 		}
 	}
 
@@ -174,7 +174,7 @@ async function doSaveAs(
 		resource: target,
 		options: {
 			pinned: true,
-			viewState: viewStateOfSource || undefined
+			viewState: viewStateOfSource
 		}
 	};
 
@@ -196,7 +196,7 @@ async function doSave(
 
 	// Pin the active editor if we are saving it
 	const activeControl = editorService.activeControl;
-	const activeEditorResource = activeControl && activeControl.input && activeControl.input.getResource();
+	const activeEditorResource = activeControl?.input?.getResource();
 	if (activeControl && activeEditorResource && isEqual(activeEditorResource, resource)) {
 		activeControl.group.pinEditor(activeControl.input);
 	}
@@ -253,7 +253,7 @@ async function saveAll(saveAllArguments: any, editorService: IEditorService, unt
 	groupIdToUntitledResourceInput.forEach((inputs, groupId) => {
 		inputs.forEach(i => {
 			const targetResult = result.results.filter(r => r.success && isEqual(r.source, i.resource)).pop();
-			if (targetResult && targetResult.target) {
+			if (targetResult?.target) {
 				i.resource = targetResult.target;
 			}
 		});
@@ -315,7 +315,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_D),
-	handler: (accessor, resource: URI | object) => {
+	handler: async (accessor, resource: URI | object) => {
 		const instantiationService = accessor.get(IInstantiationService);
 		const textModelService = accessor.get(ITextModelService);
 		const editorService = accessor.get(IEditorService);
@@ -337,8 +337,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = basename(uri);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (in file) ↔ {1}", name, name);
 
-			TextFileContentProvider.open(uri, COMPARE_WITH_SAVED_SCHEMA, editorLabel, editorService).then(() => {
-
+			try {
+				await TextFileContentProvider.open(uri, COMPARE_WITH_SAVED_SCHEMA, editorLabel, editorService);
 				// Dispose once no more diff editor is opened with the scheme
 				if (registerEditorListener) {
 					providerDisposables.push(editorService.onDidVisibleEditorsChange(() => {
@@ -347,12 +347,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						}
 					}));
 				}
-			}, error => {
+			} catch {
 				providerDisposables = dispose(providerDisposables);
-			});
+			}
 		}
-
-		return Promise.resolve(true);
 	}
 });
 

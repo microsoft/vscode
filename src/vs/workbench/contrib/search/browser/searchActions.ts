@@ -494,7 +494,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 export class RemoveAction extends AbstractSearchAndReplaceAction {
 
-	static LABEL = nls.localize('RemoveAction.label', "Dismiss");
+	static readonly LABEL = nls.localize('RemoveAction.label', "Dismiss");
 
 	constructor(
 		private viewer: WorkbenchObjectTree<RenderableMatch>,

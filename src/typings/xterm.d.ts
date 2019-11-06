@@ -83,6 +83,16 @@ declare module 'xterm' {
 		drawBoldTextInBrightColors?: boolean;
 
 		/**
+		 * The modifier key hold to multiply scroll speed.
+		 */
+		fastScrollModifier?: 'alt' | 'ctrl' | 'shift' | undefined;
+
+		/**
+		 * The scroll speed multiplier used for fast scrolling.
+		 */
+		fastScrollSensitivity?: number;
+
+		/**
 		 * The font size used to render text.
 		 */
 		fontSize?: number;
@@ -172,6 +182,11 @@ declare module 'xterm' {
 		 * viewport.
 		 */
 		scrollback?: number;
+
+		/**
+		 * The scrolling speed multiplier used for adjusting normal scrolling speed.
+		 */
+		scrollSensitivity?: number;
 
 		/**
 		 * The size of tab stops in the terminal.
@@ -269,7 +284,7 @@ declare module 'xterm' {
 		/**
 		 * A callback that fires when the mouse hovers over a link for a moment.
 		 */
-		tooltipCallback?: (event: MouseEvent, uri: string) => boolean | void;
+		tooltipCallback?: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void;
 
 		/**
 		 * A callback that fires when the mouse leaves a link. Note that this can
@@ -310,7 +325,8 @@ declare module 'xterm' {
 
 	/**
 	 * Represents a specific line in the terminal that is tracked when scrollback
-	 * is trimmed and lines are added or removed.
+	 * is trimmed and lines are added or removed. This is a single line that may
+	 * be part of a larger wrapped line.
 	 */
 	export interface IMarker extends IDisposable {
 		/**
@@ -324,7 +340,8 @@ declare module 'xterm' {
 		readonly isDisposed: boolean;
 
 		/**
-		 * The actual line index in the buffer at this point in time.
+		 * The actual line index in the buffer at this point in time. This is set to
+		 * -1 if the marker has been disposed.
 		 */
 		readonly line: number;
 	}
@@ -352,12 +369,12 @@ declare module 'xterm' {
 		/**
 		 * The element containing the terminal.
 		 */
-		readonly element: HTMLElement;
+		readonly element: HTMLElement | undefined;
 
 		/**
 		 * The textarea that accepts input for the terminal.
 		 */
-		readonly textarea: HTMLTextAreaElement;
+		readonly textarea: HTMLTextAreaElement | undefined;
 
 		/**
 		 * The number of rows in the terminal's viewport. Use
@@ -434,7 +451,7 @@ declare module 'xterm' {
 		onLineFeed: IEvent<void>;
 
 		/**
-		 * Adds an event listener for when a scroll occurs. The  event value is the
+		 * Adds an event listener for when a scroll occurs. The event value is the
 		 * new position of the viewport.
 		 * @returns an `IDisposable` to stop listening.
 		 */
@@ -840,6 +857,41 @@ declare module 'xterm' {
 		 * The end row of the selection.
 		 */
 		endRow: number;
+	}
+
+	/**
+	 * An object representing a range within the viewport of the terminal.
+	 */
+	export interface IViewportRange {
+		/**
+		 * The start of the range.
+		 */
+		start: IViewportRangePosition;
+
+		/**
+		 * The end of the range.
+		 */
+		end: IViewportRangePosition;
+	}
+
+	/**
+	 * An object representing a cell position within the viewport of the terminal.
+	 */
+	interface IViewportRangePosition {
+		/**
+		 * The x position of the cell. This is a 0-based index that refers to the
+		 * space in between columns, not the column itself. Index 0 refers to the
+		 * left side of the viewport, index `Terminal.cols` refers to the right side
+		 * of the viewport. This can be thought of as how a cursor is positioned in
+		 * a text editor.
+		 */
+		x: number;
+
+		/**
+		 * The y position of the cell. This is a 0-based index that refers to a
+		 * specific row.
+		 */
+		y: number;
 	}
 
 	/**

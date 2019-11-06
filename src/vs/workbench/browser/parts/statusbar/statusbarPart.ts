@@ -7,7 +7,7 @@ import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
@@ -27,7 +27,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, find } from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -176,13 +176,7 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	findEntry(container: HTMLElement): IStatusbarViewModelEntry | undefined {
-		for (const entry of this._entries) {
-			if (entry.container === container) {
-				return entry;
-			}
-		}
-
-		return undefined;
+		return find(this._entries, entry => entry.container === container);
 	}
 
 	getEntries(alignment: StatusbarAlignment): IStatusbarViewModelEntry[] {
@@ -314,8 +308,8 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 
 class HideStatusbarEntryAction extends Action {
 
-	constructor(id: string, private model: StatusbarViewModel) {
-		super(id, nls.localize('hide', "Hide"), undefined, true);
+	constructor(id: string, name: string, private model: StatusbarViewModel) {
+		super(id, nls.localize('hide', "Hide '{0}'", name), undefined, true);
 	}
 
 	run(): Promise<any> {
@@ -566,7 +560,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		if (statusEntryUnderMouse) {
 			actions.push(new Separator());
-			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, this.viewModel));
+			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, statusEntryUnderMouse.name, this.viewModel));
 		}
 
 		return actions;
@@ -578,7 +572,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const container = assertIsDefined(this.getContainer());
 
 		// Background colors
-		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);
+		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND) || '';
 		container.style.backgroundColor = backgroundColor;
 		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
 
@@ -634,7 +628,7 @@ class StatusbarEntryItem extends Disposable {
 	private entry!: IStatusbarEntry;
 
 	private labelContainer!: HTMLElement;
-	private label!: OcticonLabel;
+	private label!: CodiconLabel;
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());
@@ -663,7 +657,7 @@ class StatusbarEntryItem extends Disposable {
 		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 
 		// Label
-		this.label = new OcticonLabel(this.labelContainer);
+		this.label = new CodiconLabel(this.labelContainer);
 
 		// Add to parent
 		this.container.appendChild(this.labelContainer);
@@ -784,7 +778,7 @@ class StatusbarEntryItem extends Disposable {
 		}
 
 		if (isBackground) {
-			container.style.backgroundColor = colorResult;
+			container.style.backgroundColor = colorResult || '';
 		} else {
 			container.style.color = colorResult;
 		}

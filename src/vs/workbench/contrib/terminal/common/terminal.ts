@@ -65,6 +65,7 @@ export const DEFAULT_LINE_HEIGHT = 1;
 export const SHELL_PATH_INVALID_EXIT_CODE = -1;
 export const SHELL_PATH_DIRECTORY_EXIT_CODE = -2;
 export const SHELL_CWD_INVALID_EXIT_CODE = -3;
+export const LEGACY_CONSOLE_MODE_EXIT_CODE = 3221225786; // microsoft/vscode#73790
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -87,7 +88,7 @@ export interface ITerminalConfiguration {
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
 	rendererType: 'auto' | 'canvas' | 'dom';
-	rightClickBehavior: 'default' | 'copyPaste' | 'selectWord';
+	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	drawBoldTextInBrightColors: boolean;
@@ -101,6 +102,7 @@ export interface ITerminalConfiguration {
 	detectLocale: 'auto' | 'off' | 'on';
 	scrollback: number;
 	commandsToSkipShell: string[];
+	allowChords: boolean;
 	cwd: string;
 	confirmOnExit: boolean;
 	enableBell: boolean;
@@ -111,7 +113,6 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	showExitAlert: boolean;
-	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
 	experimentalRefreshOnResume: boolean;
@@ -284,7 +285,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<string>;
 	readonly onProcessTitle: Event<string>;
-	readonly onProcessExit: Event<number>;
+	readonly onProcessExit: Event<number | undefined>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
 
@@ -323,7 +324,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitData(data: string): void;
 	emitTitle(title: string): void;
 	emitReady(pid: number, cwd: string): void;
-	emitExit(exitCode: number): void;
+	emitExit(exitCode: number | undefined): void;
 	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
 	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void;
 	emitInitialCwd(initialCwd: string): void;
@@ -387,7 +388,7 @@ export interface IWindowsShellHelper extends IDisposable {
  */
 export interface ITerminalChildProcess {
 	onProcessData: Event<string>;
-	onProcessExit: Event<number>;
+	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
@@ -410,9 +411,7 @@ export interface ITerminalChildProcess {
 
 export const enum TERMINAL_COMMAND_ID {
 	FIND_NEXT = 'workbench.action.terminal.findNext',
-	FIND_NEXT_TERMINAL_FOCUS = 'workbench.action.terminal.findNextTerminalFocus',
 	FIND_PREVIOUS = 'workbench.action.terminal.findPrevious',
-	FIND_PREVIOUS_TERMINAL_FOCUS = 'workbench.action.terminal.findPreviousTerminalFocus',
 	TOGGLE = 'workbench.action.terminal.toggleTerminal',
 	KILL = 'workbench.action.terminal.kill',
 	QUICK_KILL = 'workbench.action.terminal.quickKill',
@@ -467,9 +466,6 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE_FIND_REGEX = 'workbench.action.terminal.toggleFindRegex',
 	TOGGLE_FIND_WHOLE_WORD = 'workbench.action.terminal.toggleFindWholeWord',
 	TOGGLE_FIND_CASE_SENSITIVE = 'workbench.action.terminal.toggleFindCaseSensitive',
-	TOGGLE_FIND_REGEX_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindRegexTerminalFocus',
-	TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindWholeWordTerminalFocus',
-	TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindCaseSensitiveTerminalFocus',
 	NAVIGATION_MODE_EXIT = 'workbench.action.terminal.navigationModeExit',
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
 	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious'

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IRawColorInfo, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -27,7 +27,7 @@ export class ExtHostApiCommands {
 	}
 
 	private _commands: ExtHostCommands;
-	private _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
 	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
@@ -182,22 +182,6 @@ export class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to an array of DocumentLink-instances.'
 		});
-		this._register('vscode.executeCallHierarchyProviderIncomingCalls', this._executeCallHierarchyIncomingCallsProvider, {
-			description: 'Execute call hierarchy provider for incoming calls',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-			],
-			returns: 'A promise that resolves to an array of CallHierarchyIncomingCall-instances.'
-		});
-		this._register('vscode.executeCallHierarchyProviderOutgoingCalls', this._executeCallHierarchyOutgoingCallsProvider, {
-			description: 'Execute call hierarchy provider for outgoing calls',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-			],
-			returns: 'A promise that resolves to an array of CallHierarchyOutgoingCall-instances.'
-		});
 		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
 			description: 'Execute document color provider.',
 			args: [
@@ -288,7 +272,7 @@ export class ExtHostApiCommands {
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
 		const disposable = this._commands.registerCommand(false, id, handler, this, description);
-		this._disposables.push(disposable);
+		this._disposables.add(disposable);
 	}
 
 	/**
@@ -572,36 +556,6 @@ export class ExtHostApiCommands {
 	private _executeDocumentLinkProvider(resource: URI): Promise<vscode.DocumentLink[] | undefined> {
 		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource)
 			.then(tryMapWith(typeConverters.DocumentLink.to));
-	}
-
-	private async _executeCallHierarchyIncomingCallsProvider(resource: URI, position: types.Position): Promise<vscode.CallHierarchyIncomingCall[]> {
-		type IncomingCallDto = {
-			source: ICallHierarchyItemDto;
-			sourceRanges: IRange[];
-		};
-		const args = { resource, position: typeConverters.Position.from(position) };
-		const calls = await this._commands.executeCommand<IncomingCallDto[]>('_executeCallHierarchyIncomingCalls', args);
-
-		const result: vscode.CallHierarchyIncomingCall[] = [];
-		for (const call of calls) {
-			result.push(new types.CallHierarchyIncomingCall(typeConverters.CallHierarchyItem.to(call.source), <vscode.Range[]>call.sourceRanges.map(typeConverters.Range.to)));
-		}
-		return result;
-	}
-
-	private async _executeCallHierarchyOutgoingCallsProvider(resource: URI, position: types.Position): Promise<vscode.CallHierarchyOutgoingCall[]> {
-		type OutgoingCallDto = {
-			sourceRanges: IRange[];
-			target: ICallHierarchyItemDto;
-		};
-		const args = { resource, position: typeConverters.Position.from(position) };
-		const calls = await this._commands.executeCommand<OutgoingCallDto[]>('_executeCallHierarchyOutgoingCalls', args);
-
-		const result: vscode.CallHierarchyOutgoingCall[] = [];
-		for (const call of calls) {
-			result.push(new types.CallHierarchyOutgoingCall(typeConverters.CallHierarchyItem.to(call.target), <vscode.Range[]>call.sourceRanges.map(typeConverters.Range.to)));
-		}
-		return result;
 	}
 }
 

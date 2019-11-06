@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
@@ -13,6 +14,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { ReadableStreamEvents } from 'vs/base/common/stream';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -158,6 +161,29 @@ export interface FileOverwriteOptions {
 	overwrite: boolean;
 }
 
+export interface FileReadStreamOptions {
+
+	/**
+	 * Is an integer specifying where to begin reading from in the file. If position is undefined,
+	 * data will be read from the current file position.
+	 */
+	readonly position?: number;
+
+	/**
+	 * Is an integer specifying how many bytes to read from the file. By default, all bytes
+	 * will be read.
+	 */
+	readonly length?: number;
+
+	/**
+	 * If provided, the size of the file will be checked against the limits.
+	 */
+	limits?: {
+		readonly size?: number;
+		readonly memory?: number;
+	};
+}
+
 export interface FileWriteOptions {
 	overwrite: boolean;
 	create: boolean;
@@ -194,6 +220,8 @@ export interface IWatchOptions {
 export const enum FileSystemProviderCapabilities {
 	FileReadWrite = 1 << 1,
 	FileOpenReadWriteClose = 1 << 2,
+	FileReadStream = 1 << 4,
+
 	FileFolderCopy = 1 << 3,
 
 	PathCaseSensitive = 1 << 10,
@@ -222,6 +250,8 @@ export interface IFileSystemProvider {
 
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
+
+	readFileStream?(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array>;
 
 	open?(resource: URI, opts: FileOpenOptions): Promise<number>;
 	close?(fd: number): Promise<void>;
@@ -257,11 +287,21 @@ export function hasOpenReadWriteCloseCapability(provider: IFileSystemProvider): 
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileOpenReadWriteClose);
 }
 
+export interface IFileSystemProviderWithFileReadStreamCapability extends IFileSystemProvider {
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array>;
+}
+
+export function hasFileReadStreamCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadStreamCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadStream);
+}
+
 export enum FileSystemProviderErrorCode {
 	FileExists = 'EntryExists',
 	FileNotFound = 'EntryNotFound',
 	FileNotADirectory = 'EntryNotADirectory',
 	FileIsADirectory = 'EntryIsADirectory',
+	FileExceedsMemoryLimit = 'EntryExceedsMemoryLimit',
+	FileTooLarge = 'EntryTooLarge',
 	NoPermissions = 'NoPermissions',
 	Unavailable = 'Unavailable',
 	Unknown = 'Unknown'
@@ -274,11 +314,19 @@ export class FileSystemProviderError extends Error {
 	}
 }
 
-export function createFileSystemProviderError(error: Error, code: FileSystemProviderErrorCode): FileSystemProviderError {
+export function createFileSystemProviderError(error: Error | string, code: FileSystemProviderErrorCode): FileSystemProviderError {
 	const providerError = new FileSystemProviderError(error.toString(), code);
 	markAsFileSystemProviderError(providerError, code);
 
 	return providerError;
+}
+
+export function ensureFileSystemProviderError(error?: Error): Error {
+	if (!error) {
+		return createFileSystemProviderError(localize('unknownError', "Unknown Error"), FileSystemProviderErrorCode.Unknown); // https://github.com/Microsoft/vscode/issues/72798
+	}
+
+	return error;
 }
 
 export function markAsFileSystemProviderError(error: Error, code: FileSystemProviderErrorCode): Error {
@@ -311,6 +359,8 @@ export function toFileSystemProviderErrorCode(error: Error | undefined | null): 
 		case FileSystemProviderErrorCode.FileIsADirectory: return FileSystemProviderErrorCode.FileIsADirectory;
 		case FileSystemProviderErrorCode.FileNotADirectory: return FileSystemProviderErrorCode.FileNotADirectory;
 		case FileSystemProviderErrorCode.FileNotFound: return FileSystemProviderErrorCode.FileNotFound;
+		case FileSystemProviderErrorCode.FileExceedsMemoryLimit: return FileSystemProviderErrorCode.FileExceedsMemoryLimit;
+		case FileSystemProviderErrorCode.FileTooLarge: return FileSystemProviderErrorCode.FileTooLarge;
 		case FileSystemProviderErrorCode.NoPermissions: return FileSystemProviderErrorCode.NoPermissions;
 		case FileSystemProviderErrorCode.Unavailable: return FileSystemProviderErrorCode.Unavailable;
 	}
@@ -335,7 +385,10 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_PERMISSION_DENIED;
 		case FileSystemProviderErrorCode.FileExists:
 			return FileOperationResult.FILE_MOVE_CONFLICT;
-		case FileSystemProviderErrorCode.FileNotADirectory:
+		case FileSystemProviderErrorCode.FileExceedsMemoryLimit:
+			return FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT;
+		case FileSystemProviderErrorCode.FileTooLarge:
+			return FileOperationResult.FILE_TOO_LARGE;
 		default:
 			return FileOperationResult.FILE_OTHER_ERROR;
 	}
@@ -612,7 +665,7 @@ export interface IFileStreamContent extends IBaseStatWithMetadata {
 	value: VSBufferReadableStream;
 }
 
-export interface IReadFileOptions {
+export interface IReadFileOptions extends FileReadStreamOptions {
 
 	/**
 	 * The optional etag parameter allows to return early from resolving the resource if
@@ -621,26 +674,6 @@ export interface IReadFileOptions {
 	 * It is the task of the caller to makes sure to handle this error case from the promise.
 	 */
 	readonly etag?: string;
-
-	/**
-	 * Is an integer specifying where to begin reading from in the file. If position is null,
-	 * data will be read from the current file position.
-	 */
-	readonly position?: number;
-
-	/**
-	 * Is an integer specifying how many bytes to read from the file. By default, all bytes
-	 * will be read.
-	 */
-	readonly length?: number;
-
-	/**
-	 * If provided, the size of the file will be checked against the limits.
-	 */
-	limits?: {
-		readonly size?: number;
-		readonly memory?: number;
-	};
 }
 
 export interface IWriteFileOptions {
@@ -709,7 +742,7 @@ export const enum FileOperationResult {
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
-	FILE_EXCEED_MEMORY_LIMIT,
+	FILE_EXCEEDS_MEMORY_LIMIT,
 	FILE_OTHER_ERROR
 }
 

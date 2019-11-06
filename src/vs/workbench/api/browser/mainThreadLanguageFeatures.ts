@@ -326,7 +326,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- suggest
 
-	private static _inflateSuggestDto(defaultRange: IRange, data: ISuggestDataDto): modes.CompletionItem {
+	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
+
 		return {
 			label: data[ISuggestDataDtoField.label],
 			kind: data[ISuggestDataDtoField.kind],
@@ -337,8 +338,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			filterText: data[ISuggestDataDtoField.filterText],
 			preselect: data[ISuggestDataDtoField.preselect],
 			insertText: typeof data.h === 'undefined' ? data[ISuggestDataDtoField.label] : data.h,
-			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			range: data[ISuggestDataDtoField.range] || defaultRange,
+			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
 			additionalTextEdits: data[ISuggestDataDtoField.additionalTextEdits],
 			command: data[ISuggestDataDtoField.command],
@@ -370,6 +371,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					if (!result) {
 						return suggestion;
 					}
+
 					let newSuggestion = MainThreadLanguageFeatures._inflateSuggestDto(suggestion.range, result);
 					return mixin(suggestion, newSuggestion, true);
 				});
@@ -494,27 +496,39 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
-			provideOutgoingCalls: async (model, position, token) => {
-				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, model.uri, position, token);
+
+			prepareCallHierarchy: async (document, position, token) => {
+				const result = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
+				if (!result) {
+					return undefined;
+				}
+				return {
+					dispose: () => this._proxy.$releaseCallHierarchy(handle, result.sessionId),
+					root: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(result.root)
+				};
+			},
+
+			provideOutgoingCalls: async (item, token) => {
+				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, item.id, token);
 				if (!outgoing) {
 					return outgoing;
 				}
-				return outgoing.map(([item, sourceRanges]): callh.OutgoingCall => {
+				return outgoing.map(([item, fromRanges]): callh.OutgoingCall => {
 					return {
-						target: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
-						sourceRanges
+						to: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
+						fromRanges
 					};
 				});
 			},
-			provideIncomingCalls: async (model, position, token) => {
-				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, model.uri, position, token);
+			provideIncomingCalls: async (item, token) => {
+				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, item.id, token);
 				if (!incoming) {
 					return incoming;
 				}
-				return incoming.map(([item, sourceRanges]): callh.IncomingCall => {
+				return incoming.map(([item, fromRanges]): callh.IncomingCall => {
 					return {
-						source: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
-						sourceRanges
+						from: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
+						fromRanges
 					};
 				});
 			}

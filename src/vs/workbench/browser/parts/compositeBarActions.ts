@@ -110,6 +110,8 @@ export class ActivityAction extends Action {
 export interface ICompositeBarColors {
 	activeBackgroundColor?: Color;
 	inactiveBackgroundColor?: Color;
+	activeBorderColor?: Color;
+	activeBackground?: Color;
 	activeBorderBottomColor?: Color;
 	activeForegroundColor?: Color;
 	inactiveForegroundColor?: Color;
@@ -124,10 +126,10 @@ export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptio
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
-	protected container: HTMLElement;
-	protected label: HTMLElement;
-	protected badge: HTMLElement;
-	protected options: IActivityActionViewItemOptions;
+	protected container!: HTMLElement;
+	protected label!: HTMLElement;
+	protected badge!: HTMLElement;
+	protected options!: IActivityActionViewItemOptions;
 
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -156,7 +158,16 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			if (this.options.icon) {
 				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
-				this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+				// TODO @misolori find a cleaner way to do this
+				const isExtension = this.activity.cssClass?.indexOf('extensionViewlet') === 0;
+				if (!isExtension) {
+					// Apply foreground color to activity bar items (codicons)
+					this.label.style.color = foreground ? foreground.toString() : '';
+				} else {
+					// Apply background color to extensions + remote explorer (svgs)
+
+					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+				}
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
@@ -210,6 +221,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		// Badge
 		this.badge = dom.append(container, dom.$('.badge'));
 		this.badgeContent = dom.append(this.badge, dom.$('.badge-content'));
+
+		// Activity bar active border + background
+		const isActivityBarItem = this.options.icon;
+		if (isActivityBarItem) {
+			dom.append(container, dom.$('.active-item-indicator'));
+		}
 
 		dom.hide(this.badge);
 
@@ -285,7 +302,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		// Title
 		let title: string;
-		if (badge && badge.getDescription()) {
+		if (badge?.getDescription()) {
 			if (this.activity.name) {
 				title = nls.localize('badgeTitle', "{0} - {1}", this.activity.name, badge.getDescription());
 			} else {
@@ -294,14 +311,23 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		} else {
 			title = this.activity.name;
 		}
+
 		this.updateTitle(title);
 	}
 
 	protected updateLabel(): void {
 		this.label.className = 'action-label';
+
 		if (this.activity.cssClass) {
+			// TODO @misolori find a cleaner way to do this
+			const isExtension = this.activity.cssClass?.indexOf('extensionViewlet') === 0;
+			if (this.options.icon && !isExtension) {
+				// Only apply icon class to activity bar items (exclude extensions + remote explorer)
+				dom.addClass(this.label, 'codicon');
+			}
 			dom.addClass(this.label, this.activity.cssClass);
 		}
+
 		if (!this.options.icon) {
 			this.label.textContent = this.getAction().label;
 		}
@@ -335,7 +361,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: nls.localize('additionalViews', "Additional Views"),
-			cssClass: 'toggle-more'
+			cssClass: 'codicon-more'
 		});
 	}
 
@@ -351,8 +377,8 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 	constructor(
 		action: ActivityAction,
-		private getOverflowingComposites: () => { id: string, name: string }[],
-		private getActiveCompositeId: () => string,
+		private getOverflowingComposites: () => { id: string, name?: string }[],
+		private getActiveCompositeId: () => string | undefined,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
 		colors: (theme: ITheme) => ICompositeBarColors,
@@ -372,6 +398,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => this.actions,
+			getCheckedActionsRepresentation: () => 'radio',
 			onHide: () => dispose(this.actions)
 		});
 	}
@@ -379,7 +406,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 	private getActions(): Action[] {
 		return this.getOverflowingComposites().map(composite => {
 			const action = this.getCompositeOpenAction(composite.id);
-			action.radio = this.getActiveCompositeId() === action.id;
+			action.checked = this.getActiveCompositeId() === action.id;
 
 			const badge = this.getBadge(composite.id);
 			let suffix: string | number | undefined;
@@ -392,7 +419,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 			if (suffix) {
 				action.label = nls.localize('numberBadge', "{0} ({1})", composite.name, suffix);
 			} else {
-				action.label = composite.name;
+				action.label = composite.name || '';
 			}
 
 			return action;
@@ -603,8 +630,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActionsContext: () => this.activity.id,
-			getActions: () => actions
+			getActions: () => actions,
+			getActionsContext: () => this.activity.id
 		});
 	}
 

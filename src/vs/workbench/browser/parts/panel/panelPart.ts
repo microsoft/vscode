@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelpart';
 import { IAction } from 'vs/base/common/actions';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
@@ -30,7 +30,7 @@ import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isUndefinedOrNull, withUndefinedAsNull, withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
+import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -60,28 +60,25 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	readonly snap = true;
 
 	get preferredHeight(): number | undefined {
-		const sidebarDimension = assertIsDefined(this.layoutService.getDimension(Parts.SIDEBAR_PART));
-		return sidebarDimension.height * 0.4;
+		// Don't worry about titlebar or statusbar visibility
+		// The difference is minimal and keeps this function clean
+		return this.layoutService.dimension.height * 0.4;
 	}
 
 	get preferredWidth(): number | undefined {
-		const statusbarDimension = assertIsDefined(this.layoutService.getDimension(Parts.STATUSBAR_PART));
-		return statusbarDimension.width * 0.4;
+		return this.layoutService.dimension.width * 0.4;
 	}
 
 	//#endregion
 
-	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
+	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean; }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
 	readonly onDidPanelClose: Event<IPanel> = this.onDidCompositeClose.event;
-
-	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
 
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
 
 	private compositeBar: CompositeBar;
-	private compositeActions: Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
+	private compositeActions: Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }> = new Map();
 
 	private blockOpeningPanel = false;
 	private _contentDimension: Dimension | undefined;
@@ -209,18 +206,18 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		super.updateStyles();
 
 		const container = assertIsDefined(this.getContainer());
-		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND);
-		container.style.borderLeftColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
+		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND) || '';
+		container.style.borderLeftColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
 
 		const title = this.getTitleArea();
 		if (title) {
-			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
+			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
 		}
 	}
 
-	openPanel(id: string, focus?: boolean): Panel | null {
+	openPanel(id: string, focus?: boolean): Panel | undefined {
 		if (this.blockOpeningPanel) {
-			return null; // Workaround against a potential race condition
+			return undefined; // Workaround against a potential race condition
 		}
 
 		// First check if panel is hidden and show if so
@@ -233,7 +230,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return withUndefinedAsNull(this.openComposite(id, focus));
+		return this.openComposite(id, focus);
 	}
 
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
@@ -241,15 +238,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	getPanel(panelId: string): IPanelIdentifier | undefined {
-		return withNullAsUndefined(Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanel(panelId));
+		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanel(panelId);
 	}
 
-	getPanels(): PanelDescriptor[] {
+	getPanels(): readonly PanelDescriptor[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
 			.sort((v1, v2) => typeof v1.order === 'number' && typeof v2.order === 'number' ? v1.order - v2.order : NaN);
 	}
 
-	getPinnedPanels(): PanelDescriptor[] {
+	getPinnedPanels(): readonly PanelDescriptor[] {
 		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(c => c.id);
 		return this.getPanels()
 			.filter(p => pinnedCompositeIds.indexOf(p.id) !== -1)
@@ -263,7 +260,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		];
 	}
 
-	getActivePanel(): IPanel | null {
+	getActivePanel(): IPanel | undefined {
 		return this.getActiveComposite();
 	}
 
@@ -326,7 +323,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } {
+	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			compositeActions = {
@@ -357,7 +354,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private getToolbarWidth(): number {
 		const activePanel = this.getActivePanel();
-		if (!activePanel) {
+		if (!activePanel || !this.toolBar) {
 			return 0;
 		}
 
@@ -444,10 +441,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private setStoredCachedViewletsValue(value: string): void {
 		this.storageService.store(PanelPart.PINNED_PANELS, value, StorageScope.GLOBAL);
-	}
-
-	setVisible(visible: boolean): void {
-		this._onDidVisibilityChange.fire(visible);
 	}
 
 	toJSON(): object {

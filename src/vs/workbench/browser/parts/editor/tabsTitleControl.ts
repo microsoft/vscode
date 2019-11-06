@@ -31,7 +31,7 @@ import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifie
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
@@ -311,7 +311,7 @@ export class TabsTitleControl extends TitleControl {
 				(tabsContainer.lastChild as HTMLElement).remove();
 
 				// Remove associated tab label and widget
-				this.tabDisposables.pop()!.dispose();
+				dispose(this.tabDisposables.pop());
 			}
 
 			// A removal of a label requires to recompute all labels
@@ -355,7 +355,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	pinEditor(editor: IEditorInput): void {
-		this.withTab(editor, (tabContainer, tabLabelWidget, tabLabel) => this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel));
 	}
 
 	setActive(isGroupActive: boolean): void {
@@ -391,7 +391,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
-		this.withTab(editor, (tabContainer, tabLabelWidget) => this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget) => this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -418,13 +418,23 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	private withTab(editor: IEditorInput, fn: (tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
-		const editorIndex = this.group.getIndexOfEditor(editor);
+	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+		this.group.editors.forEach((editor, index) => {
+			this.doWithTab(index, editor, fn);
+		});
+	}
 
+	private withTab(editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+		this.doWithTab(this.group.getIndexOfEditor(editor), editor, fn);
+	}
+
+	private doWithTab(index: number, editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
 		const tabsContainer = assertIsDefined(this.tabsContainer);
-		const tabContainer = tabsContainer.children[editorIndex] as HTMLElement;
-		if (tabContainer) {
-			fn(tabContainer, this.tabResourceLabels.get(editorIndex), this.tabLabels[editorIndex]);
+		const tabContainer = tabsContainer.children[index] as HTMLElement;
+		const tabResourceLabel = this.tabResourceLabels.get(index);
+		const tabLabel = this.tabLabels[index];
+		if (tabContainer && tabResourceLabel && tabLabel) {
+			fn(editor, index, tabContainer, tabResourceLabel, tabLabel);
 		}
 	}
 
@@ -589,11 +599,16 @@ export class TabsTitleControl extends TitleControl {
 			});
 		}));
 
-		// Pin on double click
+		// Double click: either pin or toggle maximized
 		disposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
 			EventHelper.stop(e);
 
-			this.group.pinEditor(this.group.getEditor(index) || undefined);
+			const editor = this.group.getEditor(index);
+			if (editor && this.group.isPinned(editor)) {
+				this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
+			} else {
+				this.group.pinEditor(editor);
+			}
 		}));
 
 		// Context menu
@@ -728,8 +743,8 @@ export class TabsTitleControl extends TitleControl {
 		const isActiveTab = isTab && !!editor && this.group.isActive(editor);
 
 		// Background
-		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : null;
-		element.style.backgroundColor = isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor;
+		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : '';
+		element.style.backgroundColor = (isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor) || '';
 
 		// Outline
 		const activeContrastBorderColor = this.getColor(activeContrastBorder);
@@ -862,16 +877,6 @@ export class TabsTitleControl extends TitleControl {
 		this.layout(this.dimension);
 	}
 
-	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
-		this.group.editors.forEach((editor, index) => {
-			const tabsContainer = assertIsDefined(this.tabsContainer);
-			const tabContainer = tabsContainer.children[index] as HTMLElement;
-			if (tabContainer) {
-				fn(editor, index, tabContainer, this.tabResourceLabels.get(index), this.tabLabels[index]);
-			}
-		});
-	}
-
 	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 
 		// Label
@@ -879,7 +884,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Borders / Outline
 		const borderRightColor = (this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
-		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : null;
+		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
 
 		// Settings
@@ -915,7 +920,7 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.title = title;
 
 		// Label
-		tabLabelWidget.setResource({ name, description, resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }) || undefined }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
+		tabLabelWidget.setResource({ name, description, resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }) }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
 	}
 
 	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
@@ -934,7 +939,7 @@ export class TabsTitleControl extends TitleControl {
 			// Container
 			addClass(tabContainer, 'active');
 			tabContainer.setAttribute('aria-selected', 'true');
-			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_ACTIVE_BACKGROUND : TAB_UNFOCUSED_ACTIVE_BACKGROUND);
+			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_ACTIVE_BACKGROUND : TAB_UNFOCUSED_ACTIVE_BACKGROUND) || '';
 
 			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
 			if (activeTabBorderColorBottom) {
@@ -964,8 +969,8 @@ export class TabsTitleControl extends TitleControl {
 			// Container
 			removeClass(tabContainer, 'active');
 			tabContainer.setAttribute('aria-selected', 'false');
-			tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
-			tabContainer.style.boxShadow = null;
+			tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND) || '';
+			tabContainer.style.boxShadow = '';
 
 			// Label
 			tabLabelWidget.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
@@ -1231,7 +1236,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	// High Contrast Border Color for Editor Actions
 	const contrastBorderColor = theme.getColor(contrastBorder);
-	if (contrastBorder) {
+	if (contrastBorderColor) {
 		collector.addRule(`
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 				outline: 1px solid ${contrastBorderColor}

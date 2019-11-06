@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass, removeClass } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, Themable } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorIdentifier, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { GroupDirection, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { find } from 'vs/base/common/arrays';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -23,7 +25,7 @@ interface IDropOperation {
 
 class DropOverlay extends Themable {
 
-	private static OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
+	private static readonly OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
 
 	private container!: HTMLElement;
 	private overlay!: HTMLElement;
@@ -84,7 +86,7 @@ class DropOverlay extends Themable {
 	protected updateStyles(): void {
 
 		// Overlay drop background
-		this.overlay.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
+		this.overlay.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
 
 		// Overlay contrast border (if any)
 		const activeContrastBorderColor = this.getColor(activeContrastBorder);
@@ -98,6 +100,10 @@ class DropOverlay extends Themable {
 		this._register(new DragAndDropObserver(this.container, {
 			onDragEnter: e => undefined,
 			onDragOver: e => {
+				if (isWeb && containsDragType(e, DataTransfers.FILES)) {
+					return; // dropping files into editor is unsupported on web
+				}
+
 				const isDraggingGroup = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
 				const isDraggingEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype);
 
@@ -287,7 +293,7 @@ class DropOverlay extends Themable {
 	}
 
 	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
-		if (draggedEditor && draggedEditor.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
+		if (draggedEditor?.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
 			return false;
 		}
 
@@ -459,6 +465,10 @@ class DropOverlay extends Themable {
 	}
 }
 
+export interface EditorDropTargetDelegate {
+	groupContainsPredicate?(groupView: IEditorGroupView): boolean;
+}
+
 export class EditorDropTarget extends Themable {
 
 	private _overlay?: DropOverlay;
@@ -471,6 +481,7 @@ export class EditorDropTarget extends Themable {
 	constructor(
 		private accessor: IEditorGroupsAccessor,
 		private container: HTMLElement,
+		private readonly delegate: EditorDropTargetDelegate,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -544,13 +555,7 @@ export class EditorDropTarget extends Themable {
 
 	private findTargetGroupView(child: HTMLElement): IEditorGroupView | undefined {
 		const groups = this.accessor.groups;
-		for (const groupView of groups) {
-			if (isAncestor(child, groupView.element)) {
-				return groupView;
-			}
-		}
-
-		return undefined;
+		return find(groups, groupView => isAncestor(child, groupView.element) || this.delegate.groupContainsPredicate?.(groupView));
 	}
 
 	private updateContainer(isDraggedOver: boolean): void {

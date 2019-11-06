@@ -74,7 +74,7 @@ export interface IStatusbarService {
 	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
 
 	/**
-	 * Allows to update an entry's visibilty with the provided ID.
+	 * Allows to update an entry's visibility with the provided ID.
 	 */
 	updateEntryVisibility(id: string, visible: boolean): void;
 }

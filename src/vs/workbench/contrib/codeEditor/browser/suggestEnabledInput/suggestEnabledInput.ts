@@ -31,7 +31,8 @@ import { IStyleOverrides, IThemable, attachStyler } from 'vs/platform/theme/comm
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
 interface SuggestResultsProvider {
 	/**
@@ -130,7 +131,13 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
 			{
-				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer, SelectionClipboard],
+				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+					SuggestController.ID,
+					SnippetController2.ID,
+					ContextMenuController.ID,
+					MenuPreventer.ID,
+					SelectionClipboardContributionID,
+				]),
 				isSimpleWidget: true,
 			});
 		this._register(this.inputWidget);
@@ -290,6 +297,7 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		ariaLabel: ariaLabel || '',
 
 		snippetSuggestions: 'none',
-		suggest: { filterGraceful: false, showIcons: false }
+		suggest: { filterGraceful: false, showIcons: false },
+		autoClosingBrackets: 'never'
 	};
 }

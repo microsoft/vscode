@@ -15,7 +15,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
@@ -43,7 +43,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { SignService } from 'vs/platform/sign/node/signService';
@@ -56,12 +56,12 @@ import { ElectronEnvironmentService, IElectronEnvironmentService } from 'vs/work
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService: WorkbenchEnvironmentService;
+	private readonly environmentService: NativeWorkbenchEnvironmentService;
 
 	constructor(private configuration: IWindowConfiguration) {
 		super();
 
-		this.environmentService = new WorkbenchEnvironmentService(configuration, configuration.execPath, configuration.windowId);
+		this.environmentService = new NativeWorkbenchEnvironmentService(configuration, configuration.execPath, configuration.windowId);
 
 		this.init();
 	}
@@ -96,7 +96,7 @@ class DesktopMain extends Disposable {
 		}
 
 		const filesToWait = this.environmentService.configuration.filesToWait;
-		const filesToWaitPaths = filesToWait && filesToWait.paths;
+		const filesToWaitPaths = filesToWait?.paths;
 		[filesToWaitPaths, this.environmentService.configuration.filesToOpenOrCreate, this.environmentService.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
@@ -217,7 +217,7 @@ class DesktopMain extends Disposable {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(channel, remoteAgentService.getEnvironment()));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 

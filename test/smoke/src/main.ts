@@ -289,7 +289,7 @@ describe('Running Code', () => {
 	setupDataEditorTests();
 	if (!opts.web) { setupDataDebugTests(); }
 	setupDataGitTests();
-	setupDataStatusbarTests();
+	setupDataStatusbarTests(!!opts.web);
 	setupDataExtensionTests();
 	setupTerminalTests();
 	if (!opts.web) { setupDataMultirootTests(); }

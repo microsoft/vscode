@@ -614,12 +614,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	has(uri: URI): boolean {
-		for (const edit of this._edits) {
-			if (edit._type === 2 && edit.uri.toString() === uri.toString()) {
-				return true;
-			}
-		}
-		return false;
+		return this._edits.some(edit => edit._type === 2 && edit.uri.toString() === uri.toString());
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
@@ -1166,22 +1161,22 @@ export class CallHierarchyItem {
 
 export class CallHierarchyIncomingCall {
 
-	source: vscode.CallHierarchyItem;
-	sourceRanges: vscode.Range[];
+	from: vscode.CallHierarchyItem;
+	fromRanges: vscode.Range[];
 
-	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
-		this.sourceRanges = sourceRanges;
-		this.source = item;
+	constructor(item: vscode.CallHierarchyItem, fromRanges: vscode.Range[]) {
+		this.fromRanges = fromRanges;
+		this.from = item;
 	}
 }
 export class CallHierarchyOutgoingCall {
 
-	target: vscode.CallHierarchyItem;
-	sourceRanges: vscode.Range[];
+	to: vscode.CallHierarchyItem;
+	fromRanges: vscode.Range[];
 
-	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
-		this.sourceRanges = sourceRanges;
-		this.target = item;
+	constructor(item: vscode.CallHierarchyItem, fromRanges: vscode.Range[]) {
+		this.fromRanges = fromRanges;
+		this.to = item;
 	}
 }
 
@@ -1349,6 +1344,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	insertText?: string | SnippetString;
 	keepWhitespace?: boolean;
 	range?: Range;
+	range2?: Range | { inserting: Range; replacing: Range; };
 	commitCharacters?: string[];
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
@@ -1714,11 +1710,11 @@ export class ShellExecution implements vscode.ShellExecution {
 		}
 	}
 
-	get commandLine(): string {
-		return this._commandLine ? this._commandLine : '';
+	get commandLine(): string | undefined {
+		return this._commandLine;
 	}
 
-	set commandLine(value: string) {
+	set commandLine(value: string | undefined) {
 		if (typeof value !== 'string') {
 			throw illegalArgument('commandLine');
 		}
@@ -1781,20 +1777,20 @@ export enum TaskScope {
 	Workspace = 2
 }
 
-export class CustomExecution2 implements vscode.CustomExecution2 {
-	private _callback: () => Thenable<vscode.Pseudoterminal>;
-	constructor(callback: () => Thenable<vscode.Pseudoterminal>) {
+export class CustomExecution implements vscode.CustomExecution2 {
+	private _callback: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
+	constructor(callback: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = callback;
 	}
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: () => Thenable<vscode.Pseudoterminal>) {
+	public set callback(value: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = value;
 	}
 
-	public get callback(): (() => Thenable<vscode.Pseudoterminal>) {
+	public get callback(): ((resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		return this._callback;
 	}
 }
@@ -1812,7 +1808,7 @@ export class Task implements vscode.Task2 {
 	private _definition: vscode.TaskDefinition;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
 	private _name: string;
-	private _execution: ProcessExecution | ShellExecution | CustomExecution2 | undefined;
+	private _execution: ProcessExecution | ShellExecution | CustomExecution | undefined;
 	private _problemMatchers: string[];
 	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
@@ -1820,9 +1816,10 @@ export class Task implements vscode.Task2 {
 	private _group: TaskGroup | undefined;
 	private _presentationOptions: vscode.TaskPresentationOptions;
 	private _runOptions: vscode.RunOptions;
+	private _detail: string | undefined;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this._definition = this.definition = definition;
 		let problemMatchers: string | string[];
@@ -1887,7 +1884,7 @@ export class Task implements vscode.Task2 {
 				type: Task.ShellType,
 				id: this._execution.computeId()
 			};
-		} else if (this._execution instanceof CustomExecution2) {
+		} else if (this._execution instanceof CustomExecution) {
 			this._definition = {
 				type: Task.ExtensionCallbackType,
 				id: this._execution.computeId()
@@ -1933,19 +1930,11 @@ export class Task implements vscode.Task2 {
 		this._name = value;
 	}
 
-	get execution(): ProcessExecution | ShellExecution | undefined {
-		return (this._execution instanceof CustomExecution2) ? undefined : this._execution;
-	}
-
-	set execution(value: ProcessExecution | ShellExecution | undefined) {
-		this.execution2 = value;
-	}
-
-	get execution2(): ProcessExecution | ShellExecution | CustomExecution2 | undefined {
+	get execution(): ProcessExecution | ShellExecution | CustomExecution | undefined {
 		return this._execution;
 	}
 
-	set execution2(value: ProcessExecution | ShellExecution | CustomExecution2 | undefined) {
+	set execution(value: ProcessExecution | ShellExecution | CustomExecution | undefined) {
 		if (value === null) {
 			value = undefined;
 		}
@@ -2012,6 +2001,17 @@ export class Task implements vscode.Task2 {
 		}
 		this.clear();
 		this._group = value;
+	}
+
+	get detail(): string | undefined {
+		return this._detail;
+	}
+
+	set detail(value: string | undefined) {
+		if (value === null) {
+			value = undefined;
+		}
+		this._detail = value;
 	}
 
 	get presentationOptions(): vscode.TaskPresentationOptions {

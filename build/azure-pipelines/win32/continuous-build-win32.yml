@@ -1,7 +1,7 @@
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "10.15.1"
+    versionSpec: "12.13.0"
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
     versionSpec: "1.x"
@@ -16,6 +16,8 @@ steps:
     vstsFeed: '$(ArtifactFeed)'
 - powershell: |
     yarn --frozen-lockfile
+  env:
+    CHILD_CONCURRENCY: "1"
   displayName: Install Dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
@@ -25,7 +27,7 @@ steps:
     vstsFeed: '$(ArtifactFeed)'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - powershell: |
-    yarn gulp electron
+    yarn electron
 - script: |
     yarn gulp hygiene --skip-tslint
   displayName: Run Hygiene Checks

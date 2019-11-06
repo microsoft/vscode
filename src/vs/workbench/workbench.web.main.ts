@@ -48,6 +48,7 @@ import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/request/browser/requestService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import 'vs/workbench/services/clipboard/browser/clipboardService';
+import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -96,7 +97,7 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webviewService';
-import 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminalNativeService';
@@ -107,5 +108,8 @@ import 'vs/workbench/contrib/tasks/browser/taskService';
 
 // Telemetry Opt Out
 import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.contribution';
+
+// Issues
+import 'vs/workbench/contrib/issue/browser/issue.contribution';
 
 //#endregion

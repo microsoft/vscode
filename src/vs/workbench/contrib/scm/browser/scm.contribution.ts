@@ -28,7 +28,7 @@ import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 class OpenSCMViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static LABEL = localize('toggleGitViewlet', "Show Git");
+	static readonly LABEL = localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
@@ -42,7 +42,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	SCMViewlet,
 	VIEWLET_ID,
 	localize('source control', "Source Control"),
-	'scm',
+	'codicon-source-control',
 	2
 ));
 
@@ -80,7 +80,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.diffDecorations': {
 			type: 'string',
-			enum: ['all', 'gutter', 'overview', 'none'],
+			enum: ['all', 'gutter', 'overview', 'minimap', 'none'],
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},
@@ -89,6 +89,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enum: [1, 2, 3, 4, 5],
 			default: 3,
 			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
+		},
+		'scm.diffDecorationsGutterVisibility': {
+			type: 'string',
+			enum: ['always', 'hover'],
+			enumDescriptions: [
+				localize('scm.diffDecorationsGutterVisibility.always', "Show the diff decorator in the gutter at all times."),
+				localize('scm.diffDecorationsGutterVisibility.hover', "Show the diff decorator in the gutter only on hover.")
+			],
+			description: localize('scm.diffDecorationsGutterVisibility', "Controls the visibility of the Source Control diff decorator in the gutter."),
+			default: 'always'
 		},
 		'scm.alwaysShowActions': {
 			type: 'boolean',
@@ -114,8 +124,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.defaultViewMode.list', "Show the repository changes as a list.")
 			],
 			description: localize('scm.defaultViewMode', "Controls the default Source Control repository view mode."),
-			default: 'tree'
-		}
+			default: 'list'
+		},
+		'scm.autoReveal': {
+			type: 'boolean',
+			description: localize('autoReveal', "Controls whether the SCM view should automatically reveal and select files when opening them."),
+			default: true
+		},
 	}
 });
 

@@ -23,7 +23,7 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^10.14.8",
+    "@types/node": "^12.11.7",
     "@types/semver": "^5.5.0",
     "@types/rimraf": "2.0.2",
     "vscode": "^1.1.10"
@@ -92,6 +92,10 @@
       },
       {
         "fileMatch": ".babelrc.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+      },
+      {
+        "fileMatch": "babel.config.json",
         "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
       },
       {
@@ -210,6 +214,18 @@
           "type": "boolean",
           "default": false,
           "description": "%configuration.suggest.completeFunctionCalls%",
+          "scope": "resource"
+        },
+        "javascript.suggest.includeAutomaticOptionalChainCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+          "scope": "resource"
+        },
+        "typescript.suggest.includeAutomaticOptionalChainCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
           "scope": "resource"
         },
         "typescript.reportStyleChecksAsWarnings": {
@@ -463,7 +479,7 @@
         "javascript.suggest.names": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.suggest.names%",
+          "markdownDescription": "%configuration.suggest.names%",
           "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
@@ -684,6 +700,12 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.tsserver.useSeparateSyntaxServer%",
+          "scope": "window"
+        },
+        "typescript.tsserver.maxTsServerMemory": {
+          "type": "number",
+          "default": 3072,
+          "description": "%configuration.tsserver.maxTsServerMemory%",
           "scope": "window"
         }
       }

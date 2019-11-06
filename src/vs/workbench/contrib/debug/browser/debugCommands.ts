@@ -27,8 +27,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { startDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -60,10 +58,10 @@ export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
 export const STOP_LABEL = nls.localize('stop', "Stop");
 export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
 
-function getThreadAndRun(accessor: ServicesAccessor, threadId: number | undefined, run: (thread: IThread) => Promise<void>): void {
+async function getThreadAndRun(accessor: ServicesAccessor, threadId: number | any, run: (thread: IThread) => Promise<void>): Promise<void> {
 	const debugService = accessor.get(IDebugService);
 	let thread: IThread | undefined;
-	if (threadId) {
+	if (typeof threadId === 'number') {
 		debugService.getModel().getSessions().forEach(s => {
 			if (!thread) {
 				thread = s.getThread(threadId);
@@ -79,7 +77,7 @@ function getThreadAndRun(accessor: ServicesAccessor, threadId: number | undefine
 	}
 
 	if (thread) {
-		run(thread).then(undefined, onUnexpectedError);
+		await run(thread);
 	}
 }
 
@@ -104,6 +102,10 @@ function getFrame(debugService: IDebugService, frameId: string | undefined): ISt
 
 export function registerCommands(): void {
 
+	// These commands are used in call stack context menu, call stack inline actions, command pallete, debug toolbar, mac native touch bar
+	// When the command is exectued in the context of a thread(context menu on a thread, inline call stack action) we pass the thread id
+	// Otherwise when it is executed "globaly"(using the touch bar, debug toolbar, command pallete) we do not pass any id and just take whatever is the focussed thread
+	// Same for stackFrame commands and session commands.
 	CommandsRegistry.registerCommand({
 		id: COPY_STACK_TRACE_ID,
 		handler: async (accessor: ServicesAccessor, _: string, frameId: string | undefined) => {
@@ -119,21 +121,21 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: REVERSE_CONTINUE_ID,
-		handler: (accessor: ServicesAccessor, threadId: number | undefined) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, thread => thread.reverseContinue());
 		}
 	});
 
 	CommandsRegistry.registerCommand({
 		id: STEP_BACK_ID,
-		handler: (accessor: ServicesAccessor, threadId: number | undefined) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, thread => thread.stepBack());
 		}
 	});
 
 	CommandsRegistry.registerCommand({
 		id: TERMINATE_THREAD_ID,
-		handler: (accessor: ServicesAccessor, threadId: number | undefined) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, thread => thread.terminate());
 		}
 	});
@@ -199,8 +201,8 @@ export function registerCommands(): void {
 			}
 
 			if (!session) {
-				const historyService = accessor.get(IHistoryService);
-				startDebugging(debugService, historyService, false);
+				const { launch, name } = debugService.getConfigurationManager().selectedConfiguration;
+				debugService.startDebugging(launch, name, { noDebug: false });
 			} else {
 				session.removeReplExpressions();
 				debugService.restartSession(session).then(undefined, onUnexpectedError);
@@ -213,7 +215,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F10,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-		handler: (accessor: ServicesAccessor, threadId: number) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, (thread: IThread) => thread.next());
 		}
 	});
@@ -223,7 +225,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
 		primary: KeyCode.F11,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, threadId: number) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, (thread: IThread) => thread.stepIn());
 		}
 	});
@@ -233,7 +235,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F11,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-		handler: (accessor: ServicesAccessor, threadId: number) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, (thread: IThread) => thread.stepOut());
 		}
 	});
@@ -243,7 +245,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F6,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
-		handler: (accessor: ServicesAccessor, threadId: number) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, thread => thread.pause());
 		}
 	});
@@ -292,7 +294,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, threadId: number | undefined) => {
+		handler: (accessor: ServicesAccessor, threadId: number | any) => {
 			getThreadAndRun(accessor, threadId, thread => thread.continue());
 		}
 	});
@@ -445,14 +447,11 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
-		handler: (accessor) => {
+		handler: async (accessor) => {
 			const viewletService = accessor.get(IViewletService);
-			return viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-				.then(viewlet => viewlet as IExtensionsViewlet)
-				.then(viewlet => {
-					viewlet.search('tag:debuggers @sort:installs');
-					viewlet.focus();
-				});
+			const viewlet = await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true) as IExtensionsViewlet;
+			viewlet.search('tag:debuggers @sort:installs');
+			viewlet.focus();
 		}
 	});
 
@@ -461,24 +460,23 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
-		handler: (accessor, launchUri: string) => {
+		handler: async (accessor, launchUri: string) => {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
 			if (accessor.get(IWorkspaceContextService).getWorkbenchState() === WorkbenchState.EMPTY) {
 				accessor.get(INotificationService).info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-				return undefined;
+				return;
 			}
-			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
 
-			return launch!.openConfigFile(false, false).then(({ editor, created }) => {
+			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
+			if (launch) {
+				const { editor, created } = await launch.openConfigFile(false, false);
 				if (editor && !created) {
 					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {
-						return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
+						await codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
 					}
 				}
-
-				return undefined;
-			});
+			}
 		}
 	});
 

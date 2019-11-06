@@ -66,7 +66,7 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 
 			// Only dirty models that are not PENDING_SAVE
 			const model = this.textFileService.models.get(e.resource);
-			const shouldOpen = model && model.isDirty() && !model.hasState(ModelState.PENDING_SAVE);
+			const shouldOpen = model?.isDirty() && !model.hasState(ModelState.PENDING_SAVE);
 
 			// Only if not open already
 			return shouldOpen && !this.editorService.isOpen({ resource: e.resource });

@@ -11,15 +11,58 @@ import { Scale, ZoomStatusBarEntry } from './zoomStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
+
+export class PreviewManager {
+
+	public static readonly viewType = 'imagePreview.previewEditor';
+
+	private readonly _previews = new Set<Preview>();
+	private _activePreview: Preview | undefined;
+
+	constructor(
+		private readonly extensionRoot: vscode.Uri,
+		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
+		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
+	) { }
+
+	public resolve(
+		resource: vscode.Uri,
+		webviewEditor: vscode.WebviewPanel,
+	) {
+		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.zoomStatusBarEntry);
+		this._previews.add(preview);
+		this.setActivePreview(preview);
+
+		webviewEditor.onDidDispose(() => { this._previews.delete(preview); });
+
+		webviewEditor.onDidChangeViewState(() => {
+			if (webviewEditor.active) {
+				this.setActivePreview(preview);
+			} else if (this._activePreview === preview && !webviewEditor.active) {
+				this.setActivePreview(undefined);
+			}
+		});
+	}
+
+	public get activePreview() { return this._activePreview; }
+
+	private setActivePreview(value: Preview | undefined): void {
+		this._activePreview = value;
+		this.setPreviewActiveContext(!!value);
+	}
+
+	private setPreviewActiveContext(value: boolean) {
+		vscode.commands.executeCommand('setContext', 'imagePreviewFocus', value);
+	}
+}
+
 const enum PreviewState {
 	Disposed,
 	Visible,
 	Active,
 }
 
-export class Preview extends Disposable {
-
-	public static readonly viewType = 'imagePreview.previewEditor';
+class Preview extends Disposable {
 
 	private readonly id: string = `${Date.now()}-${Math.random().toString()}`;
 
@@ -30,7 +73,7 @@ export class Preview extends Disposable {
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
 		private readonly resource: vscode.Uri,
-		private readonly webviewEditor: vscode.WebviewEditor,
+		private readonly webviewEditor: vscode.WebviewPanel,
 		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) {
@@ -72,6 +115,7 @@ export class Preview extends Disposable {
 
 		this._register(webviewEditor.onDidChangeViewState(() => {
 			this.update();
+			this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 		}));
 
 		this._register(webviewEditor.onDidDispose(() => {
@@ -96,6 +140,19 @@ export class Preview extends Disposable {
 
 		this.render();
 		this.update();
+		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
+	}
+
+	public zoomIn() {
+		if (this._previewState === PreviewState.Active) {
+			this.webviewEditor.webview.postMessage({ type: 'zoomIn' });
+		}
+	}
+
+	public zoomOut() {
+		if (this._previewState === PreviewState.Active) {
+			this.webviewEditor.webview.postMessage({ type: 'zoomOut' });
+		}
 	}
 
 	private render() {
@@ -152,7 +209,7 @@ export class Preview extends Disposable {
 </html>`;
 	}
 
-	private getResourcePath(webviewEditor: vscode.WebviewEditor, resource: vscode.Uri, version: string) {
+	private getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string) {
 		switch (resource.scheme) {
 			case 'data':
 				return encodeURI(resource.toString(true));

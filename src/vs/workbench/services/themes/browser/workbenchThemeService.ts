@@ -32,6 +32,7 @@ import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 // implementation
 
@@ -73,15 +74,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private container: HTMLElement;
 	private readonly onColorThemeChange: Emitter<IColorTheme>;
 	private watchedColorThemeLocation: URI | undefined;
-	private watchedColorThemeDisposable: IDisposable;
+	private watchedColorThemeDisposable: IDisposable | undefined;
 
 	private iconThemeStore: FileIconThemeStore;
 	private currentIconTheme: FileIconThemeData;
 	private readonly onFileIconThemeChange: Emitter<IFileIconTheme>;
 	private watchedIconThemeLocation: URI | undefined;
-	private watchedIconThemeDisposable: IDisposable;
+	private watchedIconThemeDisposable: IDisposable | undefined;
 
-	private themingParticipantChangeListener: IDisposable;
+	private themingParticipantChangeListener: IDisposable | undefined;
 
 	private get colorCustomizations(): IColorCustomizations {
 		return this.configurationService.getValue<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING) || {};
@@ -98,15 +99,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
+		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService
 	) {
 
 		this.container = layoutService.getWorkbenchContainer();
-		this.colorThemeStore = new ColorThemeStore(extensionService, ColorThemeData.createLoadedEmptyTheme(DEFAULT_THEME_ID, DEFAULT_THEME_SETTING_VALUE));
+		this.colorThemeStore = new ColorThemeStore(extensionService);
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
 		this.onColorThemeChange = new Emitter<IColorTheme>({ leakWarningThreshold: 400 });
 
+		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
 		this.currentIconTheme = FileIconThemeData.createUnloadedTheme('');
 
 		// In order to avoid paint flashing for tokens, because
@@ -177,6 +180,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 						// restore color
 						this.setColorTheme(prevColorId, 'auto');
 						prevColorId = undefined;
+					} else {
+						this.reloadCurrentColorTheme();
 					}
 				}
 			}
@@ -199,6 +204,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					if (this.currentIconTheme.id === DEFAULT_ICON_THEME_ID && !types.isUndefined(prevFileIconId) && await this.iconThemeStore.findThemeData(prevFileIconId)) {
 						this.setFileIconTheme(prevFileIconId, 'auto');
 						prevFileIconId = undefined;
+					} else {
+						this.reloadCurrentFileIconTheme();
 					}
 				}
 			}
@@ -206,18 +213,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.fileService.onFileChanges(async e => {
 			if (this.watchedColorThemeLocation && this.currentColorTheme && e.contains(this.watchedColorThemeLocation, FileChangeType.UPDATED)) {
-				await this.currentColorTheme.reload(this.fileService);
-				this.currentColorTheme.setCustomColors(this.colorCustomizations);
-				this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
-				this.updateDynamicCSSRules(this.currentColorTheme);
-				this.applyTheme(this.currentColorTheme, undefined, false);
+				this.reloadCurrentColorTheme();
 			}
 			if (this.watchedIconThemeLocation && this.currentIconTheme && e.contains(this.watchedIconThemeLocation, FileChangeType.UPDATED)) {
-				await this.currentIconTheme.reload(this.fileService);
-				_applyIconTheme(this.currentIconTheme, () => {
-					this.doSetFileIconTheme(this.currentIconTheme);
-					return Promise.resolve(this.currentIconTheme);
-				});
+				this.reloadCurrentFileIconTheme();
 			}
 		});
 	}
@@ -344,7 +343,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				return null;
 			}
 			const themeData = data;
-			return themeData.ensureLoaded(this.fileService).then(_ => {
+			return themeData.ensureLoaded(this.extensionResourceLoaderService).then(_ => {
 				if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 					// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 					this.currentColorTheme = themeData;
@@ -360,6 +359,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location!.toString(), error.message)));
 			});
 		});
+	}
+
+	private async reloadCurrentColorTheme() {
+		await this.currentColorTheme.reload(this.extensionResourceLoaderService);
+		this.currentColorTheme.setCustomColors(this.colorCustomizations);
+		this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
+		this.updateDynamicCSSRules(this.currentColorTheme);
+		this.applyTheme(this.currentColorTheme, undefined, false);
 	}
 
 	public restoreColorTheme() {
@@ -387,7 +394,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget | undefined | 'auto', silent = false): Promise<IColorTheme | null> {
-		if (this.currentColorTheme) {
+		if (this.currentColorTheme.id) {
 			removeClasses(this.container, this.currentColorTheme.id);
 		} else {
 			removeClasses(this.container, VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
@@ -496,6 +503,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			return iconThemeData.ensureLoaded(this.fileService).then(_ => {
 				return _applyIconTheme(iconThemeData, onApply);
 			});
+		});
+	}
+
+	private async reloadCurrentFileIconTheme() {
+		await this.currentIconTheme.reload(this.fileService);
+		_applyIconTheme(this.currentIconTheme, () => {
+			this.doSetFileIconTheme(this.currentIconTheme);
+			return Promise.resolve(this.currentIconTheme);
 		});
 	}
 

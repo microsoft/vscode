@@ -16,7 +16,7 @@ import { IBreakpointUpdateData, IDebugSessionOptions } from 'vs/workbench/contri
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 
 function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
+	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
 }
 
 suite('Debug - Model', () => {

@@ -11,13 +11,12 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { ITerminalService, ITerminalInstance, ITerminalTab } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, ITerminalInstance, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
@@ -29,6 +28,7 @@ import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/termi
 import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { find } from 'vs/base/common/arrays';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -91,7 +91,6 @@ export class TerminalService implements ITerminalService {
 		@IPanelService private _panelService: IPanelService,
 		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@INotificationService private _notificationService: INotificationService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IExtensionService private _extensionService: IExtensionService,
@@ -392,12 +391,7 @@ export class TerminalService implements ITerminalService {
 			return null;
 		}
 
-		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
-		if (!instance) {
-			this._showNotEnoughSpaceToast();
-			return null;
-		}
-
+		const instance = tab.split(shellLaunchConfig);
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
 
@@ -414,13 +408,8 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 	}
 
-	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | null {
-		for (const tab of this._terminalTabs) {
-			if (tab.terminalInstances.indexOf(instance) !== -1) {
-				return tab;
-			}
-		}
-		return null;
+	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {
+		return find(this._terminalTabs, tab => tab.terminalInstances.indexOf(instance) !== -1);
 	}
 
 	public showPanel(focus?: boolean): Promise<void> {
@@ -499,10 +488,6 @@ export class TerminalService implements ITerminalService {
 		return !res.confirmed;
 	}
 
-	protected _showNotEnoughSpaceToast(): void {
-		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
-	}
-
 	protected _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
 		if (potentialPaths.length === 0) {
 			return Promise.resolve(null);
@@ -519,7 +504,7 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string): Promise<string> {
+	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string, shellType: TerminalShellType): Promise<string> {
 		return new Promise<string>(c => {
 			if (!executable) {
 				c(originalPath);
@@ -542,18 +527,41 @@ export class TerminalService implements ITerminalService {
 			if (isWindows) {
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
-				const lowerExecutable = executable.toLowerCase();
-				if (this._terminalNativeService.getWindowsBuildNumber() >= 17063 &&
-					(lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1))) {
-					c(this._terminalNativeService.getWslPath(originalPath));
-					return;
-				} else if (hasSpace) {
-					c('"' + originalPath + '"');
+				if (shellType !== undefined) {
+					if (shellType === WindowsShellType.GitBash) {
+						c(originalPath.replace(/\\/g, '/'));
+						return;
+					}
+					else if (shellType === WindowsShellType.Wsl) {
+						if (this._terminalNativeService.getWindowsBuildNumber() >= 17063) {
+							c(this._terminalNativeService.getWslPath(originalPath));
+						} else {
+							c(originalPath.replace(/\\/g, '/'));
+						}
+						return;
+					}
+
+					if (hasSpace) {
+						c('"' + originalPath + '"');
+					} else {
+						c(originalPath);
+					}
 				} else {
-					c(originalPath);
+					const lowerExecutable = executable.toLowerCase();
+					if (this._terminalNativeService.getWindowsBuildNumber() >= 17063 &&
+						(lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1))) {
+						c(this._terminalNativeService.getWslPath(originalPath));
+						return;
+					} else if (hasSpace) {
+						c('"' + originalPath + '"');
+					} else {
+						c(originalPath);
+					}
 				}
+
 				return;
 			}
+
 			c(escapeNonWindowsPath(originalPath));
 		});
 	}

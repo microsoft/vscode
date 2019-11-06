@@ -39,7 +39,7 @@ export class Problems {
 	}
 
 	public static getSelectorInProblemsView(problemType: ProblemSeverity): string {
-		let selector = problemType === ProblemSeverity.WARNING ? 'severity-warning' : 'severity-error';
+		let selector = problemType === ProblemSeverity.WARNING ? 'codicon-warning' : 'codicon-error';
 		return `div[id="workbench.panel.markers"] .monaco-tl-contents .marker-icon.${selector}`;
 	}
 

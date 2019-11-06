@@ -43,16 +43,6 @@
             },
             "scope": "resource"
           },
-          "css.experimental.customData": {
-            "type": "array",
-            "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "scope": "resource",
-            "deprecationMessage": "This setting is no longe experimental. Use `css.customData` instead."
-          },
           "css.completion.triggerPropertyValueCompletion": {
             "type": "boolean",
             "scope": "resource",
@@ -533,6 +523,17 @@
             ],
             "default": "ignore",
             "description": "%scss.lint.idSelector.desc%"
+          },
+          "scss.lint.unknownAtRules": {
+            "type": "string",
+            "scope": "resource",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ],
+            "default": "warning",
+            "description": "%scss.lint.unknownAtRules.desc%"
           }
         }
       },
@@ -767,6 +768,17 @@
             ],
             "default": "ignore",
             "description": "%less.lint.idSelector.desc%"
+          },
+          "less.lint.unknownAtRules": {
+            "type": "string",
+            "scope": "resource",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ],
+            "default": "warning",
+            "description": "%less.lint.unknownAtRules.desc%"
           }
         }
       }
@@ -783,11 +795,11 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^6.0.0-next.1",
+    "vscode-languageclient": "^6.0.0-next.3",
     "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
-    "@types/node": "^10.14.8",
+    "@types/node": "^12.11.7",
     "mocha": "^6.1.4"
   }
 }

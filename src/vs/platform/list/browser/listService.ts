@@ -798,9 +798,9 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, treeOptions);
-		this.disposables.push(disposable);
+		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.push(this.internals);
+		this.disposables.add(this.internals);
 	}
 }
 
@@ -825,9 +825,9 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, treeOptions);
-		this.disposables.push(disposable);
+		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.push(this.internals);
+		this.disposables.add(this.internals);
 	}
 }
 
@@ -853,9 +853,9 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
-		this.disposables.push(disposable);
+		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.push(this.internals);
+		this.disposables.add(this.internals);
 	}
 }
 
@@ -881,9 +881,9 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
-		this.disposables.push(disposable);
+		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.push(this.internals);
+		this.disposables.add(this.internals);
 	}
 }
 
@@ -910,9 +910,9 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
 		super(user, container, virtualDelegate, compressionDelegate, renderers, dataSource, treeOptions);
-		this.disposables.push(disposable);
+		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.push(this.internals);
+		this.disposables.add(this.internals);
 	}
 }
 
@@ -954,6 +954,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 		getAutomaticKeyboardNavigation,
 		disposable,
 		options: {
+			// ...options, // TODO@Joao why is this not splatted here?
 			keyboardSupport: false,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
@@ -966,7 +967,8 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			horizontalScrolling,
 			openOnSingleClick,
 			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService),
-			additionalScrollHeight
+			additionalScrollHeight,
+			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements
 		} as TOptions
 	};
 }

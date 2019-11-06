@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -235,8 +235,8 @@ export const PANEL_INACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.inactiv
 }, nls.localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder', {
-	dark: PANEL_BORDER,
-	light: PANEL_BORDER,
+	dark: PANEL_ACTIVE_TITLE_FOREGROUND,
+	light: PANEL_ACTIVE_TITLE_FOREGROUND,
 	hc: contrastBorder
 }, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
@@ -335,8 +335,8 @@ export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
 }, nls.localize('activityBarForeground', "Activity bar item foreground color when it is active. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_INACTIVE_FOREGROUND = registerColor('activityBar.inactiveForeground', {
-	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.6),
-	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.6),
+	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
+	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
 	hc: Color.white
 }, nls.localize('activityBarInActiveForeground', "Activity bar item foreground color when it is inactive. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
@@ -345,6 +345,18 @@ export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
 	light: null,
 	hc: contrastBorder
 }, nls.localize('activityBarBorder', "Activity bar border color separating to the side bar. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_ACTIVE_BORDER = registerColor('activityBar.activeBorder', {
+	dark: ACTIVITY_BAR_FOREGROUND,
+	light: ACTIVITY_BAR_FOREGROUND,
+	hc: null
+}, nls.localize('activityBarActiveBorder', "Activity bar border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('activityBar.activeBackground', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('activityBarActiveBackground', "Activity bar background color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', {
 	dark: Color.white.transparent(0.12),
@@ -560,22 +572,34 @@ export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
 }, nls.localize('notificationsBorder', "Notifications border color separating from other notifications in the notifications center. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_ERROR_ICON_FOREGROUND = registerColor('notificationsErrorIcon.foreground', {
-	dark: '#F48771',
-	light: '#A1260D',
-	hc: '#F48771'
-}, nls.localize('notificationsErrorIconForeground', "The color used for the notification error icon."));
+	dark: editorErrorForeground,
+	light: editorErrorForeground,
+	hc: editorErrorForeground
+}, nls.localize('notificationsErrorIconForeground', "The color used for the icon of error notifications. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_WARNING_ICON_FOREGROUND = registerColor('notificationsWarningIcon.foreground', {
-	dark: '#FFCC00',
-	light: '#DDB100',
-	hc: '#FFCC00'
-}, nls.localize('notificationsWarningIconForeground', "The color used for the notification warning icon."));
+	dark: editorWarningForeground,
+	light: editorWarningForeground,
+	hc: editorWarningForeground
+}, nls.localize('notificationsWarningIconForeground', "The color used for the icon of warning notifications. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_INFO_ICON_FOREGROUND = registerColor('notificationsInfoIcon.foreground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, nls.localize('notificationsInfoIconForeground', "The color used for the notification info icon."));
+	dark: editorInfoForeground,
+	light: editorInfoForeground,
+	hc: editorInfoForeground
+}, nls.localize('notificationsInfoIconForeground', "The color used for the icon of info notifications. Notifications slide in from the bottom right of the window."));
+
+export const WINDOW_ACTIVE_BORDER = registerColor('window.activeBorder', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the desktop client."));
+
+export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the desktop client."));
 
 /**
  * Base class for all themable workbench components.

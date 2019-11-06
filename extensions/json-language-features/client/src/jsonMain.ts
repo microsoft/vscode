@@ -46,6 +46,7 @@ interface Settings {
 	json?: {
 		schemas?: JSONSchemaSettings[];
 		format?: { enable: boolean; };
+		resultLimit?: number;
 	};
 	http?: {
 		proxy?: string;
@@ -142,12 +143,6 @@ export function activate(context: ExtensionContext) {
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
-		disposable = client.onTelemetry(e => {
-			if (telemetryReporter) {
-				telemetryReporter.sendTelemetryEvent(e.key, e.data);
-			}
-		});
-
 		const schemaDocuments: { [uri: string]: boolean } = {};
 
 		// handle content request
@@ -161,11 +156,23 @@ export function activate(context: ExtensionContext) {
 					return Promise.reject(error);
 				});
 			} else {
+				if (telemetryReporter && uri.authority === 'schema.management.azure.com') {
+					/* __GDPR__
+						"json.schema" : {
+							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					 */
+					telemetryReporter.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
+				}
 				const headers = { 'Accept-Encoding': 'gzip, deflate' };
 				return xhr({ url: uriPath, followRedirects: 5, headers }).then(response => {
 					return response.responseText;
 				}, (error: XHRResponse) => {
-					return Promise.reject(new ResponseError(error.status, error.responseText || getErrorStatusDescription(error.status) || error.toString()));
+					let extraInfo = error.responseText || error.toString();
+					if (extraInfo.length > 256) {
+						extraInfo = `${extraInfo.substr(0, 256)}...`;
+					}
+					return Promise.reject(new ResponseError(error.status, getErrorStatusDescription(error.status) + '\n' + extraInfo));
 				});
 			}
 		});
@@ -320,6 +327,7 @@ function getSettings(): Settings {
 		},
 		json: {
 			schemas: [],
+			resultLimit: 5000
 		}
 	};
 	let schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);

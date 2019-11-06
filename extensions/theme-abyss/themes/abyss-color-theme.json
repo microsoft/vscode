@@ -2,9 +2,13 @@
 	"name": "Abyss",
 	"tokenColors": [
 		{
+			"settings": {
+				"foreground": "#6688cc"
+			}
+		},
+		{
 			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
-				"background": "#000c18",
 				"foreground": "#6688cc"
 			}
 		},
@@ -167,7 +171,6 @@
 			"name": "Invalid",
 			"scope": "invalid",
 			"settings": {
-				"background": "#F92672",
 				"fontStyle": "",
 				"foreground": "#F8F8F0"
 			}
@@ -176,7 +179,6 @@
 			"name": "Invalid deprecated",
 			"scope": "invalid.deprecated",
 			"settings": {
-				"background": "#AE81FF",
 				"foreground": "#F8F8F0"
 			}
 		},
@@ -187,7 +189,6 @@
 				"meta.diff.header"
 			],
 			"settings": {
-				"background": "#b58900",
 				"fontStyle": "italic",
 				"foreground": "#E0EDDD"
 			}
@@ -196,7 +197,6 @@
 			"name": "diff: deleted",
 			"scope": "markup.deleted",
 			"settings": {
-				"background": "#eee8d5",
 				"fontStyle": "",
 				"foreground": "#dc322f"
 			}
@@ -205,7 +205,6 @@
 			"name": "diff: changed",
 			"scope": "markup.changed",
 			"settings": {
-				"background": "#eee8d5",
 				"fontStyle": "",
 				"foreground": "#cb4b16"
 			}
@@ -214,7 +213,6 @@
 			"name": "diff: inserted",
 			"scope": "markup.inserted",
 			"settings": {
-				"background": "#eee8d5",
 				"foreground": "#219186"
 			}
 		},
@@ -373,7 +371,6 @@
 		"tab.border": "#2b2b4a",
 		// "tab.activeBackground": "",
 		"tab.inactiveBackground": "#10192c",
-		"tab.modifiedBorder": "#0072bf",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
 
