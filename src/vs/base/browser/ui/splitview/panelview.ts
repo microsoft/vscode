@@ -9,10 +9,12 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, addClass, removeClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
+import { $, append, addClass, removeClass, toggleClass, trackFocus, EventHelper } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
+import { isFirefox } from 'vs/base/browser/browser';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export interface IPanelOptions {
 	ariaHeaderLabel?: string;
@@ -272,6 +274,11 @@ class PanelDraggable extends Disposable {
 
 		e.dataTransfer.effectAllowed = 'move';
 
+		if (isFirefox) {
+			// Firefox: requires to set a text data transfer to get going
+			e.dataTransfer?.setData(DataTransfers.TEXT, this.panel.draggableElement.textContent || '');
+		}
+
 		const dragImage = append(document.body, $('.monaco-drag-image', {}, this.panel.draggableElement.textContent || ''));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
 		setTimeout(() => document.body.removeChild(dragImage), 0);
@@ -322,6 +329,8 @@ class PanelDraggable extends Disposable {
 		if (!this.context.draggable) {
 			return;
 		}
+
+		EventHelper.stop(e);
 
 		this.dragOverCounter = 0;
 		this.render();

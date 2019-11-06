@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getCSSLanguageService } from 'vscode-css-languageservice';
-import { ClientCapabilities, DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, SelectionRange } from 'vscode-html-languageservice';
-import { Color, ColorInformation, ColorPresentation, WorkspaceFolder } from 'vscode-languageserver';
-import { CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions, Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextDocument, TextEdit } from 'vscode-languageserver-types';
+import {
+	ClientCapabilities, DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, SelectionRange,
+	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
+	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextDocument, TextEdit,
+	Color, ColorInformation, ColorPresentation
+} from 'vscode-html-languageservice';
+import { WorkspaceFolder } from 'vscode-languageserver';
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getCSSMode } from './cssMode';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';

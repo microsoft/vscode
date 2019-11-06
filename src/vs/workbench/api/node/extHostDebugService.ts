@@ -383,7 +383,7 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 	public async $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
 		if (!this._variableResolver) {
 			const [workspaceFolders, configProvider] = await Promise.all([this._workspaceService.getWorkspaceFolders2(), this._configurationService.getConfigProvider()]);
-			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._editorsService, configProvider);
+			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._editorsService, configProvider!);
 		}
 		let ws: IWorkspaceFolder | undefined;
 		const folder = await this.getFolder(folderUri);
@@ -783,7 +783,7 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 				}
 				return undefined;
 			}),
-			new Promise((resolve, reject) => {
+			new Promise<never>((resolve, reject) => {
 				const timeout = setTimeout(() => {
 					clearTimeout(timeout);
 					reject(new Error('timeout'));

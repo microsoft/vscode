@@ -5,8 +5,8 @@
 
 import {
 	createConnection, IConnection,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, Diagnostic
+	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -16,7 +16,7 @@ import * as URL from 'url';
 import { posix } from 'path';
 import { setTimeout, clearTimeout } from 'timers';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
-import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities } from 'vscode-json-languageservice';
+import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, SchemaRequestService, Diagnostic } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
 interface ISchemaAssociations {
@@ -58,40 +58,40 @@ const workspaceContext = {
 		return URL.resolve(resource, relativePath);
 	}
 };
-function getSchemaRequestService(handledSchemas: { [schema: string]: boolean }) {
 
+const fileRequestService: SchemaRequestService = (uri: string) => {
+	const fsPath = URI.parse(uri).fsPath;
+	return new Promise<string>((c, e) => {
+		fs.readFile(fsPath, 'UTF-8', (err, result) => {
+			err ? e(err.message || err.toString()) : c(result.toString());
+		});
+	});
+};
+
+const httpRequestService: SchemaRequestService = (uri: string) => {
+	const headers = { 'Accept-Encoding': 'gzip, deflate' };
+	return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
+		return response.responseText;
+	}, (error: XHRResponse) => {
+		return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
+	});
+};
+
+function getSchemaRequestService(handledSchemas: string[] = ['https', 'http', 'file']) {
+	const builtInHandlers: { [protocol: string]: SchemaRequestService } = {};
+	for (let protocol of handledSchemas) {
+		if (protocol === 'file') {
+			builtInHandlers[protocol] = fileRequestService;
+		} else if (protocol === 'http' || protocol === 'https') {
+			builtInHandlers[protocol] = httpRequestService;
+		}
+	}
 	return (uri: string): Thenable<string> => {
 		const protocol = uri.substr(0, uri.indexOf(':'));
 
-		if (!handledSchemas || handledSchemas[protocol]) {
-			if (protocol === 'file') {
-				const fsPath = URI.parse(uri).fsPath;
-				return new Promise<string>((c, e) => {
-					fs.readFile(fsPath, 'UTF-8', (err, result) => {
-						err ? e(err.message || err.toString()) : c(result.toString());
-					});
-				});
-			} else if (protocol === 'http' || protocol === 'https') {
-				if (uri.indexOf('//schema.management.azure.com/') !== -1) {
-					/* __GDPR__
-						"json.schema" : {
-							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					 */
-					connection.telemetry.logEvent({
-						key: 'json.schema',
-						value: {
-							schemaURL: uri
-						}
-					});
-				}
-				const headers = { 'Accept-Encoding': 'gzip, deflate' };
-				return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
-					return response.responseText;
-				}, (error: XHRResponse) => {
-					return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
-				});
-			}
+		const builtInHandler = builtInHandlers[protocol];
+		if (builtInHandler) {
+			return builtInHandler(uri);
 		}
 		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 			return responseText;
@@ -109,7 +109,7 @@ let languageService = getLanguageService({
 });
 
 // Create a text document manager.
-const documents: TextDocuments = new TextDocuments();
+const documents = new TextDocuments(TextDocument);
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events
@@ -153,8 +153,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	foldingRangeLimitDefault = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
 	const capabilities: ServerCapabilities = {
-		// Tell the client that the server works in FULL text document sync mode
-		textDocumentSync: documents.syncKind,
+		textDocumentSync: TextDocumentSyncKind.Incremental,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,

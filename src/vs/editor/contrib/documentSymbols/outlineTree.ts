@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IDataSource, ITreeNode, ITreeRenderer, ITreeSorter, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
-import { values } from 'vs/base/common/collections';
+import { values, forEach } from 'vs/base/common/collections';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
@@ -220,22 +220,81 @@ export const enum OutlineSortOrder {
 
 export class OutlineFilter implements ITreeFilter<OutlineItem> {
 
+	static readonly configNameToKind = Object.freeze({
+		['showFiles']: SymbolKind.File,
+		['showModules']: SymbolKind.Module,
+		['showNamespaces']: SymbolKind.Namespace,
+		['showPackages']: SymbolKind.Package,
+		['showClasses']: SymbolKind.Class,
+		['showMethods']: SymbolKind.Method,
+		['showProperties']: SymbolKind.Property,
+		['showFields']: SymbolKind.Field,
+		['showConstructors']: SymbolKind.Constructor,
+		['showEnums']: SymbolKind.Enum,
+		['showInterfaces']: SymbolKind.Interface,
+		['showFunctions']: SymbolKind.Function,
+		['showVariables']: SymbolKind.Variable,
+		['showConstants']: SymbolKind.Constant,
+		['showStrings']: SymbolKind.String,
+		['showNumbers']: SymbolKind.Number,
+		['showBooleans']: SymbolKind.Boolean,
+		['showArrays']: SymbolKind.Array,
+		['showObjects']: SymbolKind.Object,
+		['showKeys']: SymbolKind.Key,
+		['showNull']: SymbolKind.Null,
+		['showEnumMembers']: SymbolKind.EnumMember,
+		['showStructs']: SymbolKind.Struct,
+		['showEvents']: SymbolKind.Event,
+		['showOperators']: SymbolKind.Operator,
+		['showTypeParameters']: SymbolKind.TypeParameter,
+	});
+
+	static readonly kindToConfigName = Object.freeze({
+		[SymbolKind.File]: 'showFiles',
+		[SymbolKind.Module]: 'showModules',
+		[SymbolKind.Namespace]: 'showNamespaces',
+		[SymbolKind.Package]: 'showPackages',
+		[SymbolKind.Class]: 'showClasses',
+		[SymbolKind.Method]: 'showMethods',
+		[SymbolKind.Property]: 'showProperties',
+		[SymbolKind.Field]: 'showFields',
+		[SymbolKind.Constructor]: 'showConstructors',
+		[SymbolKind.Enum]: 'showEnums',
+		[SymbolKind.Interface]: 'showInterfaces',
+		[SymbolKind.Function]: 'showFunctions',
+		[SymbolKind.Variable]: 'showVariables',
+		[SymbolKind.Constant]: 'showConstants',
+		[SymbolKind.String]: 'showStrings',
+		[SymbolKind.Number]: 'showNumbers',
+		[SymbolKind.Boolean]: 'showBooleans',
+		[SymbolKind.Array]: 'showArrays',
+		[SymbolKind.Object]: 'showObjects',
+		[SymbolKind.Key]: 'showKeys',
+		[SymbolKind.Null]: 'showNull',
+		[SymbolKind.EnumMember]: 'showEnumMembers',
+		[SymbolKind.Struct]: 'showStructs',
+		[SymbolKind.Event]: 'showEvents',
+		[SymbolKind.Operator]: 'showOperators',
+		[SymbolKind.TypeParameter]: 'showTypeParameters',
+	});
+
 	private readonly _filteredTypes = new Set<SymbolKind>();
 
 	constructor(
 		private readonly _prefix: string,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
-
+		this.update();
 	}
 
 	update() {
 		this._filteredTypes.clear();
-		for (const name of SymbolKinds.names()) {
-			if (!this._configService.getValue<boolean>(`${this._prefix}.${name}`)) {
-				this._filteredTypes.add(SymbolKinds.fromString(name) || -1);
+		forEach(OutlineFilter.configNameToKind, entry => {
+			const key = `${this._prefix}.${entry.key}`;
+			if (this._configService.getValue<boolean>(key) === false) {
+				this._filteredTypes.add(entry.value);
 			}
-		}
+		});
 	}
 
 	filter(element: OutlineItem): boolean {
@@ -302,11 +361,11 @@ export const SYMBOL_ICON_COLOR_FOREGROUND = registerColor('symbolIcon.colorForeg
 	hc: foreground
 }, localize('symbolIcon.colorForeground', 'The foreground color for color symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
-export const SYMBOL_ICON_CONSTANT_FOREGROUND = registerColor('symbolIcon.contstantForeground', {
+export const SYMBOL_ICON_CONSTANT_FOREGROUND = registerColor('symbolIcon.constantForeground', {
 	dark: foreground,
 	light: foreground,
 	hc: foreground
-}, localize('symbolIcon.contstantForeground', 'The foreground color for contstant symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, localize('symbolIcon.constantForeground', 'The foreground color for constant symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
 export const SYMBOL_ICON_CONSTRUCTOR_FOREGROUND = registerColor('symbolIcon.constructorForeground', {
 	dark: '#B180D7',

@@ -324,16 +324,14 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		return obj;
 	});
 
-	const firstSource = sources[0];
-
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
 	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath)) : source.resource.toString()).join(lineDelimiter));
 
 	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
 	// Disabled for PWA web due to: https://github.com/microsoft/vscode/issues/83441
-	if (!isWeb || !isStandalone) {
-		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), asDomUri(firstSource.resource).toString()].join(':'));
+	if (!sources[0].isDirectory && (!isWeb || !isStandalone)) {
+		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(sources[0].resource), asDomUri(sources[0].resource).toString()].join(':'));
 	}
 
 	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
@@ -477,4 +475,24 @@ export class DragAndDropObserver extends Disposable {
 			this.callbacks.onDrop(e);
 		}));
 	}
+}
+
+export function containsDragType(event: DragEvent, ...dragTypesToFind: string[]): boolean {
+	if (!event.dataTransfer) {
+		return false;
+	}
+
+	const dragTypes = event.dataTransfer.types;
+	const lowercaseDragTypes: string[] = [];
+	for (let i = 0; i < dragTypes.length; i++) {
+		lowercaseDragTypes.push(dragTypes[i].toLowerCase()); // somehow the types are lowercase
+	}
+
+	for (const dragType of dragTypesToFind) {
+		if (lowercaseDragTypes.indexOf(dragType.toLowerCase()) >= 0) {
+			return true;
+		}
+	}
+
+	return false;
 }

@@ -1236,8 +1236,8 @@ declare module 'vscode' {
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
 		 * *Note* that for a while uris without a `scheme` were accepted. That is not correct
-		 * as all uris should have a scheme. When missing the `file`-scheme is being used unless
-		 * the  `strict`-argument is `true` in which case an error is thrown.
+		 * as all uris should have a scheme. To avoid breakage of existing code the optional
+		 * `strict`-argument has been added. We *strongly* advise to use it, e.g. `Uri.parse('my:uri', true)`
 		 *
 		 * @see [Uri.toString](#Uri.toString)
 		 * @param value The string value of an Uri.
@@ -4909,7 +4909,7 @@ declare module 'vscode' {
 		/**
 		 * The extension kind describes if an extension runs where the UI runs
 		 * or if an extension runs where the remote extension host runs. The extension kind
-		 * if defined in the `package.json` file of extensions but can also be refined
+		 * is defined in the `package.json`-file of extensions but can also be refined
 		 * via the the `remote.extensionKind`-setting. When no remote extension host exists,
 		 * the value is [`ExtensionKind.UI`](#ExtensionKind.UI).
 		 */
@@ -6433,22 +6433,51 @@ declare module 'vscode' {
 		export function openExternal(target: Uri): Thenable<boolean>;
 
 		/**
+		 * Resolves a uri to form that is accessible externally. Currently only supports `https:`, `http:` and
+		 * `vscode.env.uriScheme` uris.
+		 *
+		 * #### `http:` or `https:` scheme
+		 *
 		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
 		 * uri to the same resource on the client machine.
 		 *
-		 * This is a no-op if the extension is running on the client machine. Currently only supports
-		 * `https:` and `http:` uris.
+		 * This is a no-op if the extension is running on the client machine.
 		 *
 		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
 		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
 		 * the port fowarding tunnel is managed by VS Code and the tunnel can be closed by the user.
 		 *
-		 * Extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
-		 * a system or user action — for example, in remote cases, a user may close a port forwardng tunnel
-		 * that was opened by `asExternalUri`.
+		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri` on them.
 		 *
-		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri`
-		 * on them.
+		 * #### `vscode.env.uriScheme`
+		 *
+		 * Creates a uri that - if opened in a browser (e.g. via `openExternal`) - will result in a registered [UriHandler](#UriHandler)
+		 * to trigger.
+		 *
+		 * Extensions should not make any assumptions about the resulting uri and should not alter it in anyway.
+		 * Rather, extensions can e.g. use this uri in an authentication flow, by adding the uri as callback query
+		 * argument to the server to authenticate to.
+		 *
+		 * *Note* that if the server decides to add additional query parameters to the uri (e.g. a token or secret), it
+		 * will appear in the uri that is passed to the [UriHandler](#UriHandler).
+		 *
+		 * **Example** of an authentication flow:
+		 * ```typescript
+		 * vscode.window.registerUriHandler({
+		 *   handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
+		 *     if (uri.path === '/did-authenticate') {
+		 *       console.log(uri.toString());
+		 *     }
+		 *   }
+		 * });
+		 *
+		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
+		 * await vscode.env.openExternal(callableUri);
+		 * ```
+		 *
+		 * *Note* that extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
+		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
+		 * `asExternalUri`.
 		 *
 		 * @return A uri that can be used on the client machine.
 		 */

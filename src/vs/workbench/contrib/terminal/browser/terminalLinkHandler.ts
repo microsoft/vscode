@@ -99,9 +99,13 @@ export class TerminalLinkHandler {
 			let verticalAlignment = WidgetVerticalAlignment.Bottom;
 
 			// Show the tooltip on the top of the next row to avoid obscuring the first row
-			if (location.start.y === 0) {
-				offsetRow--;
+			if (location.start.y <= 0) {
+				offsetRow = this._xterm.rows - 1;
 				verticalAlignment = WidgetVerticalAlignment.Top;
+				// The start of the wrapped line is above the viewport, move to start of the line
+				if (location.start.y < 0) {
+					location.start.x = 0;
+				}
 			}
 
 			if (this._configHelper.config.rendererType === 'dom') {

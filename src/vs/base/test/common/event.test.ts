@@ -350,6 +350,42 @@ suite('AsyncEmitter', function () {
 		}));
 		assert.ok(done);
 	});
+
+	test('catch errors', async function () {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => null);
+
+		interface E extends IWaitUntil {
+			foo: boolean;
+		}
+
+		let globalState = 0;
+		let emitter = new AsyncEmitter<E>();
+
+		emitter.event(e => {
+			globalState += 1;
+			e.waitUntil(new Promise((_r, reject) => reject(new Error())));
+		});
+
+		emitter.event(e => {
+			globalState += 1;
+			e.waitUntil(timeout(10));
+		});
+
+		await emitter.fireAsync(thenables => ({
+			foo: true,
+			waitUntil(t) {
+				thenables.push(t);
+			}
+		})).then(() => {
+			assert.equal(globalState, 2);
+		}).catch(e => {
+			console.log(e);
+			assert.ok(false);
+		});
+
+		Errors.setUnexpectedErrorHandler(origErrorHandler);
+	});
 });
 
 suite('PausableEmitter', function () {

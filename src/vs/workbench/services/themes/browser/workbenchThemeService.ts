@@ -32,6 +32,7 @@ import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 // implementation
 
@@ -98,6 +99,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
+		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService
 	) {
 
@@ -341,7 +343,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				return null;
 			}
 			const themeData = data;
-			return themeData.ensureLoaded(this.fileService).then(_ => {
+			return themeData.ensureLoaded(this.extensionResourceLoaderService).then(_ => {
 				if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 					// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 					this.currentColorTheme = themeData;
@@ -360,7 +362,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private async reloadCurrentColorTheme() {
-		await this.currentColorTheme.reload(this.fileService);
+		await this.currentColorTheme.reload(this.extensionResourceLoaderService);
 		this.currentColorTheme.setCustomColors(this.colorCustomizations);
 		this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
 		this.updateDynamicCSSRules(this.currentColorTheme);

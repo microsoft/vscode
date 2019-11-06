@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
-import { TextDocument, Position, Range, CompletionList } from 'vscode-languageserver-types';
+import { TextDocument, Position, Range, CompletionList } from 'vscode-html-languageservice';
 import { Stylesheet, FoldingRange, LanguageService as CSSLanguageService } from 'vscode-css-languageservice';
 import { LanguageMode, Workspace } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';

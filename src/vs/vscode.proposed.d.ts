@@ -674,6 +674,17 @@ declare module 'vscode' {
 		readonly data: string;
 	}
 
+	export interface TerminalExitStatus {
+		/**
+		 * The exit code that a terminal exited with, it can have the following values:
+		 * - Zero: the terminal process or custom execution succeeded.
+		 * - Non-zero: the terminal process or custom execution failed.
+		 * - `undefined`: the user forcefully closed the terminal or a custom execution exited
+		 *   without providing an exit code.
+		 */
+		readonly code: number | undefined;
+	}
+
 	namespace window {
 		/**
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
@@ -690,11 +701,33 @@ declare module 'vscode' {
 
 	export interface Terminal {
 		/**
+		 * The object used to initialize the terminal, this is useful for things like detecting the
+		 * shell type of shells not launched by the extension or detecting what folder the shell was
+		 * launched in.
+		 */
+		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
+
+		/**
 		 * The current dimensions of the terminal. This will be `undefined` immediately after the
 		 * terminal is created as the dimensions are not known until shortly after the terminal is
 		 * created.
 		 */
 		readonly dimensions: TerminalDimensions | undefined;
+
+		/**
+		 * The exit status of the terminal, this will be undefined while the terminal is active.
+		 *
+		 * **Example:** Show a notification with the exit code when the terminal exits with a
+		 * non-zero exit code.
+		 * ```typescript
+		 * window.onDidCloseTerminal(t => {
+		 *   if (t.exitStatus && t.exitStatus.code) {
+		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
+		 *   }
+		 * });
+		 * ```
+		 */
+		readonly exitStatus: TerminalExitStatus | undefined;
 	}
 
 	//#endregion
@@ -708,20 +741,45 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
+
+	export interface FileCreateEvent {
+		readonly created: ReadonlyArray<Uri>;
+	}
+
+	export interface FileWillCreateEvent {
+		readonly creating: ReadonlyArray<Uri>;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	export interface FileDeleteEvent {
+		readonly deleted: ReadonlyArray<Uri>;
+	}
+
+	export interface FileWillDeleteEvent {
+		readonly deleting: ReadonlyArray<Uri>;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
 	export interface FileRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
+		readonly renamed: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
 	export interface FileWillRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		readonly renaming: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void; // TODO@joh support sync/async
 	}
 
 	export namespace workspace {
-		export const onWillRenameFile: Event<FileWillRenameEvent>;
-		export const onDidRenameFile: Event<FileRenameEvent>;
+
+		export const onWillCreateFiles: Event<FileWillCreateEvent>;
+		export const onDidCreateFiles: Event<FileCreateEvent>;
+
+		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+
+		export const onWillRenameFiles: Event<FileWillRenameEvent>;
+		export const onDidRenameFiles: Event<FileRenameEvent>;
+
 	}
 	//#endregion
 
@@ -784,6 +842,18 @@ declare module 'vscode' {
 	 */
 	export class Task2 extends Task {
 		detail?: string;
+	}
+
+	export class CustomExecution2 extends CustomExecution {
+		/**
+		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
+		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
+		 * @param callback The callback that will be called when the task is started by a user.
+		 */
+		constructor(callback: (resolvedDefinition?: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
 
 	export interface TaskPresentationOptions {
@@ -855,33 +925,7 @@ declare module 'vscode' {
 	export namespace env {
 
 		/**
-		 * Creates a Uri that - if opened in a browser - will result in a
-		 * registered [UriHandler](#UriHandler) to fire. The handler's
-		 * Uri will be configured with the path, query and fragment of
-		 * [AppUriOptions](#AppUriOptions) if provided, otherwise it will be empty.
-		 *
-		 * Extensions should not make any assumptions about the resulting
-		 * Uri and should not alter it in anyway. Rather, extensions can e.g.
-		 * use this Uri in an authentication flow, by adding the Uri as
-		 * callback query argument to the server to authenticate to.
-		 *
-		 * Note: If the server decides to add additional query parameters to the Uri
-		 * (e.g. a token or secret), it will appear in the Uri that is passed
-		 * to the [UriHandler](#UriHandler).
-		 *
-		 * **Example** of an authentication flow:
-		 * ```typescript
-		 * vscode.window.registerUriHandler({
-		 *   handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
-		 *     if (uri.path === '/did-authenticate') {
-		 *       console.log(uri.toString());
-		 *     }
-		 *   }
-		 * });
-		 *
-		 * const callableUri = await vscode.env.createAppUri({ payload: { path: '/did-authenticate' } });
-		 * await vscode.env.openExternal(callableUri);
-		 * ```
+		 * @deprecated use `vscode.env.asExternalUri` instead.
 		 */
 		export function createAppUri(options?: AppUriOptions): Thenable<Uri>;
 	}
@@ -890,26 +934,89 @@ declare module 'vscode' {
 
 	//#region Custom editors, mjbvz
 
-	export interface WebviewEditor extends WebviewPanel {
+	/**
+	 *
+	 */
+	interface WebviewEditorCapabilities {
+		/**
+		 * Invoked when the resource has been renamed in VS Code.
+		 *
+		 * This is called when the resource's new name also matches the custom editor selector.
+		 *
+		 * If this is not implemented—or if the new resource name does not match the existing selector—then VS Code
+		 * will close and reopen the editor on  rename.
+		 *
+		 * @param newResource Full path to the resource.
+		 *
+		 * @return Thenable that signals the save is complete.
+		 */
+		rename?(newResource: Uri): Thenable<void>;
+
+		readonly editingCapability?: WebviewEditorEditingCapability;
+	}
+
+	interface WebviewEditorEditingCapability {
+		/**
+		 * Persist the resource.
+		 */
+		save(resource: Uri): Thenable<void>;
+
+		/**
+		 * Called when the editor exits.
+		 */
+		hotExit(hotExitPath: Uri): Thenable<void>;
+
+		/**
+		 * Signal to VS Code that an edit has occurred.
+		 *
+		 * Edits must be a json serilizable object.
+		 */
+		readonly onEdit: Event<any>;
+
+		/**
+		 * Apply a set of edits.
+		 *
+		 * This is triggered on redo and when restoring a custom editor after restart. Note that is not invoked
+		 * when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
+		 *
+		 * @param edit Array of edits. Sorted from oldest to most recent.
+		 */
+		applyEdits(edits: any[]): Thenable<void>;
+
+		/**
+		 * Undo a set of edits.
+		 *
+		 * This is triggered when a user undoes an edit or when revert is called on a file.
+		 *
+		 * @param edit Array of edits. Sorted from most recent to oldest.
+		 */
+		undoEdits(edits: any[]): Thenable<void>;
 	}
 
 	export interface WebviewEditorProvider {
 		/**
-		* Fills out a `WebviewEditor` for a given resource.
-		*
-		* The provider should take ownership of passed in `editor`.
-		*/
+		 * Fills out a `WebviewEditor` for a given resource.
+		 *
+		 * @param input Information about the resource being resolved.
+		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 *
+		 * @return Thenable to a `WebviewEditorCapabilities` indicating that the webview editor has been resolved.
+		 *   The `WebviewEditorCapabilities` defines how the custom editor interacts with VS Code.
+		 *   **❗️Note**: `WebviewEditorCapabilities` is not actually implemented... yet!
+		 */
 		resolveWebviewEditor(
-			resource: Uri,
-			editor: WebviewEditor
-		): Thenable<void>;
+			input: {
+				readonly resource: Uri
+			},
+			webview: WebviewPanel,
+		): Thenable<WebviewEditorCapabilities>;
 	}
 
 	namespace window {
 		export function registerWebviewEditorProvider(
 			viewType: string,
 			provider: WebviewEditorProvider,
-			options?: WebviewPanelOptions
+			options?: WebviewPanelOptions,
 		): Disposable;
 	}
 
@@ -930,7 +1037,7 @@ declare module 'vscode' {
 		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
 		 */
-		range2?: Range | { insert: Range; replace: Range; };
+		range2?: Range | { inserting: Range; replacing: Range; };
 	}
 
 	//#endregion

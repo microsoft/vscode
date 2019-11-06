@@ -153,15 +153,15 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 			return undefined; // File too large
 		}
 
+		const word = model.getWordAtPosition(position);
+		const replace = !word ? Range.fromPositions(position) : new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+		const insert = replace.setEndPosition(position.lineNumber, position.column);
+
 		const client = await this._workerManager.withWorker();
 		const words = await client.textualSuggest(model.uri, position);
 		if (!words) {
 			return undefined;
 		}
-
-		const word = model.getWordAtPosition(position);
-		const replace = !word ? Range.fromPositions(position) : new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-		const insert = replace.setEndPosition(position.lineNumber, position.column);
 
 		return {
 			suggestions: words.map((word): modes.CompletionItem => {

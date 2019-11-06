@@ -12,12 +12,12 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { CharacterPair, CommentRule, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 interface IRegExp {
 	pattern: string;
@@ -69,7 +69,7 @@ export class LanguageConfigurationFileHandler {
 	constructor(
 		@ITextMateService textMateService: ITextMateService,
 		@IModeService private readonly _modeService: IModeService,
-		@IFileService private readonly _fileService: IFileService,
+		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._done = [];
@@ -98,9 +98,9 @@ export class LanguageConfigurationFileHandler {
 	}
 
 	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFileLocation: URI): void {
-		this._fileService.readFile(configFileLocation).then((contents) => {
+		this._extensionResourceLoaderService.readExtensionResource(configFileLocation).then((contents) => {
 			const errors: ParseError[] = [];
-			let configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
+			let configuration = <ILanguageConfiguration>parse(contents, errors);
 			if (errors.length) {
 				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation.toString(), errors.map(e => (`[${e.offset}, ${e.length}] ${getParseErrorMessage(e.error)}`)).join('\n')));
 			}

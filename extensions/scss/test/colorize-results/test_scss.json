@@ -7436,7 +7436,7 @@
 		}
 	},
 	{
-		"c": " .error",
+		"c": " ",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -7444,6 +7444,28 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "error",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
 		}
 	},
 	{
@@ -17798,7 +17820,7 @@
 		}
 	},
 	{
-		"c": " .",
+		"c": " ",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -17809,19 +17831,30 @@
 		}
 	},
 	{
+		"c": ".",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+		}
+	},
+	{
 		"c": "#{",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss variable.interpolation.scss punctuation.definition.interpolation.begin.bracket.curly.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css variable.interpolation.scss punctuation.definition.interpolation.begin.bracket.curly.scss",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": "$a",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss variable.interpolation.scss variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -17832,12 +17865,12 @@
 	},
 	{
 		"c": "}",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss variable.interpolation.scss punctuation.definition.interpolation.end.bracket.curly.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css variable.interpolation.scss punctuation.definition.interpolation.end.bracket.curly.scss",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},

@@ -228,7 +228,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get uriScheme() { return initData.environment.appUriScheme; },
 			createAppUri(options?) {
 				checkProposedApiEnabled(extension);
-				return extHostUrls.createAppUri(extension.identifier, options);
+				return extHostUrls.proposedCreateAppUri(extension.identifier, options);
 			},
 			get logLevel() {
 				checkProposedApiEnabled(extension);
@@ -248,6 +248,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
 			asExternalUri(uri: URI) {
+				if (uri.scheme === initData.environment.appUriScheme) {
+					return extHostUrls.createAppUri(uri);
+				}
+
 				return extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
 			get remoteName() {
@@ -691,11 +695,27 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostLabelService.$registerResourceLabelFormatter(formatter);
 			},
-			onDidRenameFile: (listener: (e: vscode.FileRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			onDidCreateFiles: (listener, thisArg, disposables) => {
+				checkProposedApiEnabled(extension);
+				return extHostFileSystemEvent.onDidCreateFile(listener, thisArg, disposables);
+			},
+			onDidDeleteFiles: (listener, thisArg, disposables) => {
+				checkProposedApiEnabled(extension);
+				return extHostFileSystemEvent.onDidDeleteFile(listener, thisArg, disposables);
+			},
+			onDidRenameFiles: (listener, thisArg, disposables) => {
 				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
 			},
-			onWillRenameFile: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			onWillCreateFiles: (listener: (e: vscode.FileWillCreateEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+				checkProposedApiEnabled(extension);
+				return extHostFileSystemEvent.getOnWillCreateFileEvent(extension)(listener, thisArg, disposables);
+			},
+			onWillDeleteFiles: (listener: (e: vscode.FileWillDeleteEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+				checkProposedApiEnabled(extension);
+				return extHostFileSystemEvent.getOnWillDeleteFileEvent(extension)(listener, thisArg, disposables);
+			},
+			onWillRenameFiles: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
 			}
@@ -845,6 +865,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			CustomExecution: extHostTypes.CustomExecution,
+			CustomExecution2: extHostTypes.CustomExecution,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,

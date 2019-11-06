@@ -24,14 +24,16 @@ export class AccessibilityService extends AbstractAccessibilityService implement
 	_serviceBrand: undefined;
 
 	private _accessibilitySupport = AccessibilitySupport.Unknown;
+	private didSendTelemetry = false;
 
 	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super(contextKeyService, configurationService);
+		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {
@@ -61,17 +63,13 @@ export class AccessibilityService extends AbstractAccessibilityService implement
 		this._accessibilitySupport = accessibilitySupport;
 		this._onDidChangeAccessibilitySupport.fire();
 
-		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+		if (!this.didSendTelemetry && accessibilitySupport === AccessibilitySupport.Enabled) {
 			this._telemetryService.publicLog2<AccessibilityMetrics, AccessibilityMetricsClassification>('accessibility', { enabled: true });
+			this.didSendTelemetry = true;
 		}
 	}
 
 	getAccessibilitySupport(): AccessibilitySupport {
-		if (this._accessibilitySupport === AccessibilitySupport.Unknown) {
-			const config = this.environmentService.configuration;
-			this._accessibilitySupport = config?.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled;
-		}
-
 		return this._accessibilitySupport;
 	}
 }
