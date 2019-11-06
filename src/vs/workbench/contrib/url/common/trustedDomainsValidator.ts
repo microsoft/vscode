@@ -5,7 +5,7 @@
 
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { equalsIgnoreCase, startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -14,7 +14,10 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { configureOpenerTrustedDomainsHandler, readTrustedDomains } from 'vs/workbench/contrib/url/common/trustedDomains';
+import {
+	configureOpenerTrustedDomainsHandler,
+	readTrustedDomains
+} from 'vs/workbench/contrib/url/common/trustedDomains';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
@@ -132,10 +135,11 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 		}
 
 		if (url.authority === parsedTrustedDomain.authority) {
-			return true;
+			return pathMatches(url.path, parsedTrustedDomain.path);
 		}
 
 		if (trustedDomains[i].indexOf('*') !== -1) {
+
 			let reversedAuthoritySegments = url.authority.split('.').reverse();
 			const reversedTrustedDomainAuthoritySegments = parsedTrustedDomain.authority.split('.').reverse();
 
@@ -146,15 +150,31 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 				reversedAuthoritySegments = reversedAuthoritySegments.slice(0, reversedTrustedDomainAuthoritySegments.length);
 			}
 
-			if (
-				reversedAuthoritySegments.every((val, i) => {
-					return reversedTrustedDomainAuthoritySegments[i] === '*' || val === reversedTrustedDomainAuthoritySegments[i];
-				})
-			) {
+			const authorityMatches = reversedAuthoritySegments.every((val, i) => {
+				return reversedTrustedDomainAuthoritySegments[i] === '*' || val === reversedTrustedDomainAuthoritySegments[i];
+			});
+
+			if (authorityMatches && pathMatches(url.path, parsedTrustedDomain.path)) {
 				return true;
 			}
 		}
 	}
 
 	return false;
+}
+
+function pathMatches(open: string, rule: string) {
+	if (rule === '/') {
+		return true;
+	}
+
+	const openSegments = open.split('/');
+	const ruleSegments = rule.split('/');
+	for (let i = 0; i < ruleSegments.length; i++) {
+		if (ruleSegments[i] !== openSegments[i]) {
+			return false;
+		}
+	}
+
+	return true;
 }
