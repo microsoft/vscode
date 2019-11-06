@@ -114,13 +114,13 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 		const gotoLocation = this._getGoToPreference(editor);
 		if (this._configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1)) {
-			this._openInPeek(editorService, editor, model);
+			this._openInPeek(editor, model);
 
 		} else {
 			const next = model.firstReference()!;
 			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
 			if (targetEditor && model.references.length > 1 && gotoLocation === 'gotoAndPeek') {
-				this._openInPeek(editorService, targetEditor, model);
+				this._openInPeek(targetEditor, model);
 			} else {
 				model.dispose();
 			}
@@ -153,15 +153,10 @@ abstract class SymbolNavigationAction extends EditorAction {
 		}, editor, sideBySide);
 	}
 
-	private _openInPeek(editorService: ICodeEditorService, target: ICodeEditor, model: ReferencesModel) {
+	private _openInPeek(target: ICodeEditor, model: ReferencesModel) {
 		let controller = ReferencesController.get(target);
 		if (controller && target.hasModel()) {
-			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), {
-				onGoto: (reference) => {
-					controller.closeWidget();
-					return this._openReference(target, editorService, reference, false);
-				}
-			});
+			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this._configuration.openInPeek);
 		} else {
 			model.dispose();
 		}
@@ -670,7 +665,7 @@ CommandsRegistry.registerCommand({
 
 			const references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), corePosition.Position.lift(position), token).then(references => new ReferencesModel(references)));
 			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-			return Promise.resolve(controller.toggleWidget(range, references, {}));
+			return Promise.resolve(controller.toggleWidget(range, references, false));
 		});
 	}
 });
@@ -709,7 +704,7 @@ CommandsRegistry.registerCommand({
 			return controller.toggleWidget(
 				new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 				createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
-				{}
+				false
 			);
 		});
 	},

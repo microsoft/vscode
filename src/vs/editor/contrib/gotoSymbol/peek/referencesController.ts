@@ -27,10 +27,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
-export interface RequestOptions {
-	onGoto?: (reference: Location) => Promise<any>;
-}
-
 export abstract class ReferencesController implements editorCommon.IEditorContribution {
 
 	static readonly ID = 'editor.contrib.referencesController';
@@ -39,6 +35,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 	private _widget?: ReferenceWidget;
 	private _model?: ReferencesModel;
+	private _peekMode?: boolean;
 	private _requestIdPool = 0;
 	private _ignoreModelChangeEvent = false;
 
@@ -71,7 +68,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._model = undefined;
 	}
 
-	toggleWidget(range: Range, modelPromise: CancelablePromise<ReferencesModel>, options: RequestOptions): void {
+	toggleWidget(range: Range, modelPromise: CancelablePromise<ReferencesModel>, peekMode: boolean): void {
 
 		// close current widget and return early is position didn't change
 		let widgetPosition: Position | undefined;
@@ -83,6 +80,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			return;
 		}
 
+		this._peekMode = peekMode;
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
@@ -109,27 +107,25 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 		this._disposables.add(this._widget.onDidSelectReference(event => {
 			let { element, kind } = event;
+			if (!element) {
+				return;
+			}
 			switch (kind) {
 				case 'open':
-					if (event.source === 'editor'
-						&& this._configurationService.getValue('editor.stablePeek')) {
-
+					if (event.source !== 'editor' || !this._configurationService.getValue('editor.stablePeek')) {
 						// when stable peek is configured we don't close
 						// the peek window on selecting the editor
-						break;
-					}
-				case 'side':
-					if (element) {
-						this.openReference(element, kind === 'side');
+						this.openReference(element, false);
 					}
 					break;
+				case 'side':
+					this.openReference(element, true);
+					break;
 				case 'goto':
-					if (element) {
-						if (options.onGoto) {
-							options.onGoto(element);
-						} else {
-							this._gotoReference(element);
-						}
+					if (peekMode) {
+						this._gotoReference(element);
+					} else {
+						this.openReference(element, false);
 					}
 					break;
 			}
@@ -249,7 +245,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 				other.toggleWidget(
 					range,
 					createCancelablePromise(_ => Promise.resolve(model)),
-					{}
+					this._peekMode ?? false
 				);
 			}
 
