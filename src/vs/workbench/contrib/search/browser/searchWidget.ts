@@ -475,7 +475,7 @@ export class SearchWidget extends Widget {
 			keyboardEvent.preventDefault();
 		}
 
-		if (keyboardEvent.equals(KeyCode.UpArrow)) {
+		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
 			stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
 		}
 
