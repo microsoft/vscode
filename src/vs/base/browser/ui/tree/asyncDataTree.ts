@@ -806,7 +806,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 				if (recursive) {
 					if (result.collapsed) {
-						dfs(asyncDataTreeNode, node => node.stale = true);
+						asyncDataTreeNode.children.splice(0, asyncDataTreeNode.children.length);
+						asyncDataTreeNode.stale = true;
 					} else {
 						childrenToRefresh.push(asyncDataTreeNode);
 					}
@@ -869,6 +870,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	protected asTreeElement(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): ITreeElement<IAsyncDataTreeNode<TInput, T>> {
+		if (node.stale) {
+			return {
+				element: node,
+				collapsible: node.hasChildren,
+				collapsed: true
+			};
+		}
+
 		let collapsed: boolean | undefined;
 
 		if (viewStateContext && viewStateContext.viewState.expanded && node.id && viewStateContext.viewState.expanded.indexOf(node.id) > -1) {
