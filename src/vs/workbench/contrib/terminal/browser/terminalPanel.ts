@@ -252,10 +252,9 @@ export class TerminalPanel extends Panel {
 					getActions: () => this._getContextMenuActions(),
 					getActionsContext: () => this._parentDomElement
 				});
-			} else {
-				event.preventDefault();
-				event.stopImmediatePropagation();
 			}
+			event.preventDefault();
+			event.stopImmediatePropagation();
 			this._cancelContextMenu = false;
 		}));
 		this._register(dom.addDisposableListener(document, 'keydown', (event: KeyboardEvent) => {
