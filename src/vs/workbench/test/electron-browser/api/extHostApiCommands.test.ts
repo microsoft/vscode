@@ -67,13 +67,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			rpcProtocol = new TestRPCProtocol();
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
-				executeCommand(id: string, args: any): any {
+				executeCommand(id: string, ...args: any): any {
 					const command = CommandsRegistry.getCommands().get(id);
 					if (!command) {
 						return Promise.reject(new Error(id + ' NOT known'));
 					}
 					const { handler } = command;
-					return Promise.resolve(instantiationService.invokeFunction(handler, args));
+					return Promise.resolve(instantiationService.invokeFunction(handler, ...args));
 				}
 			});
 			instantiationService.stub(IMarkerService, new MarkerService());
@@ -855,5 +855,47 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
 		assert.equal(value.length, 1);
 		assert.ok(value[0].parent);
+	});
+
+	// --- call hierarcht
+
+	test('CallHierarchy, back and forth', async function () {
+
+		disposables.push(extHost.registerCallHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.CallHierarchyProvider {
+
+			prepareCallHierarchy(document: vscode.TextDocument, position: vscode.Position, ): vscode.ProviderResult<vscode.CallHierarchyItem> {
+				return new types.CallHierarchyItem(types.SymbolKind.Constant, 'ROOT', 'ROOT', document.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0));
+			}
+
+			provideCallHierarchyIncomingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyIncomingCall[]> {
+
+				return [new types.CallHierarchyIncomingCall(
+					new types.CallHierarchyItem(types.SymbolKind.Constant, 'INCOMING', 'INCOMING', item.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0)),
+					[new types.Range(0, 0, 0, 0)]
+				)];
+			}
+
+			provideCallHierarchyOutgoingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyOutgoingCall[]> {
+				return [new types.CallHierarchyOutgoingCall(
+					new types.CallHierarchyItem(types.SymbolKind.Constant, 'OUTGOING', 'OUTGOING', item.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0)),
+					[new types.Range(0, 0, 0, 0)]
+				)];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const root = await commands.executeCommand<vscode.CallHierarchyItem>('vscode.prepareCallHierarchy', model.uri, new types.Position(0, 0));
+
+		assert.ok(root);
+		assert.equal(root.name, 'ROOT');
+
+		const incoming = await commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', root);
+		assert.equal(incoming.length, 1);
+		assert.equal(incoming[0].from.name, 'INCOMING');
+
+		const outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', root);
+		assert.equal(outgoing.length, 1);
+		assert.equal(outgoing[0].to.name, 'OUTGOING');
 	});
 });
