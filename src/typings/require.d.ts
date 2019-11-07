@@ -46,5 +46,5 @@ interface NodeRequire {
 	config(data: any): any;
 	onError: Function;
 	__$__nodeRequire<T>(moduleName: string): T;
-	getStats(): ReadonlyArray<LoaderEvent>
+	getStats(): ReadonlyArray<LoaderEvent>;
 }
