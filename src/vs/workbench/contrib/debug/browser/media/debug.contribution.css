@@ -119,7 +119,8 @@
 	background: url('breakpoint-unsupported.svg') center center no-repeat;
 }
 
-.monaco-editor .inline-breakpoint-widget.debug-breakpoint-and-top-stack-frame {
+.monaco-editor .debug-top-stack-frame.debug-breakpoint-and-top-stack-frame,
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-and-top-stack-frame-at-column {
 	background: url('current-and-breakpoint.svg') center center no-repeat;
 }
 

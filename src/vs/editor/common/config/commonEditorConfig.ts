@@ -342,18 +342,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return EditorConfiguration2.computeOptions(this._validatedOptions, env);
 	}
 
-	private static _primitiveArrayEquals(a: any[], b: any[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 	private static _subsetEquals(base: { [key: string]: any }, subset: { [key: string]: any }): boolean {
 		for (const key in subset) {
 			if (hasOwnProperty.call(subset, key)) {
@@ -364,7 +352,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 					continue;
 				}
 				if (Array.isArray(baseValue) && Array.isArray(subsetValue)) {
-					if (!this._primitiveArrayEquals(baseValue, subsetValue)) {
+					if (!arrays.equals(baseValue, subsetValue)) {
 						return false;
 					}
 					continue;
@@ -488,29 +476,6 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'integer',
 			default: 20_000,
 			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
-		},
-		'editor.codeActionsOnSave': {
-			type: 'object',
-			properties: {
-				'source.organizeImports': {
-					type: 'boolean',
-					description: nls.localize('codeActionsOnSave.organizeImports', "Controls whether organize imports action should be run on file save.")
-				},
-				'source.fixAll': {
-					type: 'boolean',
-					description: nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
-				}
-			},
-			'additionalProperties': {
-				type: 'boolean'
-			},
-			default: {},
-			description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
-		},
-		'editor.codeActionsOnSaveTimeout': {
-			type: 'number',
-			default: 750,
-			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled.")
 		},
 		'diffEditor.maxComputationTime': {
 			type: 'number',

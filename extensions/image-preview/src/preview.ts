@@ -27,7 +27,7 @@ export class PreviewManager {
 
 	public resolve(
 		resource: vscode.Uri,
-		webviewEditor: vscode.WebviewEditor,
+		webviewEditor: vscode.WebviewPanel,
 	) {
 		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
@@ -73,7 +73,7 @@ class Preview extends Disposable {
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
 		private readonly resource: vscode.Uri,
-		private readonly webviewEditor: vscode.WebviewEditor,
+		private readonly webviewEditor: vscode.WebviewPanel,
 		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) {
@@ -115,6 +115,7 @@ class Preview extends Disposable {
 
 		this._register(webviewEditor.onDidChangeViewState(() => {
 			this.update();
+			this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 		}));
 
 		this._register(webviewEditor.onDidDispose(() => {
@@ -139,6 +140,7 @@ class Preview extends Disposable {
 
 		this.render();
 		this.update();
+		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
 	public zoomIn() {
@@ -175,7 +177,6 @@ class Preview extends Disposable {
 			}
 			this._previewState = PreviewState.Visible;
 		}
-		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
 	private getWebiewContents(): string {
@@ -208,7 +209,7 @@ class Preview extends Disposable {
 </html>`;
 	}
 
-	private getResourcePath(webviewEditor: vscode.WebviewEditor, resource: vscode.Uri, version: string) {
+	private getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string) {
 		switch (resource.scheme) {
 			case 'data':
 				return encodeURI(resource.toString(true));

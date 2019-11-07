@@ -530,6 +530,12 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 }
 
 /**
+ * @internal
+ * The width of the minimap gutter, in pixels.
+ */
+export const MINIMAP_GUTTER_WIDTH = 8;
+
+/**
  * Configuration options for the diff editor.
  */
 export interface IDiffEditorOptions extends IEditorOptions {
@@ -1287,6 +1293,8 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 
 //#region gotoLocation
 
+export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
+
 /**
  * Configuration options for go to location
  */
@@ -1294,7 +1302,12 @@ export interface IGotoLocationOptions {
 	/**
 	 * Control how goto-command work when having multiple results.
 	 */
-	multiple?: 'peek' | 'gotoAndPeek' | 'goto';
+	multiple?: GoToLocationValues;
+	multipleDefinitions?: GoToLocationValues;
+	multipleTypeDefinitions?: GoToLocationValues;
+	multipleDeclarations?: GoToLocationValues;
+	multipleImplemenations?: GoToLocationValues;
+	multipleReferences?: GoToLocationValues;
 }
 
 export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
@@ -1302,20 +1315,49 @@ export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
 class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoToLocationOptions> {
 
 	constructor() {
-		const defaults: GoToLocationOptions = { multiple: 'peek' };
+		const defaults: GoToLocationOptions = {
+			multiple: 'peek',
+			multipleDefinitions: 'peek',
+			multipleTypeDefinitions: 'peek',
+			multipleDeclarations: 'peek',
+			multipleImplemenations: 'peek',
+			multipleReferences: 'peek',
+		};
+		const jsonSubset = {
+			type: 'string',
+			enum: ['peek', 'gotoAndPeek', 'goto'],
+			default: defaults.multiple,
+			enumDescriptions: [
+				nls.localize('editor.gotoLocation.multiple.peek', 'Show peek view of the results (default)'),
+				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a peek view'),
+				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable peek-less navigation to others')
+			]
+		};
 		super(
 			EditorOption.gotoLocation, 'gotoLocation', defaults,
 			{
 				'editor.gotoLocation.multiple': {
-					description: nls.localize('editor.gotoLocation.multiple', "Controls the behavior of 'Go To' commands, like Go To Definition, when multiple target locations exist."),
-					type: 'string',
-					enum: ['peek', 'gotoAndPeek', 'goto'],
-					default: defaults.multiple,
-					enumDescriptions: [
-						nls.localize('editor.gotoLocation.multiple.peek', 'Show peek view of the results (default)'),
-						nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a peek view'),
-						nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable peek-less navigation to others')
-					]
+					deprecationMessage: nls.localize('editor.gotoLocation.multiple.deprecated', "This setting is deprecated, please use separate settings like 'editor.editor.gotoLocation.multipleDefinitions' or 'editor.editor.gotoLocation.multipleImplemenations' instead."),
+				},
+				'editor.gotoLocation.multipleDefinitions': {
+					description: nls.localize('editor.editor.gotoLocation.multipleDefinitions', "Controls the behavior the 'Go to Definition'-command when multiple target locations exist."),
+					...jsonSubset,
+				},
+				'editor.gotoLocation.multipleTypeDefinitions': {
+					description: nls.localize('editor.editor.gotoLocation.multipleTypeDefinitions', "Controls the behavior the 'Go to Type Definition'-command when multiple target locations exist."),
+					...jsonSubset,
+				},
+				'editor.gotoLocation.multipleDeclarations': {
+					description: nls.localize('editor.editor.gotoLocation.multipleDeclarations', "Controls the behavior the 'Go to Declaration'-command when multiple target locations exist."),
+					...jsonSubset,
+				},
+				'editor.gotoLocation.multipleImplemenations': {
+					description: nls.localize('editor.editor.gotoLocation.multipleImplemenattions', "Controls the behavior the 'Go to Implemenations'-command when multiple target locations exist."),
+					...jsonSubset,
+				},
+				'editor.gotoLocation.multipleReferences': {
+					description: nls.localize('editor.editor.gotoLocation.multipleReferences', "Controls the behavior the 'Go to References'-command when multiple target locations exist."),
+					...jsonSubset,
 				},
 			}
 		);
@@ -1327,7 +1369,12 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 		}
 		const input = _input as IGotoLocationOptions;
 		return {
-			multiple: EditorStringEnumOption.stringSet<'peek' | 'gotoAndPeek' | 'goto'>(input.multiple, this.defaultValue.multiple, ['peek', 'gotoAndPeek', 'goto'])
+			multiple: EditorStringEnumOption.stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple!, ['peek', 'gotoAndPeek', 'goto']),
+			multipleDefinitions: input.multipleDefinitions ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multipleTypeDefinitions: input.multipleTypeDefinitions ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleTypeDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multipleDeclarations: input.multipleDeclarations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multipleImplemenations: input.multipleImplemenations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleImplemenations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multipleReferences: input.multipleReferences ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleReferences, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 		};
 	}
 }
@@ -1656,7 +1703,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth
 			// minimapWidth = ((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
 
-			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)));
+			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth))) + MINIMAP_GUTTER_WIDTH;
 			let minimapColumns = minimapWidth / minimapCharWidth;
 			if (minimapColumns > minimapMaxColumn) {
 				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
@@ -2474,11 +2521,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		super(
 			EditorOption.suggest, 'suggest', defaults,
 			{
-				// 'editor.suggest.overwriteOnAccept': {
-				// 	type: 'boolean',
-				// 	default: defaults.overwriteOnAccept,
-				// 	description: nls.localize('suggest.overwriteOnAccept', "Controls whether words are overwritten when accepting completions.")
-				// },
+				'editor.suggest.overwriteOnAccept': {
+					type: 'boolean',
+					default: defaults.overwriteOnAccept,
+					description: nls.localize('suggest.overwriteOnAccept', "Controls whether words are overwritten when accepting completions.")
+				},
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
 					default: defaults.filterGraceful,

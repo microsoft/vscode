@@ -5,7 +5,7 @@
 
 import { Application, Quality, StatusBarElement } from '../../../../automation';
 
-export function setup() {
+export function setup(isWeb) {
 	describe('Statusbar', () => {
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;
@@ -18,7 +18,10 @@ export function setup() {
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
 
 			await app.workbench.quickopen.openFile('app.js');
-			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
+			if (!isWeb) {
+				// Encoding picker currently hidden in web (only UTF-8 supported)
+				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
+			}
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.EOL_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.INDENTATION_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.LANGUAGE_STATUS);
@@ -36,9 +39,12 @@ export function setup() {
 			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
-			await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
-			await app.workbench.quickinput.waitForQuickInputOpened();
-			await app.workbench.quickinput.closeQuickInput();
+			if (!isWeb) {
+				// Encoding picker currently hidden in web (only UTF-8 supported)
+				await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
+				await app.workbench.quickinput.waitForQuickInputOpened();
+				await app.workbench.quickinput.closeQuickInput();
+			}
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();

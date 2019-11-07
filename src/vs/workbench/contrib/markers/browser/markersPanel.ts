@@ -34,7 +34,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Separator, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Separator, ActionViewItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -75,12 +75,12 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private readonly filter: Filter;
 
 	private tree!: MarkersTree;
+	private filterActionBar!: ActionBar;
 	private messageBoxContainer!: HTMLElement;
 	private ariaLabelElement!: HTMLElement;
 
 	private readonly collapseAllAction: IAction;
 	private readonly filterAction: MarkersFilterAction;
-	private filterInputActionViewItem: MarkersFilterActionViewItem | null = null;
 
 	private readonly panelState: MementoObject;
 	private panelFoucusContextKey: IContextKey<boolean>;
@@ -91,6 +91,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 	readonly markersViewModel: MarkersViewModel;
+	private isSmallLayout: boolean = false;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -129,6 +130,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		const container = dom.append(parent, dom.$('.markers-panel-container'));
 
+		this.createFilterActionBar(container);
 		this.createArialLabelElement(container);
 		this.createMessageBox(container);
 		this.createTree(container);
@@ -147,6 +149,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			}
 		}));
 
+		this.filterActionBar.push(this.filterAction);
 		this.render();
 	}
 
@@ -155,10 +158,15 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	public layout(dimension: dom.Dimension): void {
-		this.tree.layout(dimension.height, dimension.width);
-		if (this.filterInputActionViewItem) {
-			this.filterInputActionViewItem.toggleLayout(dimension.width < 1200);
+		const wasSmallLayout = this.isSmallLayout;
+		this.isSmallLayout = dimension.width < 600;
+		if (this.isSmallLayout !== wasSmallLayout) {
+			this.updateTitleArea();
+			dom.toggleClass(this.filterActionBar.getContainer(), 'hide', !this.isSmallLayout);
 		}
+		const treeHeight = this.isSmallLayout ? dimension.height - 44 : dimension.height;
+		this.tree.layout(treeHeight, dimension.width);
+		this.filterAction.layout(this.isSmallLayout ? dimension.width : dimension.width - 200);
 	}
 
 	public focus(): void {
@@ -174,12 +182,13 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	public focusFilter(): void {
-		if (this.filterInputActionViewItem) {
-			this.filterInputActionViewItem.focus();
-		}
+		this.filterAction.focus();
 	}
 
 	public getActions(): IAction[] {
+		if (this.isSmallLayout) {
+			return [this.collapseAllAction];
+		}
 		return [this.filterAction, this.collapseAllAction];
 	}
 
@@ -289,6 +298,12 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return deepClone(this.configurationService.getValue('files.exclude', { resource })) || {};
 	}
 
+	private createFilterActionBar(parent: HTMLElement): void {
+		this.filterActionBar = this._register(new ActionBar(parent, { actionViewItemProvider: action => this.getActionViewItem(action) }));
+		dom.addClass(this.filterActionBar.getContainer(), 'markers-panel-filter-container');
+		dom.toggleClass(this.filterActionBar.getContainer(), 'hide', !this.isSmallLayout);
+	}
+
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
 		this.messageBoxContainer.setAttribute('aria-labelledby', 'markers-panel-arialabel');
@@ -369,8 +384,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		// move focus to input, whenever a key is pressed in the panel container
 		this._register(domEvent(parent, 'keydown')(e => {
-			if (this.filterInputActionViewItem && this.keybindingService.mightProducePrintableCharacter(new StandardKeyboardEvent(e))) {
-				this.filterInputActionViewItem.focus();
+			if (this.keybindingService.mightProducePrintableCharacter(new StandardKeyboardEvent(e))) {
+				this.filterAction.focus();
 			}
 		}));
 
@@ -671,8 +686,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	public getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === MarkersFilterAction.ID) {
-			this.filterInputActionViewItem = this.instantiationService.createInstance(MarkersFilterActionViewItem, this.filterAction, this);
-			return this.filterInputActionViewItem;
+			return this.instantiationService.createInstance(MarkersFilterActionViewItem, this.filterAction, this);
 		}
 		return super.getActionViewItem(action);
 	}

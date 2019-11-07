@@ -205,11 +205,11 @@ export interface IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined;
 }
 
-export interface IUntitledResourceInput extends IBaseResourceInput {
+export interface IUntitledTextResourceInput extends IBaseResourceInput {
 
 	/**
 	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
-	 * Otherwise the untitled editor will have an associated path and use that when saving.
+	 * Otherwise the untitled text editor will have an associated path and use that when saving.
 	 */
 	resource?: URI;
 
@@ -1149,7 +1149,7 @@ export const Extensions = {
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledResourceInput)[]> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledTextResourceInput)[]> {
 	if (!paths || !paths.length) {
 		return [];
 	}
@@ -1170,7 +1170,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			};
 		}
 
-		let input: IResourceInput | IUntitledResourceInput;
+		let input: IResourceInput | IUntitledTextResourceInput;
 		if (!exists) {
 			input = { resource, options, forceUntitled: true };
 		} else {

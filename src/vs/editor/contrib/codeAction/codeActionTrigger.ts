@@ -10,6 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 export class CodeActionKind {
 	private static readonly sep = '.';
 
+	public static readonly None = new CodeActionKind('@@none@@'); // Special code action that contains nothing
 	public static readonly Empty = new CodeActionKind('');
 	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');
@@ -26,7 +27,7 @@ export class CodeActionKind {
 	}
 
 	public contains(other: CodeActionKind): boolean {
-		return this.equals(other) || startsWith(other.value, this.value + CodeActionKind.sep);
+		return this.equals(other) || this.value === '' || startsWith(other.value, this.value + CodeActionKind.sep);
 	}
 
 	public intersects(other: CodeActionKind): boolean {
@@ -35,9 +36,9 @@ export class CodeActionKind {
 }
 
 export const enum CodeActionAutoApply {
-	IfSingle,
-	First,
-	Never,
+	IfSingle = 'ifSingle',
+	First = 'first',
+	Never = 'never',
 }
 
 export interface CodeActionFilter {

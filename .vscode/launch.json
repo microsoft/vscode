@@ -270,10 +270,11 @@
 	],
 	"compounds": [
 		{
-			"name": "Debug VS Code Main and Renderer",
+			"name": "Debug VS Code Main, Renderer & Extension Host",
 			"configurations": [
 				"Launch VS Code",
-				"Attach to Main Process"
+				"Attach to Main Process",
+				"Attach to Extension Host"
 			]
 		},
 		{
