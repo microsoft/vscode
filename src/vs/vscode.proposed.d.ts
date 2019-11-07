@@ -84,6 +84,12 @@ declare module 'vscode' {
 		public readonly line: number;
 		/**
 		 * The actual token block encoded data.
+		 * A certain token (at index `i` is encoded using 5 uint32 integers):
+		 *  - at index `5*i`   - `deltaLine`: token line number, relative to `SemanticColoringArea.line`
+		 *  - at index `5*i+1` - `startCharacter`: token start character offset inside the line (inclusive)
+		 *  - at index `5*i+2` - `endCharacter`: token end character offset inside the line (exclusive)
+		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticColoringLegend.tokenTypes`
+		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticColoringLegend.tokenModifiers`
 		 */
 		public readonly data: Uint32Array;
 
