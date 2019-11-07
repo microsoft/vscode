@@ -23,7 +23,7 @@ export interface GitUriOptions {
 // As a mitigation for extensions like ESLint showing warnings and errors
 // for git URIs, let's change the file extension of these uris to .git,
 // when `replaceFileExtension` is true.
-function _toGitUri(scheme: string, uri: Uri, ref: string, options: GitUriOptions = {}): Uri {
+export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Uri {
 	const params: GitUriParams = {
 		path: uri.fsPath,
 		ref
@@ -42,16 +42,8 @@ function _toGitUri(scheme: string, uri: Uri, ref: string, options: GitUriOptions
 	}
 
 	return uri.with({
-		scheme,
+		scheme: 'gitfs',
 		path,
 		query: JSON.stringify(params)
 	});
-}
-
-export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Uri {
-	return _toGitUri('git', uri, ref, options);
-}
-
-export function toGitFSUri(uri: Uri, ref: string, options: GitUriOptions = {}): Uri {
-	return _toGitUri('gitfs', uri, ref, options);
 }

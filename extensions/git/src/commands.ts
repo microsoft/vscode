@@ -14,7 +14,7 @@ import { CommitOptions, ForcePushMode, Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
-import { fromGitUri, toGitFSUri } from './uri';
+import { fromGitUri, toGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
 
 const localize = nls.loadMessageBundle();
@@ -291,7 +291,7 @@ export class CommandCenter {
 			const repository = this.model.getRepositoryForSubmodule(resource.resourceUri);
 
 			if (repository) {
-				right = toGitFSUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
+				right = toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
 			}
 		} else {
 			if (resource.type !== Status.DELETED_BY_THEM) {
@@ -334,7 +334,7 @@ export class CommandCenter {
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
-			return toGitFSUri(uri, ref);
+			return toGitUri(uri, ref);
 		}
 
 		try {
@@ -350,7 +350,7 @@ export class CommandCenter {
 			const { mimetype } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {
-				return toGitFSUri(uri, ref);
+				return toGitUri(uri, ref);
 			}
 
 			if (size > 1000000) { // 1 MB
@@ -365,7 +365,7 @@ export class CommandCenter {
 			return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
 
 		} catch (err) {
-			return toGitFSUri(uri, ref);
+			return toGitUri(uri, ref);
 		}
 	}
 
@@ -1012,7 +1012,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const originalUri = toGitFSUri(modifiedUri, '~');
+		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 
@@ -1060,7 +1060,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const originalUri = toGitFSUri(modifiedUri, '~');
+		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectionsBeforeRevert = textEditor.selections;
 		const visibleRangesBeforeRevert = textEditor.visibleRanges;
@@ -1127,7 +1127,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const originalUri = toGitFSUri(modifiedUri, 'HEAD');
+		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
 		const selectedDiffs = diffs

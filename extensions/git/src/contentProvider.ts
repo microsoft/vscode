@@ -5,7 +5,7 @@
 
 import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
 import { debounce, throttle } from './decorators';
-import { fromGitUri, toGitFSUri } from './uri';
+import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
 import { filterEvent, eventToPromise, isDescendant, pathEquals } from './util';
 
@@ -50,7 +50,7 @@ export class GitContentProvider {
 			return;
 		}
 
-		this._onDidChange.fire(toGitFSUri(uri, '', { replaceFileExtension: true }));
+		this._onDidChange.fire(toGitUri(uri, '', { replaceFileExtension: true }));
 	}
 
 	@debounce(1100)

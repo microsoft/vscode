@@ -5,9 +5,9 @@
 
 import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError } from 'vscode';
 import { debounce, throttle } from './decorators';
-import { fromGitUri, toGitFSUri } from './uri';
+import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
-import { filterEvent, eventToPromise, isDescendant, pathEquals } from './util';
+import { filterEvent, eventToPromise, isDescendant, pathEquals, EmptyDisposable } from './util';
 
 interface CacheRow {
 	uri: Uri;
@@ -46,7 +46,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			return;
 		}
 
-		const gitUri = toGitFSUri(uri, '', { replaceFileExtension: true });
+		const gitUri = toGitUri(uri, '', { replaceFileExtension: true });
 		this._onDidChangeFile.fire([{ type: FileChangeType.Changed, uri: gitUri }]);
 	}
 
@@ -102,10 +102,8 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.cache = cache;
 	}
 
-	//#region File System Provider
-
 	watch(): Disposable {
-		throw new Error('Method not implemented.');
+		return EmptyDisposable;
 	}
 
 	stat(uri: Uri): FileStat {
@@ -184,8 +182,6 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	rename(): void {
 		throw new Error('Method not implemented.');
 	}
-
-	//#endregion File System Provider
 
 	dispose(): void {
 		this.disposables.forEach(d => d.dispose());
