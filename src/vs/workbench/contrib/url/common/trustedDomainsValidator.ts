@@ -19,6 +19,7 @@ import {
 	readTrustedDomains
 } from 'vs/workbench/contrib/url/common/trustedDomains';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 	constructor(
@@ -27,13 +28,14 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IProductService private readonly _productService: IProductService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
 	}
 
 	async validateLink(resource: URI): Promise<boolean> {
-		const { scheme, authority } = resource;
+		const { scheme, authority, path, query, fragment } = resource;
 
 		if (!equalsIgnoreCase(scheme, Schemas.http) && !equalsIgnoreCase(scheme, Schemas.https)) {
 			return true;
@@ -46,21 +48,38 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		if (isURLDomainTrusted(resource, allTrustedDomains)) {
 			return true;
 		} else {
+			let formattedLink = `${scheme}://${authority}${path}`;
+
+			const linkTail = `${query ? '?' + query : ''}${fragment ? '#' + fragment : ''}`;
+
+
+			const remainingLength = Math.max(0, 60 - formattedLink.length);
+			const linkTailLengthToKeep = Math.min(Math.max(5, remainingLength), linkTail.length);
+
+			if (linkTailLengthToKeep === linkTail.length) {
+				formattedLink += linkTail;
+			} else {
+				// keep the first char ? or #
+				// add ... and keep the tail end as much as possible
+				formattedLink += linkTail.charAt(0) + '...' + linkTail.substring(linkTail.length - linkTailLengthToKeep + 1);
+			}
+
 			const { choice } = await this._dialogService.show(
 				Severity.Info,
 				localize(
 					'openExternalLinkAt',
-					'Do you want {0} to open the external website?\n{1}',
-					this._productService.nameShort,
-					resource.toString(true)
+					'Do you want {0} to open the external website?',
+					this._productService.nameShort
 				),
 				[
 					localize('openLink', 'Open Link'),
+					localize('copyLink', 'Copy Link'),
 					localize('cancel', 'Cancel'),
 					localize('configureTrustedDomains', 'Configure Trusted Domains')
 				],
 				{
-					cancelId: 1
+					detail: formattedLink,
+					cancelId: 2
 				}
 			);
 
@@ -68,8 +87,12 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 			if (choice === 0) {
 				return true;
 			}
+			// Copy Link
+			else if (choice === 1) {
+				this._clipboardService.writeText(resource.toString(true));
+			}
 			// Configure Trusted Domains
-			else if (choice === 2) {
+			else if (choice === 3) {
 				const pickedDomains = await configureOpenerTrustedDomainsHandler(
 					trustedDomains,
 					domainToOpen,
