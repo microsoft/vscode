@@ -92,7 +92,7 @@ export class QueryBuilder {
 		const fallbackToPCRE = folderResources && folderResources.some(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 			return !folderConfig.search.useRipgrep;
-		});
+		}) || contentPattern.isRegExp && strings.regExpContainsBackreference(contentPattern.pattern);
 
 		const commonQuery = this.commonQuery(folderResources, options);
 		return <ITextQuery>{

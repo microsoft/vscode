@@ -436,12 +436,6 @@ export class SearchWidget extends Widget {
 			return { content: e.message };
 		}
 
-		if (strings.regExpContainsBackreference(value)) {
-			if (!this.searchConfiguration.usePCRE2) {
-				return { content: nls.localize('regexp.backreferenceValidationFailure', "Backreferences are not supported") };
-			}
-		}
-
 		return null;
 	}
 
