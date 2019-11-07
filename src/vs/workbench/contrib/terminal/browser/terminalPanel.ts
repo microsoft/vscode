@@ -144,8 +144,10 @@ export class TerminalPanel extends Panel {
 			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.SHORT_LABEL);
 
 			const clipboardActions = [];
-			if (BrowserFeatures.clipboard.access) {
+			if (BrowserFeatures.clipboard.writeText) {
 				clipboardActions.push(this._copyContextMenuAction);
+			}
+			if (BrowserFeatures.clipboard.readText) {
 				clipboardActions.push(this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.SHORT_LABEL));
 			}
 

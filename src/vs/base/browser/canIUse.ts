@@ -4,16 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 
 /**
  * Browser feature we can support in current platform, browser and environment.
  */
 export const BrowserFeatures = {
 	clipboard: {
-		access: !!(navigator
-			&& navigator.clipboard
-			&& navigator.clipboard.readText
-			&& navigator.clipboard.writeText),
+		writeText: (
+			platform.isNative
+			|| document.queryCommandSupported('copy')
+			|| !!(navigator && navigator.clipboard && navigator.clipboard.writeText)
+		),
+		readText: (
+			platform.isNative
+			|| !!(navigator && navigator.clipboard && navigator.clipboard.readText)
+		),
 		richText: (() => {
 			if (browser.isIE) {
 				return false;
