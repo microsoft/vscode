@@ -474,7 +474,7 @@ class ModelSemanticColoring extends Disposable {
 
 		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
 		this._register(SemanticColoringProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
-		this._fetchSemanticTokensNow();
+		this._fetchSemanticTokens.schedule(0);
 	}
 
 	public dispose(): void {
