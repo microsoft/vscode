@@ -46,7 +46,7 @@ import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
 import { flatten } from 'vs/base/common/arrays';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -241,7 +241,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this._register(browser.onDidChangeFullscreen(() => {
 			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;
 
-			if (!BrowserFeatures.fullKeyboard) {
+			if (BrowserFeatures.keyboard === KeyboardSupport.None) {
 				return;
 			}
 
@@ -352,15 +352,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private _assertBrowserConflicts(kb: Keybinding, commandId: string): boolean {
-		if (!isWeb) {
+		if (BrowserFeatures.keyboard === KeyboardSupport.Always) {
 			return false;
 		}
 
-		if (browser.isStandalone) {
-			return false;
-		}
-
-		if (browser.isFullscreen() && BrowserFeatures.fullKeyboard) {
+		if (BrowserFeatures.keyboard === KeyboardSupport.FullScreen && browser.isFullscreen()) {
 			return false;
 		}
 
