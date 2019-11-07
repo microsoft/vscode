@@ -150,9 +150,9 @@ export class CodeActionWidget extends Disposable {
 		return candidates
 			.filter(candidate => candidate.kind.contains(kind))
 			.filter(candidate => {
-				if (candidate.preferred && !action.isPreferred) {
-					// The candidate keybinding only applies to preferred actions, and this action is not preferred
-					return false;
+				if (candidate.preferred) {
+					// If the candidate keybinding only applies to preferred actions, the this action must also be preferred
+					return action.isPreferred;
 				}
 				return true;
 			})
