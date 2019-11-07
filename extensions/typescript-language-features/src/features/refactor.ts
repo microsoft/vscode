@@ -123,13 +123,39 @@ class SelectRefactorCommand implements Command {
 	}
 }
 
+interface CodeActionKind {
+	readonly kind: vscode.CodeActionKind;
+	matches(refactor: Proto.RefactorActionInfo): boolean;
+}
+
+const ExtractFunction = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorExtract.append('function'),
+	matches: refactor => refactor.name.startsWith('function_')
+});
+
+const ExtractConstant = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorExtract.append('constant'),
+	matches: refactor => refactor.name.startsWith('constant_')
+});
+
+const ExtractType = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorExtract.append('type'),
+	matches: refactor => refactor.name.includes('Extract to type alias')
+});
+
+const ExtractInterface = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorExtract.append('interface'),
+	matches: refactor => refactor.name.includes('Extract to interface')
+});
+
+const Move = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.Refactor.append('move'),
+	matches: refactor => refactor.name.startsWith('Move')
+});
+
+
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	public static readonly minVersion = API.v240;
-
-	private static readonly extractFunctionKind = vscode.CodeActionKind.RefactorExtract.append('function');
-	private static readonly extractConstantKind = vscode.CodeActionKind.RefactorExtract.append('constant');
-	private static readonly extractTypeKind = vscode.CodeActionKind.RefactorExtract.append('type');
-	private static readonly moveKind = vscode.CodeActionKind.Refactor.append('move');
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -224,25 +250,17 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {
-		if (refactor.name.startsWith('function_')) {
-			return TypeScriptRefactorProvider.extractFunctionKind;
-		} else if (refactor.name.startsWith('constant_')) {
-			return TypeScriptRefactorProvider.extractConstantKind;
-		} else if (refactor.name.startsWith('Move')) {
-			return TypeScriptRefactorProvider.moveKind;
-		} else if (refactor.name.includes('Extract to type alias')) {
-			return TypeScriptRefactorProvider.extractTypeKind;
-		}
-		return vscode.CodeActionKind.Refactor;
+		const match = [ExtractFunction, ExtractConstant, ExtractType, ExtractInterface, Move].find(kind => kind.matches(refactor));
+		return match ? match.kind : vscode.CodeActionKind.Refactor;
 	}
 
 	private static isPreferred(
 		action: Proto.RefactorActionInfo
 	): boolean {
-		if (action.name.startsWith('constant_')) {
+		if (ExtractConstant.matches(action)) {
 			return action.name.endsWith('scope_0');
 		}
-		if (action.name.includes('Extract to type alias')) {
+		if (ExtractType.matches(action) || ExtractInterface.matches(action)) {
 			return true;
 		}
 		return false;
