@@ -119,20 +119,6 @@ export class MarkersFilterAction extends Action {
 		}
 	}
 
-	focus(): void {
-		this._onFocus.fire();
-	}
-
-	layout(width: number): void {
-		if (width > 600) {
-			this.class = 'markers-panel-action-filter grow';
-		} else if (width < 400) {
-			this.class = 'markers-panel-action-filter small';
-		} else {
-			this.class = 'markers-panel-action-filter';
-		}
-	}
-
 	private _showWarnings: boolean = true;
 	get showWarnings(): boolean {
 		return this._showWarnings;
@@ -163,6 +149,20 @@ export class MarkersFilterAction extends Action {
 		if (this._showInfos !== showInfos) {
 			this._showInfos = showInfos;
 			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ showInfos: true });
+		}
+	}
+
+	focus(): void {
+		this._onFocus.fire();
+	}
+
+	layout(width: number): void {
+		if (width > 600) {
+			this.class = 'markers-panel-action-filter grow';
+		} else if (width < 400) {
+			this.class = 'markers-panel-action-filter small';
+		} else {
+			this.class = 'markers-panel-action-filter';
 		}
 	}
 }

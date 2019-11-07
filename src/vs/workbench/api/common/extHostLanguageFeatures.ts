@@ -26,6 +26,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { IdGenerator } from 'vs/base/common/idGenerator';
 
 // --- adapter
 
@@ -751,7 +752,7 @@ class SuggestAdapter {
 		}
 
 		// 'overwrite[Before|After]'-logic
-		let range: vscode.Range | { inserting: vscode.Range, replacing: vscode.Range } | undefined;
+		let range: vscode.Range | { inserting: vscode.Range, replacing: vscode.Range; } | undefined;
 		if (item.textEdit) {
 			range = item.textEdit.range;
 		} else if (item.range) {
@@ -1034,15 +1035,15 @@ class SelectionRangeAdapter {
 
 class CallHierarchyAdapter {
 
-	private _idPool: number = 0;
-	private readonly _cache = new Map<string, vscode.CallHierarchyItem[]>();
+	private readonly _idPool = new IdGenerator('');
+	private readonly _cache = new Map<string, Map<string, vscode.CallHierarchyItem>>();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.CallHierarchyProvider
 	) { }
 
-	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<{ sessionId: string, root: extHostProtocol.ICallHierarchyItemDto } | undefined> {
+	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
 
@@ -1050,13 +1051,14 @@ class CallHierarchyAdapter {
 		if (!item) {
 			return undefined;
 		}
-		const sessionId = String.fromCharCode(this._idPool++);
-		this._cache.set(sessionId, []);
-		return { sessionId, root: this._cacheAndConvertItem(sessionId, item) };
+		const sessionId = this._idPool.nextId();
+
+		this._cache.set(sessionId, new Map());
+		return this._cacheAndConvertItem(sessionId, item);
 	}
 
-	async provideCallsTo(itemId: string, token: CancellationToken): Promise<[extHostProtocol.ICallHierarchyItemDto, IRange[]][] | undefined> {
-		const item = this._itemFromCache(itemId);
+	async provideCallsTo(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IIncomingCallDto[] | undefined> {
+		const item = this._itemFromCache(sessionId, itemId);
 		if (!item) {
 			throw new Error('missing call hierarchy item');
 		}
@@ -1064,11 +1066,16 @@ class CallHierarchyAdapter {
 		if (!calls) {
 			return undefined;
 		}
-		return calls.map(call => (<[extHostProtocol.ICallHierarchyItemDto, IRange[]]>[this._cacheAndConvertItem(itemId, call.from), call.fromRanges.map(typeConvert.Range.from)]));
+		return calls.map(call => {
+			return {
+				from: this._cacheAndConvertItem(sessionId, call.from),
+				fromRanges: call.fromRanges.map(r => typeConvert.Range.from(r))
+			};
+		});
 	}
 
-	async provideCallsFrom(itemId: string, token: CancellationToken): Promise<[extHostProtocol.ICallHierarchyItemDto, IRange[]][] | undefined> {
-		const item = this._itemFromCache(itemId);
+	async provideCallsFrom(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IOutgoingCallDto[] | undefined> {
+		const item = this._itemFromCache(sessionId, itemId);
 		if (!item) {
 			throw new Error('missing call hierarchy item');
 		}
@@ -1076,7 +1083,12 @@ class CallHierarchyAdapter {
 		if (!calls) {
 			return undefined;
 		}
-		return calls.map(call => (<[extHostProtocol.ICallHierarchyItemDto, IRange[]]>[this._cacheAndConvertItem(itemId, call.to), call.fromRanges.map(typeConvert.Range.from)]));
+		return calls.map(call => {
+			return {
+				to: this._cacheAndConvertItem(sessionId, call.to),
+				fromRanges: call.fromRanges.map(r => typeConvert.Range.from(r))
+			};
+		});
 	}
 
 	releaseSession(sessionId: string): void {
@@ -1085,9 +1097,10 @@ class CallHierarchyAdapter {
 
 	private _cacheAndConvertItem(itemOrSessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
 		const sessionId = itemOrSessionId.charAt(0);
-		const array = this._cache.get(sessionId)!;
+		const map = this._cache.get(sessionId)!;
 		const dto: extHostProtocol.ICallHierarchyItemDto = {
-			id: sessionId + String.fromCharCode(array.length),
+			_sessionId: sessionId,
+			_itemId: map.size.toString(36),
 			name: item.name,
 			detail: item.detail,
 			kind: typeConvert.SymbolKind.from(item.kind),
@@ -1095,17 +1108,13 @@ class CallHierarchyAdapter {
 			range: typeConvert.Range.from(item.range),
 			selectionRange: typeConvert.Range.from(item.selectionRange),
 		};
-		array.push(item);
+		map.set(dto._itemId, item);
 		return dto;
 	}
 
-	private _itemFromCache(itemId: string): vscode.CallHierarchyItem | undefined {
-		const sessionId = itemId.charAt(0);
-		const array = this._cache.get(sessionId);
-		if (!array) {
-			return undefined;
-		}
-		return array[itemId.charCodeAt(1)];
+	private _itemFromCache(sessionId: string, itemId: string): vscode.CallHierarchyItem | undefined {
+		const map = this._cache.get(sessionId);
+		return map && map.get(itemId);
 	}
 }
 
@@ -1193,7 +1202,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A, extension: IExtensionDescription | undefined) => Promise<R>, fallbackValue: R): Promise<R> {
+	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A; }, callback: (adapter: A, extension: IExtensionDescription | undefined) => Promise<R>, fallbackValue: R): Promise<R> {
 		const data = this._adapter.get(handle);
 		if (!data) {
 			return Promise.resolve(fallbackValue);
@@ -1541,16 +1550,16 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<{ sessionId: string, root: extHostProtocol.ICallHierarchyItemDto } | undefined> {
+	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto | undefined> {
 		return this._withAdapter(handle, CallHierarchyAdapter, adapter => Promise.resolve(adapter.prepareSession(URI.revive(resource), position, token)), undefined);
 	}
 
-	$provideCallHierarchyIncomingCalls(handle: number, itemId: string, token: CancellationToken): Promise<[extHostProtocol.ICallHierarchyItemDto, IRange[]][] | undefined> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsTo(itemId, token), undefined);
+	$provideCallHierarchyIncomingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IIncomingCallDto[] | undefined> {
+		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsTo(sessionId, itemId, token), undefined);
 	}
 
-	$provideCallHierarchyOutgoingCalls(handle: number, itemId: string, token: CancellationToken): Promise<[extHostProtocol.ICallHierarchyItemDto, IRange[]][] | undefined> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsFrom(itemId, token), undefined);
+	$provideCallHierarchyOutgoingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IOutgoingCallDto[] | undefined> {
+		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsFrom(sessionId, itemId, token), undefined);
 	}
 
 	$releaseCallHierarchy(handle: number, sessionId: string): void {

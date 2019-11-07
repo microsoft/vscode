@@ -70,6 +70,8 @@
     "@types/node": "^10.12.12",
     "@types/semver": "^5.5.0",
     "@types/sinon": "^1.16.36",
+    "@types/yauzl": "^2.9.1",
+    "@types/yazl": "^2.4.2",
     "@types/webpack": "^4.4.10",
     "@types/winreg": "^1.2.30",
     "ansi-colors": "^3.2.3",
