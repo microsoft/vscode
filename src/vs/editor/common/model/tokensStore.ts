@@ -11,9 +11,10 @@ import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType, Toke
 import { writeUInt32BE, readUInt32BE } from 'vs/base/common/buffer';
 import { CharCode } from 'vs/base/common/charCode';
 
-export function countEOL(text: string): [number, number] {
+export function countEOL(text: string): [number, number, number] {
 	let eolCount = 0;
 	let firstLineLength = 0;
+	let lastLineStart = 0;
 	for (let i = 0, len = text.length; i < len; i++) {
 		const chr = text.charCodeAt(i);
 
@@ -28,17 +29,19 @@ export function countEOL(text: string): [number, number] {
 			} else {
 				// \r... case
 			}
+			lastLineStart = i + 1;
 		} else if (chr === CharCode.LineFeed) {
 			if (eolCount === 0) {
 				firstLineLength = i;
 			}
 			eolCount++;
+			lastLineStart = i + 1;
 		}
 	}
 	if (eolCount === 0) {
 		firstLineLength = text.length;
 	}
-	return [eolCount, firstLineLength];
+	return [eolCount, firstLineLength, text.length - lastLineStart];
 }
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
@@ -110,7 +113,6 @@ export class MultilineTokensBuilder {
 }
 
 export interface IEncodedTokens {
-	clear(): void;
 	getTokenCount(): number;
 	getDeltaLine(tokenIndex: number): number;
 	getMaxDeltaLine(): number;
@@ -118,7 +120,9 @@ export interface IEncodedTokens {
 	getEndCharacter(tokenIndex: number): number;
 	getMetadata(tokenIndex: number): number;
 
-	acceptDelete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void;
+	clear(): void;
+	acceptDeleteRange(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void;
+	acceptInsertText(deltaLine: number, character: number, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void;
 }
 
 export class SparseEncodedTokens implements IEncodedTokens {
@@ -137,11 +141,39 @@ export class SparseEncodedTokens implements IEncodedTokens {
 		this._tokenCount = tokens.length / 4;
 	}
 
+	public getMaxDeltaLine(): number {
+		const tokenCount = this.getTokenCount();
+		if (tokenCount === 0) {
+			return -1;
+		}
+		return this.getDeltaLine(tokenCount - 1);
+	}
+
+	public getTokenCount(): number {
+		return this._tokenCount;
+	}
+
+	public getDeltaLine(tokenIndex: number): number {
+		return this._tokens[4 * tokenIndex];
+	}
+
+	public getStartCharacter(tokenIndex: number): number {
+		return this._tokens[4 * tokenIndex + 1];
+	}
+
+	public getEndCharacter(tokenIndex: number): number {
+		return this._tokens[4 * tokenIndex + 2];
+	}
+
+	public getMetadata(tokenIndex: number): number {
+		return this._tokens[4 * tokenIndex + 3];
+	}
+
 	public clear(): void {
 		this._tokenCount = 0;
 	}
 
-	public acceptDelete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void {
+	public acceptDeleteRange(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void {
 		// This is a bit complex, here are the cases I used to think about this:
 		//
 		// 1. The token starts before the deletion range
@@ -278,32 +310,87 @@ export class SparseEncodedTokens implements IEncodedTokens {
 		this._tokenCount = newTokenCount;
 	}
 
-	public getMaxDeltaLine(): number {
-		const tokenCount = this.getTokenCount();
-		if (tokenCount === 0) {
-			return -1;
+	public acceptInsertText(deltaLine: number, character: number, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void {
+		// Here are the cases I used to think about this:
+		//
+		// 1. The token is completely before the insertion point
+		//            -----------   |
+		// 2. The token ends precisely at the insertion point
+		//            -----------|
+		// 3. The token contains the insertion point
+		//            -----|------
+		// 4. The token starts precisely at the insertion point
+		//            |-----------
+		// 5. The token is completely after the insertion point
+		//            |   -----------
+		//
+		const isInsertingPreciselyOneWordCharacter = (
+			eolCount === 0
+			&& firstLineLength === 1
+			&& (
+				(firstCharCode >= CharCode.Digit0 && firstCharCode <= CharCode.Digit9)
+				|| (firstCharCode >= CharCode.A && firstCharCode <= CharCode.Z)
+				|| (firstCharCode >= CharCode.a && firstCharCode <= CharCode.z)
+			)
+		);
+		const tokens = this._tokens;
+		const tokenCount = this._tokenCount;
+		for (let i = 0; i < tokenCount; i++) {
+			const offset = 4 * i;
+			let tokenDeltaLine = tokens[offset];
+			let tokenStartCharacter = tokens[offset + 1];
+			let tokenEndCharacter = tokens[offset + 2];
+
+			if (tokenDeltaLine < deltaLine || (tokenDeltaLine === deltaLine && tokenEndCharacter < character)) {
+				// 1. The token is completely before the insertion point
+				// => nothing to do
+				continue;
+			} else if (tokenDeltaLine === deltaLine && tokenEndCharacter === character) {
+				// 2. The token ends precisely at the insertion point
+				// => expand the end character only if inserting precisely one character that is a word character
+				if (isInsertingPreciselyOneWordCharacter) {
+					tokenEndCharacter += 1;
+				} else {
+					continue;
+				}
+			} else if (tokenDeltaLine === deltaLine && tokenStartCharacter < character && character < tokenEndCharacter) {
+				// 3. The token contains the insertion point
+				if (eolCount === 0) {
+					// => just expand the end character
+					tokenEndCharacter += firstLineLength;
+				} else {
+					// => cut off the token
+					tokenEndCharacter = character;
+				}
+			} else {
+				// 4. or 5.
+				if (tokenDeltaLine === deltaLine && tokenStartCharacter === character) {
+					// 4. The token starts precisely at the insertion point
+					// => grow the token (by keeping its start constant) only if inserting precisely one character that is a word character
+					// => otherwise behave as in case 5.
+					if (isInsertingPreciselyOneWordCharacter) {
+						continue;
+					}
+				}
+				// => the token must move and keep its size constant
+				tokenDeltaLine += eolCount;
+				if (tokenDeltaLine === deltaLine) {
+					// this token is on the line where the insertion is taking place
+					if (eolCount === 0) {
+						tokenStartCharacter += firstLineLength;
+						tokenEndCharacter += firstLineLength;
+					} else {
+						const tokenLength = tokenEndCharacter - tokenStartCharacter;
+						tokenStartCharacter = lastLineLength + (tokenStartCharacter - character);
+						tokenEndCharacter = tokenStartCharacter + tokenLength;
+					}
+				}
+			}
+
+			tokens[offset] = tokenDeltaLine;
+			tokens[offset + 1] = tokenStartCharacter;
+			tokens[offset + 2] = tokenEndCharacter;
 		}
-		return this.getDeltaLine(tokenCount - 1);
-	}
-
-	public getTokenCount(): number {
-		return this._tokenCount;
-	}
-
-	public getDeltaLine(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex];
-	}
-
-	public getStartCharacter(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex + 1];
-	}
-
-	public getEndCharacter(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex + 2];
-	}
-
-	public getMetadata(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex + 3];
 	}
 }
 
@@ -396,13 +483,14 @@ export class MultilineTokens2 {
 	}
 
 	public applyEdit(range: IRange, text: string): void {
-		// const [eolCount, firstLineLength] = countEOL(text);
-		this._acceptDeleteRange(range);
-		// this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
+		const [eolCount, firstLineLength, lastLineLength] = countEOL(text);
+		this.acceptEdit(range, eolCount, firstLineLength, lastLineLength, text.length > 0 ? text.charCodeAt(0) : CharCode.Null);
 	}
 
-	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number): void {
+	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void {
 		this._acceptDeleteRange(range);
+		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength, lastLineLength, firstCharCode);
+		this._updateEndLineNumber();
 	}
 
 	private _acceptDeleteRange(range: IRange): void {
@@ -432,7 +520,6 @@ export class MultilineTokens2 {
 			// this deletion completely encompasses this block
 			this.startLineNumber = 0;
 			this.tokens.clear();
-			this._updateEndLineNumber();
 			return;
 		}
 
@@ -440,11 +527,35 @@ export class MultilineTokens2 {
 			const deletedBefore = -firstLineIndex;
 			this.startLineNumber -= deletedBefore;
 
-			this.tokens.acceptDelete(0, 0, lastLineIndex, range.endColumn - 1);
+			this.tokens.acceptDeleteRange(0, 0, lastLineIndex, range.endColumn - 1);
 		} else {
-			this.tokens.acceptDelete(firstLineIndex, range.startColumn - 1, lastLineIndex, range.endColumn - 1);
+			this.tokens.acceptDeleteRange(firstLineIndex, range.startColumn - 1, lastLineIndex, range.endColumn - 1);
 		}
-		this._updateEndLineNumber();
+	}
+
+	private _acceptInsertText(position: Position, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void {
+
+		if (eolCount === 0 && firstLineLength === 0) {
+			// Nothing to insert
+			return;
+		}
+
+		const lineIndex = position.lineNumber - this.startLineNumber;
+
+		if (lineIndex < 0) {
+			// this insertion occurs before this block, so we only need to adjust line numbers
+			this.startLineNumber += eolCount;
+			return;
+		}
+
+		const tokenMaxDeltaLine = this.tokens.getMaxDeltaLine();
+
+		if (lineIndex >= tokenMaxDeltaLine + 1) {
+			// this insertion occurs after this block, so there is nothing to do
+			return;
+		}
+
+		this.tokens.acceptInsertText(lineIndex, position.column - 1, eolCount, firstLineLength, lastLineLength, firstCharCode);
 	}
 }
 
@@ -726,9 +837,9 @@ export class TokensStore2 {
 
 	//#region Editing
 
-	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number): void {
+	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void {
 		for (const piece of this._pieces) {
-			piece.acceptEdit(range, eolCount, firstLineLength);
+			piece.acceptEdit(range, eolCount, firstLineLength, lastLineLength, firstCharCode);
 		}
 	}
 

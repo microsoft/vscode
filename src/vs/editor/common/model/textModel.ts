@@ -1265,9 +1265,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 			let lineCount = oldLineCount;
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
-				const [eolCount, firstLineLength] = countEOL(change.text);
+				const [eolCount, firstLineLength, lastLineLength] = countEOL(change.text);
 				this._tokens.acceptEdit(change.range, eolCount, firstLineLength);
-				this._tokens2.acceptEdit(change.range, eolCount, firstLineLength);
+				this._tokens2.acceptEdit(change.range, eolCount, firstLineLength, lastLineLength, change.text.length > 0 ? change.text.charCodeAt(0) : CharCode.Null);
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 
