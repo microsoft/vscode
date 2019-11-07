@@ -4,19 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Action } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Lazy } from 'vs/base/common/lazy';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position, IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeAction) => Promise<any>;
+}
+
+interface ResolveCodeActionKeybinding {
+	readonly kind: CodeActionKind;
+	readonly preferred: boolean;
+	readonly resolvedKeybinding: ResolvedKeybinding;
+}
+
+class CodeActionAction extends Action {
+	constructor(
+		public readonly action: CodeAction,
+		callback: () => Promise<void>,
+	) {
+		super(action.command ? action.command.id : action.title, action.title, undefined, true, callback);
+	}
 }
 
 export class CodeActionWidget extends Disposable {
@@ -27,9 +46,14 @@ export class CodeActionWidget extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextMenuService: IContextMenuService,
+		private readonly _keybindingService: IKeybindingService,
 		private readonly _delegate: CodeActionWidgetDelegate,
 	) {
 		super();
+	}
+
+	get isVisible(): boolean {
+		return this._visible;
 	}
 
 	public async show(codeActions: CodeActionSet, at?: IAnchor | IPosition): Promise<void> {
@@ -44,7 +68,11 @@ export class CodeActionWidget extends Disposable {
 		}
 
 		this._visible = true;
-		const actions = codeActions.actions.map(action => this.codeActionToAction(action));
+
+		const actions = codeActions.actions.map(action =>
+			new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action)));
+
+		const keyBindings = this.resolveKeybindings(actions);
 
 		this._showingActions.value = codeActions;
 		this._contextMenuService.showContextMenu({
@@ -59,18 +87,66 @@ export class CodeActionWidget extends Disposable {
 				this._visible = false;
 				this._editor.focus();
 			},
-			autoSelectFirstItem: true
+			autoSelectFirstItem: true,
+			getKeyBinding: (action): ResolvedKeybinding | undefined => {
+				return action instanceof CodeActionAction ? keyBindings.get(action) : undefined;
+			},
 		});
 	}
 
-	private codeActionToAction(action: CodeAction): Action {
-		const id = action.command ? action.command.id : action.title;
-		const title = action.title;
-		return new Action(id, title, undefined, true, () => this._delegate.onSelectCodeAction(action));
+	private resolveKeybindings(actions: readonly CodeActionAction[]): Map<CodeActionAction, ResolvedKeybinding> {
+		// Lazy since we may not actually ever read the value
+		const allCodeActionBindings = new Lazy<readonly ResolveCodeActionKeybinding[]>(() =>
+			this._keybindingService.getKeybindings()
+				.filter(item => ['editor.action.refactor', 'editor.action.codeAction', 'editor.action.source'].indexOf(item.command!) >= 0)
+				.filter(item => item.resolvedKeybinding)
+				.map((item): ResolveCodeActionKeybinding => {
+					return {
+						resolvedKeybinding: item.resolvedKeybinding!,
+						...CodeActionCommandArgs.fromUser(item.commandArgs, {
+							kind: CodeActionKind.None,
+							apply: CodeActionAutoApply.Never
+						})
+					};
+				}));
+
+		const out = new Map<CodeActionAction, ResolvedKeybinding>();
+		for (const action of actions) {
+			if (action.action.kind) {
+				const binding = this.bestKeybindingForCodeAction(action.action, allCodeActionBindings.getValue());
+				if (binding) {
+					out.set(action, binding.resolvedKeybinding);
+				}
+			}
+		}
+		return out;
 	}
 
-	get isVisible(): boolean {
-		return this._visible;
+	private bestKeybindingForCodeAction(
+		action: CodeAction,
+		candidates: readonly ResolveCodeActionKeybinding[],
+	): ResolveCodeActionKeybinding | undefined {
+		if (!action.kind) {
+			return undefined;
+		}
+		const kind = new CodeActionKind(action.kind);
+
+		return candidates
+			.filter(candidate => candidate.kind.contains(kind))
+			.filter(candidate => {
+				if (candidate.preferred && !action.isPreferred) {
+					// The candidate keybinding only applies to preferred actions, and this action is not preferred
+					return false;
+				}
+				return true;
+			})
+			.reduceRight((currentBest, candidate) => {
+				if (!currentBest) {
+					return candidate;
+				}
+				// Select the more specific binding
+				return currentBest.kind.contains(candidate.kind) ? candidate : currentBest;
+			}, undefined as ResolveCodeActionKeybinding | undefined);
 	}
 
 	private _toCoords(position: IPosition): { x: number, y: number } {

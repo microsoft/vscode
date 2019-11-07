@@ -97,3 +97,42 @@ export interface CodeActionTrigger {
 		readonly position: Position;
 	};
 }
+
+export class CodeActionCommandArgs {
+	public static fromUser(arg: any, defaults: { kind: CodeActionKind, apply: CodeActionAutoApply }): CodeActionCommandArgs {
+		if (!arg || typeof arg !== 'object') {
+			return new CodeActionCommandArgs(defaults.kind, defaults.apply, false);
+		}
+		return new CodeActionCommandArgs(
+			CodeActionCommandArgs.getKindFromUser(arg, defaults.kind),
+			CodeActionCommandArgs.getApplyFromUser(arg, defaults.apply),
+			CodeActionCommandArgs.getPreferredUser(arg));
+	}
+
+	private static getApplyFromUser(arg: any, defaultAutoApply: CodeActionAutoApply) {
+		switch (typeof arg.apply === 'string' ? arg.apply.toLowerCase() : '') {
+			case 'first': return CodeActionAutoApply.First;
+			case 'never': return CodeActionAutoApply.Never;
+			case 'ifsingle': return CodeActionAutoApply.IfSingle;
+			default: return defaultAutoApply;
+		}
+	}
+
+	private static getKindFromUser(arg: any, defaultKind: CodeActionKind) {
+		return typeof arg.kind === 'string'
+			? new CodeActionKind(arg.kind)
+			: defaultKind;
+	}
+
+	private static getPreferredUser(arg: any): boolean {
+		return typeof arg.preferred === 'boolean'
+			? arg.preferred
+			: false;
+	}
+
+	private constructor(
+		public readonly kind: CodeActionKind,
+		public readonly apply: CodeActionAutoApply,
+		public readonly preferred: boolean,
+	) { }
+}

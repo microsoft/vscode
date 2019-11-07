@@ -30,7 +30,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
+import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionCommandArgs } from './codeActionTrigger';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -213,46 +213,6 @@ export class QuickFixAction extends EditorAction {
 	}
 }
 
-
-class CodeActionCommandArgs {
-	public static fromUser(arg: any, defaults: { kind: CodeActionKind, apply: CodeActionAutoApply }): CodeActionCommandArgs {
-		if (!arg || typeof arg !== 'object') {
-			return new CodeActionCommandArgs(defaults.kind, defaults.apply, false);
-		}
-		return new CodeActionCommandArgs(
-			CodeActionCommandArgs.getKindFromUser(arg, defaults.kind),
-			CodeActionCommandArgs.getApplyFromUser(arg, defaults.apply),
-			CodeActionCommandArgs.getPreferredUser(arg));
-	}
-
-	private static getApplyFromUser(arg: any, defaultAutoApply: CodeActionAutoApply) {
-		switch (typeof arg.apply === 'string' ? arg.apply.toLowerCase() : '') {
-			case 'first': return CodeActionAutoApply.First;
-			case 'never': return CodeActionAutoApply.Never;
-			case 'ifsingle': return CodeActionAutoApply.IfSingle;
-			default: return defaultAutoApply;
-		}
-	}
-
-	private static getKindFromUser(arg: any, defaultKind: CodeActionKind) {
-		return typeof arg.kind === 'string'
-			? new CodeActionKind(arg.kind)
-			: defaultKind;
-	}
-
-	private static getPreferredUser(arg: any): boolean {
-		return typeof arg.preferred === 'boolean'
-			? arg.preferred
-			: false;
-	}
-
-	private constructor(
-		public readonly kind: CodeActionKind,
-		public readonly apply: CodeActionAutoApply,
-		public readonly preferred: boolean,
-	) { }
-}
-
 export class CodeActionCommand extends EditorCommand {
 
 	static readonly Id = 'editor.action.codeAction';
@@ -416,7 +376,7 @@ export class OrganizeImportsAction extends EditorAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
 		});
 	}
 
