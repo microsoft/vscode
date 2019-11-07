@@ -54,9 +54,7 @@ export class CodeActionUi extends Disposable {
 
 	public async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
-			if (this._lightBulbWidget.hasValue()) {
-				this._lightBulbWidget.getValue().hide();
-			}
+			this._lightBulbWidget.rawValue?.hide();
 			return;
 		}
 
