@@ -19,8 +19,8 @@ import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionR
 
 let tokenClassificationRegistry = getTokenClassificationRegistry();
 
+const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
-
 
 function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; italic?: boolean } | undefined): TokenStyle {
 	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
@@ -85,13 +85,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#88846f', unsetStyle),
+			[comments]: ts('#88846f', undefinedStyle),
 			[variables]: ts('#F8F8F2', unsetStyle),
 			[types]: ts('#A6E22E', { underline: true, bold: false, italic: false }),
 			[functions]: ts('#A6E22E', unsetStyle),
-			[strings]: ts('#E6DB74', unsetStyle),
-			[numbers]: ts('#AE81FF', unsetStyle),
-			[keywords]: ts('#F92672', unsetStyle)
+			[strings]: ts('#E6DB74', undefinedStyle),
+			[numbers]: ts('#AE81FF', undefinedStyle),
+			[keywords]: ts('#F92672', undefinedStyle)
 		});
 
 	});
@@ -105,13 +105,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#6A9955', unsetStyle),
-			[variables]: ts('#9CDCFE', unsetStyle),
-			[types]: ts('#4EC9B0', unsetStyle),
-			[functions]: ts('#DCDCAA', unsetStyle),
-			[strings]: ts('#CE9178', unsetStyle),
-			[numbers]: ts('#B5CEA8', unsetStyle),
-			[keywords]: ts('#C586C0', unsetStyle)
+			[comments]: ts('#6A9955', undefinedStyle),
+			[variables]: ts('#9CDCFE', undefinedStyle),
+			[types]: ts('#4EC9B0', undefinedStyle),
+			[functions]: ts('#DCDCAA', undefinedStyle),
+			[strings]: ts('#CE9178', undefinedStyle),
+			[numbers]: ts('#B5CEA8', undefinedStyle),
+			[keywords]: ts('#C586C0', undefinedStyle)
 		});
 
 	});
@@ -125,13 +125,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#008000', unsetStyle),
-			[variables]: ts('#000000', unsetStyle),
-			[types]: ts('#000000', unsetStyle),
-			[functions]: ts('#000000', unsetStyle),
-			[strings]: ts('#a31515', unsetStyle),
-			[numbers]: ts('#09885a', unsetStyle),
-			[keywords]: ts('#0000ff', unsetStyle)
+			[comments]: ts('#008000', undefinedStyle),
+			[variables]: ts(undefined, undefinedStyle),
+			[types]: ts(undefined, undefinedStyle),
+			[functions]: ts(undefined, undefinedStyle),
+			[strings]: ts('#a31515', undefinedStyle),
+			[numbers]: ts('#09885a', undefinedStyle),
+			[keywords]: ts('#0000ff', undefinedStyle)
 		});
 
 	});
@@ -145,13 +145,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#7ca668', unsetStyle),
-			[variables]: ts('#9CDCFE', unsetStyle),
-			[types]: ts('#4EC9B0', unsetStyle),
-			[functions]: ts('#DCDCAA', unsetStyle),
-			[strings]: ts('#ce9178', unsetStyle),
-			[numbers]: ts('#b5cea8', unsetStyle),
-			[keywords]: ts('#C586C0', unsetStyle)
+			[comments]: ts('#7ca668', undefinedStyle),
+			[variables]: ts('#9CDCFE', undefinedStyle),
+			[types]: ts('#4EC9B0', undefinedStyle),
+			[functions]: ts('#DCDCAA', undefinedStyle),
+			[strings]: ts('#ce9178', undefinedStyle),
+			[numbers]: ts('#b5cea8', undefinedStyle),
+			[keywords]: ts('#C586C0', undefinedStyle)
 		});
 
 	});
@@ -165,13 +165,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#a57a4c', unsetStyle),
-			[variables]: ts('#dc3958', unsetStyle),
-			[types]: ts('#f06431', unsetStyle),
-			[functions]: ts('#8ab1b0', unsetStyle),
-			[strings]: ts('#889b4a', unsetStyle),
-			[numbers]: ts('#f79a32', unsetStyle),
-			[keywords]: ts('#98676a', unsetStyle)
+			[comments]: ts('#a57a4c', undefinedStyle),
+			[variables]: ts('#dc3958', undefinedStyle),
+			[types]: ts('#f06431', undefinedStyle),
+			[functions]: ts('#8ab1b0', undefinedStyle),
+			[strings]: ts('#889b4a', undefinedStyle),
+			[numbers]: ts('#f79a32', undefinedStyle),
+			[keywords]: ts('#98676a', undefinedStyle)
 		});
 
 	});
@@ -185,13 +185,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			[comments]: ts('#384887', unsetStyle),
-			[variables]: ts('#6688cc', unsetStyle),
+			[comments]: ts('#384887', undefinedStyle),
+			[variables]: ts(undefined, unsetStyle),
 			[types]: ts('#ffeebb', { underline: true, bold: false, italic: false }),
 			[functions]: ts('#ddbb88', unsetStyle),
-			[strings]: ts('#22aa44', unsetStyle),
-			[numbers]: ts('#f280d0', unsetStyle),
-			[keywords]: ts('#225588', unsetStyle)
+			[strings]: ts('#22aa44', undefinedStyle),
+			[numbers]: ts('#f280d0', undefinedStyle),
+			[keywords]: ts('#225588', undefinedStyle)
 		});
 
 	});
@@ -280,15 +280,22 @@ suite('Themes - TokenStyleResolving', () => {
 		themeData.setCustomColors({ 'editor.foreground': '#000000' });
 		themeData.setTokenStyleRules(getTokenStyleRules([
 			['types', ts('#ff0000', undefined)],
-			['classes', ts('#0000ff', undefined)],
+			['classes', ts('#0000ff', { italic: true })],
 			['*.static', ts(undefined, { bold: true })],
-			['*.declaration', ts(undefined, { italic: true })]
+			['*.declaration', ts(undefined, { italic: true })],
+			['*.async.static', ts('#00ffff', { bold: false, underline: true })],
+			['*.async', ts('#000fff', { italic: false, underline: true })]
 		]));
 
 		assertTokenStyles(themeData, {
-			'types': ts('#ff0000', unsetStyle),
-			'types.static': ts('#ff0000', { bold: true, italic: false, underline: false }),
-			'types.static.declaration': ts('#ff0000', { bold: true, italic: true, underline: false })
+			'types': ts('#ff0000', undefinedStyle),
+			'types.static': ts('#ff0000', { bold: true, italic: undefined, underline: undefined }),
+			'types.static.declaration': ts('#ff0000', { bold: true, italic: true, underline: undefined }),
+			'classes': ts('#0000ff', { bold: undefined, italic: true, underline: undefined }),
+			'classes.static.declaration': ts('#0000ff', { bold: true, italic: true, underline: undefined }),
+			'classes.declaration': ts('#0000ff', { bold: undefined, italic: true, underline: undefined }),
+			'classes.declaration.async': ts('#000fff', { bold: undefined, italic: false, underline: true }),
+			'classes.declaration.async.static': ts('#00ffff', { bold: false, italic: false, underline: true }),
 		});
 
 	});

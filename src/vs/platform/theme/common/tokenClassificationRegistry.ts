@@ -8,8 +8,6 @@ import { Color } from 'vs/base/common/color';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import * as nls from 'vs/nls';
 
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
-
 //  ------ API types
 
 export const TOKEN_TYPE_WILDCARD = '*';
@@ -231,10 +229,10 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 	public resolveTokenStyle(classification: TokenClassification, themingRules: TokenStylingRule[], useDefault: boolean, theme: ITheme): TokenStyle | undefined {
 		let result: any = {
-			foreground: theme.getColor(editorForeground),
-			bold: false,
-			underline: false,
-			italic: false
+			foreground: undefined,
+			bold: undefined,
+			underline: undefined,
+			italic: undefined
 		};
 		let score = {
 			foreground: -1,
@@ -252,23 +250,15 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 				const property = p as keyof TokenStyle;
 				const info = style[property];
 				if (info !== undefined) {
-					if (score[property] < matchScore) {
+					if (score[property] <= matchScore) {
 						score[property] = matchScore;
 						result[property] = info;
-					} else if (score[property] === matchScore) {
-						result[property] = result[property] || info;
 					}
 				}
 			}
 		}
-		themingRules.forEach(rule => {
-			const matchScore = match(rule, classification);
-			if (matchScore >= 0) {
-				_processStyle(matchScore, rule.value);
-			}
-		});
 		if (useDefault) {
-			this.tokenStylingDefaultRules.forEach(rule => {
+			for (const rule of this.tokenStylingDefaultRules) {
 				const matchScore = match(rule, classification);
 				if (matchScore >= 0) {
 					let style = theme.resolveScopes(rule.defaults.scopesToProbe);
@@ -279,7 +269,13 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 						_processStyle(matchScore, style);
 					}
 				}
-			});
+			}
+		}
+		for (const rule of themingRules) {
+			const matchScore = match(rule, classification);
+			if (matchScore >= 0) {
+				_processStyle(matchScore, rule.value);
+			}
 		}
 		return TokenStyle.fromData(result);
 	}
