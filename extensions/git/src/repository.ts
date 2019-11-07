@@ -12,7 +12,7 @@ import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, CommitOptions, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule } from './git';
 import { StatusBarCommands } from './statusbar';
-import { toGitUri } from './uri';
+import { toGitFSUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
 import { IFileWatcher, watch } from './watch';
 
@@ -834,7 +834,7 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		return toGitUri(uri, '', { replaceFileExtension: true });
+		return toGitFSUri(uri, '', { replaceFileExtension: true });
 	}
 
 	async getInputTemplate(): Promise<string> {

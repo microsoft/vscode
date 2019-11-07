@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
+import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitFSUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
@@ -14,27 +14,23 @@ interface CacheRow {
 	timestamp: number;
 }
 
-interface Cache {
-	[uri: string]: CacheRow;
-}
-
 const THREE_MINUTES = 1000 * 60 * 3;
 const FIVE_MINUTES = 1000 * 60 * 5;
 
-export class GitContentProvider {
+export class GitFileSystemProvider implements FileSystemProvider {
 
-	private _onDidChange = new EventEmitter<Uri>();
-	get onDidChange(): Event<Uri> { return this._onDidChange.event; }
+	private _onDidChangeFile = new EventEmitter<FileChangeEvent[]>();
+	readonly onDidChangeFile: Event<FileChangeEvent[]> = this._onDidChangeFile.event;
 
 	private changedRepositoryRoots = new Set<string>();
-	private cache: Cache = Object.create(null);
+	private cache = new Map<string, CacheRow>();
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
 		this.disposables.push(
 			model.onDidChangeRepository(this.onDidChangeRepository, this),
 			model.onDidChangeOriginalResource(this.onDidChangeOriginalResource, this),
-			workspace.registerTextDocumentContentProvider('git', this)
+			workspace.registerFileSystemProvider('gitfs', this, { isReadonly: true, isCaseSensitive: true })
 		);
 
 		setInterval(() => this.cleanup(), FIVE_MINUTES);
@@ -50,7 +46,8 @@ export class GitContentProvider {
 			return;
 		}
 
-		this._onDidChange.fire(toGitFSUri(uri, '', { replaceFileExtension: true }));
+		const gitUri = toGitFSUri(uri, '', { replaceFileExtension: true });
+		this._onDidChangeFile.fire([{ type: FileChangeType.Changed, uri: gitUri }]);
 	}
 
 	@debounce(1100)
@@ -65,49 +62,100 @@ export class GitContentProvider {
 			await eventToPromise(onDidFocusWindow);
 		}
 
-		Object.keys(this.cache).forEach(key => {
-			const uri = this.cache[key].uri;
+		const events: FileChangeEvent[] = [];
+
+		for (const { uri } of this.cache.values()) {
 			const fsPath = uri.fsPath;
 
 			for (const root of this.changedRepositoryRoots) {
 				if (isDescendant(root, fsPath)) {
-					this._onDidChange.fire(uri);
-					return;
+					events.push({ type: FileChangeType.Changed, uri });
+					break;
 				}
 			}
-		});
+		}
+
+		if (events.length > 0) {
+			this._onDidChangeFile.fire(events);
+		}
 
 		this.changedRepositoryRoots.clear();
 	}
 
-	async provideTextDocumentContent(uri: Uri): Promise<string> {
+	private cleanup(): void {
+		const now = new Date().getTime();
+		const cache = new Map<string, CacheRow>();
+
+		for (const row of this.cache.values()) {
+			const { path } = fromGitUri(row.uri);
+			const isOpen = workspace.textDocuments
+				.filter(d => d.uri.scheme === 'file')
+				.some(d => pathEquals(d.uri.fsPath, path));
+
+			if (isOpen || now - row.timestamp < THREE_MINUTES) {
+				cache.set(row.uri.toString(), row);
+			} else {
+				// TODO: should fire delete events?
+			}
+		}
+
+		this.cache = cache;
+	}
+
+	//#region File System Provider
+
+	watch(): Disposable {
+		throw new Error('Method not implemented.');
+	}
+
+	stat(uri: Uri): FileStat {
+		const { submoduleOf } = fromGitUri(uri);
+		const repository = submoduleOf ? this.model.getRepository(submoduleOf) : this.model.getRepository(uri);
+
+		if (!repository) {
+			throw FileSystemError.FileNotFound();
+		}
+
+		return { type: FileType.File, size: 0, mtime: 0, ctime: 0 };
+	}
+
+	readDirectory(): Thenable<[string, FileType][]> {
+		throw new Error('Method not implemented.');
+	}
+
+	createDirectory(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	async readFile(uri: Uri): Promise<Uint8Array> {
 		let { path, ref, submoduleOf } = fromGitUri(uri);
 
 		if (submoduleOf) {
 			const repository = this.model.getRepository(submoduleOf);
 
 			if (!repository) {
-				return '';
+				throw FileSystemError.FileNotFound();
 			}
 
+			const encoder = new TextEncoder();
+
 			if (ref === 'index') {
-				return await repository.diffIndexWithHEAD(path);
+				return encoder.encode(await repository.diffIndexWithHEAD(path));
 			} else {
-				return await repository.diffWithHEAD(path);
+				return encoder.encode(await repository.diffWithHEAD(path));
 			}
 		}
 
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
-			return '';
+			throw FileSystemError.FileNotFound();
 		}
 
-		const cacheKey = uri.toString();
 		const timestamp = new Date().getTime();
 		const cacheValue: CacheRow = { uri, timestamp };
 
-		this.cache[cacheKey] = cacheValue;
+		this.cache.set(uri.toString(), cacheValue);
 
 		if (ref === '~') {
 			const fileUri = Uri.file(path);
@@ -119,30 +167,25 @@ export class GitContentProvider {
 		}
 
 		try {
-			return await repository.show(ref, path);
+			return await repository.buffer(ref, path);
 		} catch (err) {
-			return '';
+			return new Uint8Array(0);
 		}
 	}
 
-	private cleanup(): void {
-		const now = new Date().getTime();
-		const cache = Object.create(null);
-
-		Object.keys(this.cache).forEach(key => {
-			const row = this.cache[key];
-			const { path } = fromGitUri(row.uri);
-			const isOpen = workspace.textDocuments
-				.filter(d => d.uri.scheme === 'file')
-				.some(d => pathEquals(d.uri.fsPath, path));
-
-			if (isOpen || now - row.timestamp < THREE_MINUTES) {
-				cache[row.uri.toString()] = row;
-			}
-		});
-
-		this.cache = cache;
+	writeFile(): void {
+		throw new Error('Method not implemented.');
 	}
+
+	delete(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	rename(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	//#endregion File System Provider
 
 	dispose(): void {
 		this.disposables.forEach(d => d.dispose());
