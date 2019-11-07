@@ -164,7 +164,7 @@ const Rewrite_Export = Object.freeze<CodeActionKind>({
 });
 
 const Rewrite_Arrow_Braces = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.RefactorRewrite.append('arrow').append('Braces'),
+	kind: vscode.CodeActionKind.RefactorRewrite.append('arrow').append('braces'),
 	matches: refactor => refactor.name.startsWith('Convert default export') || refactor.name.startsWith('Convert named export')
 });
 
@@ -205,7 +205,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
-		providedCodeActionKinds: [vscode.CodeActionKind.Refactor],
+		providedCodeActionKinds: [
+			vscode.CodeActionKind.Refactor,
+			...allKnownCodeActionKinds.map(x => x.kind),
+		],
 	};
 
 	public async provideCodeActions(
