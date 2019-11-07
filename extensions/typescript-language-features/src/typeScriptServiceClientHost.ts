@@ -23,7 +23,7 @@ import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
-import { flatten } from './utils/arrays';
+import { flatten, coalease } from './utils/arrays';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -245,13 +245,13 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		}
 		const relatedInformation = diagnostic.relatedInformation;
 		if (relatedInformation) {
-			converted.relatedInformation = relatedInformation.map((info: any) => {
-				let span = info.span;
+			converted.relatedInformation = coalease(relatedInformation.map((info: any) => {
+				const span = info.span;
 				if (!span) {
 					return undefined;
 				}
 				return new vscode.DiagnosticRelatedInformation(typeConverters.Location.fromTextSpan(this.client.toResource(span.file), span), info.message);
-			}).filter((x: any) => !!x) as vscode.DiagnosticRelatedInformation[];
+			}));
 		}
 		if (diagnostic.reportsUnnecessary) {
 			converted.tags = [vscode.DiagnosticTag.Unnecessary];
