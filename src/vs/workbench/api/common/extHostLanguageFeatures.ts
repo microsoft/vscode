@@ -698,10 +698,109 @@ class SemanticColoringAdapter {
 			return this._saveResultAndEncode(newResult, areas);
 		}
 
-		// Try to find appearences of `oldResult` areas inside `newResult`.
+		return this._deltaEncodeArea(newResult, oldResult.areas);
+	}
 
-		console.log(oldResult);
-		console.log(newResult);
+	private static _oldAreaAppearsInNewArea(oldAreaData: Uint32Array, oldAreaTokenCount: number, newAreaData: Uint32Array, newAreaOffset: number): boolean {
+		const newTokenStartDeltaLine = newAreaData[5 * newAreaOffset];
+
+		// check that each and every value from `oldArea` is equal to `area`
+		for (let j = 0; j < oldAreaTokenCount; j++) {
+			const oldOffset = 5 * j;
+			const newOffset = 5 * (j + newAreaOffset);
+
+			if (
+				(oldAreaData[oldOffset] !== newAreaData[newOffset] - newTokenStartDeltaLine)
+				|| (oldAreaData[oldOffset + 1] !== newAreaData[newOffset + 1])
+				|| (oldAreaData[oldOffset + 2] !== newAreaData[newOffset + 2])
+				|| (oldAreaData[oldOffset + 3] !== newAreaData[newOffset + 3])
+				|| (oldAreaData[oldOffset + 4] !== newAreaData[newOffset + 4])
+			) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private _deltaEncodeArea(newResult: vscode.SemanticColoring, oldAreas: SemanticColoringArea[]): VSBuffer {
+		// const newArea = newResult.areas[0];
+		// const newAreaData = newArea.data;
+
+		// const prependAreas: ISemanticTokensDeltaAreaDto[] = [];
+		// const appendAreas: ISemanticTokensDeltaAreaDto[] = [];
+
+		// // Try to find appearences of `oldAreas` inside `area`.
+		// let newTokenStartIndex = 0;
+		// let newTokenEndIndex = (newAreaData.length / 5) | 0;
+		// for (let i = 0, len = oldAreas.length; i < len; i++) {
+		// 	const oldAreaData = oldAreas[i].data;
+		// 	const oldAreaTokenCount = (oldAreaData.length / 5) | 0;
+		// 	if (newTokenEndIndex - newTokenStartIndex < oldAreaTokenCount) {
+		// 		// thre are too many old tokens, this cannot work
+		// 		break;
+		// 	}
+
+		// 	const newAreaOffset = newTokenStartIndex;
+		// 	const newTokenStartDeltaLine = newAreaData[5 * newAreaOffset];
+		// 	const isEqual = SemanticColoringAdapter._oldAreaAppearsInNewArea(oldAreaData, oldAreaTokenCount, newAreaData, newAreaOffset);
+		// 	if (!isEqual) {
+		// 		break;
+		// 	}
+		// 	newTokenStartIndex += oldAreaTokenCount;
+
+		// 	prependAreas.push({
+		// 		type: 'delta',
+		// 		line: newArea.line + newTokenStartDeltaLine,
+		// 		oldIndex: i
+		// 	});
+		// }
+
+		// for (let i = oldAreas.length - 1; i >= 0; i--) {
+		// 	const oldAreaData = oldAreas[i].data;
+		// 	const oldAreaTokenCount = (oldAreaData.length / 5) | 0;
+		// 	if (newTokenEndIndex - newTokenStartIndex < oldAreaTokenCount) {
+		// 		// there are too many old tokens, this cannot work
+		// 		break;
+		// 	}
+
+		// 	const newAreaOffset = (newTokenEndIndex - oldAreaTokenCount);
+		// 	const newTokenStartDeltaLine = newAreaData[5 * newAreaOffset];
+		// 	const isEqual = SemanticColoringAdapter._oldAreaAppearsInNewArea(oldAreaData, oldAreaTokenCount, newAreaData, newAreaOffset);
+		// 	if (!isEqual) {
+		// 		break;
+		// 	}
+		// 	newTokenEndIndex -= oldAreaTokenCount;
+
+		// 	appendAreas.push({
+		// 		type: 'delta',
+		// 		line: newArea.line + newTokenStartDeltaLine,
+		// 		oldIndex: i
+		// 	});
+		// }
+
+		// if (prependAreas.length === 0 && appendAreas.length === 0) {
+		// 	// There is no reuse possibility!
+		// 	return this._encode(newResult);
+		// }
+
+		// if (newTokenStartIndex === newTokenEndIndex) {
+		// 	// 100% reuse!
+		// 	const result = new
+		// 	return this._saveResultAndEncode(newResult, prependAreas.concat(appendAreas)));
+		// }
+		// // if (result.areas.length === 1) {
+		// // 	const splitAreas = SemanticColoringAdapter._splitAreaIntoMultipleAreasIfNecessary(result.areas[0]);
+		// // 	if (splitAreas.length > 1) {
+		// // 		// we had a split!
+		// // 		result = new SemanticColoring(splitAreas);
+		// // 	}
+		// // }
+
+		// console.log(`prependAreas`, prependAreas);
+		// console.log(`appendAreas`, appendAreas);
+		// console.log(`REMAINING: ${newTokenStartIndex}->${newTokenEndIndex}`);
+
 		throw new Error(`TODO - Not implemented`);
 	}
 
@@ -730,11 +829,10 @@ class SemanticColoringAdapter {
 
 	private _encode(result: vscode.SemanticColoring): VSBuffer {
 		if (result.areas.length === 1) {
-			const tokenCount = (result.areas[0].data.length / 5) | 0;
-			if (tokenCount > SemanticColoringConstants.SplitSingleAreaTokenCountThreshold) {
-				// This result contains a single area which contains over `SplitSingleAreaTokenCountThreshold` tokens
-				// so let's split tokens into multiple areas...
-				result = SemanticColoringAdapter._splitIntoMultipleAreas(result.areas[0]);
+			const splitAreas = SemanticColoringAdapter._splitAreaIntoMultipleAreasIfNecessary(result.areas[0]);
+			if (splitAreas.length > 1) {
+				// we had a split!
+				result = new SemanticColoring(splitAreas);
 			}
 		}
 
@@ -757,10 +855,14 @@ class SemanticColoringAdapter {
 		return encodeSemanticTokensDto(dto);
 	}
 
-	private static _splitIntoMultipleAreas(area: vscode.SemanticColoringArea): SemanticColoring {
+	private static _splitAreaIntoMultipleAreasIfNecessary(area: vscode.SemanticColoringArea): SemanticColoringArea[] {
 		const srcAreaLine = area.line;
 		const srcAreaData = area.data;
 		const tokenCount = (srcAreaData.length / 5) | 0;
+		if (tokenCount <= SemanticColoringConstants.SplitSingleAreaTokenCountThreshold) {
+			return [area];
+		}
+
 		const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);
 
 		let result: SemanticColoringArea[] = [];
@@ -817,7 +919,7 @@ class SemanticColoringAdapter {
 			result.push(new SemanticColoringArea(destAreaLine, destAreaData));
 		}
 
-		return new SemanticColoring(result);
+		return result;
 	}
 }
 
