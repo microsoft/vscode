@@ -1750,7 +1750,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public clearSemanticTokens(): void {
 		this._tokens2.flush();
-		console.log(`todo - shoud emit event?`);
+		// TODO@semantic: could we reduce the event here?
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
+		});
 	}
 
 	private _emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
