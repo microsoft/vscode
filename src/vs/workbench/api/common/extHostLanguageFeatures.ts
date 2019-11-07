@@ -27,7 +27,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto, ISemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
+import { encodeSemanticTokensDto, ISemanticTokensDto, ISemanticTokensFullAreaDto, ISemanticTokensDeltaAreaDto } from 'vs/workbench/api/common/shared/semanticTokens';
 
 // --- adapter
 
@@ -651,10 +651,10 @@ class SemanticColoringAdapter {
 				return null;
 			}
 
-			const previousResult = (previousSemanticColoringResultId !== 0 ? this._previousResults.get(previousSemanticColoringResultId) : null);
-			if (previousResult) {
+			const oldResult = (previousSemanticColoringResultId !== 0 ? this._previousResults.get(previousSemanticColoringResultId) : null);
+			if (oldResult) {
 				this._previousResults.delete(previousSemanticColoringResultId);
-				return this._deltaEncode(previousResult, value);
+				return this._deltaEncode(oldResult, value);
 			}
 
 			return this._encode(value);
@@ -665,11 +665,68 @@ class SemanticColoringAdapter {
 		this._previousResults.delete(semanticColoringResultId);
 	}
 
-	private _deltaEncode(previousResult: vscode.SemanticColoring, currentResult: vscode.SemanticColoring): VSBuffer {
-		console.log(previousResult);
-		console.log(currentResult);
+	private _deltaEncode(oldResult: vscode.SemanticColoring, newResult: vscode.SemanticColoring): VSBuffer {
+		if (newResult.areas.length > 1) {
+			// this is a fancy provider which is smart enough to break things into good areas
+			// we therefore try to match old areas by identity
+			const oldAreas = new Map<Uint32Array, number>();
+			for (let i = 0, len = oldResult.areas.length; i < len; i++) {
+				const oldArea = oldResult.areas[i];
+				oldAreas.set(oldArea.data, i);
+			}
+
+			let areas: (ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaDto)[] = [];
+			for (let i = 0, len = newResult.areas.length; i < len; i++) {
+				const newArea = newResult.areas[i];
+				if (oldAreas.has(newArea.data)) {
+					// great! we can reuse this area
+					const oldIndex = oldAreas.get(newArea.data)!;
+					areas.push({
+						type: 'delta',
+						line: newArea.line,
+						oldIndex: oldIndex
+					});
+				} else {
+					areas.push({
+						type: 'full',
+						line: newArea.line,
+						data: newArea.data
+					});
+				}
+			}
+
+			return this._saveResultAndEncode(newResult, areas);
+		}
+
+		// Try to find appearences of `oldResult` areas inside `newResult`.
+
+		console.log(oldResult);
+		console.log(newResult);
 		throw new Error(`TODO - Not implemented`);
 	}
+
+	// /**
+	//  * Note: Please do not use arrays.equals (for perf reasons)
+	//  */
+	// private static _areasEquals(a: SemanticColoringArea, b: SemanticColoringArea): boolean {
+	// 	if (a.line !== b.line) {
+	// 		return false;
+	// 	}
+	// 	const aData = a.data;
+	// 	const bData = b.data;
+	// 	if (aData === bData) {
+	// 		return true;
+	// 	}
+	// 	if (aData.length !== bData.length) {
+	// 		return false;
+	// 	}
+	// 	for (let i = 0, len = aData.length; i < len; i++) {
+	// 		if (aData[i] !== bData[i]) {
+	// 			return false;
+	// 		}
+	// 	}
+	// 	return true;
+	// }
 
 	private _encode(result: vscode.SemanticColoring): VSBuffer {
 		if (result.areas.length === 1) {
@@ -677,26 +734,30 @@ class SemanticColoringAdapter {
 			if (tokenCount > SemanticColoringConstants.SplitSingleAreaTokenCountThreshold) {
 				// This result contains a single area which contains over `SplitSingleAreaTokenCountThreshold` tokens
 				// so let's split tokens into multiple areas...
-				result = this._splitIntoMultipleAreas(result.areas[0]);
+				result = SemanticColoringAdapter._splitIntoMultipleAreas(result.areas[0]);
 			}
 		}
 
+		return this._saveResultAndEncode(result, result.areas.map(area => {
+			return {
+				type: 'full',
+				line: area.line,
+				data: area.data
+			};
+		}));
+	}
+
+	private _saveResultAndEncode(result: vscode.SemanticColoring, areas: (ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaDto)[]): VSBuffer {
 		const myId = this._nextResultId++;
 		this._previousResults.set(myId, result);
 		const dto: ISemanticTokensDto = {
 			id: myId,
-			areas: result.areas.map(area => {
-				return {
-					type: 'full',
-					line: area.line,
-					data: area.data
-				};
-			})
+			areas: areas
 		};
 		return encodeSemanticTokensDto(dto);
 	}
 
-	private _splitIntoMultipleAreas(area: vscode.SemanticColoringArea): SemanticColoring {
+	private static _splitIntoMultipleAreas(area: vscode.SemanticColoringArea): SemanticColoring {
 		const srcAreaLine = area.line;
 		const srcAreaData = area.data;
 		const tokenCount = (srcAreaData.length / 5) | 0;
