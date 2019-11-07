@@ -128,43 +128,68 @@ interface CodeActionKind {
 	matches(refactor: Proto.RefactorActionInfo): boolean;
 }
 
-const ExtractFunction = Object.freeze<CodeActionKind>({
+const Extract_Function = Object.freeze<CodeActionKind>({
 	kind: vscode.CodeActionKind.RefactorExtract.append('function'),
 	matches: refactor => refactor.name.startsWith('function_')
 });
 
-const ExtractConstant = Object.freeze<CodeActionKind>({
+const Extract_Constant = Object.freeze<CodeActionKind>({
 	kind: vscode.CodeActionKind.RefactorExtract.append('constant'),
 	matches: refactor => refactor.name.startsWith('constant_')
 });
 
-const ExtractType = Object.freeze<CodeActionKind>({
+const Extract_Type = Object.freeze<CodeActionKind>({
 	kind: vscode.CodeActionKind.RefactorExtract.append('type'),
-	matches: refactor => refactor.name.includes('Extract to type alias')
+	matches: refactor => refactor.name.startsWith('Extract to type alias')
 });
 
-const ExtractInterface = Object.freeze<CodeActionKind>({
+const Extract_Interface = Object.freeze<CodeActionKind>({
 	kind: vscode.CodeActionKind.RefactorExtract.append('interface'),
-	matches: refactor => refactor.name.includes('Extract to interface')
+	matches: refactor => refactor.name.startsWith('Extract to interface')
 });
 
-const MoveNewFile = Object.freeze<CodeActionKind>({
+const Move_NewFile = Object.freeze<CodeActionKind>({
 	kind: vscode.CodeActionKind.Refactor.append('move').append('newFile'),
 	matches: refactor => refactor.name.startsWith('Move to a new file')
 });
 
-const RewriteImport = Object.freeze<CodeActionKind>({
+const Rewrite_Import = Object.freeze<CodeActionKind>({
 	kind: vscode.CodeActionKind.RefactorRewrite.append('import'),
-	matches: refactor => refactor.name.startsWith('Convert import')
+	matches: refactor => refactor.name.startsWith('Convert namespace import') || refactor.name.startsWith('Convert named imports')
 });
 
-const RewriteExport = Object.freeze<CodeActionKind>({
+const Rewrite_Export = Object.freeze<CodeActionKind>({
 	kind: vscode.CodeActionKind.RefactorRewrite.append('export'),
-	matches: refactor => refactor.name.startsWith('Convert export')
+	matches: refactor => refactor.name.startsWith('Convert default export') || refactor.name.startsWith('Convert named export')
 });
 
-const allKnownCodeActionKinds = [ExtractFunction, ExtractConstant, ExtractType, ExtractInterface, MoveNewFile, RewriteImport, RewriteExport];
+const Rewrite_Arrow_Braces = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorRewrite.append('arrow').append('Braces'),
+	matches: refactor => refactor.name.startsWith('Convert default export') || refactor.name.startsWith('Convert named export')
+});
 
+const Rewrite_Parameters_ToDestructured = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorRewrite.append('parameters').append('toDestructured'),
+	matches: refactor => refactor.name.startsWith('Convert parameters to destructured object')
+});
+
+const Rewrite_Property_GenerateAccessors = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorRewrite.append('property').append('generateAccessors'),
+	matches: refactor => refactor.name.startsWith('Generate \'get\' and \'set\' accessors')
+});
+
+const allKnownCodeActionKinds = [
+	Extract_Function,
+	Extract_Constant,
+	Extract_Type,
+	Extract_Interface,
+	Move_NewFile,
+	Rewrite_Import,
+	Rewrite_Export,
+	Rewrite_Arrow_Braces,
+	Rewrite_Parameters_ToDestructured,
+	Rewrite_Property_GenerateAccessors
+];
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	public static readonly minVersion = API.v240;
@@ -269,10 +294,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	private static isPreferred(
 		action: Proto.RefactorActionInfo
 	): boolean {
-		if (ExtractConstant.matches(action)) {
+		if (Extract_Constant.matches(action)) {
 			return action.name.endsWith('scope_0');
 		}
-		if (ExtractType.matches(action) || ExtractInterface.matches(action)) {
+		if (Extract_Type.matches(action) || Extract_Interface.matches(action)) {
 			return true;
 		}
 		return false;

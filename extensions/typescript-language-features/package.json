@@ -907,6 +907,20 @@
             "description": "%codeActions.refactor.rewrite.export.description%"
           },
           {
+            "kind": "refactor.rewrite.arrow.braces",
+            "title": "%codeActions.refactor.rewrite.arrow.braces.title%",
+            "description": "%codeActions.refactor.rewrite.arrow.braces.description%"
+          },
+          {
+            "kind": "refactor.rewrite.parameters.toDestructured",
+            "title": "%codeActions.refactor.rewrite.parameters.toDestructured.title%"
+          },
+          {
+            "kind": "refactor.rewrite.property.generateAccessors",
+            "title": "%codeActions.refactor.rewrite.property.generateAccessors.title%",
+            "description": "%codeActions.refactor.rewrite.property.generateAccessors.description%"
+          },
+          {
             "kind": "refactor.move.newFile",
             "title": "%codeActions.refactor.move.newFile.title%",
             "description": "%codeActions.refactor.move.newFile.description%"
