@@ -497,7 +497,7 @@ suite('ExtensionsActions Test', () => {
 			.then(extensions => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
-				assert.equal('extension-action manage', testObject.class);
+				assert.equal('extension-action manage codicon-gear', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -512,7 +512,7 @@ suite('ExtensionsActions Test', () => {
 			.then(page => {
 				testObject.extension = page.firstPage[0];
 				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage hide', testObject.class);
+				assert.equal('extension-action manage codicon-gear hide', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -529,7 +529,7 @@ suite('ExtensionsActions Test', () => {
 
 				installEvent.fire({ identifier: gallery.identifier, gallery });
 				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage hide', testObject.class);
+				assert.equal('extension-action manage codicon-gear hide', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -547,7 +547,7 @@ suite('ExtensionsActions Test', () => {
 				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
-				assert.equal('extension-action manage', testObject.class);
+				assert.equal('extension-action manage codicon-gear', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -562,7 +562,7 @@ suite('ExtensionsActions Test', () => {
 			.then(extensions => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
-				assert.equal('extension-action manage', testObject.class);
+				assert.equal('extension-action manage codicon-gear', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -579,7 +579,7 @@ suite('ExtensionsActions Test', () => {
 				uninstallEvent.fire(local.identifier);
 
 				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage', testObject.class);
+				assert.equal('extension-action manage codicon-gear', testObject.class);
 				assert.equal('Uninstalling', testObject.tooltip);
 			});
 	});
