@@ -701,16 +701,37 @@ class SemanticColoringAdapter {
 		const srcAreaData = area.data;
 		const tokenCount = (srcAreaData.length / 5) | 0;
 		const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);
-		const newAreaCount = Math.ceil(tokenCount / tokensPerArea);
 
 		let result: SemanticColoringArea[] = [];
-		for (let i = 0; i < newAreaCount; i++) {
-			const tokenStartIndex = i * tokensPerArea;
-			const tokenEndIndex = Math.min((i + 1) * tokensPerArea, tokenCount);
+		let tokenIndex = 0;
+		while (tokenIndex < tokenCount) {
+			const tokenStartIndex = tokenIndex;
+			let tokenEndIndex = Math.min(tokenStartIndex + tokensPerArea, tokenCount);
+
+			// Keep tokens on the same line in the same area...
+			if (tokenEndIndex < tokenCount) {
+				let smallAvoidDeltaLine = srcAreaData[5 * tokenEndIndex];
+				let smallTokenEndIndex = tokenEndIndex;
+				while (smallTokenEndIndex - 1 > tokenStartIndex && srcAreaData[5 * (smallTokenEndIndex - 1)] === smallAvoidDeltaLine) {
+					smallTokenEndIndex--;
+				}
+
+				if (smallTokenEndIndex - 1 === tokenStartIndex) {
+					// there are so many tokens on this line that our area would be empty, we must now go right
+					let bigAvoidDeltaLine = srcAreaData[5 * (tokenEndIndex - 1)];
+					let bigTokenEndIndex = tokenEndIndex;
+					while (bigTokenEndIndex + 1 < tokenCount && srcAreaData[5 * (bigTokenEndIndex + 1)] === bigAvoidDeltaLine) {
+						bigTokenEndIndex++;
+					}
+					tokenEndIndex = bigTokenEndIndex;
+				} else {
+					tokenEndIndex = smallTokenEndIndex;
+				}
+			}
 
 			let destAreaLine = 0;
 			const destAreaData = new Uint32Array((tokenEndIndex - tokenStartIndex) * 5);
-			for (let tokenIndex = tokenStartIndex; tokenIndex < tokenEndIndex; tokenIndex++) {
+			while (tokenIndex < tokenEndIndex) {
 				const srcOffset = 5 * tokenIndex;
 				const line = srcAreaLine + srcAreaData[srcOffset];
 				const startCharacter = srcAreaData[srcOffset + 1];
@@ -728,9 +749,11 @@ class SemanticColoringAdapter {
 				destAreaData[destOffset + 2] = endCharacter;
 				destAreaData[destOffset + 3] = tokenType;
 				destAreaData[destOffset + 4] = tokenModifiers;
+
+				tokenIndex++;
 			}
 
-			result[i] = new SemanticColoringArea(destAreaLine, destAreaData);
+			result.push(new SemanticColoringArea(destAreaLine, destAreaData));
 		}
 
 		return new SemanticColoring(result);
