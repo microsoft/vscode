@@ -25,6 +25,12 @@ export default class Messages {
 
 	public static MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE: string = nls.localize('markers.panel.action.useFilesExclude', "Filter using Files Exclude Setting");
 	public static MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE: string = nls.localize('markers.panel.action.donotUseFilesExclude', "Do not use Files Exclude Setting");
+	public static MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_WARNINGS: string = nls.localize('markers.panel.action.donotShowWarnings', "Do not show warnings");
+	public static MARKERS_PANEL_ACTION_TOOLTIP_SHOW_WARNINGS: string = nls.localize('markers.panel.action.showWarnings', "Show warnings");
+	public static MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_ERRORS: string = nls.localize('markers.panel.action.donotShowErrors', "Do not show errors");
+	public static MARKERS_PANEL_ACTION_TOOLTIP_SHOW_ERRORS: string = nls.localize('markers.panel.action.showErrors', "Show errors");
+	public static MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_INFOS: string = nls.localize('markers.panel.action.donotShowInfos', "Do not show infos");
+	public static MARKERS_PANEL_ACTION_TOOLTIP_SHOW_INFOS: string = nls.localize('markers.panel.action.showInfos', "Show infos");
 	public static MARKERS_PANEL_ACTION_TOOLTIP_FILTER: string = nls.localize('markers.panel.action.filter', "Filter Problems");
 	public static MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX: string = nls.localize('markers.panel.action.quickfix', "Show fixes");
 	public static MARKERS_PANEL_FILTER_ARIA_LABEL: string = nls.localize('markers.panel.filter.ariaLabel', "Filter Problems");
