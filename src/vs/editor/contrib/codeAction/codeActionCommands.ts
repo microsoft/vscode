@@ -330,7 +330,7 @@ export class RefactorAction extends EditorAction {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
 			{
-				kind: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.Empty,
+				kind: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
 				onlyIncludePreferredActions: args.preferred,
 			},
 			args.apply);
@@ -373,7 +373,7 @@ export class SourceAction extends EditorAction {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.source.noneMessage', "No source actions available"),
 			{
-				kind: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.Empty,
+				kind: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.None,
 				includeSourceActions: true,
 				onlyIncludePreferredActions: args.preferred,
 			},
