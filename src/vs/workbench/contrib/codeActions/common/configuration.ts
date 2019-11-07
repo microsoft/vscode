@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
-import { CodeActionCommand, RefactorAction, SourceAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -148,9 +148,9 @@ export class CodeActionWorkbenchContribution extends Disposable implements IWork
 		};
 
 		return [
-			conditionalSchema(CodeActionCommand.Id, getActions(CodeActionKind.Empty)),
-			conditionalSchema(RefactorAction.Id, getActions(CodeActionKind.Refactor)),
-			conditionalSchema(SourceAction.Id, getActions(CodeActionKind.Source)),
+			conditionalSchema(codeActionCommandId, getActions(CodeActionKind.Empty)),
+			conditionalSchema(refactorCommandId, getActions(CodeActionKind.Refactor)),
+			conditionalSchema(sourceActionCommandId, getActions(CodeActionKind.Source)),
 		];
 	}
 }

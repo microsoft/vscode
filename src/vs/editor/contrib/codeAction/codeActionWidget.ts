@@ -14,7 +14,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -98,7 +98,7 @@ export class CodeActionWidget extends Disposable {
 		// Lazy since we may not actually ever read the value
 		const allCodeActionBindings = new Lazy<readonly ResolveCodeActionKeybinding[]>(() =>
 			this._keybindingService.getKeybindings()
-				.filter(item => ['editor.action.refactor', 'editor.action.codeAction', 'editor.action.source'].indexOf(item.command!) >= 0)
+				.filter(item => new Set([refactorCommandId, codeActionCommandId, sourceActionCommandId]).has(item.command!))
 				.filter(item => item.resolvedKeybinding)
 				.map((item): ResolveCodeActionKeybinding => {
 					return {

@@ -16,7 +16,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeAction } from 'vs/editor/common/modes';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
@@ -215,11 +215,9 @@ export class QuickFixAction extends EditorAction {
 
 export class CodeActionCommand extends EditorCommand {
 
-	static readonly Id = 'editor.action.codeAction';
-
 	constructor() {
 		super({
-			id: CodeActionCommand.Id,
+			id: codeActionCommandId,
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			description: {
 				description: `Trigger a code action`,
@@ -256,11 +254,9 @@ export class CodeActionCommand extends EditorCommand {
 
 export class RefactorAction extends EditorAction {
 
-	static readonly Id = 'editor.action.refactor';
-
 	constructor() {
 		super({
-			id: RefactorAction.Id,
+			id: refactorCommandId,
 			label: nls.localize('refactor.label', "Refactor..."),
 			alias: 'Refactor...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
@@ -313,11 +309,9 @@ export class RefactorAction extends EditorAction {
 
 export class SourceAction extends EditorAction {
 
-	static readonly Id = 'editor.action.sourceAction';
-
 	constructor() {
 		super({
-			id: SourceAction.Id,
+			id: sourceActionCommandId,
 			label: nls.localize('source.label', "Source Action..."),
 			alias: 'Source Action...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
