@@ -1141,11 +1141,6 @@
         },
         {
           "command": "git.openChange",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "navigation"
-        },
-        {
-          "command": "git.openChange",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "navigation"
         },
