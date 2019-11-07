@@ -95,18 +95,18 @@ export class CodeActionWidget extends Disposable {
 	}
 
 	private resolveKeybindings(actions: readonly CodeActionAction[]): Map<CodeActionAction, ResolvedKeybinding> {
-		const codeActionCommands = new Set([
+		const codeActionCommands: readonly string[] = [
 			refactorCommandId,
 			codeActionCommandId,
 			sourceActionCommandId,
 			organizeImportsCommandId,
 			fixAllCommandId
-		]);
+		];
 
 		// Lazy since we may not actually ever read the value
 		const allCodeActionBindings = new Lazy<readonly ResolveCodeActionKeybinding[]>(() =>
 			this._keybindingService.getKeybindings()
-				.filter(item => codeActionCommands.has(item.command!))
+				.filter(item => codeActionCommands.indexOf(item.command!) >= 0)
 				.filter(item => item.resolvedKeybinding)
 				.map((item): ResolveCodeActionKeybinding => {
 					// Special case these commands since they come built-in with VS Code and don't use 'commandArgs'
