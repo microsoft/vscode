@@ -110,7 +110,7 @@ export class MultilineTokensBuilder {
 }
 
 export interface IEncodedTokens {
-	empty(): IEncodedTokens;
+	clear(): void;
 	getTokenCount(): number;
 	getDeltaLine(tokenIndex: number): number;
 	getMaxDeltaLine(): number;
@@ -118,7 +118,7 @@ export interface IEncodedTokens {
 	getEndCharacter(tokenIndex: number): number;
 	getMetadata(tokenIndex: number): number;
 
-	acceptDelete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): IEncodedTokens;
+	acceptDelete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void;
 }
 
 export class SparseEncodedTokens implements IEncodedTokens {
@@ -129,17 +129,19 @@ export class SparseEncodedTokens implements IEncodedTokens {
 	 *  4*i+2  endCharacter (from the line start)
 	 *  4*i+3  metadata
 	 */
-	private tokens: Uint32Array;
+	private _tokens: Uint32Array;
+	private _tokenCount: number;
 
 	constructor(tokens: Uint32Array) {
-		this.tokens = tokens;
+		this._tokens = tokens;
+		this._tokenCount = tokens.length / 4;
 	}
 
-	public empty(): IEncodedTokens {
-		return new SparseEncodedTokens(new Uint32Array(0));
+	public clear(): void {
+		this._tokenCount = 0;
 	}
 
-	public acceptDelete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): IEncodedTokens {
+	public acceptDelete(startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void {
 		// This is a bit complex, here are the cases I used to think about this:
 		//
 		// 1. The token starts before the deletion range
@@ -182,8 +184,8 @@ export class SparseEncodedTokens implements IEncodedTokens {
 		//                  -----------
 		//          xxxxxxxx
 		//
-		const tokens = this.tokens;
-		const tokenCount = this.tokens.length / 4;
+		const tokens = this._tokens;
+		const tokenCount = this._tokenCount;
 		const deletedLineCount = (endDeltaLine - startDeltaLine);
 		let newTokenCount = 0;
 		let hasDeletedTokens = false;
@@ -262,8 +264,7 @@ export class SparseEncodedTokens implements IEncodedTokens {
 				tokenStartCharacter -= endCharacter;
 				tokenEndCharacter -= endCharacter;
 			} else {
-				throw new Error(`Impossible case!`);
-				console.log(`I NEED TO acceptDelete at token: ${tokenDeltaLine}, ${tokenStartCharacter}, ${tokenEndCharacter}`);
+				throw new Error(`Not possible!`);
 			}
 
 			const destOffset = 4 * newTokenCount;
@@ -274,17 +275,7 @@ export class SparseEncodedTokens implements IEncodedTokens {
 			newTokenCount++;
 		}
 
-		return this;
-
-		// if (hasDeletedTokens) {
-		// 	console.log(`there are deleted tokens!`);
-		// 	throw new Error(`TODO!`);
-		// }
-
-		// // console.log
-
-		// console.log(`TODO - acceptDelete, ${startDeltaLine}, ${startCharacter}, ${endDeltaLine}, ${endCharacter}`);
-		// throw new Error(`Not implemented`); // TODO@semantic
+		this._tokenCount = newTokenCount;
 	}
 
 	public getMaxDeltaLine(): number {
@@ -296,23 +287,23 @@ export class SparseEncodedTokens implements IEncodedTokens {
 	}
 
 	public getTokenCount(): number {
-		return this.tokens.length / 4;
+		return this._tokenCount;
 	}
 
 	public getDeltaLine(tokenIndex: number): number {
-		return this.tokens[4 * tokenIndex];
+		return this._tokens[4 * tokenIndex];
 	}
 
 	public getStartCharacter(tokenIndex: number): number {
-		return this.tokens[4 * tokenIndex + 1];
+		return this._tokens[4 * tokenIndex + 1];
 	}
 
 	public getEndCharacter(tokenIndex: number): number {
-		return this.tokens[4 * tokenIndex + 2];
+		return this._tokens[4 * tokenIndex + 2];
 	}
 
 	public getMetadata(tokenIndex: number): number {
-		return this.tokens[4 * tokenIndex + 3];
+		return this._tokens[4 * tokenIndex + 3];
 	}
 }
 
@@ -357,8 +348,7 @@ export class MultilineTokens2 {
 		this.endLineNumber = this.startLineNumber + this.tokens.getMaxDeltaLine();
 	}
 
-	private _setTokens(tokens: IEncodedTokens): void {
-		this.tokens = tokens;
+	private _updateEndLineNumber(): void {
 		this.endLineNumber = this.startLineNumber + this.tokens.getMaxDeltaLine();
 	}
 
@@ -441,7 +431,8 @@ export class MultilineTokens2 {
 		if (firstLineIndex < 0 && lastLineIndex >= tokenMaxDeltaLine + 1) {
 			// this deletion completely encompasses this block
 			this.startLineNumber = 0;
-			this._setTokens(this.tokens.empty());
+			this.tokens.clear();
+			this._updateEndLineNumber();
 			return;
 		}
 
@@ -449,10 +440,11 @@ export class MultilineTokens2 {
 			const deletedBefore = -firstLineIndex;
 			this.startLineNumber -= deletedBefore;
 
-			this._setTokens(this.tokens.acceptDelete(0, 0, lastLineIndex, range.endColumn - 1));
+			this.tokens.acceptDelete(0, 0, lastLineIndex, range.endColumn - 1);
 		} else {
-			this._setTokens(this.tokens.acceptDelete(firstLineIndex, range.startColumn - 1, lastLineIndex, range.endColumn - 1));
+			this.tokens.acceptDelete(firstLineIndex, range.startColumn - 1, lastLineIndex, range.endColumn - 1);
 		}
+		this._updateEndLineNumber();
 	}
 }
 
