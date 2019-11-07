@@ -887,6 +887,16 @@
             "description": "%codeActions.refactor.extract.function.description%"
           },
           {
+            "kind": "refactor.extract.interface",
+            "title": "%codeActions.refactor.extract.interface.title%",
+            "description": "%codeActions.refactor.extract.interface.description%"
+          },
+          {
+            "kind": "refactor.extract.type",
+            "title": "%codeActions.refactor.extract.type.title%",
+            "description": "%codeActions.refactor.extract.type.description%"
+          },
+          {
             "kind": "source.organizeImports",
             "title": "%codeActions.source.organizeImports.title%"
           }

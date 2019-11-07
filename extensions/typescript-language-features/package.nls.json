@@ -77,8 +77,12 @@
 	"configuration.suggest.completeJSDocs": "Enable/disable suggestion to complete JSDoc comments.",
 	"typescript.preferences.renameShorthandProperties": "Enable/disable introducing aliases for object shorthand properties during renames. Requires using TypeScript 3.4 or newer in the workspace.",
 	"codeActions.refactor.extract.constant.title": "Extract constant",
-	"codeActions.refactor.extract.constant.description": "Extract an expression to constant.",
+	"codeActions.refactor.extract.constant.description": "Extract expression to constant.",
 	"codeActions.refactor.extract.function.title": "Extract function",
-	"codeActions.refactor.extract.function.description": "Extract an expression to method or function.",
+	"codeActions.refactor.extract.function.description": "Extract expression to method or function.",
+	"codeActions.refactor.extract.type.title": "Extract type",
+	"codeActions.refactor.extract.type.description": "Extract type to a type alias.",
+	"codeActions.refactor.extract.interface.title": "Extract interface",
+	"codeActions.refactor.extract.interface.description": "Extract type to an interface.",
 	"codeActions.source.organizeImports.title": "Organize imports"
 }
