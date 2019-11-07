@@ -125,7 +125,19 @@ export const isIPad = (userAgent.indexOf('iPad') >= 0);
 export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
 export const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 
-export function hasClipboardSupport() {
+export function clipboardAccessAllowed() {
+	if (!navigator.clipboard) {
+		return false;
+	}
+
+	if (!navigator.clipboard.readText || !navigator.clipboard.writeText) {
+		return false;
+	}
+
+	return true;
+}
+
+export function hasRichTextClipboardSupport() {
 	if (isIE) {
 		return false;
 	}

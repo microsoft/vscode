@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-action-bar .action-item.markers-panel-action-filter-container {
-	flex: 1;
 	cursor: default;
 	display: flex;
 }
@@ -50,6 +49,11 @@
 	max-width: 600px;
 	min-width: 300px;
 	margin-right: 10px;
+}
+
+.markers-panel-container .monaco-action-bar.markers-panel-filter-container .action-item.markers-panel-action-filter-container,
+.panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container.grow {
+	flex: 1;
 }
 
 .markers-panel .markers-panel-container {

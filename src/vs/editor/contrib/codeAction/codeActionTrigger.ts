@@ -10,6 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 export class CodeActionKind {
 	private static readonly sep = '.';
 
+	public static readonly None = new CodeActionKind('@@none@@'); // Special code action that contains nothing
 	public static readonly Empty = new CodeActionKind('');
 	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');

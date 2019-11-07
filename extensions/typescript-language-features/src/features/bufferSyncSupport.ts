@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { coalease } from '../utils/arrays';
 import { Delayer } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
@@ -278,9 +279,7 @@ class GetErrRequest {
 	) {
 		const args: Proto.GeterrRequestArgs = {
 			delay: 0,
-			files: Array.from(files.entries)
-				.map(entry => client.normalizedPath(entry.resource))
-				.filter(x => !!x) as string[]
+			files: coalease(Array.from(files.entries).map(entry => client.normalizedPath(entry.resource)))
 		};
 
 		client.executeAsync('geterr', args, _token.token)

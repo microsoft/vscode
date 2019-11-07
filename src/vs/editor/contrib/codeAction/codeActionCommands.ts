@@ -271,12 +271,19 @@ export class CodeActionCommand extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any) {
-		const args = CodeActionCommandArgs.fromUser(userArg, {
+	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any) {
+		const args = CodeActionCommandArgs.fromUser(userArgs, {
 			kind: CodeActionKind.Empty,
 			apply: CodeActionAutoApply.IfSingle,
 		});
-		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"),
+		return triggerCodeActionsForEditorSelection(editor,
+			typeof userArgs?.kind === 'string'
+				? args.preferred
+					? nls.localize('editor.action.codeAction.noneMessage.preferred.kind', "No preferred code actions for '{0}' available", userArgs.kind)
+					: nls.localize('editor.action.codeAction.noneMessage.kind', "No code actions for '{0}' available", userArgs.kind)
+				: args.preferred
+					? nls.localize('editor.action.codeAction.noneMessage.preferred', "No preferred code actions available")
+					: nls.localize('editor.action.codeAction.noneMessage', "No code actions available"),
 			{
 				kind: args.kind,
 				includeSourceActions: true,
@@ -322,15 +329,21 @@ export class RefactorAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any): void {
-		const args = CodeActionCommandArgs.fromUser(userArg, {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
+		const args = CodeActionCommandArgs.fromUser(userArgs, {
 			kind: CodeActionKind.Refactor,
 			apply: CodeActionAutoApply.Never
 		});
 		return triggerCodeActionsForEditorSelection(editor,
-			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
+			typeof userArgs?.kind === 'string'
+				? args.preferred
+					? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
+					: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
+				: args.preferred
+					? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
+					: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
 			{
-				kind: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.Empty,
+				kind: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
 				onlyIncludePreferredActions: args.preferred,
 			},
 			args.apply);
@@ -365,15 +378,21 @@ export class SourceAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any): void {
-		const args = CodeActionCommandArgs.fromUser(userArg, {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
+		const args = CodeActionCommandArgs.fromUser(userArgs, {
 			kind: CodeActionKind.Source,
 			apply: CodeActionAutoApply.Never
 		});
 		return triggerCodeActionsForEditorSelection(editor,
-			nls.localize('editor.action.source.noneMessage', "No source actions available"),
+			typeof userArgs?.kind === 'string'
+				? args.preferred
+					? nls.localize('editor.action.source.noneMessage.preferred.kind', "No preferred source actions for '{0}' available", userArgs.kind)
+					: nls.localize('editor.action.source.noneMessage.kind', "No source actions for '{0}' available", userArgs.kind)
+				: args.preferred
+					? nls.localize('editor.action.source.noneMessage.preferred', "No preferred source actions available")
+					: nls.localize('editor.action.source.noneMessage', "No source actions available"),
 			{
-				kind: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.Empty,
+				kind: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.None,
 				includeSourceActions: true,
 				onlyIncludePreferredActions: args.preferred,
 			},

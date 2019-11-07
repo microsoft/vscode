@@ -44,6 +44,7 @@ class FsLinkProvider {
 			const edges: Edge[] = [];
 			let prevScheme: string | undefined;
 			let prevState: State;
+			let lastState = State.LastKnownState;
 			let nextState = State.LastKnownState;
 			for (const scheme of schemes) {
 
@@ -60,6 +61,8 @@ class FsLinkProvider {
 					// keep creating new (next) states until the
 					// end (and the BeforeColon-state) is reached
 					if (pos + 1 === scheme.length) {
+						// Save the last state here, because we need to continue for the next scheme
+						lastState = nextState;
 						nextState = State.BeforeColon;
 					} else {
 						nextState += 1;
@@ -70,6 +73,8 @@ class FsLinkProvider {
 				}
 
 				prevScheme = scheme;
+				// Restore the last state
+				nextState = lastState;
 			}
 
 			// all link must match this pattern `<scheme>:/<more>`
