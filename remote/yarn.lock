@@ -358,10 +358,10 @@ socks@~2.3.2:
     ip "^1.1.5"
     smart-buffer "4.0.2"
 
-spdlog@^0.9.0:
-  version "0.9.0"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.9.0.tgz#c85dd9d0b9cd385f6f3f5b92dc9d2e1691092b5c"
-  integrity sha512-AeLWPCYjGi4w5DfpXFKb9pCdgMe4gFBMroGfgwXiNfzwmcNYGoFQkIuD1MChZBR1Iwrx0nGhsTSHFslt/qfTAQ==
+spdlog@^0.11.1:
+  version "0.11.1"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.11.1.tgz#29721b31018a5fe6a3ce2531f9d8d43e0bd6b825"
+  integrity sha512-M+sg9/Tnr0lrfnW2/hqgpoc4Z8Jzq7W8NUn35iiSslj+1uj1pgutI60MCpulDP2QyFzOpC8VsJmYD6Fub7wHoA==
   dependencies:
     bindings "^1.5.0"
     mkdirp "^0.5.1"
