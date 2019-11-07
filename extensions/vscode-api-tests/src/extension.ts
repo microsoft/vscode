@@ -827,11 +827,15 @@ export class MemFS implements vscode.FileSystemProvider, vscode.FileSearchProvid
 				const lines = content.split('\n');
 				for (let i = 0; i < lines.length; i++) {
 					const line = lines[i];
-					if (line.indexOf(query.pattern) !== -1) {
+					const index = line.indexOf(query.pattern);
+					if (index !== -1) {
 						progress.report({
 							uri: file,
-							lineNumber: i,
-							text: line
+							ranges: new vscode.Range(new vscode.Position(i, index), new vscode.Position(i, index + query.pattern.length)),
+							preview: {
+								text: line,
+								matches: new vscode.Range(new vscode.Position(i, index), new vscode.Position(i, index + query.pattern.length))
+							}
 						});
 					}
 				}
