@@ -5,7 +5,7 @@
 
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import { Action, IActionChangeEvent, IAction } from 'vs/base/common/actions';
+import { Action, IActionChangeEvent, IAction, IActionRunner } from 'vs/base/common/actions';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -15,14 +15,12 @@ import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
-import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/markers';
+import { IThemeService, registerThemingParticipant, ICssStyleCollector, ITheme } from 'vs/platform/theme/common/themeService';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { BaseActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { BaseActionViewItem, ActionViewItem, ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { Marker } from 'vs/workbench/contrib/markers/browser/markersModel';
@@ -30,6 +28,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Event, Emitter } from 'vs/base/common/event';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -38,8 +38,7 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 
 	constructor(id: string, label: string,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IPanelService panelService: IPanelService,
-		@IMarkersWorkbenchService markersWorkbenchService: IMarkersWorkbenchService
+		@IPanelService panelService: IPanelService
 	) {
 		super(id, label, Constants.MARKERS_PANEL_ID, panelService, layoutService);
 	}
@@ -73,6 +72,9 @@ export interface IMarkersFilterActionChangeEvent extends IActionChangeEvent {
 export interface IMarkersFilterActionOptions {
 	filterText: string;
 	filterHistory: string[];
+	showErrors: boolean;
+	showWarnings: boolean;
+	showInfos: boolean;
 	useFilesExclude: boolean;
 }
 
@@ -86,6 +88,9 @@ export class MarkersFilterAction extends Action {
 	constructor(options: IMarkersFilterActionOptions) {
 		super(MarkersFilterAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
 		this._filterText = options.filterText;
+		this._showErrors = options.showErrors;
+		this._showWarnings = options.showWarnings;
+		this._showInfos = options.showInfos;
 		this._useFilesExclude = options.useFilesExclude;
 		this.filterHistory = options.filterHistory;
 	}
@@ -168,6 +173,79 @@ export interface IMarkerFilterController {
 	getFilterStats(): { total: number, filtered: number };
 }
 
+class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
+
+	constructor(
+		action: IAction, private filterAction: MarkersFilterAction, actionRunner: IActionRunner,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		super(action,
+			{ getActions: () => this.getActions() },
+			contextMenuService,
+			action => undefined,
+			actionRunner!,
+			undefined,
+			action.class,
+			() => { return AnchorAlignment.RIGHT; });
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		this.updateChecked();
+	}
+
+	private getActions(): IAction[] {
+		return [
+			{
+				checked: this.filterAction.showErrors,
+				class: undefined,
+				enabled: true,
+				id: 'showErrors',
+				label: Messages.MARKERS_PANEL_ACTION_LABEL_SHOW_ERRORS,
+				run: async () => this.filterAction.showErrors = !this.filterAction.showErrors,
+				tooltip: '',
+				dispose: () => null
+			},
+			{
+				checked: this.filterAction.showWarnings,
+				class: undefined,
+				enabled: true,
+				id: 'showWarnings',
+				label: Messages.MARKERS_PANEL_ACTION_LABEL_SHOW_WARNINGS,
+				run: async () => this.filterAction.showWarnings = !this.filterAction.showWarnings,
+				tooltip: '',
+				dispose: () => null
+			},
+			{
+				checked: this.filterAction.showInfos,
+				class: undefined,
+				enabled: true,
+				id: 'showInfos',
+				label: Messages.MARKERS_PANEL_ACTION_LABEL_SHOW_INFOS,
+				run: async () => this.filterAction.showInfos = !this.filterAction.showInfos,
+				tooltip: '',
+				dispose: () => null
+			},
+			new Separator(),
+			{
+				checked: this.filterAction.useFilesExclude,
+				class: undefined,
+				enabled: true,
+				id: 'useFilesExclude',
+				label: Messages.MARKERS_PANEL_ACTION_LABEL_USE_FILES_EXCLUDE,
+				run: async () => this.filterAction.useFilesExclude = !this.filterAction.useFilesExclude,
+				tooltip: '',
+				dispose: () => null
+			}
+		];
+	}
+
+	updateChecked(): void {
+		DOM.toggleClass(this.element!, 'checked', this._action.checked);
+	}
+
+}
+
 export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private delayedFilterUpdate: Delayer<void>;
@@ -175,6 +253,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private filterInputBox: HistoryInputBox | null = null;
 	private filterBadge: HTMLElement | null = null;
 	private focusContextKey: IContextKey<boolean>;
+	private readonly filtersAction: IAction;
 
 	constructor(
 		readonly action: MarkersFilterAction,
@@ -190,6 +269,9 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.delayedFilterUpdate = new Delayer<void>(200);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 		this._register(action.onFocus(() => this.focus()));
+		this.filtersAction = new Action('markersFiltersAction', Messages.MARKERS_PANEL_ACTION_TOOLTIP_MORE_FILTERS, 'markers-filters codicon-filter');
+		this.filtersAction.checked = this.hasFiltersChanged();
+		this._register(action.onDidChange(() => this.filtersAction.checked = this.hasFiltersChanged()));
 	}
 
 	render(container: HTMLElement): void {
@@ -208,6 +290,10 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		if (this.filterInputBox) {
 			this.filterInputBox.focus();
 		}
+	}
+
+	private hasFiltersChanged(): boolean {
+		return !this.action.showErrors || !this.action.showWarnings || !this.action.showInfos || this.action.useFilesExclude;
 	}
 
 	private createInput(container: HTMLElement): void {
@@ -238,10 +324,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private createControls(container: HTMLElement): void {
 		const controlsContainer = DOM.append(container, DOM.$('.markers-panel-filter-controls'));
 		this.createBadge(controlsContainer);
-		this.createFilesExcludeCheckbox(controlsContainer);
-		this.createErrorsCheckbox(controlsContainer);
-		this.createWarningsCheckbox(controlsContainer);
-		this.createInfosCheckbox(controlsContainer);
+		this.createFilters(controlsContainer);
 	}
 
 	private createBadge(container: HTMLElement): void {
@@ -262,88 +345,16 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this._register(this.filterController.onDidFilter(() => this.updateBadge()));
 	}
 
-	private createFilesExcludeCheckbox(container: HTMLElement): void {
-		const filesExcludeFilter = this._register(new Checkbox({
-			actionClassName: 'codicon codicon-exclude',
-			title: this.action.useFilesExclude ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE,
-			isChecked: this.action.useFilesExclude
-		}));
-		this._register(filesExcludeFilter.onChange(() => {
-			filesExcludeFilter.domNode.title = filesExcludeFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE;
-			this.action.useFilesExclude = filesExcludeFilter.checked;
-			this.focus();
-		}));
-		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
-			if (event.useFilesExclude) {
-				filesExcludeFilter.checked = this.action.useFilesExclude;
+	private createFilters(container: HTMLElement): void {
+		const actionbar = this._register(new ActionBar(container, {
+			actionViewItemProvider: action => {
+				if (action.id === this.filtersAction.id) {
+					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.action, this.actionRunner);
+				}
+				return undefined;
 			}
 		}));
-
-		this._register(attachCheckboxStyler(filesExcludeFilter, this.themeService));
-		container.appendChild(filesExcludeFilter.domNode);
-	}
-
-	private createWarningsCheckbox(container: HTMLElement): void {
-		const warningsFilter = this._register(new Checkbox({
-			actionClassName: 'codicon codicon-warning',
-			title: this.action.showWarnings ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_WARNINGS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_WARNINGS,
-			isChecked: this.action.showWarnings
-		}));
-		this._register(warningsFilter.onChange(() => {
-			warningsFilter.domNode.title = warningsFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_WARNINGS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_WARNINGS;
-			this.action.showWarnings = warningsFilter.checked;
-			this.focus();
-		}));
-		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
-			if (event.showWarnings) {
-				warningsFilter.checked = this.action.showWarnings;
-			}
-		}));
-
-		this._register(attachCheckboxStyler(warningsFilter, this.themeService));
-		container.appendChild(warningsFilter.domNode);
-	}
-
-	private createErrorsCheckbox(container: HTMLElement): void {
-		const errorsFilter = this._register(new Checkbox({
-			actionClassName: 'codicon codicon-error',
-			title: this.action.showErrors ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_ERRORS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_ERRORS,
-			isChecked: this.action.showErrors
-		}));
-		this._register(errorsFilter.onChange(() => {
-			errorsFilter.domNode.title = errorsFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_ERRORS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_ERRORS;
-			this.action.showErrors = errorsFilter.checked;
-			this.focus();
-		}));
-		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
-			if (event.showErrors) {
-				errorsFilter.checked = this.action.showErrors;
-			}
-		}));
-
-		this._register(attachCheckboxStyler(errorsFilter, this.themeService));
-		container.appendChild(errorsFilter.domNode);
-	}
-
-	private createInfosCheckbox(container: HTMLElement): void {
-		const infosFilter = this._register(new Checkbox({
-			actionClassName: 'codicon codicon-info',
-			title: this.action.showInfos ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_INFOS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_INFOS,
-			isChecked: this.action.showInfos
-		}));
-		this._register(infosFilter.onChange(() => {
-			infosFilter.domNode.title = infosFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_SHOW_INFOS : Messages.MARKERS_PANEL_ACTION_TOOLTIP_SHOW_INFOS;
-			this.action.showInfos = infosFilter.checked;
-			this.focus();
-		}));
-		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
-			if (event.showInfos) {
-				infosFilter.checked = this.action.showInfos;
-			}
-		}));
-
-		this._register(attachCheckboxStyler(infosFilter, this.themeService));
-		container.appendChild(infosFilter.domNode);
+		actionbar.push(this.filtersAction, { icon: true, label: false });
 	}
 
 	private onDidInputChange(inputbox: HistoryInputBox) {
@@ -394,9 +405,9 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private reportFilteringUsed(): void {
 		const filterOptions = this.filterController.getFilterOptions();
 		const data = {
-			errors: filterOptions._showErrors,
-			warnings: filterOptions._showWarnings,
-			infos: filterOptions._showInfos,
+			errors: filterOptions.showErrors,
+			warnings: filterOptions.showWarnings,
+			infos: filterOptions.showInfos,
 		};
 		/* __GDPR__
 			"problems.filter" : {
@@ -481,3 +492,14 @@ export class QuickFixActionViewItem extends ActionViewItem {
 		}
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
+	if (inputActiveOptionBorderColor) {
+		collector.addRule(`.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters.checked { border-color: ${inputActiveOptionBorderColor}; }`);
+	}
+	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
+	if (inputActiveOptionBackgroundColor) {
+		collector.addRule(`.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
+	}
+});

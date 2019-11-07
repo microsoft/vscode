@@ -37,8 +37,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Separator, ActionViewItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { domEvent } from 'vs/base/browser/event';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker } from 'vs/platform/markers/common/markers';
@@ -119,7 +118,14 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		// actions
 		this.collapseAllAction = this._register(new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action codicon-collapse-all', true, async () => this.collapseAll()));
-		this.filterAction = this._register(this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelState['filter'] || '', filterHistory: this.panelState['filterHistory'] || [], useFilesExclude: !!this.panelState['useFilesExclude'] }));
+		this.filterAction = this._register(this.instantiationService.createInstance(MarkersFilterAction, {
+			filterText: this.panelState['filter'] || '',
+			filterHistory: this.panelState['filterHistory'] || [],
+			showErrors: this.panelState['showErrors'] !== false,
+			showWarnings: this.panelState['showWarnings'] !== false,
+			showInfos: this.panelState['showInfos'] !== false,
+			useFilesExclude: !!this.panelState['useFilesExclude']
+		}));
 	}
 
 	public create(parent: HTMLElement): void {
@@ -497,11 +503,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.messageBoxContainer.style.display = 'block';
 			this.messageBoxContainer.setAttribute('tabIndex', '0');
 			if (total > 0) {
-				if (this.filter.options.filter) {
-					this.renderFilteredByFilterMessage(this.messageBoxContainer);
-				} else {
-					this.renderFilteredByFilesExcludeMessage(this.messageBoxContainer);
-				}
+				this.renderFilteredByFilterMessage(this.messageBoxContainer);
 			} else {
 				this.renderNoProblemsMessage(this.messageBoxContainer);
 			}
@@ -516,37 +518,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 	}
 
-	private renderFilteredByFilesExcludeMessage(container: HTMLElement) {
-		const span1 = dom.append(container, dom.$('span'));
-		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER;
-		const link = dom.append(container, dom.$('a.messageAction'));
-		link.textContent = localize('disableFilesExclude', "Disable Files Exclude Filter.");
-		link.setAttribute('tabIndex', '0');
-		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterAction.useFilesExclude = false);
-		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-				this.filterAction.useFilesExclude = false;
-				e.stopPropagation();
-			}
-		});
-		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER);
-	}
-
 	private renderFilteredByFilterMessage(container: HTMLElement) {
 		const span1 = dom.append(container, dom.$('span'));
 		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
-		const link = dom.append(container, dom.$('a.messageAction'));
-		link.textContent = localize('clearFilter', "Clear Filter");
-		link.setAttribute('tabIndex', '0');
-		const span2 = dom.append(container, dom.$('span'));
-		span2.textContent = '.';
-		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterAction.filterText = '');
-		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-				this.filterAction.filterText = '';
-				e.stopPropagation();
-			}
-		});
 		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
 	}
 
@@ -728,6 +702,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	protected saveState(): void {
 		this.panelState['filter'] = this.filterAction.filterText;
 		this.panelState['filterHistory'] = this.filterAction.filterHistory;
+		this.panelState['showErrors'] = this.filterAction.showErrors;
+		this.panelState['showWarnings'] = this.filterAction.showWarnings;
+		this.panelState['showInfos'] = this.filterAction.showInfos;
 		this.panelState['useFilesExclude'] = this.filterAction.useFilesExclude;
 		this.panelState['multiline'] = this.markersViewModel.multiline;
 

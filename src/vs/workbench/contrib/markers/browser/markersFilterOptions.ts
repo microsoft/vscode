@@ -14,18 +14,18 @@ export class FilterOptions {
 	static readonly _filter: IFilter = matchesFuzzy2;
 	static readonly _messageFilter: IFilter = matchesFuzzy;
 
-	readonly _showWarnings: boolean = false;
-	readonly _showErrors: boolean = false;
-	readonly _showInfos: boolean = false;
+	readonly showWarnings: boolean = false;
+	readonly showErrors: boolean = false;
+	readonly showInfos: boolean = false;
 	readonly textFilter: string = '';
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
-	constructor(readonly filter: string = '', filesExclude: { root: URI, expression: IExpression }[] | IExpression = [], readonly showWarnings: boolean = false, readonly showErrors: boolean = false, readonly showInfos: boolean = false) {
+	constructor(readonly filter: string = '', filesExclude: { root: URI, expression: IExpression }[] | IExpression = [], showWarnings: boolean = false, showErrors: boolean = false, showInfos: boolean = false) {
 		filter = filter.trim();
-		this._showWarnings = showWarnings;
-		this._showErrors = showErrors;
-		this._showInfos = showInfos;
+		this.showWarnings = showWarnings;
+		this.showErrors = showErrors;
+		this.showInfos = showInfos;
 
 		const filesExcludeByRoot = Array.isArray(filesExclude) ? filesExclude : [];
 		const excludesExpression: IExpression = Array.isArray(filesExclude) ? getEmptyExpression() : filesExclude;

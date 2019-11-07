@@ -426,15 +426,15 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 
 	private filterMarker(marker: Marker, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
 		let shouldAppear: boolean = false;
-		if (this.options._showErrors && MarkerSeverity.Error === marker.marker.severity) {
+		if (this.options.showErrors && MarkerSeverity.Error === marker.marker.severity) {
 			shouldAppear = true;
 		}
 
-		if (this.options._showWarnings && MarkerSeverity.Warning === marker.marker.severity) {
+		if (this.options.showWarnings && MarkerSeverity.Warning === marker.marker.severity) {
 			shouldAppear = true;
 		}
 
-		if (this.options._showInfos && MarkerSeverity.Info === marker.marker.severity) {
+		if (this.options.showInfos && MarkerSeverity.Info === marker.marker.severity) {
 			shouldAppear = true;
 		}
 
