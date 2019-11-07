@@ -560,7 +560,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public toOpenedFilePath(document: vscode.TextDocument): string | undefined {
-		if (!this.bufferSyncSupport.handles(document.uri)) {
+		if (!this.bufferSyncSupport.ensureHasBuffer(document.uri)) {
 			console.error(`Unexpected resource ${document.uri}`);
 			return undefined;
 		}

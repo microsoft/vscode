@@ -6,7 +6,7 @@
 import 'vs/css!./media/scmViewlet';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
@@ -47,7 +47,7 @@ import { compareFileNames } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IViewDescriptor } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, find } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -466,17 +466,15 @@ class ViewModel {
 	}
 
 	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
-		if (this._mode === ViewModelMode.Tree) {
-			for (const resource of toInsert) {
-				item.tree.add(resource.sourceUri, resource);
-			}
-		}
-
 		const deleted = item.resources.splice(start, deleteCount, ...toInsert);
 
 		if (this._mode === ViewModelMode.Tree) {
 			for (const resource of deleted) {
 				item.tree.delete(resource.sourceUri);
+			}
+
+			for (const resource of toInsert) {
+				item.tree.add(resource.sourceUri, resource);
 			}
 		}
 
@@ -536,12 +534,15 @@ class ViewModel {
 
 		// go backwards from last group
 		for (let i = this.items.length - 1; i >= 0; i--) {
-			const node = this.items[i].tree.getNode(uri);
+			const item = this.items[i];
+			const resource = this.mode === ViewModelMode.Tree
+				? item.tree.getNode(uri)?.element
+				: find(item.resources, r => isEqual(r.sourceUri, uri));
 
-			if (node && node.element) {
-				this.tree.reveal(node.element);
-				this.tree.setSelection([node.element]);
-				this.tree.setFocus([node.element]);
+			if (resource) {
+				this.tree.reveal(resource);
+				this.tree.setSelection([resource]);
+				this.tree.setFocus([resource]);
 				return;
 			}
 		}
@@ -732,7 +733,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const keyboardNavigationLabelProvider = new SCMTreeKeyboardNavigationLabelProvider();
 		const identityProvider = new SCMResourceIdentityProvider();
 
-		this.tree = this.instantiationService.createInstance(
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchCompressibleObjectTree, WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>>(
 			WorkbenchCompressibleObjectTree,
 			'SCM Tree Repo',
 			this.listContainer,

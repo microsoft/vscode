@@ -711,11 +711,18 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 	if (focusedThread) {
 		const callStack = focusedThread ? focusedThread.getCallStack() : undefined;
 		const topStackFrame = callStack ? callStack[0] : undefined;
-		if (topStackFrame && topStackFrame.source.uri.toString() === breakpoint.uri.toString() && topStackFrame.range.startLineNumber === breakpoint.lineNumber && topStackFrame.range.startColumn === breakpoint.column) {
-			return {
-				className: 'debug-breakpoint-and-top-stack-frame',
-				message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
-			};
+		if (topStackFrame && topStackFrame.source.uri.toString() === breakpoint.uri.toString() && topStackFrame.range.startLineNumber === breakpoint.lineNumber) {
+			if (topStackFrame.range.startColumn === breakpoint.column) {
+				return {
+					className: 'debug-breakpoint-and-top-stack-frame-at-column',
+					message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
+				};
+			} else if (breakpoint.column === undefined) {
+				return {
+					className: 'debug-breakpoint-and-top-stack-frame',
+					message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
+				};
+			}
 		}
 	}
 

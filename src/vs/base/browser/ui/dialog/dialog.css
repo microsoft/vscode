@@ -156,6 +156,13 @@
 	display: flex;
 }
 
+.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row .dialog-checkbox-message {
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+}
+
 /** Dialog: Buttons Row */
 .monaco-workbench .dialog-box > .dialog-buttons-row {
 	display: flex;
@@ -177,8 +184,8 @@
 }
 
 .monaco-workbench .dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	max-width: fit-content;
-	max-width: -moz-fit-content;
+	width: fit-content;
+	width: -moz-fit-content;
 	padding: 5px 10px;
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	overflow: hidden;

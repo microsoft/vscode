@@ -88,6 +88,7 @@ export class ExplorerItem {
 		private _mtime?: number,
 	) {
 		this._isDirectoryResolved = false;
+		this._isDisposed = false;
 	}
 
 	get isDisposed(): boolean {

@@ -100,7 +100,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private disposed = false;
 
 	constructor(
-		private resource: URI,
+		private readonly resource: URI,
 		private preferredEncoding: string | undefined,	// encoding as chosen by the user
 		private preferredMode: string | undefined,		// mode as chosen by the user
 		@INotificationService private readonly notificationService: INotificationService,

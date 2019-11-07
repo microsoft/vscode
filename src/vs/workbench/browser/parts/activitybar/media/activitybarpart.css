@@ -41,3 +41,8 @@
 	width: 100%;
 	height: 35px;
 }
+
+.monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
+	width: 100%;
+	height: 35px;
+}

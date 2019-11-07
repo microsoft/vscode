@@ -458,4 +458,38 @@ suite('Strings', () => {
 		assert.equal(strings.removeAccents('ñice'), 'nice');
 		assert.equal(strings.removeAccents('ńice'), 'nice');
 	});
+
+	test('encodeUTF8', function () {
+		function assertEncodeUTF8(str: string, expected: number[]): void {
+			const actual = strings.encodeUTF8(str);
+			const actualArr: number[] = [];
+			for (let offset = 0; offset < actual.byteLength; offset++) {
+				actualArr[offset] = actual[offset];
+			}
+			assert.deepEqual(actualArr, expected);
+		}
+
+		function assertDecodeUTF8(data: number[], expected: string): void {
+			const actual = strings.decodeUTF8(new Uint8Array(data));
+			assert.deepEqual(actual, expected);
+		}
+
+		function assertEncodeDecodeUTF8(str: string, buff: number[]): void {
+			assertEncodeUTF8(str, buff);
+			assertDecodeUTF8(buff, str);
+		}
+
+		assertEncodeDecodeUTF8('\u0000', [0]);
+		assertEncodeDecodeUTF8('!', [33]);
+		assertEncodeDecodeUTF8('\u007F', [127]);
+		assertEncodeDecodeUTF8('\u0080', [194, 128]);
+		assertEncodeDecodeUTF8('Ɲ', [198, 157]);
+		assertEncodeDecodeUTF8('\u07FF', [223, 191]);
+		assertEncodeDecodeUTF8('\u0800', [224, 160, 128]);
+		assertEncodeDecodeUTF8('ஂ', [224, 174, 130]);
+		assertEncodeDecodeUTF8('\uffff', [239, 191, 191]);
+		assertEncodeDecodeUTF8('\u10000', [225, 128, 128, 48]);
+		assertEncodeDecodeUTF8('🧝', [240, 159, 167, 157]);
+
+	});
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, dirname } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import { Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -11,7 +11,6 @@ import * as platform from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { endsWith } from 'vs/base/common/strings';
 import { promisify } from 'util';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -398,7 +397,7 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 // not in some cache.
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
-function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, options: IEnsuredWriteFileOptions, callback: (error?: Error) => void): void {
+function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, options: IEnsuredWriteFileOptions, callback: (error: Error | null) => void): void {
 	if (options.encoding) {
 		data = encode(data instanceof Uint8Array ? Buffer.from(data) : data, options.encoding.charset, { addBOM: options.encoding.addBOM });
 	}
@@ -633,55 +632,8 @@ async function doCopyFile(source: string, target: string, mode: number): Promise
 	});
 }
 
-export async function mkdirp(path: string, mode?: number, token?: CancellationToken): Promise<void> {
-	const mkdir = async () => {
-		try {
-			await promisify(fs.mkdir)(path, mode);
-		} catch (error) {
-
-			// ENOENT: a parent folder does not exist yet
-			if (error.code === 'ENOENT') {
-				return Promise.reject(error);
-			}
-
-			// Any other error: check if folder exists and
-			// return normally in that case if its a folder
-			try {
-				const fileStat = await stat(path);
-				if (!fileStat.isDirectory()) {
-					return Promise.reject(new Error(`'${path}' exists and is not a directory.`));
-				}
-			} catch (statError) {
-				throw error; // rethrow original error
-			}
-		}
-	};
-
-	// stop at root
-	if (path === dirname(path)) {
-		return Promise.resolve();
-	}
-
-	try {
-		await mkdir();
-	} catch (error) {
-
-		// Respect cancellation
-		if (token && token.isCancellationRequested) {
-			return Promise.resolve();
-		}
-
-		// ENOENT: a parent folder does not exist yet, continue
-		// to create the parent folder and then try again.
-		if (error.code === 'ENOENT') {
-			await mkdirp(dirname(path), mode);
-
-			return mkdir();
-		}
-
-		// Any other error
-		return Promise.reject(error);
-	}
+export async function mkdirp(path: string, mode?: number): Promise<void> {
+	return promisify(fs.mkdir)(path, { mode, recursive: true });
 }
 
 // See https://github.com/Microsoft/vscode/issues/30180

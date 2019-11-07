@@ -26,7 +26,7 @@ export class CodeActionKind {
 	}
 
 	public contains(other: CodeActionKind): boolean {
-		return this.equals(other) || startsWith(other.value, this.value + CodeActionKind.sep);
+		return this.equals(other) || this.value === '' || startsWith(other.value, this.value + CodeActionKind.sep);
 	}
 
 	public intersects(other: CodeActionKind): boolean {
@@ -35,9 +35,9 @@ export class CodeActionKind {
 }
 
 export const enum CodeActionAutoApply {
-	IfSingle,
-	First,
-	Never,
+	IfSingle = 'ifSingle',
+	First = 'first',
+	Never = 'never',
 }
 
 export interface CodeActionFilter {

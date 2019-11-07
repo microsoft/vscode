@@ -635,6 +635,12 @@ class SuggestAdapter {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
+		// The default insert/replace ranges. It's important to compute them
+		// before asynchronously asking the provider for its results. See
+		// https://github.com/microsoft/vscode/issues/83400#issuecomment-546851421
+		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
+		const insertRange = replaceRange.with({ end: pos });
+
 		return asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))).then(value => {
 
 			if (!value) {
@@ -654,10 +660,6 @@ class SuggestAdapter {
 			const pid: number = SuggestAdapter.supportsResolving(this._provider) ? this._cache.add(list.items) : this._cache.add([]);
 			const disposables = new DisposableStore();
 			this._disposables.set(pid, disposables);
-
-			// the default text edit range
-			const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
-			const insertRange = replaceRange.with({ end: pos });
 
 			const result: extHostProtocol.ISuggestResultDto = {
 				x: pid,
@@ -749,7 +751,7 @@ class SuggestAdapter {
 		}
 
 		// 'overwrite[Before|After]'-logic
-		let range: vscode.Range | { insert: vscode.Range, replace: vscode.Range } | undefined;
+		let range: vscode.Range | { inserting: vscode.Range, replacing: vscode.Range } | undefined;
 		if (item.textEdit) {
 			range = item.textEdit.range;
 		} else if (item.range) {
@@ -768,17 +770,17 @@ class SuggestAdapter {
 
 			} else {
 				if (
-					!SuggestAdapter._isValidRangeForCompletion(range.insert, position)
-					|| !SuggestAdapter._isValidRangeForCompletion(range.replace, position)
-					|| !range.insert.start.isEqual(range.replace.start)
-					|| !range.replace.contains(range.insert)
+					!SuggestAdapter._isValidRangeForCompletion(range.inserting, position)
+					|| !SuggestAdapter._isValidRangeForCompletion(range.replacing, position)
+					|| !range.inserting.start.isEqual(range.replacing.start)
+					|| !range.replacing.contains(range.inserting)
 				) {
 					console.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
 					return undefined;
 				}
 				result[extHostProtocol.ISuggestDataDtoField.range] = {
-					insert: typeConvert.Range.from(range.insert),
-					replace: typeConvert.Range.from(range.replace)
+					insert: typeConvert.Range.from(range.inserting),
+					replace: typeConvert.Range.from(range.replacing)
 				};
 			}
 		}

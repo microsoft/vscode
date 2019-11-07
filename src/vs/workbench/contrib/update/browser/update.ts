@@ -29,6 +29,7 @@ import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
+import product from 'vs/platform/product/common/product';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
 
@@ -100,6 +101,7 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 
 	static readonly ID = ShowCurrentReleaseNotesActionId;
 	static readonly LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
+	static readonly AVAILABE = !!product.releaseNotesUrl;
 
 	constructor(
 		id = ShowCurrentReleaseNotesAction.ID,

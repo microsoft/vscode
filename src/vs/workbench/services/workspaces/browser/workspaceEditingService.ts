@@ -5,7 +5,7 @@
 
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -46,7 +46,7 @@ export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingServ
 		if (result) {
 
 			// Open workspace in same window
-			await this.hostService.openWindow([{ workspaceUri: path }], { forceReuseWindow: true, noRecentEntry: isUntitledWorkspace(path, this.environmentService) });
+			await this.hostService.openWindow([{ workspaceUri: path }], { forceReuseWindow: true });
 		}
 	}
 }

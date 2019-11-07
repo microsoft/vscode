@@ -7,7 +7,7 @@ pr: none
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "10.15.1"
+    versionSpec: "12.13.0"
 
 - task: AzureKeyVault@1
   displayName: 'Azure Key Vault: Get Secrets'

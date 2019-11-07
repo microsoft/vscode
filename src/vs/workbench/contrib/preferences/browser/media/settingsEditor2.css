@@ -396,7 +396,11 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number input[type=number]::-webkit-inner-spin-button {
 	/* Hide arrow button that shows in type=number fields */
 	-webkit-appearance: none !important;
-	-moz-appearance: none !important;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number input[type=number] {
+	/* Hide arrow button that shows in type=number fields */
+	-moz-appearance: textfield !important;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown * {
@@ -484,6 +488,7 @@
 	width: initial;
 	font: inherit;
 	height: 26px;
+	padding: 2px 8px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions {

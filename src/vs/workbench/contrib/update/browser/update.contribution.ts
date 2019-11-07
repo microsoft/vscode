@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/platform/update/common/update.config.contribution';
+import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, CheckForVSCodeUpdateAction, CONTEXT_UPDATE_STATE } from 'vs/workbench/contrib/update/browser/update';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
@@ -26,3 +27,15 @@ actionRegistry
 
 actionRegistry
 	.registerWorkbenchAction(new SyncActionDescriptor(CheckForVSCodeUpdateAction, CheckForVSCodeUpdateAction.ID, CheckForVSCodeUpdateAction.LABEL), `${product.nameShort}: Check for Update`, product.nameShort, CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle));
+
+// Menu
+if (ShowCurrentReleaseNotesAction.AVAILABE) {
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '1_welcome',
+		command: {
+			id: ShowCurrentReleaseNotesAction.ID,
+			title: localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
+		},
+		order: 4
+	});
+}

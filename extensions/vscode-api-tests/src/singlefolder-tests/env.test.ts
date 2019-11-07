@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { env, extensions, ExtensionKind, UIKind } from 'vscode';
+import { env, extensions, ExtensionKind, UIKind, Uri } from 'vscode';
 
 suite('env-namespace', () => {
 
@@ -38,15 +38,38 @@ suite('env-namespace', () => {
 		} else if (typeof remoteName === 'string') {
 			// running in remote, so we only expect workspace extensions
 			assert.ok(knownWorkspaceExtension);
-			assert.ok(!knownUiExtension); // we currently can only access extensions that run on same host
+			if (env.uiKind === UIKind.Desktop) {
+				assert.ok(!knownUiExtension); // we currently can only access extensions that run on same host
+			}
 			assert.equal(ExtensionKind.Workspace, knownWorkspaceExtension!.extensionKind);
 		} else {
 			assert.fail();
 		}
 	});
 
-	test('env.uiKind', function () {
+	test('env.uiKind', async function () {
+		const uri = Uri.parse(`${env.uriScheme}:://vscode.vscode-api-tests/path?key=value&other=false`);
+		const result = await env.asExternalUri(uri);
+
 		const kind = env.uiKind;
-		assert.equal(kind, UIKind.Desktop);
+		if (result.scheme === 'http' || result.scheme === 'https') {
+			assert.equal(kind, UIKind.Web);
+		} else {
+			assert.equal(kind, UIKind.Desktop);
+		}
+	});
+
+	test('env.asExternalUri - with env.uriScheme', async function () {
+		const uri = Uri.parse(`${env.uriScheme}:://vscode.vscode-api-tests/path?key=value&other=false`);
+		const result = await env.asExternalUri(uri);
+		assert.ok(result);
+
+		if (env.uiKind === UIKind.Desktop) {
+			assert.equal(uri.scheme, result.scheme);
+			assert.equal(uri.authority, result.authority);
+			assert.equal(uri.path, result.path);
+		} else {
+			assert.ok(result.scheme === 'http' || result.scheme === 'https');
+		}
 	});
 });

@@ -56,7 +56,11 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		return Promise.resolve(undefined);
 	}
 
-	async createAppUri(extensionId: ExtensionIdentifier, options?: vscode.AppUriOptions): Promise<vscode.Uri> {
-		return URI.revive(await this._proxy.$createAppUri(extensionId, options));
+	async createAppUri(uri: URI): Promise<vscode.Uri> {
+		return URI.revive(await this._proxy.$createAppUri(uri));
+	}
+
+	async proposedCreateAppUri(extensionId: ExtensionIdentifier, options?: vscode.AppUriOptions): Promise<vscode.Uri> {
+		return URI.revive(await this._proxy.$proposedCreateAppUri(extensionId, options));
 	}
 }

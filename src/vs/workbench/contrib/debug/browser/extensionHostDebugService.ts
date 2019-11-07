@@ -17,6 +17,7 @@ import { mapToSerializable } from 'vs/base/common/map';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
 
@@ -72,10 +73,20 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		const folderUriArg = this.findArgument('folder-uri', args);
 		if (folderUriArg) {
 			debugWorkspace = { folderUri: URI.parse(folderUriArg) };
+		} else {
+			const fileUriArg = this.findArgument('file-uri', args);
+			if (fileUriArg && hasWorkspaceFileExtension(fileUriArg)) {
+				debugWorkspace = { workspaceUri: URI.parse(fileUriArg) };
+			}
 		}
 
 		// Add environment parameters required for debug to work
 		const environment = new Map<string, string>();
+
+		const fileUriArg = this.findArgument('file-uri', args);
+		if (fileUriArg && !hasWorkspaceFileExtension(fileUriArg)) {
+			environment.set('openFile', fileUriArg);
+		}
 
 		const extensionDevelopmentPath = this.findArgument('extensionDevelopmentPath', args);
 		if (extensionDevelopmentPath) {

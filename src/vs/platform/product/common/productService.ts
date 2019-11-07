@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 
 export const IProductService = createDecorator<IProductService>('productService');
 
@@ -96,7 +97,7 @@ export interface IProductConfiguration {
 
 	readonly portable?: string;
 
-	readonly uiExtensions?: readonly string[];
+	readonly extensionKind?: { readonly [extensionId: string]: ExtensionKind | ExtensionKind[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
 
 	readonly msftInternalDomains?: string[];

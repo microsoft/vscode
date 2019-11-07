@@ -793,6 +793,7 @@ export class DebugService implements IDebugService {
 				// Check that the task isn't busy and if it is, wait for it
 				const busyTasks = await this.taskService.getBusyTasks();
 				if (busyTasks.filter(t => t._id === task._id).length) {
+					taskStarted = true;
 					return inactivePromise;
 				}
 				// task is already running and isn't busy - nothing to do.

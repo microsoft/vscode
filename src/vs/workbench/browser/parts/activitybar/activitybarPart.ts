@@ -450,6 +450,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.globalActivityActionBar) {
 			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
+		if (this.menubar) {
+			availableHeight -= this.menubar.clientHeight;
+		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}
 

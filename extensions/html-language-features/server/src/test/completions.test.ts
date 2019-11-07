@@ -6,10 +6,9 @@ import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { TextDocument, CompletionList, CompletionItemKind } from 'vscode-languageserver-types';
 import { getLanguageModes } from '../modes/languageModes';
 import { WorkspaceFolder } from 'vscode-languageserver';
-import { ClientCapabilities } from 'vscode-html-languageservice';
+import { TextDocument, CompletionList, CompletionItemKind, ClientCapabilities } from 'vscode-html-languageservice';
 
 export interface ItemDescription {
 	label: string;
