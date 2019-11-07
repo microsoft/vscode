@@ -19,7 +19,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource, IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource, IKeybindingService, IKeybindingEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, IKeybindingRule2, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -45,6 +45,7 @@ import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispa
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
+import { flatten } from 'vs/base/common/arrays';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -146,6 +147,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _keyboardMapper: IKeyboardMapper;
 	private _cachedResolver: KeybindingResolver | null;
 	private userKeybindings: UserKeybindings;
+	private readonly _contributions: KeybindingsSchemaContribution[] = [];
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -161,7 +163,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService);
 
-		updateSchema();
+		this.updateSchema();
 
 		let dispatchConfig = getDispatchConfig(configurationService);
 		configurationService.onDidChangeConfiguration((e) => {
@@ -214,8 +216,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this.updateResolver({ source: KeybindingSource.Default });
 		});
 
-		updateSchema();
-		this._register(extensionService.onDidRegisterExtensions(() => updateSchema()));
+		this.updateSchema();
+		this._register(extensionService.onDidRegisterExtensions(() => this.updateSchema()));
 
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
@@ -252,6 +254,18 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this._cachedResolver = null;
 			this._onDidUpdateKeybindings.fire({ source: KeybindingSource.User });
 		}));
+	}
+
+	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
+		this._contributions.push(contribution);
+		if (contribution.onDidChange) {
+			this._register(contribution.onDidChange(() => this.updateSchema()));
+		}
+		this.updateSchema();
+	}
+
+	private updateSchema() {
+		updateSchema(flatten(this._contributions.map(x => x.getSchemaAdditions())));
 	}
 
 	public _dumpDebugInfo(): string {
@@ -653,7 +667,7 @@ let schema: IJSONSchema = {
 let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
-function updateSchema() {
+function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 	commandsSchemas.length = 0;
 	commandsEnum.length = 0;
 	commandsEnumDescriptions.length = 0;
@@ -707,6 +721,9 @@ function updateSchema() {
 	for (const commandId of menuCommands.keys()) {
 		addKnownCommand(commandId);
 	}
+
+	commandsSchemas.push(...additionalContributions);
+	schemaRegistry.notifySchemaChanged(schemaId);
 }
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);

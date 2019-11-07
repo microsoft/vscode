@@ -12,6 +12,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { FileSearchProvider, FileSearchOptions } from 'vs/workbench/services/search/common/searchExtTypes';
+import { nextTick } from 'vs/base/common/process';
 
 export interface IInternalFileMatch {
 	base: URI;
@@ -114,7 +115,7 @@ class FileSearchEngine {
 			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
 
 			let providerSW: StopWatch;
-			new Promise(_resolve => process.nextTick(_resolve))
+			new Promise(_resolve => nextTick(_resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
 

@@ -477,29 +477,6 @@ const editorConfiguration: IConfigurationNode = {
 			default: 20_000,
 			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
 		},
-		'editor.codeActionsOnSave': {
-			type: 'object',
-			properties: {
-				'source.organizeImports': {
-					type: 'boolean',
-					description: nls.localize('codeActionsOnSave.organizeImports', "Controls whether organize imports action should be run on file save.")
-				},
-				'source.fixAll': {
-					type: 'boolean',
-					description: nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
-				}
-			},
-			'additionalProperties': {
-				type: 'boolean'
-			},
-			default: {},
-			description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
-		},
-		'editor.codeActionsOnSaveTimeout': {
-			type: 'number',
-			default: 750,
-			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled.")
-		},
 		'diffEditor.maxComputationTime': {
 			type: 'number',
 			default: 5000,

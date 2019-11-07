@@ -167,6 +167,9 @@ export class PatternInputWidget extends Widget {
 
 export class ExcludePatternInputWidget extends PatternInputWidget {
 
+	private _onChangeIgnoreBoxEmitter = this._register(new Emitter<void>());
+	onChangeIgnoreBox = this._onChangeIgnoreBoxEmitter.event;
+
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService
@@ -200,6 +203,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			isChecked: true,
 		}));
 		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {
+			this._onChangeIgnoreBoxEmitter.fire();
 			if (!viaKeyboard) {
 				this.inputBox.focus();
 			}
