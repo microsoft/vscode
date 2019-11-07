@@ -23,7 +23,7 @@ import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
-import { flatten, coalease } from './utils/arrays';
+import { flatten, coalesce } from './utils/arrays';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -245,7 +245,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		}
 		const relatedInformation = diagnostic.relatedInformation;
 		if (relatedInformation) {
-			converted.relatedInformation = coalease(relatedInformation.map((info: any) => {
+			converted.relatedInformation = coalesce(relatedInformation.map((info: any) => {
 				const span = info.span;
 				if (!span) {
 					return undefined;

@@ -6,7 +6,7 @@
 import * as jsonc from 'jsonc-parser';
 import { basename, dirname, join } from 'path';
 import * as vscode from 'vscode';
-import { coalease, flatten } from '../utils/arrays';
+import { coalesce, flatten } from '../utils/arrays';
 
 function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
 	return node && node.type === 'array' && node.children
@@ -25,7 +25,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 			return null;
 		}
 
-		return coalease([
+		return coalesce([
 			this.getExtendsLink(document, root),
 			...this.getFilesLinks(document, root),
 			...this.getReferencesLinks(document, root)
