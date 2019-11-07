@@ -148,10 +148,22 @@ const ExtractInterface = Object.freeze<CodeActionKind>({
 	matches: refactor => refactor.name.includes('Extract to interface')
 });
 
-const Move = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.Refactor.append('move'),
-	matches: refactor => refactor.name.startsWith('Move')
+const MoveNewFile = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.Refactor.append('move').append('newFile'),
+	matches: refactor => refactor.name.startsWith('Move to a new file')
 });
+
+const RewriteImport = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorRewrite.append('import'),
+	matches: refactor => refactor.name.startsWith('Convert import')
+});
+
+const RewriteExport = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorRewrite.append('export'),
+	matches: refactor => refactor.name.startsWith('Convert export')
+});
+
+const allKnownCodeActionKinds = [ExtractFunction, ExtractConstant, ExtractType, ExtractInterface, MoveNewFile, RewriteImport, RewriteExport];
 
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
@@ -194,7 +206,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
 			return this.client.execute('getApplicableRefactors', args, token);
 		});
-		if (!response || response.type !== 'response' || !response.body) {
+		if (response?.type !== 'response' || !response.body) {
 			return undefined;
 		}
 
@@ -250,7 +262,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {
-		const match = [ExtractFunction, ExtractConstant, ExtractType, ExtractInterface, Move].find(kind => kind.matches(refactor));
+		const match = allKnownCodeActionKinds.find(kind => kind.matches(refactor));
 		return match ? match.kind : vscode.CodeActionKind.Refactor;
 	}
 

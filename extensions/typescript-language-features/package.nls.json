@@ -84,5 +84,11 @@
 	"codeActions.refactor.extract.type.description": "Extract type to a type alias.",
 	"codeActions.refactor.extract.interface.title": "Extract interface",
 	"codeActions.refactor.extract.interface.description": "Extract type to an interface.",
+	"codeActions.refactor.rewrite.import.title": "Convert import",
+	"codeActions.refactor.rewrite.import.description": "Convert between named imports and namespace imports.",
+	"codeActions.refactor.rewrite.export.title": "Convert export",
+	"codeActions.refactor.rewrite.export.description": "Convert between default export and named export.",
+	"codeActions.refactor.move.newFile.title": "Move to a new file",
+	"codeActions.refactor.move.newFile.description": "Move the expression to a new file.",
 	"codeActions.source.organizeImports.title": "Organize imports"
 }

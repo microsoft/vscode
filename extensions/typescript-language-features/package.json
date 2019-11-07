@@ -897,6 +897,21 @@
             "description": "%codeActions.refactor.extract.type.description%"
           },
           {
+            "kind": "refactor.rewrite.import",
+            "title": "%codeActions.refactor.rewrite.import.title%",
+            "description": "%codeActions.refactor.rewrite.import.description%"
+          },
+          {
+            "kind": "refactor.rewrite.export",
+            "title": "%codeActions.refactor.rewrite.export.title%",
+            "description": "%codeActions.refactor.rewrite.export.description%"
+          },
+          {
+            "kind": "refactor.move.newFile",
+            "title": "%codeActions.refactor.move.newFile.title%",
+            "description": "%codeActions.refactor.move.newFile.description%"
+          },
+          {
             "kind": "source.organizeImports",
             "title": "%codeActions.source.organizeImports.title%"
           }
