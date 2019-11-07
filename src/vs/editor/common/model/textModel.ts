@@ -1721,7 +1721,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		});
 	}
 
-	public setSemanticTokens(tokens: MultilineTokens2[]): void {
+	public setSemanticTokens(tokens: MultilineTokens2[] | null): void {
 		this._tokens2.set(tokens);
 
 		// TODO@semantic: could we reduce the event here?

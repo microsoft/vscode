@@ -464,8 +464,6 @@ class ModelSemanticColoring extends Disposable {
 	constructor(model: ITextModel) {
 		super();
 
-		console.log(`ModelSemanticColoring created for ${model.uri}`);
-
 		this._model = model;
 		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 500));
 		this._currentResponse = null;
@@ -505,12 +503,6 @@ class ModelSemanticColoring extends Disposable {
 		request.then((res) => {
 			this._currentRequestCancellationTokenSource = null;
 			this._setSemanticTokens(this._currentRequestVersion, res || null);
-			// if (this._currentResponse) {
-			// 	this._currentResponse.dispose();
-			// 	this._currentResponse = null;
-			// }
-			// this._currentRequestVersion = -1;
-			console.log(res);
 		}, (err) => {
 			this._currentRequestCancellationTokenSource = null;
 			errors.onUnexpectedError(err);
@@ -524,45 +516,45 @@ class ModelSemanticColoring extends Disposable {
 			this._currentResponse = null;
 		}
 		this._currentResponse = tokens;
+		if (!this._currentResponse) {
+			this._model.setSemanticTokens(null);
+			return;
+		}
 		// TODO@semantic: diff here and reduce to only really needed tokens...
 		// TODO@semantic: might also be a good idea to split areas... ?
-		if (this._currentResponse) {
-			const result: MultilineTokens2[] = [];
-			for (const area of this._currentResponse.areas) {
-				const srcTokens = area.data;
-				const tokenCount = srcTokens.length / 5;
-				const destTokens = new Uint32Array(4 * tokenCount);
-				for (let i = 0; i < tokenCount; i++) {
-					const srcOffset = 5 * i;
-					const deltaLine = srcTokens[srcOffset];
-					const startCharacter = srcTokens[srcOffset + 1];
-					const endCharacter = srcTokens[srcOffset + 2];
-					// const tokenType = srcTokens[srcOffset + 3];
-					// const tokenModifiers = srcTokens[srcOffset + 4];
-					// TODO@semantic: map here tokenType and tokenModifiers to metadata
+		const result: MultilineTokens2[] = [];
+		for (const area of this._currentResponse.areas) {
+			const srcTokens = area.data;
+			const tokenCount = srcTokens.length / 5;
+			const destTokens = new Uint32Array(4 * tokenCount);
+			for (let i = 0; i < tokenCount; i++) {
+				const srcOffset = 5 * i;
+				const deltaLine = srcTokens[srcOffset];
+				const startCharacter = srcTokens[srcOffset + 1];
+				const endCharacter = srcTokens[srcOffset + 2];
+				// const tokenType = srcTokens[srcOffset + 3];
+				// const tokenModifiers = srcTokens[srcOffset + 4];
+				// TODO@semantic: map here tokenType and tokenModifiers to metadata
 
-					const fontStyle = FontStyle.Italic | FontStyle.Bold | FontStyle.Underline;
-					const foregroundColorId = 3;
-					const metadata = (
-						(fontStyle << MetadataConsts.FONT_STYLE_OFFSET)
-						| (foregroundColorId << MetadataConsts.FOREGROUND_OFFSET)
-					) >>> 0;
+				const fontStyle = FontStyle.Italic | FontStyle.Bold | FontStyle.Underline;
+				const foregroundColorId = 3;
+				const metadata = (
+					(fontStyle << MetadataConsts.FONT_STYLE_OFFSET)
+					| (foregroundColorId << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0;
 
-					const destOffset = 4 * i;
-					destTokens[destOffset] = deltaLine;
-					destTokens[destOffset + 1] = startCharacter;
-					destTokens[destOffset + 2] = endCharacter;
-					destTokens[destOffset + 3] = metadata;
-				}
-
-				const tokens = new MultilineTokens2(area.line, new SparseEncodedTokens(destTokens));
-				result.push(tokens);
+				const destOffset = 4 * i;
+				destTokens[destOffset] = deltaLine;
+				destTokens[destOffset + 1] = startCharacter;
+				destTokens[destOffset + 2] = endCharacter;
+				destTokens[destOffset + 3] = metadata;
 			}
 
-			this._model.setSemanticTokens(result);
-		} else {
-			// TODO@semantic: should we clear semantic tokens on the text model here?
+			const tokens = new MultilineTokens2(area.line, new SparseEncodedTokens(destTokens));
+			result.push(tokens);
 		}
+
+		this._model.setSemanticTokens(result);
 	}
 
 	private _getSemanticColoringProvider(): SemanticColoringProvider | null {

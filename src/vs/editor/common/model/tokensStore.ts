@@ -752,8 +752,8 @@ export class TokensStore2 {
 		this._pieces = [];
 	}
 
-	public set(pieces: MultilineTokens2[]) {
-		this._pieces = pieces;
+	public set(pieces: MultilineTokens2[] | null) {
+		this._pieces = pieces || [];
 	}
 
 	public addSemanticTokens(lineNumber: number, aTokens: LineTokens): LineTokens {

@@ -795,7 +795,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	setSemanticTokens(tokens: MultilineTokens2[]): void;
+	setSemanticTokens(tokens: MultilineTokens2[] | null): void;
 
 	/**
 	 * Flush all tokenization state.

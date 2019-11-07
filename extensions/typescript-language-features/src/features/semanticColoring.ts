@@ -102,7 +102,6 @@ class SemanticColoringProvider implements vscode.SemanticColoringProvider {
 			}
 		}
 
-		console.log(result);
 		return new vscode.SemanticColoring([new vscode.SemanticColoringArea(0, new Uint32Array(result))]);
 	}
 
