@@ -116,7 +116,9 @@ export class MarkersFilterAction extends Action {
 	}
 
 	layout(width: number): void {
-		if (width < 400) {
+		if (width > 600) {
+			this.class = 'markers-panel-action-filter grow';
+		} else if (width < 400) {
 			this.class = 'markers-panel-action-filter small';
 		} else {
 			this.class = 'markers-panel-action-filter';
@@ -133,6 +135,7 @@ export interface IMarkerFilterController {
 export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private delayedFilterUpdate: Delayer<void>;
+	private container: HTMLElement | null = null;
 	private filterInputBox: HistoryInputBox | null = null;
 	private filterBadge: HTMLElement | null = null;
 	private focusContextKey: IContextKey<boolean>;
@@ -154,9 +157,10 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	render(container: HTMLElement): void {
-		DOM.addClass(container, 'markers-panel-action-filter-container');
+		this.container = container;
+		DOM.addClass(this.container, 'markers-panel-action-filter-container');
 
-		this.element = DOM.append(container, DOM.$(''));
+		this.element = DOM.append(this.container, DOM.$(''));
 		this.element.className = this.action.class || '';
 		this.createInput(this.element);
 		this.createControls(this.element);
@@ -303,8 +307,9 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	protected updateClass(): void {
-		if (this.element) {
+		if (this.element && this.container) {
 			this.element.className = this.action.class || '';
+			DOM.toggleClass(this.container, 'grow', DOM.hasClass(this.element, 'grow'));
 			this.adjustInputBox();
 		}
 	}
