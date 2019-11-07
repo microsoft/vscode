@@ -15,8 +15,8 @@ export class CodeActionKind {
 	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');
 	public static readonly Source = new CodeActionKind('source');
-	public static readonly SourceOrganizeImports = new CodeActionKind('source.organizeImports');
-	public static readonly SourceFixAll = new CodeActionKind('source.fixAll');
+	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
+	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
 
 	constructor(
 		public readonly value: string
@@ -32,6 +32,10 @@ export class CodeActionKind {
 
 	public intersects(other: CodeActionKind): boolean {
 		return this.contains(other) || other.contains(this);
+	}
+
+	public append(part: string): CodeActionKind {
+		return new CodeActionKind(this.value + CodeActionKind.sep + part);
 	}
 }
 
