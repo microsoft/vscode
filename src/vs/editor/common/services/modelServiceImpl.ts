@@ -459,7 +459,6 @@ class ModelSemanticColoring extends Disposable {
 	private readonly _fetchSemanticTokens: RunOnceScheduler;
 	private _currentResponse: SemanticColoring | null;
 	private _currentRequestCancellationTokenSource: CancellationTokenSource | null;
-	private _currentRequestVersion: number;
 
 	constructor(model: ITextModel) {
 		super();
@@ -468,7 +467,6 @@ class ModelSemanticColoring extends Disposable {
 		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 500));
 		this._currentResponse = null;
 		this._currentRequestCancellationTokenSource = null;
-		this._currentRequestVersion = -1;
 
 		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
 		this._register(SemanticColoringProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
@@ -497,16 +495,16 @@ class ModelSemanticColoring extends Disposable {
 			return;
 		}
 		this._currentRequestCancellationTokenSource = new CancellationTokenSource();
-		this._currentRequestVersion = this._model.getVersionId();
+		const currentRequestVersion = this._model.getVersionId();
 		const request = Promise.resolve(provider.provideSemanticColoring(this._model, this._currentRequestCancellationTokenSource.token));
 
 		request.then((res) => {
 			this._currentRequestCancellationTokenSource = null;
-			this._setSemanticTokens(this._currentRequestVersion, res || null);
+			this._setSemanticTokens(currentRequestVersion, res || null);
 		}, (err) => {
-			this._currentRequestCancellationTokenSource = null;
 			errors.onUnexpectedError(err);
-			this._setSemanticTokens(this._currentRequestVersion, null);
+			this._currentRequestCancellationTokenSource = null;
+			this._setSemanticTokens(currentRequestVersion, null);
 		});
 	}
 
@@ -520,6 +518,12 @@ class ModelSemanticColoring extends Disposable {
 			this._model.setSemanticTokens(null);
 			return;
 		}
+
+		if (versionId !== this._model.getVersionId()) {
+			console.log(`TODO@semantic: model changed in the meantime!!!`);
+		}
+		// TODO@semantic
+
 		// TODO@semantic: diff here and reduce to only really needed tokens...
 		// TODO@semantic: might also be a good idea to split areas... ?
 		const result: MultilineTokens2[] = [];

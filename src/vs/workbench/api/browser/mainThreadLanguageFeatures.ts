@@ -606,7 +606,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 }
 
-class SemanticColoringCacheEntry implements modes.SemanticColoring {
+class MainThreadSemanticColoringCacheEntry implements modes.SemanticColoring {
 
 	constructor(
 		private readonly _parent: MainThreadSemanticColoringProvider,
@@ -623,7 +623,7 @@ class SemanticColoringCacheEntry implements modes.SemanticColoring {
 
 class MainThreadSemanticColoringProvider implements modes.SemanticColoringProvider {
 
-	private readonly _cache = new Map<string, SemanticColoringCacheEntry>();
+	private readonly _cache = new Map<string, MainThreadSemanticColoringCacheEntry>();
 
 	constructor(
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
@@ -632,8 +632,9 @@ class MainThreadSemanticColoringProvider implements modes.SemanticColoringProvid
 	) {
 	}
 
-	release(entry: SemanticColoringCacheEntry): void {
+	release(entry: MainThreadSemanticColoringCacheEntry): void {
 		this._cache.delete(entry.uri.toString());
+		this._proxy.$releaseSemanticColoring(this._handle, entry.id);
 	}
 
 	getLegend(): modes.SemanticColoringLegend {
@@ -650,12 +651,12 @@ class MainThreadSemanticColoringProvider implements modes.SemanticColoringProvid
 			return null;
 		}
 		const dto = decodeSemanticTokensDto(encodedDto);
-		const res = this._createSemanticColoring(model, lastResult, dto);
+		const res = this._resolveDeltas(model, lastResult, dto);
 		this._cache.set(model.uri.toString(), res);
 		return res;
 	}
 
-	private _createSemanticColoring(model: ITextModel, lastResult: SemanticColoringCacheEntry | null, dto: ISemanticTokensDto): SemanticColoringCacheEntry {
+	private _resolveDeltas(model: ITextModel, lastResult: MainThreadSemanticColoringCacheEntry | null, dto: ISemanticTokensDto): MainThreadSemanticColoringCacheEntry {
 		let areas: modes.SemanticColoringArea[] = [];
 		for (let i = 0, len = dto.areas.length; i < len; i++) {
 			const areaDto = dto.areas[i];
@@ -671,6 +672,6 @@ class MainThreadSemanticColoringProvider implements modes.SemanticColoringProvid
 				};
 			}
 		}
-		return new SemanticColoringCacheEntry(this, model.uri, dto.id, areas);
+		return new MainThreadSemanticColoringCacheEntry(this, model.uri, dto.id, areas);
 	}
 }

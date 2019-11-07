@@ -633,11 +633,16 @@ class SemanticColoringAdapter {
 
 			const previousResult = (previousSemanticColoringResultId !== 0 ? this._previousResults.get(previousSemanticColoringResultId) : null);
 			if (previousResult) {
+				this._previousResults.delete(previousSemanticColoringResultId);
 				return this._deltaEncode(previousResult, value);
 			}
 
 			return this._encode(value);
 		});
+	}
+
+	async releaseSemanticColoring(semanticColoringResultId: number): Promise<void> {
+		this._previousResults.delete(semanticColoringResultId);
 	}
 
 	private _deltaEncode(previousResult: vscode.SemanticColoring, currentResult: vscode.SemanticColoring): VSBuffer {
@@ -1540,6 +1545,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$provideSemanticColoring(handle: number, resource: UriComponents, previousSemanticColoringResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
 		return this._withAdapter(handle, SemanticColoringAdapter, adapter => adapter.provideSemanticColoring(URI.revive(resource), previousSemanticColoringResultId, token), null);
+	}
+
+	$releaseSemanticColoring(handle: number, semanticColoringResultId: number): void {
+		this._withAdapter(handle, SemanticColoringAdapter, adapter => adapter.releaseSemanticColoring(semanticColoringResultId), undefined);
 	}
 
 	//#endregion

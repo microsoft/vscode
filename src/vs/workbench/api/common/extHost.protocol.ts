@@ -1145,6 +1145,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<IWorkspaceEditDto | undefined>;
 	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined>;
 	$provideSemanticColoring(handle: number, resource: UriComponents, previousSemanticColoringResultId: number, token: CancellationToken): Promise<VSBuffer | null>;
+	$releaseSemanticColoring(handle: number, semanticColoringResultId: number): void;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<ISuggestResultDto | undefined>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;

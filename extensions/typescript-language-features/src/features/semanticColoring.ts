@@ -6,6 +6,12 @@
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient, ExperimentalProtocol } from '../typescriptService';
 
+function timeout(time: number): Promise<void> {
+	return new Promise((resolve, _reject) => {
+		setTimeout(resolve, time);
+	});
+}
+
 class SemanticColoringProvider implements vscode.SemanticColoringProvider {
 
 	constructor(
@@ -46,6 +52,8 @@ class SemanticColoringProvider implements vscode.SemanticColoringProvider {
 	}
 
 	async provideSemanticColoring(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SemanticColoring | null> {
+		await timeout(0);
+
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return null;
