@@ -12,7 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { Marker, ResourceMarkers, RelatedInformation, MarkersModel, MarkerChangesEvent } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { Marker, ResourceMarkers, RelatedInformation, MarkerChangesEvent } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkersFilterActionViewItem, MarkersFilterAction, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -46,12 +46,6 @@ import { MementoObject } from 'vs/workbench/common/memento';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-
-function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
-	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
-
-	return Iterator.map(resourcesIt, m => ({ element: m, children: createResourceMarkersIterator(m) }));
-}
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterator<ITreeElement<TreeElement>> {
 	const markersIt = Iterator.fromArray(resourceMarkers.markers);
@@ -124,7 +118,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			showErrors: this.panelState['showErrors'] !== false,
 			showWarnings: this.panelState['showWarnings'] !== false,
 			showInfos: this.panelState['showInfos'] !== false,
-			useFilesExclude: !!this.panelState['useFilesExclude']
+			excludedFiles: !!this.panelState['useFilesExclude'],
+			activeFile: !!this.panelState['activeFile']
 		}));
 	}
 
@@ -254,7 +249,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 				} else {
 					if (markerOrChange.added.length || markerOrChange.removed.length) {
 						// Reset complete tree
-						this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
+						this.resetTree();
 					} else {
 						// Update resource
 						for (const updated of markerOrChange.updated) {
@@ -264,7 +259,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 				}
 			} else {
 				// Reset complete tree
-				this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
+				this.resetTree();
 			}
 
 			const { total, filtered } = this.getFilterStats();
@@ -276,6 +271,21 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private onDidChangeViewState(marker?: Marker): void {
 		this.refreshPanel(marker);
+	}
+
+	private resetTree(): void {
+		let resourceMarkers: ResourceMarkers[] = [];
+		if (this.filterAction.activeFile) {
+			if (this.currentActiveResource) {
+				const activeResourceMarkers = this.markersWorkbenchService.markersModel.getResourceMarkers(this.currentActiveResource);
+				if (activeResourceMarkers) {
+					resourceMarkers = [activeResourceMarkers];
+				}
+			}
+		} else {
+			resourceMarkers = this.markersWorkbenchService.markersModel.resourceMarkers;
+		}
+		this.tree.setChildren(null, Iterator.map(Iterator.fromArray(resourceMarkers), m => ({ element: m, children: createResourceMarkersIterator(m) })));
 	}
 
 	private updateFilter() {
@@ -290,7 +300,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private getFilesExcludeExpressions(): { root: URI, expression: IExpression }[] | IExpression {
-		if (!this.filterAction.useFilesExclude) {
+		if (!this.filterAction.excludedFiles) {
 			return [];
 		}
 
@@ -383,7 +393,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this._register(this.tree.onContextMenu(this.onContextMenu, this));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (this.filterAction.useFilesExclude && e.affectsConfiguration('files.exclude')) {
+			if (this.filterAction.excludedFiles && e.affectsConfiguration('files.exclude')) {
 				this.updateFilter();
 			}
 		}));
@@ -426,7 +436,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}));
 		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
 		this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
-			if (event.filterText || event.useFilesExclude || event.showWarnings || event.showErrors || event.showInfos) {
+			if (event.activeFile) {
+				this.refreshPanel();
+			} else if (event.filterText || event.excludedFiles || event.showWarnings || event.showErrors || event.showInfos) {
 				this.updateFilter();
 			}
 		}));
@@ -468,7 +480,11 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private onActiveEditorChanged(): void {
 		this.setCurrentActiveEditor();
-		this.autoReveal();
+		if (this.filterAction.activeFile) {
+			this.refreshPanel();
+		} else {
+			this.autoReveal();
+		}
 	}
 
 	private setCurrentActiveEditor(): void {
@@ -490,7 +506,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private render(): void {
 		this.cachedFilterStats = undefined;
-		this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
+		this.resetTree();
 		this.tree.toggleVisibility(this.isEmpty());
 		this.renderMessage();
 	}
@@ -679,20 +695,17 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private computeFilterStats(): { total: number; filtered: number; } {
 		const root = this.tree.getNode();
-		let total = 0;
 		let filtered = 0;
 
 		for (const resourceMarkerNode of root.children) {
 			for (const markerNode of resourceMarkerNode.children) {
-				total++;
-
 				if (resourceMarkerNode.visible && markerNode.visible) {
 					filtered++;
 				}
 			}
 		}
 
-		return { total, filtered };
+		return { total: this.markersWorkbenchService.markersModel.total, filtered };
 	}
 
 	private getTelemetryData({ source, code }: IMarker): any {
@@ -705,7 +718,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.panelState['showErrors'] = this.filterAction.showErrors;
 		this.panelState['showWarnings'] = this.filterAction.showWarnings;
 		this.panelState['showInfos'] = this.filterAction.showInfos;
-		this.panelState['useFilesExclude'] = this.filterAction.useFilesExclude;
+		this.panelState['useFilesExclude'] = this.filterAction.excludedFiles;
+		this.panelState['activeFile'] = this.filterAction.activeFile;
 		this.panelState['multiline'] = this.markersViewModel.multiline;
 
 		super.saveState();

@@ -63,10 +63,11 @@ export class ShowProblemsPanelAction extends Action {
 
 export interface IMarkersFilterActionChangeEvent extends IActionChangeEvent {
 	filterText?: boolean;
-	useFilesExclude?: boolean;
+	excludedFiles?: boolean;
 	showWarnings?: boolean;
 	showErrors?: boolean;
 	showInfos?: boolean;
+	activeFile?: boolean;
 }
 
 export interface IMarkersFilterActionOptions {
@@ -75,7 +76,8 @@ export interface IMarkersFilterActionOptions {
 	showErrors: boolean;
 	showWarnings: boolean;
 	showInfos: boolean;
-	useFilesExclude: boolean;
+	excludedFiles: boolean;
+	activeFile: boolean;
 }
 
 export class MarkersFilterAction extends Action {
@@ -91,7 +93,8 @@ export class MarkersFilterAction extends Action {
 		this._showErrors = options.showErrors;
 		this._showWarnings = options.showWarnings;
 		this._showInfos = options.showInfos;
-		this._useFilesExclude = options.useFilesExclude;
+		this._excludedFiles = options.excludedFiles;
+		this._activeFile = options.activeFile;
 		this.filterHistory = options.filterHistory;
 	}
 
@@ -108,14 +111,25 @@ export class MarkersFilterAction extends Action {
 
 	filterHistory: string[];
 
-	private _useFilesExclude: boolean;
-	get useFilesExclude(): boolean {
-		return this._useFilesExclude;
+	private _excludedFiles: boolean;
+	get excludedFiles(): boolean {
+		return this._excludedFiles;
 	}
-	set useFilesExclude(filesExclude: boolean) {
-		if (this._useFilesExclude !== filesExclude) {
-			this._useFilesExclude = filesExclude;
-			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ useFilesExclude: true });
+	set excludedFiles(filesExclude: boolean) {
+		if (this._excludedFiles !== filesExclude) {
+			this._excludedFiles = filesExclude;
+			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ excludedFiles: true });
+		}
+	}
+
+	private _activeFile: boolean;
+	get activeFile(): boolean {
+		return this._activeFile;
+	}
+	set activeFile(activeFile: boolean) {
+		if (this._activeFile !== activeFile) {
+			this._activeFile = activeFile;
+			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ activeFile: true });
 		}
 	}
 
@@ -201,7 +215,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				class: undefined,
 				enabled: true,
 				id: 'showErrors',
-				label: Messages.MARKERS_PANEL_ACTION_LABEL_SHOW_ERRORS,
+				label: Messages.MARKERS_PANEL_FILTER_LABEL_SHOW_ERRORS,
 				run: async () => this.filterAction.showErrors = !this.filterAction.showErrors,
 				tooltip: '',
 				dispose: () => null
@@ -211,7 +225,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				class: undefined,
 				enabled: true,
 				id: 'showWarnings',
-				label: Messages.MARKERS_PANEL_ACTION_LABEL_SHOW_WARNINGS,
+				label: Messages.MARKERS_PANEL_FILTER_LABEL_SHOW_WARNINGS,
 				run: async () => this.filterAction.showWarnings = !this.filterAction.showWarnings,
 				tooltip: '',
 				dispose: () => null
@@ -221,22 +235,32 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				class: undefined,
 				enabled: true,
 				id: 'showInfos',
-				label: Messages.MARKERS_PANEL_ACTION_LABEL_SHOW_INFOS,
+				label: Messages.MARKERS_PANEL_FILTER_LABEL_SHOW_INFOS,
 				run: async () => this.filterAction.showInfos = !this.filterAction.showInfos,
 				tooltip: '',
 				dispose: () => null
 			},
 			new Separator(),
 			{
-				checked: this.filterAction.useFilesExclude,
+				checked: this.filterAction.activeFile,
+				class: undefined,
+				enabled: true,
+				id: 'activeFile',
+				label: Messages.MARKERS_PANEL_FILTER_LABEL_ACTIVE_FILE,
+				run: async () => this.filterAction.activeFile = !this.filterAction.activeFile,
+				tooltip: '',
+				dispose: () => null
+			},
+			{
+				checked: this.filterAction.excludedFiles,
 				class: undefined,
 				enabled: true,
 				id: 'useFilesExclude',
-				label: Messages.MARKERS_PANEL_ACTION_LABEL_USE_FILES_EXCLUDE,
-				run: async () => this.filterAction.useFilesExclude = !this.filterAction.useFilesExclude,
+				label: Messages.MARKERS_PANEL_FILTER_LABEL_EXCLUDED_FILES,
+				run: async () => this.filterAction.excludedFiles = !this.filterAction.excludedFiles,
 				tooltip: '',
 				dispose: () => null
-			}
+			},
 		];
 	}
 
@@ -293,7 +317,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private hasFiltersChanged(): boolean {
-		return !this.action.showErrors || !this.action.showWarnings || !this.action.showInfos || this.action.useFilesExclude;
+		return !this.action.showErrors || !this.action.showWarnings || !this.action.showInfos || this.action.excludedFiles || this.action.activeFile;
 	}
 
 	private createInput(container: HTMLElement): void {
