@@ -422,19 +422,22 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 		if (this.allViews.has(this.remoteExplorerService.targetType)) {
 			const views: Map<string, IAddedViewDescriptorRef> = this.allViews.get(this.remoteExplorerService.targetType)!;
 			// TODO: first, add the targets, then the forwarded ports (if appropriate), then details(collapsed), and help (collapsed).
-			const existingViews: { panel: ViewletPanel, size: number }[] = [];
+			const readyPanels: { panel: ViewletPanel, size: number }[] = [];
+			const alreadyShownPanels: ViewletPanel[] = [];
 			views.forEach(view => {
-				const existingView = this.allPanels.get(view.viewDescriptor.id);
-				if (existingView) {
-					existingViews.push({ panel: existingView, size: view.size || existingView.minimumSize });
+				const readyPanel = this.allPanels.get(view.viewDescriptor.id);
+				if (readyPanel && !this.getView(view.viewDescriptor.id)) {
+					readyPanels.push({ panel: readyPanel, size: view.size || readyPanel.minimumSize });
+				} else if (readyPanel) {
+					alreadyShownPanels.push(readyPanel);
 				}
 			});
 
-			this.addPanels(existingViews);
-			this.targetTypePanels = existingViews.map(item => item.panel);
+			this.addPanels(readyPanels);
+			this.targetTypePanels = readyPanels.map(item => item.panel).concat(alreadyShownPanels);
 			this.showPanels(this.targetTypePanels);
 			const helpPanel = this.allPanels.get(HelpPanel.ID);
-			if (helpPanel && (this.getView(HelpPanel.ID) === undefined)) {
+			if (helpPanel && !this.getView(HelpPanel.ID)) {
 				this.addPanels([{ panel: helpPanel, size: helpPanel.minimumSize, index: 200 }]);
 				this.showPanels([helpPanel]);
 				helpPanel.setExpanded(false);
