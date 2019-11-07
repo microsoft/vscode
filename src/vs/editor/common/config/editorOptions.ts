@@ -1907,8 +1907,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 				'editor.minimap.scale': {
 					type: 'number',
 					default: defaults.scale,
-					minimum: 1,
-					maximum: 3,
+					enum: [1, 2, 3],
 					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap.")
 				},
 				'editor.minimap.renderCharacters': {
