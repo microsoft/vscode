@@ -8977,10 +8977,10 @@ vscode-ripgrep@^1.5.7:
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.7.tgz#acb6b548af488a4bca5d0f1bb5faf761343289ce"
   integrity sha512-/Vsz/+k8kTvui0q3O74pif9FK0nKopgFTiGNVvxicZANxtSA8J8gUE9GQ/4dpi7D/2yI/YVORszwVskFbz46hQ==
 
-vscode-sqlite3@4.0.8:
-  version "4.0.8"
-  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-4.0.8.tgz#1eba415b996d2661628d80d4a191a20767713829"
-  integrity sha512-FsFtYSHmy0mYjtt9ibFKsJqbRzqaltDKZ5SLdpykjvORugFMr0HfGunkh+qGaz9CvAiqjM2KVO91NE9KdyTWKQ==
+vscode-sqlite3@4.0.9:
+  version "4.0.9"
+  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-4.0.9.tgz#cad04964aff1e39121dd8c7cdb87c64a71bad9ce"
+  integrity sha512-g/xnAn4sgkVO+px/DfC7kpmCQ666W124tfMSVpbnQXsjMHlLhi4Urz4wPhS9YEFPz1Orl6h6MUF6wptzI6QFdg==
   dependencies:
     nan "^2.14.0"
 
