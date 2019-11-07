@@ -574,13 +574,10 @@ export class SearchWidget extends Widget {
 
 		const value = this.searchInput.getValue();
 		const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
-		if (value) {
-			if (useGlobalFindBuffer) {
-				this.clipboardServce.writeFindText(value);
-			}
-
-			this._onSearchSubmit.fire();
+		if (value && useGlobalFindBuffer) {
+			this.clipboardServce.writeFindText(value);
 		}
+		this._onSearchSubmit.fire();
 	}
 
 	dispose(): void {

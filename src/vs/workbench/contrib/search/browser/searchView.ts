@@ -1169,6 +1169,7 @@ export class SearchView extends ViewletPanel {
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 
 		if (contentPattern.length === 0) {
+			this.clearSearchResults();
 			return;
 		}
 
