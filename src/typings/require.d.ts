@@ -48,3 +48,5 @@ interface NodeRequire {
 	__$__nodeRequire<T>(moduleName: string): T;
 	getStats(): ReadonlyArray<LoaderEvent>;
 }
+
+declare var require: NodeRequire;
