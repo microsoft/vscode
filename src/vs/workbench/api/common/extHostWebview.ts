@@ -374,16 +374,15 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void> {
+	async $onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void> {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			panel.dispose();
 			this._webviewPanels.delete(handle);
 		}
-		return Promise.resolve(undefined);
 	}
 
-	$deserializeWebviewPanel(
+	async $deserializeWebviewPanel(
 		webviewHandle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
@@ -393,14 +392,14 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	): Promise<void> {
 		const entry = this._serializers.get(viewType);
 		if (!entry) {
-			return Promise.reject(new Error(`No serializer found for '${viewType}'`));
+			throw new Error(`No serializer found for '${viewType}'`);
 		}
 		const { serializer, extension } = entry;
 
 		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData, this.workspace, extension);
 		const revivedPanel = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
-		return Promise.resolve(serializer.deserializeWebviewPanel(revivedPanel, state));
+		await serializer.deserializeWebviewPanel(revivedPanel, state);
 	}
 
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewEditor | undefined {
@@ -430,6 +429,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	private hookupCapabilities(handle: WebviewPanelHandle, capabilities: vscode.WebviewEditorCapabilities): IDisposable {
 		const disposables = new DisposableStore();
+
 		if (capabilities.editingCapability) {
 			disposables.add(capabilities.editingCapability.onEdit(edit => {
 				this._proxy.$onEdit(handle, JSON.stringify(edit));
@@ -456,7 +456,7 @@ function getDefaultLocalResourceRoots(
 	workspace: IExtHostWorkspace | undefined,
 ): URI[] {
 	return [
-		...(workspace && workspace.getWorkspaceFolders() || []).map(x => x.uri),
+		...(workspace?.getWorkspaceFolders() || []).map(x => x.uri),
 		extension.extensionLocation,
 	];
 }
