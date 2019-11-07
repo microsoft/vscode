@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?f5d7d29fe5677c620f764a26698d7611") format("truetype");
+	src: url("./codicon.ttf?be9fd17e767606dd03a4a6ea35903317") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -336,7 +336,6 @@
 .codicon-screen-full:before { content: "\eb4c" }
 .codicon-screen-normal:before { content: "\eb4d" }
 .codicon-search-stop:before { content: "\eb4e" }
-.codicon-selection:before { content: "\eb4f" }
 .codicon-server:before { content: "\eb50" }
 .codicon-settings-gear:before { content: "\eb51" }
 .codicon-settings:before { content: "\eb52" }
@@ -387,4 +386,8 @@
 .codicon-window:before { content: "\eb7f" }
 .codicon-word-wrap:before { content: "\eb80" }
 .codicon-zoom-in:before { content: "\eb81" }
-.codicon-zoom-out:before { content: "\f101" }
+.codicon-zoom-out:before { content: "\eb82" }
+.codicon-list-filter:before { content: "\eb83" }
+.codicon-list-flat:before { content: "\eb84" }
+.codicon-list-selection:before { content: "\eb85" }
+.codicon-list-tree:before { content: "\eb85" }
