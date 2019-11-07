@@ -144,7 +144,7 @@ export class MarkersFilterAction extends Action {
 		if (this._showInfos !== showInfos) {
 			this._showInfos = showInfos;
 			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ showInfos: true });
-    }
+		}
 	}
 
 	focus(): void {
