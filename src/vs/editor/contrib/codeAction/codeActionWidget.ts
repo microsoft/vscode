@@ -56,32 +56,29 @@ export class CodeActionWidget extends Disposable {
 		return this._visible;
 	}
 
-	public async show(codeActions: CodeActionSet, at?: IAnchor | IPosition): Promise<void> {
+	public async show(codeActions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
 		if (!codeActions.actions.length) {
 			this._visible = false;
 			return;
 		}
+
 		if (!this._editor.getDomNode()) {
 			// cancel when editor went off-dom
 			this._visible = false;
-			return Promise.reject(canceled());
+			throw canceled();
 		}
 
 		this._visible = true;
+		this._showingActions.value = codeActions;
 
 		const actions = codeActions.actions.map(action =>
 			new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action)));
 
+		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
 		const keyBindings = this.resolveKeybindings(actions);
 
-		this._showingActions.value = codeActions;
 		this._contextMenuService.showContextMenu({
-			getAnchor: () => {
-				if (Position.isIPosition(at)) {
-					at = this._toCoords(at);
-				}
-				return at || { x: 0, y: 0 };
-			},
+			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: () => {
 				this._visible = false;
