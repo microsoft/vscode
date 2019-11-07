@@ -296,6 +296,13 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._editorProviders.delete(viewType);
 	}
 
+	public $onEdit(handle: extHostProtocol.WebviewPanelHandle, editJson: string): void {
+		const webview = this.getWebviewInput(handle);
+		if (!(webview instanceof CustomFileEditorInput)) {
+			throw new Error(`Webview is not a webview editor`);
+		}
+	}
+
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
 		input.webview.onDidClickLink((uri: URI) => this.onDidClickLink(handle, uri));
 		input.webview.onMessage((message: any) => this._proxy.$onMessage(handle, message));
