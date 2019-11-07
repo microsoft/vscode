@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticColoringArea, SemanticColoring } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -613,6 +613,26 @@ class RenameAdapter {
 	}
 }
 
+const enum SemanticColoringConstants {
+	/**
+	 * Let's aim at having 8KB buffers if possible...
+	 * So that would be 8192 / (5 * 4) = 409.6 tokens per area
+	 */
+	DesiredTokensPerArea = 400,
+
+	/**
+	 * If the semantic coloring result contains a single area and the area contains
+	 * more than 600 tokens, then split the area into mulitple areas.
+	 */
+	SplitSingleAreaTokenCountThreshold = 600,
+
+	/**
+	 * Try to keep the total number of areas under 1024 if possible,
+	 * simply compensate by having more tokens per area...
+	 */
+	DesiredMaxAreas = 1024
+}
+
 class SemanticColoringAdapter {
 
 	private readonly _previousResults = new Map<number, vscode.SemanticColoring>();
@@ -652,9 +672,17 @@ class SemanticColoringAdapter {
 	}
 
 	private _encode(result: vscode.SemanticColoring): VSBuffer {
+		if (result.areas.length === 1) {
+			const tokenCount = (result.areas[0].data.length / 5) | 0;
+			if (tokenCount > SemanticColoringConstants.SplitSingleAreaTokenCountThreshold) {
+				// This result contains a single area which contains over `SplitSingleAreaTokenCountThreshold` tokens
+				// so let's split tokens into multiple areas...
+				result = this._splitIntoMultipleAreas(result.areas[0]);
+			}
+		}
+
 		const myId = this._nextResultId++;
 		this._previousResults.set(myId, result);
-
 		const dto: ISemanticTokensDto = {
 			id: myId,
 			areas: result.areas.map(area => {
@@ -665,47 +693,48 @@ class SemanticColoringAdapter {
 				};
 			})
 		};
-		const r = encodeSemanticTokensDto(dto);
-		console.log(r);
-		return r;
+		return encodeSemanticTokensDto(dto);
 	}
 
-	// releaseSemanticColoring(semanticColoringResultId: number): Promise<void> {
-	// }
+	private _splitIntoMultipleAreas(area: vscode.SemanticColoringArea): SemanticColoring {
+		const srcAreaLine = area.line;
+		const srcAreaData = area.data;
+		const tokenCount = (srcAreaData.length / 5) | 0;
+		const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);
+		const newAreaCount = Math.ceil(tokenCount / tokensPerArea);
 
-	// provideSignatureHelp(resource: URI, token: CancellationToken): Promise<extHostProtocol.ISignatureHelpDto | undefined> {
-	// 	const doc = this._documents.getDocument(resource);
-	// 	const pos = typeConvert.Position.to(position);
-	// 	const vscodeContext = this.reviveContext(context);
+		let result: SemanticColoringArea[] = [];
+		for (let i = 0; i < newAreaCount; i++) {
+			const tokenStartIndex = i * tokensPerArea;
+			const tokenEndIndex = Math.min((i + 1) * tokensPerArea, tokenCount);
 
-	// 	return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
-	// 		if (value) {
-	// 			const id = this._cache.add([value]);
-	// 			return { ...typeConvert.SignatureHelp.from(value), id };
-	// 		}
-	// 		return undefined;
-	// 	});
-	// }
+			let destAreaLine = 0;
+			const destAreaData = new Uint32Array((tokenEndIndex - tokenStartIndex) * 5);
+			for (let tokenIndex = tokenStartIndex; tokenIndex < tokenEndIndex; tokenIndex++) {
+				const srcOffset = 5 * tokenIndex;
+				const line = srcAreaLine + srcAreaData[srcOffset];
+				const startCharacter = srcAreaData[srcOffset + 1];
+				const endCharacter = srcAreaData[srcOffset + 2];
+				const tokenType = srcAreaData[srcOffset + 3];
+				const tokenModifiers = srcAreaData[srcOffset + 4];
 
-	// private reviveContext(context: extHostProtocol.ISignatureHelpContextDto): vscode.SignatureHelpContext {
-	// 	let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
-	// 	if (context.activeSignatureHelp) {
-	// 		const revivedSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
-	// 		const saved = this._cache.get(context.activeSignatureHelp.id, 0);
-	// 		if (saved) {
-	// 			activeSignatureHelp = saved;
-	// 			activeSignatureHelp.activeSignature = revivedSignatureHelp.activeSignature;
-	// 			activeSignatureHelp.activeParameter = revivedSignatureHelp.activeParameter;
-	// 		} else {
-	// 			activeSignatureHelp = revivedSignatureHelp;
-	// 		}
-	// 	}
-	// 	return { ...context, activeSignatureHelp };
-	// }
+				if (tokenIndex === tokenStartIndex) {
+					destAreaLine = line;
+				}
 
-	// releaseSignatureHelp(id: number): any {
-	// 	this._cache.delete(id);
-	// }
+				const destOffset = 5 * (tokenIndex - tokenStartIndex);
+				destAreaData[destOffset] = line - destAreaLine;
+				destAreaData[destOffset + 1] = startCharacter;
+				destAreaData[destOffset + 2] = endCharacter;
+				destAreaData[destOffset + 3] = tokenType;
+				destAreaData[destOffset + 4] = tokenModifiers;
+			}
+
+			result[i] = new SemanticColoringArea(destAreaLine, destAreaData);
+		}
+
+		return new SemanticColoring(result);
+	}
 }
 
 class SuggestAdapter {
