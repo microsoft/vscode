@@ -26,7 +26,7 @@ import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notif
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { assertIsDefined } from 'vs/base/common/types';
-import { clipboardAccessAllowed } from 'vs/base/browser/browser';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -144,7 +144,7 @@ export class TerminalPanel extends Panel {
 			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.SHORT_LABEL);
 
 			const clipboardActions = [];
-			if (clipboardAccessAllowed()) {
+			if (BrowserFeatures.clipboard.access) {
 				clipboardActions.push(this._copyContextMenuAction);
 				clipboardActions.push(this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.SHORT_LABEL));
 			}
