@@ -112,5 +112,6 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient
 ) {
-	return vscode.languages.registerSemanticColoringProvider(selector, new SemanticColoringProvider(client));
+	const provider = new SemanticColoringProvider(client);
+	return vscode.languages.registerSemanticColoringProvider(selector, provider, provider.getLegend());
 }

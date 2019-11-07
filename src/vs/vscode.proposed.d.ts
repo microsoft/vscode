@@ -110,8 +110,6 @@ declare module 'vscode' {
 	 */
 	export interface SemanticColoringProvider {
 
-		getLegend(): SemanticColoringLegend;
-
 		provideSemanticColoring(document: TextDocument, token: CancellationToken): ProviderResult<SemanticColoring>;
 	}
 
@@ -127,7 +125,7 @@ declare module 'vscode' {
 		 * @param provider A semantic coloring provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerSemanticColoringProvider(selector: DocumentSelector, provider: SemanticColoringProvider): Disposable;
+		export function registerSemanticColoringProvider(selector: DocumentSelector, provider: SemanticColoringProvider, legend: SemanticColoringLegend): Disposable;
 	}
 
 	//#endregion

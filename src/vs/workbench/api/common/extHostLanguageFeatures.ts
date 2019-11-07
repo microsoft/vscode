@@ -1532,9 +1532,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	//#region semantic coloring
 
-	registerSemanticColoringProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SemanticColoringProvider): vscode.Disposable {
+	registerSemanticColoringProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SemanticColoringProvider, legend: vscode.SemanticColoringLegend): vscode.Disposable {
 		const handle = this._addNewAdapter(new SemanticColoringAdapter(this._documents, provider), extension);
-		this._proxy.$registerSemanticColoringProvider(handle, this._transformDocumentSelector(selector), provider.getLegend());
+		this._proxy.$registerSemanticColoringProvider(handle, this._transformDocumentSelector(selector), legend);
 		return this._createDisposable(handle);
 	}
 
