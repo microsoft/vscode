@@ -517,7 +517,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		);
 	}
 
-	private static _getDefaultKeybindings(defaultKeybindings: ResolvedKeybindingItem[]): string {
+	private static _getDefaultKeybindings(defaultKeybindings: readonly ResolvedKeybindingItem[]): string {
 		let out = new OutputBuilder();
 		out.writeLine('[');
 

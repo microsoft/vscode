@@ -87,9 +87,9 @@ export interface IKeybindingService {
 
 	getDefaultKeybindingsContent(): string;
 
-	getDefaultKeybindings(): ResolvedKeybindingItem[];
+	getDefaultKeybindings(): readonly ResolvedKeybindingItem[];
 
-	getKeybindings(): ResolvedKeybindingItem[];
+	getKeybindings(): readonly ResolvedKeybindingItem[];
 
 	customKeybindingsCount(): number;
 
