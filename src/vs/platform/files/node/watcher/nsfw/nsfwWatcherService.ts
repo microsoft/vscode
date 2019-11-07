@@ -8,7 +8,7 @@ import * as extpath from 'vs/base/common/extpath';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import * as nsfw from 'nsfw';
+import * as nsfw from 'vscode-nsfw';
 import { IWatcherService, IWatcherRequest, IWatcherOptions } from 'vs/platform/files/node/watcher/nsfw/watcher';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';

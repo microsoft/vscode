@@ -11,7 +11,7 @@ import { createSyncDescriptor } from 'vs/platform/instantiation/common/descripto
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'vscode-minimist';
 import * as path from 'vs/base/common/path';
@@ -68,7 +68,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
-			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
+			[IUntitledTextEditorService, createSyncDescriptor(UntitledTextEditorService)],
 			[ISearchService, createSyncDescriptor(LocalSearchService)],
 			[ILogService, new NullLogService()]
 		));

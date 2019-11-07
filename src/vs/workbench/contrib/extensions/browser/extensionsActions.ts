@@ -2586,8 +2586,8 @@ export class ExtensionToolTipAction extends ExtensionAction {
 export class SystemDisabledWarningAction extends ExtensionAction {
 
 	private static readonly CLASS = 'system-disable';
-	private static readonly WARNING_CLASS = `${SystemDisabledWarningAction.CLASS} warning`;
-	private static readonly INFO_CLASS = `${SystemDisabledWarningAction.CLASS} info`;
+	private static readonly WARNING_CLASS = `${SystemDisabledWarningAction.CLASS} codicon-warning`;
+	private static readonly INFO_CLASS = `${SystemDisabledWarningAction.CLASS} codicon-info`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
 	private _runningExtensions: IExtensionDescription[] | null = null;
@@ -2596,8 +2596,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super('extensions.install', '', `${SystemDisabledWarningAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2632,14 +2631,14 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 			}
 			return;
 		}
-		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier))[0];
-		if (!runningExtension && this.extension.enablementState === EnablementState.DisabledByExtensionKind) {
-			this.class = `${SystemDisabledWarningAction.WARNING_CLASS}`;
-			const server = this.extensionManagementServerService.localExtensionManagementServer === this.extension.server ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer;
-			this.tooltip = localize('Install in other server to enable', "Install the extension on '{0}' to enable.", server.label);
-			return;
-		}
-		if (this.extensionEnablementService.isEnabled(this.extension.local)) {
+		if (this.extension.enablementState === EnablementState.DisabledByExtensionKind) {
+			if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server !== this.extension.server)) {
+				this.class = `${SystemDisabledWarningAction.WARNING_CLASS}`;
+				const server = this.extensionManagementServerService.localExtensionManagementServer === this.extension.server ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer;
+				this.tooltip = localize('Install in other server to enable', "Install the extension on '{0}' to enable.", server.label);
+				return;
+			}
+			const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier))[0];
 			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
 			if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
 				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;

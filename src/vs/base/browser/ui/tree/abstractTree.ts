@@ -931,7 +931,6 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly collapseByDefault?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
-	readonly autoExpandSingleChildren?: boolean;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 	readonly additionalScrollHeight?: number;

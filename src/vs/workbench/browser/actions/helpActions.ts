@@ -298,15 +298,6 @@ if (OpenDocumentationUrlAction.AVAILABLE) {
 	});
 }
 
-MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-	group: '1_welcome',
-	command: {
-		id: 'update.showCurrentReleaseNotes',
-		title: nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
-	},
-	order: 4
-});
-
 // Reference
 if (KeybindingsReferenceAction.AVAILABLE) {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {

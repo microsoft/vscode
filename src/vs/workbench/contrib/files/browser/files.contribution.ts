@@ -423,7 +423,12 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('explorer.incrementalNaming', "Controls what naming strategy to use when a giving a new name to a duplicated explorer item on paste."),
 			default: 'simple'
-		}
+		},
+		'explorer.compressSingleChildFolders': {
+			'type': 'boolean',
+			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should compress single child folders in a combined tree element. Useful for Java project folder structures, for example."),
+			'default': false
+		},
 	}
 });
 

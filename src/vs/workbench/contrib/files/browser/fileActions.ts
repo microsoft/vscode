@@ -20,7 +20,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IFileService, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -526,7 +526,7 @@ export abstract class BaseSaveAllAction extends Action {
 		id: string,
 		label: string,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@ICommandService protected commandService: ICommandService,
 		@INotificationService private notificationService: INotificationService,
 	) {
@@ -550,7 +550,7 @@ export abstract class BaseSaveAllAction extends Action {
 		this._register(this.textFileService.models.onModelsSaveError(e => this.updateEnablement(true)));
 
 		if (this.includeUntitled()) {
-			this._register(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));
+			this._register(this.untitledTextEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledTextEditorService.isDirty(resource))));
 		}
 	}
 

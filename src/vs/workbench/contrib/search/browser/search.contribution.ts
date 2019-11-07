@@ -746,7 +746,7 @@ configurationRegistry.registerConfiguration({
 				'',
 				''
 			],
-			default: 'auto',
+			default: 'alwaysExpand',
 			description: nls.localize('search.collapseAllResults', "Controls whether the search results will be collapsed or expanded."),
 		},
 		'search.useReplacePreview': {
@@ -774,6 +774,16 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'auto',
 			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
+		},
+		'search.searchOnType': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('search.searchOnType', "Search all files as you type.")
+		},
+		'search.searchOnTypeDebouncePeriod': {
+			type: 'number',
+			default: 300,
+			markdownDescription: nls.localize('search.searchOnTypeDebouncePeriod', "When `#search.searchOnType#` is enabled, controls the timeout in milliseconds between a character being typed and the search starting. Has no effect when `search.searchOnType` is disabled.")
 		}
 	}
 });

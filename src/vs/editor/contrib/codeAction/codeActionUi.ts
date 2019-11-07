@@ -38,7 +38,7 @@ export class CodeActionUi extends Disposable {
 		super();
 
 		this._codeActionWidget = new Lazy(() => {
-			return this._register(new CodeActionWidget(this._editor, contextMenuService, {
+			return this._register(new CodeActionWidget(this._editor, contextMenuService, keybindingService, {
 				onSelectCodeAction: async (action) => {
 					this.delegate.applyCodeAction(action, /* retrigger */ true);
 				}

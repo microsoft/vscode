@@ -11,7 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -21,7 +21,7 @@ import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/wor
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
-import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -196,7 +196,7 @@ export class TestTextFileService extends NativeTextFileService {
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IFileService protected fileService: IFileService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -217,7 +217,7 @@ export class TestTextFileService extends NativeTextFileService {
 		super(
 			contextService,
 			fileService,
-			untitledEditorService,
+			untitledTextEditorService,
 			lifecycleService,
 			instantiationService,
 			configurationService,
@@ -301,7 +301,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	const configService = new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
-	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+	instantiationService.stub(IUntitledTextEditorService, instantiationService.createInstance(UntitledTextEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkbenchLayoutService, new TestLayoutService());
 	instantiationService.stub(IElectronService, new TestElectronService());
@@ -313,7 +313,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
-	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+	instantiationService.stub(IUntitledTextEditorService, instantiationService.createInstance(UntitledTextEditorService));
 	instantiationService.stub(IMenuService, new TestMenuService());
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(IDecorationsService, new TestDecorationsService());
@@ -898,11 +898,11 @@ export class TestEditorService implements EditorServiceImpl {
 		throw new Error('not implemented');
 	}
 
-	isOpen(_editor: IEditorInput | IResourceInput | IUntitledResourceInput): boolean {
+	isOpen(_editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): boolean {
 		return false;
 	}
 
-	getOpened(_editor: IEditorInput | IResourceInput | IUntitledResourceInput): IEditorInput {
+	getOpened(_editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): IEditorInput {
 		throw new Error('not implemented');
 	}
 
@@ -914,7 +914,7 @@ export class TestEditorService implements EditorServiceImpl {
 		throw new Error('not implemented');
 	}
 
-	createInput(_input: IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput): IEditorInput {
+	createInput(_input: IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput): IEditorInput {
 		throw new Error('not implemented');
 	}
 }

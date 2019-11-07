@@ -17,6 +17,12 @@ import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, may
 import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
 import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
+export const codeActionCommandId = 'editor.action.codeAction';
+export const refactorCommandId = 'editor.action.refactor';
+export const sourceActionCommandId = 'editor.action.sourceAction';
+export const organizeImportsCommandId = 'editor.action.organizeImports';
+export const fixAllCommandId = 'editor.action.fixAll';
+
 export interface CodeActionSet extends IDisposable {
 	readonly actions: readonly CodeAction[];
 	readonly hasAutoFix: boolean;
