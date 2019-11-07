@@ -43,9 +43,10 @@ import * as objects from 'vs/base/common/objects';
 import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
-import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
+import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
 import { flatten } from 'vs/base/common/arrays';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -238,16 +239,16 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		});
 
 		this._register(browser.onDidChangeFullscreen(() => {
-			const keyboard = (<INavigatorWithKeyboard>navigator).keyboard;
+			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;
 
-			if (!keyboard) {
+			if (!BrowserFeatures.fullKeyboard) {
 				return;
 			}
 
 			if (browser.isFullscreen()) {
-				keyboard.lock(['Escape']);
+				keyboard?.lock(['Escape']);
 			} else {
-				keyboard.unlock();
+				keyboard?.unlock();
 			}
 
 			// update resolver which will bring back all unbound keyboard shortcuts
@@ -359,7 +360,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 
-		if (browser.isFullscreen() && (<any>navigator).keyboard) {
+		if (browser.isFullscreen() && BrowserFeatures.fullKeyboard) {
 			return false;
 		}
 
