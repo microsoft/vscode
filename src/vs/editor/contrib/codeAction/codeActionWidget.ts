@@ -14,7 +14,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
-import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId, organizeImportsCommandId, fixAllCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -95,15 +95,31 @@ export class CodeActionWidget extends Disposable {
 	}
 
 	private resolveKeybindings(actions: readonly CodeActionAction[]): Map<CodeActionAction, ResolvedKeybinding> {
+		const codeActionCommands = new Set([
+			refactorCommandId,
+			codeActionCommandId,
+			sourceActionCommandId,
+			organizeImportsCommandId,
+			fixAllCommandId
+		]);
+
 		// Lazy since we may not actually ever read the value
 		const allCodeActionBindings = new Lazy<readonly ResolveCodeActionKeybinding[]>(() =>
 			this._keybindingService.getKeybindings()
-				.filter(item => new Set([refactorCommandId, codeActionCommandId, sourceActionCommandId]).has(item.command!))
+				.filter(item => codeActionCommands.has(item.command!))
 				.filter(item => item.resolvedKeybinding)
 				.map((item): ResolveCodeActionKeybinding => {
+					// Special case these commands since they come built-in with VS Code and don't use 'commandArgs'
+					let commandArgs = item.commandArgs;
+					if (item.command === organizeImportsCommandId) {
+						commandArgs = { kind: CodeActionKind.SourceOrganizeImports.value };
+					} else if (item.command === fixAllCommandId) {
+						commandArgs = { kind: CodeActionKind.SourceFixAll.value };
+					}
+
 					return {
 						resolvedKeybinding: item.resolvedKeybinding!,
-						...CodeActionCommandArgs.fromUser(item.commandArgs, {
+						...CodeActionCommandArgs.fromUser(commandArgs, {
 							kind: CodeActionKind.None,
 							apply: CodeActionAutoApply.Never
 						})

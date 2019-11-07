@@ -20,6 +20,8 @@ import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecyc
 export const codeActionCommandId = 'editor.action.codeAction';
 export const refactorCommandId = 'editor.action.refactor';
 export const sourceActionCommandId = 'editor.action.sourceAction';
+export const organizeImportsCommandId = 'editor.action.organizeImports';
+export const fixAllCommandId = 'editor.action.fixAll';
 
 export interface CodeActionSet extends IDisposable {
 	readonly actions: readonly CodeAction[];

@@ -16,7 +16,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeAction } from 'vs/editor/common/modes';
-import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId, organizeImportsCommandId, fixAllCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
@@ -306,7 +306,6 @@ export class RefactorAction extends EditorAction {
 	}
 }
 
-
 export class SourceAction extends EditorAction {
 
 	constructor() {
@@ -356,11 +355,9 @@ export class SourceAction extends EditorAction {
 
 export class OrganizeImportsAction extends EditorAction {
 
-	static readonly Id = 'editor.action.organizeImports';
-
 	constructor() {
 		super({
-			id: OrganizeImportsAction.Id,
+			id: organizeImportsCommandId,
 			label: nls.localize('organizeImports.label', "Organize Imports"),
 			alias: 'Organize Imports',
 			precondition: ContextKeyExpr.and(
@@ -384,11 +381,9 @@ export class OrganizeImportsAction extends EditorAction {
 
 export class FixAllAction extends EditorAction {
 
-	static readonly Id = 'editor.action.fixAll';
-
 	constructor() {
 		super({
-			id: FixAllAction.Id,
+			id: fixAllCommandId,
 			label: nls.localize('fixAll.label', "Fix All"),
 			alias: 'Fix All',
 			precondition: ContextKeyExpr.and(
