@@ -571,7 +571,7 @@ export class ToggleViewModeAction extends Action {
 	}
 
 	private onDidChangeMode(mode: ViewModelMode): void {
-		const iconClass = mode === ViewModelMode.List ? 'codicon-list-filter' : 'codicon-list-selection';
+		const iconClass = mode === ViewModelMode.List ? 'codicon-list-tree' : 'codicon-list-flat';
 		this.class = `scm-action toggle-view-mode ${iconClass}`;
 	}
 }
