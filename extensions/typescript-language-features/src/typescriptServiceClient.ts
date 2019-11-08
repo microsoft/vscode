@@ -47,7 +47,7 @@ namespace ServerState {
 		Errored
 	}
 
-	export const None = new class { readonly type = Type.None; };
+	export const None = { type: Type.None } as const;
 
 	export class Running {
 		readonly type = Type.Running;

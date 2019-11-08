@@ -141,7 +141,7 @@ export namespace CodeActionsState {
 		Triggered,
 	}
 
-	export const Empty = new class { readonly type = Type.Empty; };
+	export const Empty = { type: Type.Empty } as const;
 
 	export class Triggered {
 		readonly type = Type.Triggered;

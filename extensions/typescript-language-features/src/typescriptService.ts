@@ -21,7 +21,7 @@ export namespace ServerResponse {
 		) { }
 	}
 
-	export const NoContent = new class { readonly type = 'noContent'; };
+	export const NoContent = { type: 'noContent' } as const;
 
 	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
 }
