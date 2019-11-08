@@ -559,6 +559,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			setTimeout(() => {
 				if (!delayedValue.resolved) {
 					delayedValue.resolve(undefined);
+					delete this._delayedTerminalValues[id];
 				}
 			}, timeout);
 		}
