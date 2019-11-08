@@ -648,7 +648,8 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 class GenericGoToLocationAction extends SymbolNavigationAction {
 
 	constructor(
-		private readonly _references: Location[]
+		private readonly _references: Location[],
+		private readonly _gotoMultipleBehaviour: GoToLocationValues | undefined
 	) {
 		super({
 			muteMessage: true,
@@ -674,7 +675,7 @@ class GenericGoToLocationAction extends SymbolNavigationAction {
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
-		return editor.getOption(EditorOption.gotoLocation).multipleReferences;
+		return this._gotoMultipleBehaviour ?? editor.getOption(EditorOption.gotoLocation).multipleReferences;
 	}
 
 	protected _getMetaTitle() { return ''; }
@@ -689,12 +690,14 @@ CommandsRegistry.registerCommand({
 			{ name: 'uri', description: 'The text document in which to start', constraint: URI },
 			{ name: 'position', description: 'The position at which to start', constraint: corePosition.Position.isIPosition },
 			{ name: 'locations', description: 'An array of locations.', constraint: Array },
+			{ name: 'multiple', description: 'Define what to do when having multiple results, either `peek`, `gotoAndPeek`, or `goto' },
 		]
 	},
-	handler: async (accessor: ServicesAccessor, resource: any, position: any, references: any) => {
+	handler: async (accessor: ServicesAccessor, resource: any, position: any, references: any, multiple?: any) => {
 		assertType(URI.isUri(resource));
 		assertType(corePosition.Position.isIPosition(position));
 		assertType(Array.isArray(references));
+		assertType(typeof multiple === 'undefined' || typeof multiple === 'string');
 
 		const editorService = accessor.get(ICodeEditorService);
 		const editor = await editorService.openCodeEditor({ resource }, editorService.getFocusedCodeEditor());
@@ -704,7 +707,7 @@ CommandsRegistry.registerCommand({
 			editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
 
 			return editor.invokeWithinContext(accessor => {
-				const command = new GenericGoToLocationAction(references);
+				const command = new GenericGoToLocationAction(references, multiple as GoToLocationValues);
 				accessor.get(IInstantiationService).invokeFunction(command.run.bind(command), editor);
 			});
 		}
