@@ -649,7 +649,7 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 export class ManageExtensionAction extends ExtensionDropDownAction {
 
 	static readonly ID = 'extensions.manage';
-	private static readonly Class = 'extension-action manage';
+	private static readonly Class = 'extension-action manage codicon-gear';
 	private static readonly HideManageExtensionClass = `${ManageExtensionAction.Class} hide`;
 
 	constructor(
@@ -1495,7 +1495,7 @@ export class ClearExtensionsInputAction extends Action {
 		value: string,
 		@IViewletService private readonly viewletService: IViewletService
 	) {
-		super(id, label, 'clear-extensions', true);
+		super(id, label, 'codicon-clear-all', true);
 		this.onSearchChange(value);
 		this._register(onSearchChange(this.onSearchChange, this));
 	}
