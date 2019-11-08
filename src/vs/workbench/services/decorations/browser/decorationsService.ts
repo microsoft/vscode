@@ -10,7 +10,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, getDynamicStyleSheetRules } from 'vs/base/browser/dom';
+import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -22,25 +22,25 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 class DecorationRule {
 
-	static keyOf(data: IDecorationData[]): string {
-		let result = '';
-		for (const d of data) {
-			const { color, letter } = d;
-			result += `${color}/${letter}`;
+	static keyOf(data: IDecorationData | IDecorationData[]): string {
+		if (Array.isArray(data)) {
+			return data.map(DecorationRule.keyOf).join(',');
+		} else {
+			const { color, letter } = data;
+			return `${color}/${letter}`;
 		}
-		return result;
 	}
 
 	private static readonly _classNames = new IdGenerator('monaco-decorations-style-');
 
-	readonly data: IDecorationData[];
+	readonly data: IDecorationData | IDecorationData[];
 	readonly itemColorClassName: string;
 	readonly itemBadgeClassName: string;
 	readonly bubbleBadgeClassName: string;
 
 	private _refCounter: number = 0;
 
-	constructor(data: IDecorationData[]) {
+	constructor(data: IDecorationData | IDecorationData[]) {
 		this.data = data;
 		this.itemColorClassName = DecorationRule._classNames.nextId();
 		this.itemBadgeClassName = DecorationRule._classNames.nextId();
@@ -56,13 +56,30 @@ class DecorationRule {
 	}
 
 	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
+		if (!Array.isArray(this.data)) {
+			this._appendForOne(this.data, element, theme);
+		} else {
+			this._appendForMany(this.data, element, theme);
+		}
+	}
 
+	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
+		const { color, letter } = data;
 		// label
-		const { color } = this.data[0];
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
+		// letter
+		if (letter) {
+			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${getColor(theme, color)};`, element);
+		}
+	}
+
+	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
+		// label
+		const { color } = data[0];
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
 
 		// badge
-		const letters = this.data.filter(d => !isFalsyOrWhitespace(d.letter)).map(d => d.letter);
+		const letters = data.filter(d => !isFalsyOrWhitespace(d.letter)).map(d => d.letter);
 		if (letters.length) {
 			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(theme, color)};`, element);
 		}
@@ -117,8 +134,6 @@ class DecorationStyles {
 
 		rule.acquire();
 
-		this._validate();
-
 		let labelClassName = rule.itemColorClassName;
 		let badgeClassName = rule.itemBadgeClassName;
 		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
@@ -138,7 +153,6 @@ class DecorationStyles {
 					this._decorationRules.delete(key);
 					rule.removeCSSRules(this._styleElement);
 					rule = undefined;
-					this._validate();
 				}
 			}
 		};
@@ -149,13 +163,6 @@ class DecorationStyles {
 			rule.removeCSSRules(this._styleElement);
 			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
 		});
-	}
-
-	private _validate(): void {
-		const ruleCount = getDynamicStyleSheetRules(this._styleElement).length;
-		if (this._decorationRules.size * 3 !== ruleCount) {
-			console.trace('THIS IS BAD - CHECK YOUR DECORATIONS SOMETHING IS OUT OF SYNC');
-		}
 	}
 }
 
