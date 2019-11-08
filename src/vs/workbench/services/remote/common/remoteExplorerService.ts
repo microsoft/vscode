@@ -23,8 +23,9 @@ class RemoteExplorerService implements IRemoteExplorerService {
 
 	set targetType(name: string) {
 		if (this._targetType !== name) {
+			const oldTarget = this._targetType;
 			this._targetType = name;
-			this._onDidChangeTargetType.fire(this._targetType);
+			this._onDidChangeTargetType.fire(oldTarget);
 		}
 	}
 	get targetType(): string {

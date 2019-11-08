@@ -25,7 +25,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		@IContextViewService contextViewService: IContextViewService,
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService
 	) {
-		super(null, action, [{ text: 'wsl' }, { text: 'dev-container' }], 0, contextViewService, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
+		super(null, action, [{ text: 'wsl' }, { text: 'ssh-remote' }], 0, contextViewService, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
 		this._register(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
 		}));

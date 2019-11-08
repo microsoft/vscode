@@ -47,7 +47,6 @@ import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
 import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
@@ -373,8 +372,6 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	private actions: IAction[] | undefined;
 	private allViews: Map<string, Map<string, IAddedViewDescriptorRef>> = new Map();
-	private targetTypePanels: ViewletPanel[] = [];
-	private allPanels: Map<string, ViewletPanel> = new Map();
 	helpInformations: HelpInformation[] = [];
 
 	constructor(
@@ -387,10 +384,9 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		remoteHelpExtPoint.setHandler((extensions) => {
 			let helpInformation: HelpInformation[] = [];
@@ -409,42 +405,21 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 		});
 
 		this._register(this.remoteExplorerService.onDidChangeTargetType((targetType) => {
-			const panelsToRemove = this.targetTypePanels;
-			this.targetTypePanels = [];
-			this.updateViews();
-			this.removePanels(panelsToRemove);
+			this.getViewsForTarget(targetType).forEach(view => this.viewsModel.setVisible(view.viewDescriptor.id, false));
+			this.getViewsForTarget(this.remoteExplorerService.targetType).forEach(view => this.viewsModel.setVisible(view.viewDescriptor.id, true));
 		}));
 
-		this.updateViews();
 	}
 
-	private updateViews(): ViewletPanel[] {
-		if (this.allViews.has(this.remoteExplorerService.targetType)) {
-			const views: Map<string, IAddedViewDescriptorRef> = this.allViews.get(this.remoteExplorerService.targetType)!;
-			// TODO: first, add the targets, then the forwarded ports (if appropriate), then details(collapsed), and help (collapsed).
-			const readyPanels: { panel: ViewletPanel, size: number }[] = [];
-			const alreadyShownPanels: ViewletPanel[] = [];
-			views.forEach(view => {
-				const readyPanel = this.allPanels.get(view.viewDescriptor.id);
-				if (readyPanel && !this.getView(view.viewDescriptor.id)) {
-					readyPanels.push({ panel: readyPanel, size: view.size || readyPanel.minimumSize });
-				} else if (readyPanel) {
-					alreadyShownPanels.push(readyPanel);
-				}
-			});
-
-			this.addPanels(readyPanels);
-			this.targetTypePanels = readyPanels.map(item => item.panel).concat(alreadyShownPanels);
-			this.showPanels(this.targetTypePanels);
-			const helpPanel = this.allPanels.get(HelpPanel.ID);
-			if (helpPanel && !this.getView(HelpPanel.ID)) {
-				this.addPanels([{ panel: helpPanel, size: helpPanel.minimumSize, index: 200 }]);
-				this.showPanels([helpPanel]);
-				helpPanel.setExpanded(false);
+	public removeViews(views: IAddedViewDescriptorRef[]) {
+		const toRemove: ViewletPanel[] = [];
+		views.forEach(view => {
+			const panel = this.getView(view.viewDescriptor.id);
+			if (panel) {
+				toRemove.push(panel);
 			}
-			return this.targetTypePanels;
-		}
-		return [];
+		});
+		this.removePanels(toRemove);
 	}
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
@@ -485,9 +460,13 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 		});
 	}
 
+	private getViewsForTarget(target: string): IAddedViewDescriptorRef[] {
+		return this.allViews.has(target) ? Array.from(this.allViews.get(target)!.values()) : [];
+	}
+
 	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		// too late, already added to the view model
-		const madePanels: { panel: ViewletPanel, size: number, index: number }[] = this.makeViews(added);
+		const otherViews: IAddedViewDescriptorRef[] = [];
 		added.forEach((viewAdded) => {
 			const extensionRemoteAuthority = isStringArray(viewAdded.viewDescriptor.remoteAuthority) ? viewAdded.viewDescriptor.remoteAuthority[0] : viewAdded.viewDescriptor.remoteAuthority;
 			if (extensionRemoteAuthority) {
@@ -495,41 +474,15 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 					this.allViews.set(extensionRemoteAuthority, new Map());
 				}
 				this.allViews.get(extensionRemoteAuthority)!.set(viewAdded.viewDescriptor.id, viewAdded);
+				if (extensionRemoteAuthority === this.remoteExplorerService.targetType) {
+					otherViews.push(viewAdded);
+				}
+			} else {
+				otherViews.push(viewAdded);
 			}
 		});
 
-		const allPanels = madePanels.map(item => {
-			this.allPanels.set(item.panel.id, item.panel);
-			return item.panel;
-		});
-		this.updateViews();
-
-		// const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		// if (remoteAuthority) {
-		// 	const actualRemoteAuthority = remoteAuthority.split('+')[0];
-		// 	added.forEach((descriptor) => {
-		// 		const panel = this.getView(descriptor.viewDescriptor.id);
-		// 		if (!panel) {
-		// 			return;
-		// 		}
-
-		// 		const descriptorAuthority = descriptor.viewDescriptor.remoteAuthority;
-		// 		if (typeof descriptorAuthority === 'undefined') {
-		// 			panel.setExpanded(true);
-		// 		} else if (descriptor.viewDescriptor.id === HelpPanel.ID) {
-		// 			// Do nothing, keep the default behavior for Help
-		// 		} else {
-		// 			const descriptorAuthorityArr = Array.isArray(descriptorAuthority) ? descriptorAuthority : [descriptorAuthority];
-		// 			if (descriptorAuthorityArr.indexOf(actualRemoteAuthority) >= 0) {
-		// 				panel.setExpanded(true);
-		// 			} else {
-		// 				panel.setExpanded(false);
-		// 			}
-		// 		}
-		// 	});
-		// }
-
-		return allPanels;
+		return super.onDidAddViews(otherViews);
 	}
 
 	getTitle(): string {
