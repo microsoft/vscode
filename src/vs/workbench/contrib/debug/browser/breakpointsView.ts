@@ -638,7 +638,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 
 	if (!breakpoint.enabled || !debugService.getModel().areBreakpointsActivated()) {
 		return {
-			className: breakpoint instanceof DataBreakpoint ? 'debug-data-breakpoint-disabled' : breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-disabled' : breakpoint.logMessage ? 'debug-breakpoint-log-disabled' : 'debug-breakpoint-disabled',
+			className: breakpoint instanceof DataBreakpoint ? 'debug-data-breakpoint-disabled' : breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-disabled' : breakpoint.logMessage ? 'codicon-breakpoint-log-disabled' : 'codicon-breakpoint-disabled',
 			message: breakpoint.logMessage ? nls.localize('disabledLogpoint', "Disabled Logpoint") : nls.localize('disabledBreakpoint', "Disabled Breakpoint"),
 		};
 	}
@@ -648,7 +648,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 	};
 	if (debugActive && !breakpoint.verified) {
 		return {
-			className: breakpoint instanceof DataBreakpoint ? 'debug-data-breakpoint-unverified' : breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : breakpoint.logMessage ? 'debug-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
+			className: breakpoint instanceof DataBreakpoint ? 'debug-data-breakpoint-unverified' : breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : breakpoint.logMessage ? 'codicon-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
 			message: breakpoint.message || (breakpoint.logMessage ? nls.localize('unverifiedLogpoint', "Unverified Logpoint") : nls.localize('unverifiedBreakopint', "Unverified Breakpoint")),
 		};
 	}
@@ -702,7 +702,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 		}
 
 		return {
-			className: breakpoint.logMessage ? 'debug-breakpoint-log' : 'debug-breakpoint-conditional',
+			className: breakpoint.logMessage ? 'codicon-breakpoint-log' : 'codicon-breakpoint-conditional',
 			message: appendMessage(messages.join('\n'))
 		};
 	}
@@ -727,7 +727,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 	}
 
 	return {
-		className: 'debug-breakpoint',
+		className: 'debug-breakpoint, codicon-circle-filled',
 		message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
 	};
 }

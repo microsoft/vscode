@@ -212,6 +212,7 @@
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header .codicon {
 	font-size: 120%;
 	margin-right: 2px;
+	-webkit-mask: inherit;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .ratings {
