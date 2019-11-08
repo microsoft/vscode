@@ -288,7 +288,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _activeTerminal: ExtHostTerminal | undefined;
 	protected _terminals: ExtHostTerminal[] = [];
 	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
-	protected _delayedTerminalValues: { [id: number]: DelayedValue<ExtHostTerminal> } = {};
+	protected _delayedTerminalValues: { [id: number]: DelayedValue<ExtHostTerminal | undefined> } = {};
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -401,7 +401,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public async $acceptTerminalClosed(id: number, exitCode: number | undefined): Promise<void> {
 		await this._getTerminalByIdEventually(id);
 		const index = this._getTerminalObjectIndexById(this.terminals, id);
-		if (index !== null) {
+		if (index !== undefined) {
 			const terminal = this._terminals.splice(index, 1)[0];
 			terminal.setExitCode(exitCode);
 			this._onDidCloseTerminal.fire(terminal);
@@ -410,7 +410,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	public $acceptTerminalOpened(id: number, name: string, shellLaunchConfigDto: IShellLaunchConfigDto): void {
 		const index = this._getTerminalObjectIndexById(this._terminals, id);
-		if (index !== null) {
+		if (index !== undefined) {
 			// The terminal has already been created (via createTerminal*), only fire the event
 			this._onDidOpenTerminal.fire(this.terminals[index]);
 			this.terminals[index].isOpen = true;
@@ -546,7 +546,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		this._proxy.$sendProcessExit(id, exitCode);
 	}
 
-	private _getTerminalByIdEventually(id: number): Promise<ExtHostTerminal> {
+	private _getTerminalByIdEventually(id: number, timeout: number = 10000): Promise<ExtHostTerminal | undefined> {
 		const terminal = this._getTerminalById(id);
 		if (terminal !== null) {
 			return Promise.resolve(terminal);
@@ -556,6 +556,11 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		if (delayedValue === undefined) {
 			delayedValue = new DelayedValue<ExtHostTerminal>();
 			this._delayedTerminalValues[id] = delayedValue;
+			setTimeout(() => {
+				if (!delayedValue.resolved) {
+					delayedValue.resolve(undefined);
+				}
+			}, timeout);
 		}
 		return delayedValue.promise;
 	}
@@ -568,17 +573,17 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 	}
 
-	private _getTerminalById(id: number): ExtHostTerminal | null {
+	private _getTerminalById(id: number): ExtHostTerminal | undefined {
 		return this._getTerminalObjectById(this._terminals, id);
 	}
 
-	private _getTerminalObjectById<T extends ExtHostTerminal>(array: T[], id: number): T | null {
+	private _getTerminalObjectById<T extends ExtHostTerminal>(array: T[], id: number): T | undefined {
 		const index = this._getTerminalObjectIndexById(array, id);
-		return index !== null ? array[index] : null;
+		return index !== undefined ? array[index] : undefined;
 	}
 
-	private _getTerminalObjectIndexById<T extends ExtHostTerminal>(array: T[], id: number): number | null {
-		let index: number | null = null;
+	private _getTerminalObjectIndexById<T extends ExtHostTerminal>(array: T[], id: number): number | undefined {
+		let index: number | undefined = undefined;
 		array.some((item, i) => {
 			const thisId = item._id;
 			if (thisId === id) {
