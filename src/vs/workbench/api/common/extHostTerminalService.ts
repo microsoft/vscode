@@ -546,7 +546,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		this._proxy.$sendProcessExit(id, exitCode);
 	}
 
-	private _getTerminalByIdEventually(id: number, timeout: number = 5000): Promise<ExtHostTerminal | undefined> {
+	private _getTerminalByIdEventually(id: number, timeout: number = 1000): Promise<ExtHostTerminal | undefined> {
 		const terminal = this._getTerminalById(id);
 		if (terminal !== undefined) {
 			return Promise.resolve(terminal);
