@@ -271,6 +271,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _activeTerminal: ExtHostTerminal | undefined;
 	protected _terminals: ExtHostTerminal[] = [];
 	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
+	protected _initialDimensions: { [id: number]: ITerminalDimensionsDto } = {};
 	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
@@ -453,21 +454,9 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 		await openPromise;
 
-		// Processes should be initialized here for normal virtual process terminals, however for
-		// tasks they are responsible for attaching the virtual process to a terminal so this
-		// function may be called before tasks is able to attach to the terminal.
-		let retries = 8;
-		let currentTimeout = 50;
-		while (retries-- > 0) {
-			if (this._terminalProcesses[id]) {
-				(this._terminalProcesses[id] as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
-				return;
-			}
-			await timeout(currentTimeout);
-			currentTimeout *= 2;
+		if (initialDimensions) {
+			this._initialDimensions[id] = initialDimensions;
 		}
-
-		throw new Error('Wasn\'t able to start extension terminal');
 	}
 
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
@@ -482,6 +471,12 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e));
 		}
 		this._terminalProcesses[id] = p;
+
+
+		if (p instanceof ExtHostPseudoterminal) {
+			p.startSendingEvents(this._initialDimensions[id]);
+			delete this._initialDimensions[id];
+		}
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {
