@@ -6,20 +6,22 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface ISemanticTokensFullAreaDto {
-	line: number;
 	type: 'full';
+	line: number;
 	data: Uint32Array;
 }
 
 export interface ISemanticTokensDeltaAreaDto {
-	line: number;
 	type: 'delta';
+	line: number;
 	oldIndex: number;
 }
 
+export type ISemanticTokensAreaDto = ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaDto;
+
 export interface ISemanticTokensDto {
 	id: number;
-	areas: (ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaDto)[];
+	areas: ISemanticTokensAreaDto[];
 }
 
 const enum EncodedSemanticTokensAreaType {
@@ -52,7 +54,7 @@ export function decodeSemanticTokensDto(buff: VSBuffer): ISemanticTokensDto {
 	let offset = 0;
 	const id = buff.readUInt32BE(offset); offset += 4;
 	const areasCount = buff.readUInt32BE(offset); offset += 4;
-	let areas: (ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaDto)[] = [];
+	let areas: ISemanticTokensAreaDto[] = [];
 	for (let i = 0; i < areasCount; i++) {
 		offset = decodeArea(buff, offset, areas);
 	}
@@ -62,7 +64,7 @@ export function decodeSemanticTokensDto(buff: VSBuffer): ISemanticTokensDto {
 	};
 }
 
-function encodeArea(area: ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaDto, buff: VSBuffer, offset: number): number {
+function encodeArea(area: ISemanticTokensAreaDto, buff: VSBuffer, offset: number): number {
 	buff.writeUInt8(area.type === 'full' ? EncodedSemanticTokensAreaType.Full : EncodedSemanticTokensAreaType.Delta, offset); offset += 1;
 	buff.writeUInt32BE(area.line + 1, offset); offset += 4;
 	if (area.type === 'full') {
@@ -85,7 +87,7 @@ function encodeArea(area: ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaD
 	return offset;
 }
 
-function encodedAreaSize(area: ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaDto): number {
+function encodedAreaSize(area: ISemanticTokensAreaDto): number {
 	let result = 0;
 	result += 1; // type
 	result += 4; // line
@@ -101,7 +103,7 @@ function encodedAreaSize(area: ISemanticTokensFullAreaDto | ISemanticTokensDelta
 	}
 }
 
-function decodeArea(buff: VSBuffer, offset: number, areas: (ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaDto)[]): number {
+function decodeArea(buff: VSBuffer, offset: number, areas: ISemanticTokensAreaDto[]): number {
 	const type: EncodedSemanticTokensAreaType = buff.readUInt8(offset); offset += 1;
 	const line = buff.readUInt32BE(offset); offset += 4;
 	if (type === EncodedSemanticTokensAreaType.Full) {
