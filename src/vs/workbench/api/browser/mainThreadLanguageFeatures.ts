@@ -633,7 +633,10 @@ class MainThreadSemanticColoringProvider implements modes.SemanticColoringProvid
 	}
 
 	release(entry: MainThreadSemanticColoringCacheEntry): void {
-		this._cache.delete(entry.uri.toString());
+		const currentCacheEntry = this._cache.get(entry.uri.toString()) || null;
+		if (currentCacheEntry && currentCacheEntry.id === entry.id) {
+			this._cache.delete(entry.uri.toString());
+		}
 		this._proxy.$releaseSemanticColoring(this._handle, entry.id);
 	}
 
