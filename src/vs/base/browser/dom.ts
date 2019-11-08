@@ -795,7 +795,7 @@ function getSharedStyleSheet(): HTMLStyleElement {
 	return _sharedStyleSheet;
 }
 
-function getDynamicStyleSheetRules(style: any) {
+export function getDynamicStyleSheetRules(style: any): CSSStyleRule[] {
 	if (style && style.sheet && style.sheet.rules) {
 		// Chrome, IE
 		return style.sheet.rules;
