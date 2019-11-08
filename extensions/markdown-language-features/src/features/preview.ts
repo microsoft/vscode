@@ -83,6 +83,8 @@ export class DynamicMarkdownPreview extends Disposable {
 
 	public static readonly viewType = 'markdown.preview';
 
+	private readonly delay = 300;
+
 	private _resource: vscode.Uri;
 	private readonly _resourceColumn: vscode.ViewColumn;
 
@@ -93,7 +95,6 @@ export class DynamicMarkdownPreview extends Disposable {
 	private line: number | undefined = undefined;
 	private firstUpdate = true;
 	private currentVersion?: PreviewDocumentVersion;
-	private forceUpdate = false;
 	private isScrolling = false;
 	private _disposed: boolean = false;
 	private imageInfo: { id: string, width: number, height: number; }[] = [];
@@ -282,7 +283,6 @@ export class DynamicMarkdownPreview extends Disposable {
 			}
 		}
 
-
 		// If we have changed resources, cancel any pending updates
 		const isResourceChange = resource.fsPath !== this._resource.fsPath;
 		if (isResourceChange) {
@@ -295,9 +295,9 @@ export class DynamicMarkdownPreview extends Disposable {
 		// Schedule update if none is pending
 		if (!this.throttleTimer) {
 			if (isResourceChange || this.firstUpdate) {
-				this.doUpdate();
+				this.doUpdate(isRefresh);
 			} else {
-				this.throttleTimer = setTimeout(() => this.doUpdate(), 300);
+				this.throttleTimer = setTimeout(() => this.doUpdate(isRefresh), this.delay);
 			}
 		}
 
@@ -305,7 +305,6 @@ export class DynamicMarkdownPreview extends Disposable {
 	}
 
 	public refresh() {
-		this.forceUpdate = true;
 		this.update(this._resource, true);
 	}
 
@@ -393,7 +392,7 @@ export class DynamicMarkdownPreview extends Disposable {
 		}
 	}
 
-	private async doUpdate(): Promise<void> {
+	private async doUpdate(forceUpdate?: boolean): Promise<void> {
 		if (this._disposed) {
 			return;
 		}
@@ -416,13 +415,12 @@ export class DynamicMarkdownPreview extends Disposable {
 		}
 
 		const pendingVersion = new PreviewDocumentVersion(markdownResource, document.version);
-		if (!this.forceUpdate && this.currentVersion && this.currentVersion.equals(pendingVersion)) {
+		if (!forceUpdate && this.currentVersion?.equals(pendingVersion)) {
 			if (this.line) {
 				this.updateForView(markdownResource, this.line);
 			}
 			return;
 		}
-		this.forceUpdate = false;
 
 		this.currentVersion = pendingVersion;
 		if (this._resource === markdownResource) {
