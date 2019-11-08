@@ -394,7 +394,10 @@ export default class BufferSyncSupport extends Disposable {
 		return vscode.Uri.file(filePath);
 	}
 
-	public reOpenDocuments(): void {
+	public reset(): void {
+		this.pendingGetErr?.cancel();
+		this.pendingDiagnostics.clear();
+
 		for (const buffer of this.syncedBuffers.allBuffers) {
 			buffer.open();
 		}
@@ -523,9 +526,9 @@ export default class BufferSyncSupport extends Disposable {
 		if (this.pendingGetErr) {
 			this.pendingGetErr.cancel();
 
-			for (const file of this.pendingGetErr.files.entries) {
-				if (this.syncedBuffers.get(file.resource)) {
-					orderedFileSet.set(file.resource, undefined);
+			for (const { resource } of this.pendingGetErr.files.entries) {
+				if (this.syncedBuffers.get(resource)) {
+					orderedFileSet.set(resource, undefined);
 				}
 			}
 		}

@@ -182,7 +182,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	private populateService(): void {
 		this.fileConfigurationManager.reset();
-		this.client.bufferSyncSupport.reOpenDocuments();
+		this.client.bufferSyncSupport.reset();
 		this.client.bufferSyncSupport.requestAllDiagnostics();
 
 		// See https://github.com/Microsoft/TypeScript/issues/5530
