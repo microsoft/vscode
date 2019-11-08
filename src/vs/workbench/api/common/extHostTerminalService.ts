@@ -286,9 +286,9 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	protected _proxy: MainThreadTerminalServiceShape;
 	protected _activeTerminal: ExtHostTerminal | undefined;
-	protected _terminals: ExtHostTerminal[] = [];
+	private _terminals: ExtHostTerminal[] = [];
 	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
-	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
+	protected _delayedTerminalValues: { [id: number]: DelayedValue<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -330,7 +330,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
 		terminal.createExtensionTerminal().then(id => this._setupExtHostProcessListeners(id, p));
-		this._terminals.push(terminal);
+		this.addTerminal(terminal);
 		return terminal;
 	}
 
@@ -425,7 +425,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			env: shellLaunchConfigDto.env
 		};
 		const terminal = new ExtHostTerminal(this._proxy, creationOptions, name, id);
-		this._terminals.push(terminal);
+		this.addTerminal(terminal);
 		this._onDidOpenTerminal.fire(terminal);
 		terminal.isOpen = true;
 	}
@@ -546,34 +546,26 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		this._proxy.$sendProcessExit(id, exitCode);
 	}
 
-	// TODO: This could be improved by using a single promise and resolve it when the terminal is ready
-	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal | undefined> {
-		if (!this._getTerminalPromises[id]) {
-			this._getTerminalPromises[id] = this._createGetTerminalPromise(id, retries);
-		} else {
-			this._getTerminalPromises[id].then(c => {
-				return this._createGetTerminalPromise(id, retries);
-			});
+	private _getTerminalByIdEventually(id: number): Promise<ExtHostTerminal> {
+		const terminal = this._getTerminalById(id);
+		if (terminal !== null) {
+			return Promise.resolve(terminal);
 		}
-		return this._getTerminalPromises[id];
+
+		let delayedValue = this._delayedTerminalValues[id];
+		if (delayedValue === undefined) {
+			delayedValue = new DelayedValue<ExtHostTerminal>();
+			this._delayedTerminalValues[id] = delayedValue;
+		}
+		return delayedValue.promise;
 	}
 
-	private _createGetTerminalPromise(id: number, retries: number = 5): Promise<ExtHostTerminal> {
-		return new Promise(c => {
-			if (retries === 0) {
-				c(undefined);
-				return;
-			}
-
-			const terminal = this._getTerminalById(id);
-			if (terminal) {
-				c(terminal);
-			} else {
-				// This should only be needed immediately after createTerminalRenderer is called as
-				// the ExtHostTerminal has not yet been iniitalized
-				timeout(200).then(() => c(this._createGetTerminalPromise(id, retries - 1)));
-			}
-		});
+	protected addTerminal(terminal: ExtHostTerminal) {
+		this._terminals.push(terminal);
+		if (terminal._id !== undefined && this._delayedTerminalValues[terminal._id]) {
+			this._delayedTerminalValues[terminal._id].resolve(terminal);
+			delete this._delayedTerminalValues[terminal._id];
+		}
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal | null {
@@ -626,5 +618,47 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
 		// No-op for web worker ext host as workspace permissions aren't used
+	}
+}
+
+class DelayedValue<T> {
+	private _resolved: boolean = false;
+	private _value?: T;
+	private _promise: Promise<T>;
+	private _resolve: (value: T) => void | undefined;
+
+	constructor() {
+		this._promise = new Promise((resolve) => {
+			this._resolve = resolve;
+			if (this._resolved) {
+				this._resolve(this._value!);
+			}
+		});
+	}
+
+	resolve(value: T) {
+		if (this._resolved) {
+			throw new Error('Already resolved');
+		}
+		this._value = value;
+		this._resolved = true;
+		if (this._resolve !== undefined) {
+			this._resolve(value);
+		}
+	}
+
+	get promise(): Promise<T> {
+		return this._promise;
+	}
+
+	get resolved(): boolean {
+		return this._resolved;
+	}
+
+	get value(): T {
+		if (!this.resolved) {
+			throw new Error('Not Resolved');
+		}
+		return this._value!;
 	}
 }
