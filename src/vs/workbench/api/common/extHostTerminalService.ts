@@ -272,6 +272,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _terminals: ExtHostTerminal[] = [];
 	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
 	protected _initialDimensions: { [id: number]: ITerminalDimensionsDto } = {};
+	protected _startedExtensionTerminal: { [id: number]: boolean } = {};
 	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
@@ -432,6 +433,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public async $startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
 		// Make sure the ExtHostTerminal exists so onDidOpenTerminal has fired before we call
 		// Pseudoterminal.start
+
 		const terminal = await this._getTerminalByIdEventually(id);
 		if (!terminal) {
 			return;
@@ -454,6 +456,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 		await openPromise;
 
+		this._startedExtensionTerminal[id] = true;
 		if (this._terminalProcesses[id]) {
 			(this._terminalProcesses[id] as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
 		} else {
@@ -477,7 +480,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 		this._terminalProcesses[id] = p;
 
-		if (p instanceof ExtHostPseudoterminal) {
+		if (p instanceof ExtHostPseudoterminal && this._startedExtensionTerminal[id]) {
 			p.startSendingEvents(this._initialDimensions[id]);
 			delete this._initialDimensions[id];
 		}
@@ -519,6 +522,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 		// Remove process reference
 		delete this._terminalProcesses[id];
+		delete this._startedExtensionTerminal[id];
 
 		// Send exit event to main side
 		this._proxy.$sendProcessExit(id, exitCode);
