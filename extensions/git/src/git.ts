@@ -1823,7 +1823,6 @@ export class Repository {
 		return message.replace(/^\s*#.*$\n?/gm, '').trim();
 	}
 
-
 	async getMergeMessage(): Promise<string | undefined> {
 		const mergeMsgPath = path.join(this.repositoryRoot, '.git', 'MERGE_MSG');
 
