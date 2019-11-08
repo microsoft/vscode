@@ -455,6 +455,7 @@ class SemanticColoringFeature extends Disposable {
 
 class ModelSemanticColoring extends Disposable {
 
+	private _isDisposed: boolean;
 	private readonly _model: ITextModel;
 	private readonly _fetchSemanticTokens: RunOnceScheduler;
 	private _currentResponse: SemanticColoring | null;
@@ -463,6 +464,7 @@ class ModelSemanticColoring extends Disposable {
 	constructor(model: ITextModel) {
 		super();
 
+		this._isDisposed = false;
 		this._model = model;
 		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 500));
 		this._currentResponse = null;
@@ -474,6 +476,7 @@ class ModelSemanticColoring extends Disposable {
 	}
 
 	public dispose(): void {
+		this._isDisposed = true;
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
 			this._currentResponse = null;
@@ -512,6 +515,13 @@ class ModelSemanticColoring extends Disposable {
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
 			this._currentResponse = null;
+		}
+		if (this._isDisposed) {
+			// disposed!
+			if (tokens) {
+				tokens.dispose();
+			}
+			return;
 		}
 		this._currentResponse = tokens;
 		if (!this._currentResponse) {
