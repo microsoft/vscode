@@ -456,14 +456,18 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		// Processes should be initialized here for normal virtual process terminals, however for
 		// tasks they are responsible for attaching the virtual process to a terminal so this
 		// function may be called before tasks is able to attach to the terminal.
-		let retries = 5;
+		let retries = 8;
+		let currentTimeout = 50;
 		while (retries-- > 0) {
 			if (this._terminalProcesses[id]) {
 				(this._terminalProcesses[id] as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
 				return;
 			}
-			await timeout(50);
+			await timeout(currentTimeout);
+			currentTimeout *= 2;
 		}
+
+		throw new Error('Wasn\'t able to start extension terminal');
 	}
 
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
