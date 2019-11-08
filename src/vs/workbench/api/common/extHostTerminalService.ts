@@ -558,8 +558,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			this._delayedTerminalValues[id] = delayedValue;
 			setTimeout(() => {
 				if (!delayedValue.resolved) {
-					delayedValue.resolve(undefined);
 					delete this._delayedTerminalValues[id];
+					delayedValue.resolve(undefined);
 				}
 			}, timeout);
 		}
@@ -569,8 +569,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected addTerminal(terminal: ExtHostTerminal) {
 		this._terminals.push(terminal);
 		if (terminal._id !== undefined && this._delayedTerminalValues[terminal._id]) {
-			this._delayedTerminalValues[terminal._id].resolve(terminal);
 			delete this._delayedTerminalValues[terminal._id];
+			this._delayedTerminalValues[terminal._id].resolve(terminal);
 		}
 	}
 
