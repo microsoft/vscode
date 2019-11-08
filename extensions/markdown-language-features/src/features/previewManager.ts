@@ -122,9 +122,14 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		webview: vscode.WebviewPanel,
 		state: any
 	): Promise<void> {
+		const resource = vscode.Uri.parse(state.resource);
+		const locked = state.locked;
+		const line = state.line;
+		const resourceColumn = state.resourceColumn;
+
 		const preview = await DynamicMarkdownPreview.revive(
+			{ resource, locked, line, resourceColumn },
 			webview,
-			state,
 			this._contentProvider,
 			this._previewConfigurations,
 			this._logger,
@@ -138,9 +143,9 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		input: { readonly resource: vscode.Uri; },
 		webview: vscode.WebviewPanel
 	): Promise<vscode.WebviewEditorCapabilities> {
-		await DynamicMarkdownPreview.revive(
+		DynamicMarkdownPreview.revive(
+			{ resource: input.resource, locked: false, resourceColumn: vscode.ViewColumn.One },
 			webview,
-			{ resource: input.resource.toString() },
 			this._contentProvider,
 			this._previewConfigurations,
 			this._logger,
@@ -154,10 +159,12 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		previewSettings: DynamicPreviewSettings
 	): DynamicMarkdownPreview {
 		const preview = DynamicMarkdownPreview.create(
-			resource,
+			{
+				resource,
+				resourceColumn: previewSettings.resourceColumn,
+				locked: previewSettings.locked,
+			},
 			previewSettings.previewColumn,
-			previewSettings.resourceColumn,
-			previewSettings.locked,
 			this._contentProvider,
 			this._previewConfigurations,
 			this._logger,

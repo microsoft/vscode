@@ -72,11 +72,20 @@ export class PreviewDocumentVersion {
 	}
 }
 
+interface DynamicPreviewInput {
+	readonly resource: vscode.Uri;
+	readonly resourceColumn: vscode.ViewColumn;
+	readonly locked: boolean;
+	readonly line?: number;
+}
+
 export class DynamicMarkdownPreview extends Disposable {
 
 	public static readonly viewType = 'markdown.preview';
 
 	private _resource: vscode.Uri;
+	private readonly _resourceColumn: vscode.ViewColumn;
+
 	private _locked: boolean;
 
 	private readonly editor: vscode.WebviewPanel;
@@ -90,45 +99,25 @@ export class DynamicMarkdownPreview extends Disposable {
 	private imageInfo: { id: string, width: number, height: number; }[] = [];
 	private scrollToFragment: string | undefined;
 
-	public static async revive(
+	public static revive(
+		input: DynamicPreviewInput,
 		webview: vscode.WebviewPanel,
-		state: any,
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		logger: Logger,
 		topmostLineMonitor: TopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider,
-	): Promise<DynamicMarkdownPreview> {
-		const resource = vscode.Uri.parse(state.resource);
-		const locked = state.locked;
-		const line = state.line;
-		const resourceColumn = state.resourceColumn;
+	): DynamicMarkdownPreview {
+		webview.webview.options = DynamicMarkdownPreview.getWebviewOptions(input.resource, contributionProvider.contributions);
+		webview.title = DynamicMarkdownPreview.getPreviewTitle(input.resource, input.locked);
 
-		webview.webview.options = DynamicMarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions);
-
-		const preview = new DynamicMarkdownPreview(
-			webview,
-			resource,
-			locked,
-			resourceColumn,
-			contentProvider,
-			previewConfigurations,
-			logger,
-			topmostLineMonitor,
-			contributionProvider);
-
-		if (!isNaN(line)) {
-			preview.line = line;
-		}
-		await preview.doUpdate();
-		return preview;
+		return new DynamicMarkdownPreview(webview, input,
+			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider);
 	}
 
 	public static create(
-		resource: vscode.Uri,
+		input: DynamicPreviewInput,
 		previewColumn: vscode.ViewColumn,
-		resourceColumn: vscode.ViewColumn,
-		locked: boolean,
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		logger: Logger,
@@ -137,29 +126,19 @@ export class DynamicMarkdownPreview extends Disposable {
 	): DynamicMarkdownPreview {
 		const webview = vscode.window.createWebviewPanel(
 			DynamicMarkdownPreview.viewType,
-			DynamicMarkdownPreview.getPreviewTitle(resource, locked),
+			DynamicMarkdownPreview.getPreviewTitle(input.resource, input.locked),
 			previewColumn, {
 			enableFindWidget: true,
-			...DynamicMarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
+			...DynamicMarkdownPreview.getWebviewOptions(input.resource, contributionProvider.contributions)
 		});
 
-		return new DynamicMarkdownPreview(
-			webview,
-			resource,
-			locked,
-			resourceColumn,
-			contentProvider,
-			previewConfigurations,
-			logger,
-			topmostLineMonitor,
-			contributionProvider);
+		return new DynamicMarkdownPreview(webview, input,
+			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider);
 	}
 
 	private constructor(
 		webview: vscode.WebviewPanel,
-		resource: vscode.Uri,
-		locked: boolean,
-		private readonly _resourceColumn: vscode.ViewColumn,
+		input: DynamicPreviewInput,
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
 		private readonly _logger: Logger,
@@ -167,9 +146,13 @@ export class DynamicMarkdownPreview extends Disposable {
 		private readonly _contributionProvider: MarkdownContributionProvider,
 	) {
 		super();
-		this._resource = resource;
-		this._locked = locked;
+		this._resource = input.resource;
+		this._resourceColumn = input.resourceColumn;
+		this._locked = input.locked;
 		this.editor = webview;
+		if (!isNaN(input.line!)) {
+			this.line = input.line;
+		}
 
 		this._register(this.editor.onDidDispose(() => {
 			this.dispose();
@@ -190,7 +173,7 @@ export class DynamicMarkdownPreview extends Disposable {
 
 			switch (e.type) {
 				case 'cacheImageSizes':
-					this.onCacheImageSizes(e.body);
+					this.imageInfo = e.body;
 					break;
 
 				case 'revealLine':
@@ -242,6 +225,8 @@ export class DynamicMarkdownPreview extends Disposable {
 				this.update(editor.document.uri);
 			}
 		}));
+
+		this.doUpdate();
 	}
 
 	private readonly _onDisposeEmitter = this._register(new vscode.EventEmitter<void>());
@@ -558,9 +543,5 @@ export class DynamicMarkdownPreview extends Disposable {
 		}
 
 		vscode.commands.executeCommand('_markdown.openDocumentLink', { path: hrefPath, fragment, fromResource: this.resource });
-	}
-
-	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number; }[]) {
-		this.imageInfo = imageInfo;
 	}
 }
