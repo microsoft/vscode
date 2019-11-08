@@ -18,7 +18,7 @@ export interface DynamicPreviewSettings {
 	readonly locked: boolean;
 }
 
-class DynamicPreviewStore extends Disposable {
+class PreviewStore extends Disposable {
 
 	private readonly _previews = new Set<DynamicMarkdownPreview>();
 
@@ -58,7 +58,9 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	private readonly _topmostLineMonitor = new TopmostLineMonitor();
 	private readonly _previewConfigurations = new MarkdownPreviewConfigurationManager();
 
-	private readonly _previews = this._register(new DynamicPreviewStore());
+	private readonly _dynamicPreviews = this._register(new PreviewStore());
+	private readonly _staticPreviews = this._register(new PreviewStore());
+
 	private _activePreview: DynamicMarkdownPreview | undefined = undefined;
 
 	public constructor(
@@ -68,16 +70,23 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	) {
 		super();
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
+		this._register(vscode.window.registerWebviewEditorProvider('vscode.markdown.preview.editor', this));
 	}
 
 	public refresh() {
-		for (const preview of this._previews) {
+		for (const preview of this._dynamicPreviews) {
+			preview.refresh();
+		}
+		for (const preview of this._staticPreviews) {
 			preview.refresh();
 		}
 	}
 
 	public updateConfiguration() {
-		for (const preview of this._previews) {
+		for (const preview of this._dynamicPreviews) {
+			preview.updateConfiguration();
+		}
+		for (const preview of this._staticPreviews) {
 			preview.updateConfiguration();
 		}
 	}
@@ -86,11 +95,11 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		resource: vscode.Uri,
 		settings: DynamicPreviewSettings
 	): void {
-		let preview = this._previews.get(resource, settings);
+		let preview = this._dynamicPreviews.get(resource, settings);
 		if (preview) {
 			preview.reveal(settings.previewColumn);
 		} else {
-			preview = this.createNewPreview(resource, settings);
+			preview = this.createNewDynamicPreview(resource, settings);
 		}
 
 		preview.update(resource);
@@ -110,7 +119,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			preview.toggleLock();
 
 			// Close any previews that are now redundant, such as having two dynamic previews in the same editor group
-			for (const otherPreview of this._previews) {
+			for (const otherPreview of this._dynamicPreviews) {
 				if (otherPreview !== preview && preview.matches(otherPreview)) {
 					otherPreview.dispose();
 				}
@@ -136,14 +145,14 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._topmostLineMonitor,
 			this._contributions);
 
-		this.registerPreview(preview);
+		this.registerDynamicPreview(preview);
 	}
 
 	public async resolveWebviewEditor(
 		input: { readonly resource: vscode.Uri; },
 		webview: vscode.WebviewPanel
 	): Promise<vscode.WebviewEditorCapabilities> {
-		DynamicMarkdownPreview.revive(
+		const preview = DynamicMarkdownPreview.revive(
 			{ resource: input.resource, locked: false, resourceColumn: vscode.ViewColumn.One },
 			webview,
 			this._contentProvider,
@@ -151,10 +160,11 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._logger,
 			this._topmostLineMonitor,
 			this._contributions);
+		this.registerStaticPreview(preview);
 		return {};
 	}
 
-	private createNewPreview(
+	private createNewDynamicPreview(
 		resource: vscode.Uri,
 		previewSettings: DynamicPreviewSettings
 	): DynamicMarkdownPreview {
@@ -173,29 +183,48 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 		this.setPreviewActiveContext(true);
 		this._activePreview = preview;
-		return this.registerPreview(preview);
+		return this.registerDynamicPreview(preview);
 	}
 
-	private registerPreview(
-		preview: DynamicMarkdownPreview
-	): DynamicMarkdownPreview {
-		this._previews.add(preview);
+	private registerDynamicPreview(preview: DynamicMarkdownPreview): DynamicMarkdownPreview {
+		this._dynamicPreviews.add(preview);
 
 		preview.onDispose(() => {
-			this._previews.delete(preview);
+			this._dynamicPreviews.delete(preview);
+		});
+
+		this.trackActive(preview);
+
+		preview.onDidChangeViewState(() => {
+			// Remove other dynamic previews in our column
+			disposeAll(Array.from(this._dynamicPreviews).filter(otherPreview => preview !== otherPreview && preview.matches(otherPreview)));
+		});
+		return preview;
+	}
+
+	private registerStaticPreview(preview: DynamicMarkdownPreview): DynamicMarkdownPreview {
+		this._staticPreviews.add(preview);
+
+		preview.onDispose(() => {
+			this._staticPreviews.delete(preview);
+		});
+
+		this.trackActive(preview);
+		return preview;
+	}
+
+	private trackActive(preview: DynamicMarkdownPreview): void {
+		preview.onDidChangeViewState(({ webviewPanel }) => {
+			this.setPreviewActiveContext(webviewPanel.active);
+			this._activePreview = webviewPanel.active ? preview : undefined;
+		});
+
+		preview.onDispose(() => {
 			if (this._activePreview === preview) {
 				this.setPreviewActiveContext(false);
 				this._activePreview = undefined;
 			}
 		});
-
-		preview.onDidChangeViewState(({ webviewPanel }) => {
-			disposeAll(Array.from(this._previews).filter(otherPreview => preview !== otherPreview && preview.matches(otherPreview)));
-			this.setPreviewActiveContext(webviewPanel.active);
-			this._activePreview = webviewPanel.active ? preview : undefined;
-		});
-
-		return preview;
 	}
 
 	private setPreviewActiveContext(value: boolean) {
