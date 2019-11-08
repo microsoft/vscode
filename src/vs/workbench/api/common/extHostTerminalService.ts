@@ -454,9 +454,14 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 		await openPromise;
 
-		if (initialDimensions) {
-			this._initialDimensions[id] = initialDimensions;
+		if (this._terminalProcesses[id]) {
+			(this._terminalProcesses[id] as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
+		} else {
+			if (initialDimensions) {
+				this._initialDimensions[id] = initialDimensions;
+			}
 		}
+
 	}
 
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
@@ -471,7 +476,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e));
 		}
 		this._terminalProcesses[id] = p;
-
 
 		if (p instanceof ExtHostPseudoterminal) {
 			p.startSendingEvents(this._initialDimensions[id]);
