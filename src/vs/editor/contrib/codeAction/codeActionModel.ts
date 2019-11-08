@@ -77,6 +77,7 @@ class CodeActionOracle extends Disposable {
 				return Range.lift(marker);
 			}
 		}
+
 		return undefined;
 	}
 
