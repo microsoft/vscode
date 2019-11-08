@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { CancellationToken } from 'vs/base/common/cancellation';
 

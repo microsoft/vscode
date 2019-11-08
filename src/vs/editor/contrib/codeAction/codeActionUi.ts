@@ -12,7 +12,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CodeActionsState } from './codeActionModel';
-import { CodeActionAutoApply } from './codeActionTrigger';
+import { CodeActionAutoApply } from './types';
 import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { IPosition } from 'vs/editor/common/core/position';

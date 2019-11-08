@@ -65,7 +65,6 @@ export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: 
 	return true;
 }
 
-
 export function filtersAction(filter: CodeActionFilter, action: CodeAction): boolean {
 	const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
 
