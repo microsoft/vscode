@@ -11,7 +11,7 @@ import { MarkdownContentProvider } from './previewContentProvider';
 import { Disposable } from '../util/dispose';
 
 import * as nls from 'vscode-nls';
-import { getVisibleLine, MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
+import { getVisibleLine, TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContributionProvider, MarkdownContributions } from '../markdownExtensions';
 import { isMarkdownFile } from '../util/file';
@@ -96,7 +96,7 @@ export class DynamicMarkdownPreview extends Disposable {
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		logger: Logger,
-		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
+		topmostLineMonitor: TopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider,
 	): Promise<DynamicMarkdownPreview> {
 		const resource = vscode.Uri.parse(state.resource);
@@ -132,7 +132,7 @@ export class DynamicMarkdownPreview extends Disposable {
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		logger: Logger,
-		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
+		topmostLineMonitor: TopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider
 	): DynamicMarkdownPreview {
 		const webview = vscode.window.createWebviewPanel(
@@ -163,7 +163,7 @@ export class DynamicMarkdownPreview extends Disposable {
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
 		private readonly _logger: Logger,
-		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
+		topmostLineMonitor: TopmostLineMonitor,
 		private readonly _contributionProvider: MarkdownContributionProvider,
 	) {
 		super();
@@ -221,7 +221,7 @@ export class DynamicMarkdownPreview extends Disposable {
 			}
 		}));
 
-		this._register(topmostLineMonitor.onDidChangeTopmostLine(event => {
+		this._register(topmostLineMonitor.onDidChanged(event => {
 			if (this.isPreviewOf(event.resource)) {
 				this.updateForView(event.resource, event.line);
 			}

@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../logger';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { disposeAll, Disposable } from '../util/dispose';
-import { MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
+import { TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { DynamicMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';
@@ -55,7 +55,7 @@ class DynamicPreviewStore extends Disposable {
 export class MarkdownPreviewManager extends Disposable implements vscode.WebviewPanelSerializer, vscode.WebviewEditorProvider {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
-	private readonly _topmostLineMonitor = new MarkdownFileTopmostLineMonitor();
+	private readonly _topmostLineMonitor = new TopmostLineMonitor();
 	private readonly _previewConfigurations = new MarkdownPreviewConfigurationManager();
 
 	private readonly _previews = this._register(new DynamicPreviewStore());
