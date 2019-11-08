@@ -427,6 +427,7 @@ export default class BufferSyncSupport extends Disposable {
 			return;
 		}
 		this.pendingDiagnostics.delete(resource);
+		this.pendingGetErr?.files.delete(resource);
 		this.syncedBuffers.delete(resource);
 		syncedBuffer.close();
 		this._onDelete.fire(resource);
@@ -523,7 +524,9 @@ export default class BufferSyncSupport extends Disposable {
 			this.pendingGetErr.cancel();
 
 			for (const file of this.pendingGetErr.files.entries) {
-				orderedFileSet.set(file.resource, undefined);
+				if (this.syncedBuffers.get(file.resource)) {
+					orderedFileSet.set(file.resource, undefined);
+				}
 			}
 		}
 
