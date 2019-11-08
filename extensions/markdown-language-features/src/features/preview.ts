@@ -72,7 +72,7 @@ export class PreviewDocumentVersion {
 	}
 }
 
-export class MarkdownPreview extends Disposable {
+export class DynamicMarkdownPreview extends Disposable {
 
 	public static readonly viewType = 'markdown.preview';
 
@@ -98,13 +98,15 @@ export class MarkdownPreview extends Disposable {
 		logger: Logger,
 		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider,
-	): Promise<MarkdownPreview> {
+	): Promise<DynamicMarkdownPreview> {
 		const resource = vscode.Uri.parse(state.resource);
 		const locked = state.locked;
 		const line = state.line;
 		const resourceColumn = state.resourceColumn;
 
-		const preview = new MarkdownPreview(
+		webview.webview.options = DynamicMarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions);
+
+		const preview = new DynamicMarkdownPreview(
 			webview,
 			resource,
 			locked,
@@ -114,8 +116,6 @@ export class MarkdownPreview extends Disposable {
 			logger,
 			topmostLineMonitor,
 			contributionProvider);
-
-		preview.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions);
 
 		if (!isNaN(line)) {
 			preview.line = line;
@@ -134,16 +134,16 @@ export class MarkdownPreview extends Disposable {
 		logger: Logger,
 		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider
-	): MarkdownPreview {
+	): DynamicMarkdownPreview {
 		const webview = vscode.window.createWebviewPanel(
-			MarkdownPreview.viewType,
-			MarkdownPreview.getPreviewTitle(resource, locked),
+			DynamicMarkdownPreview.viewType,
+			DynamicMarkdownPreview.getPreviewTitle(resource, locked),
 			previewColumn, {
 			enableFindWidget: true,
-			...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
+			...DynamicMarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
 		});
 
-		return new MarkdownPreview(
+		return new DynamicMarkdownPreview(
 			webview,
 			resource,
 			locked,
@@ -350,7 +350,7 @@ export class MarkdownPreview extends Disposable {
 		}
 	}
 
-	public matches(otherPreview: MarkdownPreview): boolean {
+	public matches(otherPreview: DynamicMarkdownPreview): boolean {
 		return this.matchesResource(otherPreview._resource, otherPreview.position, otherPreview._locked);
 	}
 
@@ -360,7 +360,7 @@ export class MarkdownPreview extends Disposable {
 
 	public toggleLock() {
 		this._locked = !this._locked;
-		this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+		this.editor.title = DynamicMarkdownPreview.getPreviewTitle(this._resource, this._locked);
 	}
 
 	private get iconPath() {
@@ -463,7 +463,7 @@ export class MarkdownPreview extends Disposable {
 	): vscode.WebviewOptions {
 		return {
 			enableScripts: true,
-			localResourceRoots: MarkdownPreview.getLocalResourceRoots(resource, contributions)
+			localResourceRoots: DynamicMarkdownPreview.getLocalResourceRoots(resource, contributions)
 		};
 	}
 
@@ -529,9 +529,9 @@ export class MarkdownPreview extends Disposable {
 	}
 
 	private setContent(html: string): void {
-		this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+		this.editor.title = DynamicMarkdownPreview.getPreviewTitle(this._resource, this._locked);
 		this.editor.iconPath = this.iconPath;
-		this.editor.webview.options = MarkdownPreview.getWebviewOptions(this._resource, this._contributionProvider.contributions);
+		this.editor.webview.options = DynamicMarkdownPreview.getWebviewOptions(this._resource, this._contributionProvider.contributions);
 		this.editor.webview.html = html;
 	}
 
@@ -563,10 +563,4 @@ export class MarkdownPreview extends Disposable {
 	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number; }[]) {
 		this.imageInfo = imageInfo;
 	}
-}
-
-export interface PreviewSettings {
-	readonly resourceColumn: vscode.ViewColumn;
-	readonly previewColumn: vscode.ViewColumn;
-	readonly locked: boolean;
 }
