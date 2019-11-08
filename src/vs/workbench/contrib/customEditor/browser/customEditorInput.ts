@@ -15,12 +15,14 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { CustomEditorModel } from './customEditorModel';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
+	private _model?: CustomEditorModel;
 
 	constructor(
 		resource: URI,
@@ -104,5 +106,17 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 			case Verbosity.LONG:
 				return this.longTitle;
 		}
+	}
+
+	public setModel(model: CustomEditorModel) {
+		if (this._model) {
+			throw new Error('Model is already set');
+		}
+		this._model = model;
+		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+	}
+
+	public isDirty(): boolean {
+		return this._model ? this._model.isDirty() : false;
 	}
 }
