@@ -78,6 +78,7 @@ export type TypeScriptRequests = StandardTsServerRequests & NoResponseTsServerRe
 export type ExecConfig = {
 	readonly lowPriority?: boolean;
 	readonly nonRecoverable?: boolean;
+	readonly cancelOnResourceChange?: vscode.Uri
 };
 
 export interface ITypeScriptServiceClient {

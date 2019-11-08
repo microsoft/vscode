@@ -337,6 +337,9 @@ export default class BufferSyncSupport extends Disposable {
 	private readonly _onDelete = this._register(new vscode.EventEmitter<vscode.Uri>());
 	public readonly onDelete = this._onDelete.event;
 
+	private readonly _onWillChange = this._register(new vscode.EventEmitter<vscode.Uri>());
+	public readonly onWillChange = this._onWillChange.event;
+
 	public listen(): void {
 		if (this.listening) {
 			return;
@@ -455,6 +458,8 @@ export default class BufferSyncSupport extends Disposable {
 		if (!syncedBuffer) {
 			return;
 		}
+
+		this._onWillChange.fire(syncedBuffer.resource);
 
 		syncedBuffer.onContentChanged(e.contentChanges);
 		const didTrigger = this.requestDiagnostic(syncedBuffer);
