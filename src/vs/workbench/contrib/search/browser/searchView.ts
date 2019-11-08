@@ -927,7 +927,7 @@ export class SearchView extends ViewletPanel {
 	}
 
 	hasSearchPattern(): boolean {
-		return this.searchWidget.searchInput.getValue().length > 0;
+		return this.searchWidget && this.searchWidget.searchInput.getValue().length > 0;
 	}
 
 	clearSearchResults(): void {
