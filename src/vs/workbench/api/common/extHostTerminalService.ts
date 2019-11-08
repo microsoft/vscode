@@ -286,7 +286,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	protected _proxy: MainThreadTerminalServiceShape;
 	protected _activeTerminal: ExtHostTerminal | undefined;
-	private _terminals: ExtHostTerminal[] = [];
+	protected _terminals: ExtHostTerminal[] = [];
 	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
 	protected _delayedTerminalValues: { [id: number]: DelayedValue<ExtHostTerminal> } = {};
 
