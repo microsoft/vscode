@@ -11,7 +11,7 @@ import { values } from 'vs/base/common/map';
 import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import * as nls from 'vs/nls';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationNode, IConfigurationRegistry, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -25,14 +25,15 @@ const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 	}
 });
 
-const codeActionsOnSaveSchema: IJSONSchema = {
+const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	type: 'object',
 	properties: codeActionsOnSaveDefaultProperties,
 	'additionalProperties': {
 		type: 'boolean'
 	},
 	default: {},
-	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
+	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save."),
+	scope: ConfigurationScope.RESOURCE
 };
 
 export const editorConfiguration = Object.freeze<IConfigurationNode>({
@@ -46,7 +47,8 @@ export const editorConfiguration = Object.freeze<IConfigurationNode>({
 		'editor.codeActionsOnSaveTimeout': {
 			type: 'number',
 			default: 750,
-			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled.")
+			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled."),
+			scope: ConfigurationScope.RESOURCE
 		},
 	}
 });
