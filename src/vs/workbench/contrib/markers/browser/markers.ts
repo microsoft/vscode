@@ -18,11 +18,6 @@ import { ResourceMap } from 'vs/base/common/map';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
-export interface IFilter {
-	filterText: string;
-	useFilesExclude: boolean;
-}
-
 export interface IMarkersWorkbenchService {
 	_serviceBrand: undefined;
 	readonly markersModel: MarkersModel;
