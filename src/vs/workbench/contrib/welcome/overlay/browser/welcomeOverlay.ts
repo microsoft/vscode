@@ -60,6 +60,12 @@ const keys: Key[] = [
 		command: 'workbench.view.debug'
 	},
 	{
+		id: 'remote',
+		arrow: '&larr;',
+		label: localize('welcomeOverlay.remote', "Remote explorer"),
+		command: 'workbench.view.remote'
+	},
+	{
 		id: 'extensions',
 		arrow: '&larr;',
 		label: localize('welcomeOverlay.extensions', "Manage extensions"),
@@ -229,7 +235,7 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private updateActivityBarKeys() {
-		const ids = ['explorer', 'search', 'git', 'debug', 'extensions'];
+		const ids = ['explorer', 'search', 'git', 'debug', 'remote', 'extensions'];
 		const activityBar = document.querySelector('.activitybar .composite-bar');
 		if (activityBar instanceof HTMLElement) {
 			const target = activityBar.getBoundingClientRect();
