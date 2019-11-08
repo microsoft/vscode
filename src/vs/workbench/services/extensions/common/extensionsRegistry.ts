@@ -146,7 +146,7 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 	}
 }
 
-const extensionKindSchema = {
+const extensionKindSchema: IJSONSchema = {
 	type: 'string',
 	enum: [
 		'ui',
@@ -159,7 +159,7 @@ const extensionKindSchema = {
 };
 
 const schemaId = 'vscode://schemas/vscode-extensions';
-export const schema = {
+export const schema: IJSONSchema = {
 	properties: {
 		engines: {
 			type: 'object',
@@ -413,7 +413,7 @@ export class ExtensionsRegistryImpl {
 		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
 		this._extensionPoints.set(desc.extensionPoint, result);
 
-		schema.properties['contributes'].properties[desc.extensionPoint] = desc.jsonSchema;
+		schema.properties!['contributes'].properties![desc.extensionPoint] = desc.jsonSchema;
 		schemaRegistry.registerSchema(schemaId, schema);
 
 		return result;

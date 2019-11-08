@@ -12,6 +12,7 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDimension } from 'vs/editor/common/editorCommon';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 //#region typed options
 
@@ -1323,7 +1324,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 			multipleImplemenations: 'peek',
 			multipleReferences: 'peek',
 		};
-		const jsonSubset = {
+		const jsonSubset: IJSONSchema = {
 			type: 'string',
 			enum: ['peek', 'gotoAndPeek', 'goto'],
 			default: defaults.multiple,

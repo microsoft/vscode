@@ -448,6 +448,11 @@ export class SearchWidget extends Widget {
 	private onSearchInputChanged(): void {
 		this.searchInput.clearMessage();
 		this.setReplaceAllActionState(false);
+
+		if (this.searchConfiguration.searchOnType) {
+			this._onSearchCancel.fire({ focus: false });
+			this._searchDelayer.trigger((() => this.submitSearch()), this.searchConfiguration.searchOnTypeDebouncePeriod);
+		}
 	}
 
 	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
@@ -481,18 +486,6 @@ export class SearchWidget extends Widget {
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
 			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
-		}
-
-		if ((keyboardEvent.browserEvent.key.length === 1 && !(keyboardEvent.ctrlKey || keyboardEvent.metaKey) ||
-			keyboardEvent.equals(KeyCode.Backspace) ||
-			keyboardEvent.equals(KeyCode.UpArrow) ||
-			keyboardEvent.equals(KeyCode.DownArrow))
-			&& this.searchConfiguration.searchOnType) {
-
-			// Check to see if this input changes the query, being either a printable key (`key` is length 1, and not modified), or backspace, or history scroll
-			// If so, trigger a new search eventually, and preemptively cancel the old one as it's results will soon be discarded anyways.
-			this._onSearchCancel.fire({ focus: false });
-			this._searchDelayer.trigger((() => this.submitSearch()));
 		}
 	}
 
@@ -574,13 +567,10 @@ export class SearchWidget extends Widget {
 
 		const value = this.searchInput.getValue();
 		const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
-		if (value) {
-			if (useGlobalFindBuffer) {
-				this.clipboardServce.writeFindText(value);
-			}
-
-			this._onSearchSubmit.fire();
+		if (value && useGlobalFindBuffer) {
+			this.clipboardServce.writeFindText(value);
 		}
+		this._onSearchSubmit.fire();
 	}
 
 	dispose(): void {

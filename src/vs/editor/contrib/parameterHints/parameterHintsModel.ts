@@ -26,7 +26,7 @@ namespace ParameterHintState {
 		Pending,
 	}
 
-	export const Default = new class { readonly type = Type.Default; };
+	export const Default = { type: Type.Default } as const;
 
 	export class Pending {
 		readonly type = Type.Pending;

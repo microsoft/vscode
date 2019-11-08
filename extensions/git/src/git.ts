@@ -1813,10 +1813,15 @@ export class Repository {
 	}
 
 	cleanupCommitEditMessage(message: string): string {
+		// If the message is a single line starting with whitespace followed by `#`, just allow it.
+		if (/^\s*#[^\n]*$/.test(message)) {
+			return message;
+		}
+
+		// Else, remove all lines starting with whitespace followed by `#`.
 		//TODO: Support core.commentChar
 		return message.replace(/^\s*#.*$\n?/gm, '').trim();
 	}
-
 
 	async getMergeMessage(): Promise<string | undefined> {
 		const mergeMsgPath = path.join(this.repositoryRoot, '.git', 'MERGE_MSG');

@@ -25,7 +25,8 @@
 		"onCommand:markdown.showSource",
 		"onCommand:markdown.showPreviewSecuritySelector",
 		"onCommand:markdown.api.render",
-		"onWebviewPanel:markdown.preview"
+		"onWebviewPanel:markdown.preview",
+		"onWebviewEditor:vscode.markdown.preview.editor"
 	],
 	"contributes": {
 		"commands": [
@@ -307,6 +308,18 @@
 		],
 		"markdown.previewScripts": [
 			"./media/index.js"
+		],
+		"webviewEditors": [
+			{
+				"viewType": "vscode.markdown.preview.editor",
+				"displayName": "(Experimental) VS Code Markdown Preview",
+				"priority": "option",
+				"selector": [
+					{
+						"filenamePattern": "*.md"
+					}
+				]
+			}
 		]
 	},
 	"scripts": {

@@ -12,13 +12,13 @@ import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { IdGenerator } from 'vs/base/common/idGenerator';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { hash } from 'vs/base/common/hash';
 
 class DecorationRule {
 
@@ -31,7 +31,7 @@ class DecorationRule {
 		}
 	}
 
-	private static readonly _classNames = new IdGenerator('monaco-decorations-style-');
+	private static readonly _classNamesPrefix = 'monaco-decoration';
 
 	readonly data: IDecorationData | IDecorationData[];
 	readonly itemColorClassName: string;
@@ -40,11 +40,12 @@ class DecorationRule {
 
 	private _refCounter: number = 0;
 
-	constructor(data: IDecorationData | IDecorationData[]) {
+	constructor(data: IDecorationData | IDecorationData[], key: string) {
 		this.data = data;
-		this.itemColorClassName = DecorationRule._classNames.nextId();
-		this.itemBadgeClassName = DecorationRule._classNames.nextId();
-		this.bubbleBadgeClassName = DecorationRule._classNames.nextId();
+		const suffix = hash(key).toString(36);
+		this.itemColorClassName = `${DecorationRule._classNamesPrefix}-itemColor-${suffix}`;
+		this.itemBadgeClassName = `${DecorationRule._classNamesPrefix}-itemBadge-${suffix}`;
+		this.bubbleBadgeClassName = `${DecorationRule._classNamesPrefix}-bubbleBadge-${suffix}`;
 	}
 
 	acquire(): void {
@@ -127,7 +128,7 @@ class DecorationStyles {
 
 		if (!rule) {
 			// new css rule
-			rule = new DecorationRule(data);
+			rule = new DecorationRule(data, key);
 			this._decorationRules.set(key, rule);
 			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
 		}

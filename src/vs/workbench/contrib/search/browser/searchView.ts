@@ -268,7 +268,7 @@ export class SearchView extends ViewletPanel {
 		this.inputPatternIncludes.setValue(patternIncludes);
 
 		this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true));
-		this.inputPatternIncludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
+		this.inputPatternIncludes.onCancel(() => this.cancelSearch(false));
 		this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
 
 		// excludes list
@@ -284,7 +284,7 @@ export class SearchView extends ViewletPanel {
 		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(useExcludesAndIgnoreFiles);
 
 		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true));
-		this.inputPatternExcludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
+		this.inputPatternExcludes.onCancel(() => this.cancelSearch(false));
 		this.inputPatternExcludes.onChangeIgnoreBox(() => this.onQueryChanged(true));
 		this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocused);
 
@@ -927,7 +927,7 @@ export class SearchView extends ViewletPanel {
 	}
 
 	hasSearchPattern(): boolean {
-		return this.searchWidget.searchInput.getValue().length > 0;
+		return this.searchWidget && this.searchWidget.searchInput.getValue().length > 0;
 	}
 
 	clearSearchResults(): void {
@@ -1169,6 +1169,7 @@ export class SearchView extends ViewletPanel {
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 
 		if (contentPattern.length === 0) {
+			this.clearSearchResults();
 			return;
 		}
 

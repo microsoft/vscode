@@ -15,8 +15,8 @@ export class CodeActionKind {
 	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');
 	public static readonly Source = new CodeActionKind('source');
-	public static readonly SourceOrganizeImports = new CodeActionKind('source.organizeImports');
-	public static readonly SourceFixAll = new CodeActionKind('source.fixAll');
+	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
+	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
 
 	constructor(
 		public readonly value: string
@@ -32,6 +32,10 @@ export class CodeActionKind {
 
 	public intersects(other: CodeActionKind): boolean {
 		return this.contains(other) || other.contains(this);
+	}
+
+	public append(part: string): CodeActionKind {
+		return new CodeActionKind(this.value + CodeActionKind.sep + part);
 	}
 }
 
@@ -60,7 +64,6 @@ export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: 
 
 	return true;
 }
-
 
 export function filtersAction(filter: CodeActionFilter, action: CodeAction): boolean {
 	const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
@@ -96,4 +99,43 @@ export interface CodeActionTrigger {
 		readonly notAvailableMessage: string;
 		readonly position: Position;
 	};
+}
+
+export class CodeActionCommandArgs {
+	public static fromUser(arg: any, defaults: { kind: CodeActionKind, apply: CodeActionAutoApply }): CodeActionCommandArgs {
+		if (!arg || typeof arg !== 'object') {
+			return new CodeActionCommandArgs(defaults.kind, defaults.apply, false);
+		}
+		return new CodeActionCommandArgs(
+			CodeActionCommandArgs.getKindFromUser(arg, defaults.kind),
+			CodeActionCommandArgs.getApplyFromUser(arg, defaults.apply),
+			CodeActionCommandArgs.getPreferredUser(arg));
+	}
+
+	private static getApplyFromUser(arg: any, defaultAutoApply: CodeActionAutoApply) {
+		switch (typeof arg.apply === 'string' ? arg.apply.toLowerCase() : '') {
+			case 'first': return CodeActionAutoApply.First;
+			case 'never': return CodeActionAutoApply.Never;
+			case 'ifsingle': return CodeActionAutoApply.IfSingle;
+			default: return defaultAutoApply;
+		}
+	}
+
+	private static getKindFromUser(arg: any, defaultKind: CodeActionKind) {
+		return typeof arg.kind === 'string'
+			? new CodeActionKind(arg.kind)
+			: defaultKind;
+	}
+
+	private static getPreferredUser(arg: any): boolean {
+		return typeof arg.preferred === 'boolean'
+			? arg.preferred
+			: false;
+	}
+
+	private constructor(
+		public readonly kind: CodeActionKind,
+		public readonly apply: CodeActionAutoApply,
+		public readonly preferred: boolean,
+	) { }
 }

@@ -8,10 +8,10 @@ import { Emitter } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
-import { CodeActionCommand, RefactorAction, SourceAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import * as nls from 'vs/nls';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationNode, IConfigurationRegistry, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -25,14 +25,15 @@ const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 	}
 });
 
-const codeActionsOnSaveSchema: IJSONSchema = {
+const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	type: 'object',
 	properties: codeActionsOnSaveDefaultProperties,
 	'additionalProperties': {
 		type: 'boolean'
 	},
 	default: {},
-	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
+	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save."),
+	scope: ConfigurationScope.RESOURCE
 };
 
 export const editorConfiguration = Object.freeze<IConfigurationNode>({
@@ -46,7 +47,8 @@ export const editorConfiguration = Object.freeze<IConfigurationNode>({
 		'editor.codeActionsOnSaveTimeout': {
 			type: 'number',
 			default: 750,
-			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled.")
+			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled."),
+			scope: ConfigurationScope.RESOURCE
 		},
 	}
 });
@@ -148,9 +150,9 @@ export class CodeActionWorkbenchContribution extends Disposable implements IWork
 		};
 
 		return [
-			conditionalSchema(CodeActionCommand.Id, getActions(CodeActionKind.Empty)),
-			conditionalSchema(RefactorAction.Id, getActions(CodeActionKind.Refactor)),
-			conditionalSchema(SourceAction.Id, getActions(CodeActionKind.Source)),
+			conditionalSchema(codeActionCommandId, getActions(CodeActionKind.Empty)),
+			conditionalSchema(refactorCommandId, getActions(CodeActionKind.Refactor)),
+			conditionalSchema(sourceActionCommandId, getActions(CodeActionKind.Source)),
 		];
 	}
 }

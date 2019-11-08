@@ -16,7 +16,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeAction } from 'vs/editor/common/modes';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId, organizeImportsCommandId, fixAllCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
@@ -30,7 +30,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
+import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionCommandArgs } from './types';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -213,60 +213,15 @@ export class QuickFixAction extends EditorAction {
 	}
 }
 
-
-class CodeActionCommandArgs {
-	public static fromUser(arg: any, defaults: { kind: CodeActionKind, apply: CodeActionAutoApply }): CodeActionCommandArgs {
-		if (!arg || typeof arg !== 'object') {
-			return new CodeActionCommandArgs(defaults.kind, defaults.apply, false);
-		}
-		return new CodeActionCommandArgs(
-			CodeActionCommandArgs.getKindFromUser(arg, defaults.kind),
-			CodeActionCommandArgs.getApplyFromUser(arg, defaults.apply),
-			CodeActionCommandArgs.getPreferredUser(arg));
-	}
-
-	private static getApplyFromUser(arg: any, defaultAutoApply: CodeActionAutoApply) {
-		switch (typeof arg.apply === 'string' ? arg.apply.toLowerCase() : '') {
-			case 'first': return CodeActionAutoApply.First;
-			case 'never': return CodeActionAutoApply.Never;
-			case 'ifsingle': return CodeActionAutoApply.IfSingle;
-			default: return defaultAutoApply;
-		}
-	}
-
-	private static getKindFromUser(arg: any, defaultKind: CodeActionKind) {
-		return typeof arg.kind === 'string'
-			? new CodeActionKind(arg.kind)
-			: defaultKind;
-	}
-
-	private static getPreferredUser(arg: any): boolean {
-		return typeof arg.preferred === 'boolean'
-			? arg.preferred
-			: false;
-	}
-
-	private constructor(
-		public readonly kind: CodeActionKind,
-		public readonly apply: CodeActionAutoApply,
-		public readonly preferred: boolean,
-	) { }
-}
-
 export class CodeActionCommand extends EditorCommand {
-
-	static readonly Id = 'editor.action.codeAction';
 
 	constructor() {
 		super({
-			id: CodeActionCommand.Id,
+			id: codeActionCommandId,
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			description: {
-				description: `Trigger a code action`,
-				args: [{
-					name: 'args',
-					schema: argsSchema,
-				}]
+				description: 'Trigger a code action',
+				args: [{ name: 'args', schema: argsSchema, }]
 			}
 		});
 	}
@@ -296,11 +251,9 @@ export class CodeActionCommand extends EditorCommand {
 
 export class RefactorAction extends EditorAction {
 
-	static readonly Id = 'editor.action.refactor';
-
 	constructor() {
 		super({
-			id: RefactorAction.Id,
+			id: refactorCommandId,
 			label: nls.localize('refactor.label', "Refactor..."),
 			alias: 'Refactor...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
@@ -321,10 +274,7 @@ export class RefactorAction extends EditorAction {
 			},
 			description: {
 				description: 'Refactor...',
-				args: [{
-					name: 'args',
-					schema: argsSchema
-				}]
+				args: [{ name: 'args', schema: argsSchema }]
 			}
 		});
 	}
@@ -350,14 +300,11 @@ export class RefactorAction extends EditorAction {
 	}
 }
 
-
 export class SourceAction extends EditorAction {
-
-	static readonly Id = 'editor.action.sourceAction';
 
 	constructor() {
 		super({
-			id: SourceAction.Id,
+			id: sourceActionCommandId,
 			label: nls.localize('source.label', "Source Action..."),
 			alias: 'Source Action...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
@@ -370,10 +317,7 @@ export class SourceAction extends EditorAction {
 			},
 			description: {
 				description: 'Source Action...',
-				args: [{
-					name: 'args',
-					schema: argsSchema
-				}]
+				args: [{ name: 'args', schema: argsSchema }]
 			}
 		});
 	}
@@ -402,11 +346,9 @@ export class SourceAction extends EditorAction {
 
 export class OrganizeImportsAction extends EditorAction {
 
-	static readonly Id = 'editor.action.organizeImports';
-
 	constructor() {
 		super({
-			id: OrganizeImportsAction.Id,
+			id: organizeImportsCommandId,
 			label: nls.localize('organizeImports.label', "Organize Imports"),
 			alias: 'Organize Imports',
 			precondition: ContextKeyExpr.and(
@@ -416,7 +358,7 @@ export class OrganizeImportsAction extends EditorAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
 		});
 	}
 
@@ -430,11 +372,9 @@ export class OrganizeImportsAction extends EditorAction {
 
 export class FixAllAction extends EditorAction {
 
-	static readonly Id = 'editor.action.fixAll';
-
 	constructor() {
 		super({
-			id: FixAllAction.Id,
+			id: fixAllCommandId,
 			label: nls.localize('fixAll.label', "Fix All"),
 			alias: 'Fix All',
 			precondition: ContextKeyExpr.and(

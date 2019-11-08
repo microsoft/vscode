@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { coalease } from '../utils/arrays';
+import { coalesce } from '../utils/arrays';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 
@@ -34,7 +34,7 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 			return;
 		}
 
-		return coalease(response.body.map(span => this.convertOutliningSpan(span, document)));
+		return coalesce(response.body.map(span => this.convertOutliningSpan(span, document)));
 	}
 
 	private convertOutliningSpan(

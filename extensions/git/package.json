@@ -1141,11 +1141,6 @@
         },
         {
           "command": "git.openChange",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "navigation"
-        },
-        {
-          "command": "git.openChange",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "navigation"
         },
@@ -1613,6 +1608,12 @@
           "default": "mixed",
           "description": "%config.untrackedChanges%",
           "scope": "resource"
+        },
+        "git.restoreCommitTemplateComments": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.restoreCommitTemplateComments%"
         }
       }
     },
