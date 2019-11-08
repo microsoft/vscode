@@ -16,7 +16,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { getCodeActions, CodeActionSet } from './codeAction';
-import { CodeActionTrigger } from './codeActionTrigger';
+import { CodeActionTrigger } from './types';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isEqual } from 'vs/base/common/resources';
 
@@ -77,6 +77,7 @@ class CodeActionOracle extends Disposable {
 				return Range.lift(marker);
 			}
 		}
+
 		return undefined;
 	}
 

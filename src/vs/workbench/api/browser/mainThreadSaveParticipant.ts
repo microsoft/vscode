@@ -19,7 +19,7 @@ import { CodeAction } from 'vs/editor/common/modes';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { localize } from 'vs/nls';

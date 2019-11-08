@@ -15,9 +15,10 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
 import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId, organizeImportsCommandId, fixAllCommandId } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeAction) => Promise<any>;
@@ -43,70 +44,93 @@ export class CodeActionWidget extends Disposable {
 	private _visible: boolean = false;
 	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 
+	private readonly _keybindingResolver: CodeActionKeybindingResolver;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextMenuService: IContextMenuService,
-		private readonly _keybindingService: IKeybindingService,
+		keybindingService: IKeybindingService,
 		private readonly _delegate: CodeActionWidgetDelegate,
 	) {
 		super();
+
+		this._keybindingResolver = new CodeActionKeybindingResolver(keybindingService);
 	}
 
 	get isVisible(): boolean {
 		return this._visible;
 	}
 
-	public async show(codeActions: CodeActionSet, at?: IAnchor | IPosition): Promise<void> {
+	public async show(codeActions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
 		if (!codeActions.actions.length) {
 			this._visible = false;
 			return;
 		}
+
 		if (!this._editor.getDomNode()) {
 			// cancel when editor went off-dom
 			this._visible = false;
-			return Promise.reject(canceled());
+			throw canceled();
 		}
 
 		this._visible = true;
+		this._showingActions.value = codeActions;
 
 		const actions = codeActions.actions.map(action =>
 			new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action)));
 
-		const keyBindings = this.resolveKeybindings(actions);
+		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
+		const resolver = this._keybindingResolver.getResolver();
 
-		this._showingActions.value = codeActions;
 		this._contextMenuService.showContextMenu({
-			getAnchor: () => {
-				if (Position.isIPosition(at)) {
-					at = this._toCoords(at);
-				}
-				return at || { x: 0, y: 0 };
-			},
+			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: () => {
 				this._visible = false;
 				this._editor.focus();
 			},
 			autoSelectFirstItem: true,
-			getKeyBinding: (action): ResolvedKeybinding | undefined => {
-				return action instanceof CodeActionAction ? keyBindings.get(action) : undefined;
-			},
+			getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
 		});
 	}
 
-	private resolveKeybindings(actions: readonly CodeActionAction[]): Map<CodeActionAction, ResolvedKeybinding> {
-		const codeActionCommands: readonly string[] = [
-			refactorCommandId,
-			codeActionCommandId,
-			sourceActionCommandId,
-			organizeImportsCommandId,
-			fixAllCommandId
-		];
+	private _toCoords(position: IPosition): { x: number, y: number } {
+		if (!this._editor.hasModel()) {
+			return { x: 0, y: 0 };
+		}
+		this._editor.revealPosition(position, ScrollType.Immediate);
+		this._editor.render();
 
+		// Translate to absolute editor position
+		const cursorCoords = this._editor.getScrolledVisiblePosition(position);
+		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
+		const x = editorCoords.left + cursorCoords.left;
+		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
+
+		return { x, y };
+	}
+}
+
+export class CodeActionKeybindingResolver {
+	private static readonly codeActionCommands: readonly string[] = [
+		refactorCommandId,
+		codeActionCommandId,
+		sourceActionCommandId,
+		organizeImportsCommandId,
+		fixAllCommandId
+	];
+
+	constructor(
+		private readonly _keybindingProvider: {
+			getKeybindings(): readonly ResolvedKeybindingItem[],
+		},
+	) { }
+
+	public getResolver(): (action: CodeAction) => ResolvedKeybinding | undefined {
 		// Lazy since we may not actually ever read the value
 		const allCodeActionBindings = new Lazy<readonly ResolveCodeActionKeybinding[]>(() =>
-			this._keybindingService.getKeybindings()
-				.filter(item => codeActionCommands.indexOf(item.command!) >= 0)
+			this._keybindingProvider.getKeybindings()
+				.filter(item => CodeActionKeybindingResolver.codeActionCommands.indexOf(item.command!) >= 0)
 				.filter(item => item.resolvedKeybinding)
 				.map((item): ResolveCodeActionKeybinding => {
 					// Special case these commands since they come built-in with VS Code and don't use 'commandArgs'
@@ -126,16 +150,13 @@ export class CodeActionWidget extends Disposable {
 					};
 				}));
 
-		const out = new Map<CodeActionAction, ResolvedKeybinding>();
-		for (const action of actions) {
-			if (action.action.kind) {
-				const binding = this.bestKeybindingForCodeAction(action.action, allCodeActionBindings.getValue());
-				if (binding) {
-					out.set(action, binding.resolvedKeybinding);
-				}
+		return (action) => {
+			if (action.kind) {
+				const binding = this.bestKeybindingForCodeAction(action, allCodeActionBindings.getValue());
+				return binding?.resolvedKeybinding;
 			}
-		}
-		return out;
+			return undefined;
+		};
 	}
 
 	private bestKeybindingForCodeAction(
@@ -163,21 +184,5 @@ export class CodeActionWidget extends Disposable {
 				// Select the more specific binding
 				return currentBest.kind.contains(candidate.kind) ? candidate : currentBest;
 			}, undefined as ResolveCodeActionKeybinding | undefined);
-	}
-
-	private _toCoords(position: IPosition): { x: number, y: number } {
-		if (!this._editor.hasModel()) {
-			return { x: 0, y: 0 };
-		}
-		this._editor.revealPosition(position, ScrollType.Immediate);
-		this._editor.render();
-
-		// Translate to absolute editor position
-		const cursorCoords = this._editor.getScrolledVisiblePosition(position);
-		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
-		const x = editorCoords.left + cursorCoords.left;
-		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
-
-		return { x, y };
 	}
 }

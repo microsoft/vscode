@@ -12,7 +12,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CodeActionsState } from './codeActionModel';
-import { CodeActionAutoApply } from './codeActionTrigger';
+import { CodeActionAutoApply } from './types';
 import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -47,16 +47,14 @@ export class CodeActionUi extends Disposable {
 
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._register(new LightBulbWidget(this._editor, quickFixActionId, preferredFixActionId, keybindingService));
-			this._register(widget.onClick(this._handleLightBulbSelect, this));
+			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e)));
 			return widget;
 		});
 	}
 
 	public async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
-			if (this._lightBulbWidget.hasValue()) {
-				this._lightBulbWidget.getValue().hide();
-			}
+			this._lightBulbWidget.rawValue?.hide();
 			return;
 		}
 
@@ -83,7 +81,7 @@ export class CodeActionUi extends Disposable {
 					// Apply if we only have one action or requested autoApply
 					if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && actions.actions.length === 1)) {
 						try {
-							await this.delegate.applyCodeAction(actions.actions[0], false);
+							this.delegate.applyCodeAction(actions.actions[0], false);
 						} finally {
 							actions.dispose();
 						}
@@ -104,11 +102,7 @@ export class CodeActionUi extends Disposable {
 		}
 	}
 
-	public async showCodeActionList(actions: CodeActionSet, at?: IAnchor | IPosition): Promise<void> {
+	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
 		this._codeActionWidget.getValue().show(actions, at);
-	}
-
-	private _handleLightBulbSelect(e: { x: number, y: number, actions: CodeActionSet }): void {
-		this._codeActionWidget.getValue().show(e.actions, e);
 	}
 }

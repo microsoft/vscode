@@ -30,7 +30,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionCommandArgs } from './codeActionTrigger';
+import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionCommandArgs } from './types';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(

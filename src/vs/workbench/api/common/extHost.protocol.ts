@@ -570,6 +570,8 @@ export interface MainThreadWebviewsShape extends IDisposable {
 
 	$registerEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
+
+	$onEdit(handle: WebviewPanelHandle, editJson: string): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -587,6 +589,7 @@ export interface ExtHostWebviewsShape {
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+	$undoEdits(handle: WebviewPanelHandle, edits: string[]): void;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
