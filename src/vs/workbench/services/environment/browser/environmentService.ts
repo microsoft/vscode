@@ -19,6 +19,7 @@ import product from 'vs/platform/product/common/product';
 import { serializableToMap } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 
+// TODO@ben remove properties that are node/electron only
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
 	constructor(
