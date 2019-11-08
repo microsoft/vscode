@@ -72,8 +72,8 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					this._productService.nameShort
 				),
 				[
-					localize('openLink', 'Open Link'),
-					localize('copyLink', 'Copy Link'),
+					localize('open', 'Open'),
+					localize('copy', 'Copy'),
 					localize('cancel', 'Cancel'),
 					localize('configureTrustedDomains', 'Configure Trusted Domains')
 				],
