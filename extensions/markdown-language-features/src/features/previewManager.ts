@@ -20,11 +20,14 @@ export interface DynamicPreviewSettings {
 
 class DynamicPreviewStore extends Disposable {
 
-	private readonly _previews: DynamicMarkdownPreview[] = [];
+	private readonly _previews = new Set<DynamicMarkdownPreview>();
 
 	public dispose(): void {
 		super.dispose();
-		disposeAll(this._previews);
+		for (const preview of this._previews) {
+			preview.dispose();
+		}
+		this._previews.clear();
 	}
 
 	[Symbol.iterator](): Iterator<DynamicMarkdownPreview> {
@@ -32,19 +35,20 @@ class DynamicPreviewStore extends Disposable {
 	}
 
 	public get(resource: vscode.Uri, previewSettings: DynamicPreviewSettings): DynamicMarkdownPreview | undefined {
-		return this._previews.find(preview =>
-			preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.locked));
+		for (const preview of this._previews) {
+			if (preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.locked)) {
+				return preview;
+			}
+		}
+		return undefined;
 	}
 
 	public add(preview: DynamicMarkdownPreview) {
-		this._previews.push(preview);
+		this._previews.add(preview);
 	}
 
 	public delete(preview: DynamicMarkdownPreview) {
-		const existing = this._previews.indexOf(preview);
-		if (existing >= 0) {
-			this._previews.splice(existing, 1);
-		}
+		this._previews.delete(preview);
 	}
 }
 
@@ -93,11 +97,11 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	}
 
 	public get activePreviewResource() {
-		return this._activePreview && this._activePreview.resource;
+		return this._activePreview?.resource;
 	}
 
 	public get activePreviewResourceColumn() {
-		return this._activePreview && this._activePreview.resourceColumn;
+		return this._activePreview?.resourceColumn;
 	}
 
 	public toggleLock() {
