@@ -223,7 +223,7 @@ export class DynamicMarkdownPreview extends Disposable {
 
 		this._register(vscode.window.onDidChangeActiveTextEditor(editor => {
 			if (editor && isMarkdownFile(editor.document) && !this._locked) {
-				this.update(editor.document.uri);
+				this.update(editor.document.uri, false);
 			}
 		}));
 
@@ -264,7 +264,6 @@ export class DynamicMarkdownPreview extends Disposable {
 		this._onDisposeEmitter.fire();
 		this._onDisposeEmitter.dispose();
 
-		this._onDidChangeViewStateEmitter.dispose();
 		this.editor.dispose();
 		super.dispose();
 	}
