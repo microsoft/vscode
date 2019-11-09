@@ -264,7 +264,6 @@ export class DynamicMarkdownPreview extends Disposable {
 		this._onDisposeEmitter.fire();
 		this._onDisposeEmitter.dispose();
 
-		this._onDidChangeViewStateEmitter.dispose();
 		this.editor.dispose();
 		super.dispose();
 	}
