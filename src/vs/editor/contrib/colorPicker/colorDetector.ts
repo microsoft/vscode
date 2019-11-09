@@ -182,6 +182,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 					before: {
 						contentText: ' ',
 						border: 'solid 0.1em #000',
+						borderRadius: '50%',
+						cursor: 'default',
 						margin: '0.1em 0.2em 0 0.2em',
 						width: '0.8em',
 						height: '0.8em',
