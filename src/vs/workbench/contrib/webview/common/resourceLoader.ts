@@ -83,7 +83,7 @@ function normalizeRequestPath(requestUri: URI) {
 
 	// Modern vscode-resources uris put the scheme of the requested resource as the authority
 	if (requestUri.authority) {
-		return URI.parse(requestUri.authority + ':' + requestUri.path);
+		return URI.parse(requestUri.authority + ':' + encodeURIComponent(requestUri.path).replace(/%2F/g, '/'));
 	}
 
 	// Old style vscode-resource uris lose the scheme of the resource which means they are unable to
