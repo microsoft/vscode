@@ -418,10 +418,10 @@ vscode-windows-registry@1.0.2:
   resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.2.tgz#b863e704a6a69c50b3098a55fbddbe595b0c124a"
   integrity sha512-/CLLvuOSM2Vme2z6aNyB+4Omd7hDxpf4Thrt8ImxnXeQtxzel2bClJpFQvQqK/s4oaXlkBKS7LqVLeZM+uSVIA==
 
-xterm-addon-search@0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.3.0.tgz#fc6843bebab1873eff0c89e31f7b74bb3c4d8947"
-  integrity sha512-ZvRmkNBSz2dT00w0qJ3Hd5cwYoOfkVZpHou7Xxy1kO34wQglU/8Ec4DNTvU27sS9BUzEg8kUcTTru0DxhJXrTA==
+xterm-addon-search@0.4.0-beta4:
+  version "0.4.0-beta4"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.4.0-beta4.tgz#7762ea342c6b4f5e824d83466bd93793c9d7d779"
+  integrity sha512-TIbEBVhydGIxcyu/CfKJbD+BKHisMGbkAfaWlCPaWis2Xmw8yE7CKrCPn+lhZYl1MdjDVEmb8lQI6WetbC2OZA==
 
 xterm-addon-web-links@0.2.1:
   version "0.2.1"
