@@ -314,6 +314,8 @@
 	border-width: 0.1em;
 	border-style: solid;
 	border-color: rgb(0, 0, 0);
+	border-radius: 50%;
+    	cursor: default;
 	margin: 0em 0.2em;
 	vertical-align: middle;
 }
