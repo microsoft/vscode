@@ -471,7 +471,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
+			rendererType: config.rendererType === 'auto' || config.rendererType === 'webgl' ? 'canvas' : config.rendererType
 		});
 		this._xterm = xterm;
 		this._xtermCore = (xterm as any)._core as XTermCore;
@@ -568,6 +568,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._wrapperElement.appendChild(this._xtermElement);
 			this._container.appendChild(this._wrapperElement);
 			xterm.open(this._xtermElement);
+			if (this._configHelper.config.rendererType === 'webgl') {
+				this._terminalInstanceService.getXtermWebglConstructor().then(Addon => {
+					xterm.loadAddon(new Addon());
+				});
+			}
 
 			if (!xterm.element || !xterm.textarea) {
 				throw new Error('xterm elements not set after open');
