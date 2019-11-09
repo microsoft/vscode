@@ -107,7 +107,7 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		try {
-			const trustedDomainsContent = content.toString();
+			const trustedDomainsContent = VSBuffer.wrap(content).toString();
 			const trustedDomains = parse(trustedDomainsContent);
 
 			this.storageService.store('http.linkProtectionTrustedDomainsContent', trustedDomainsContent, StorageScope.GLOBAL);
