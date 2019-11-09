@@ -740,9 +740,15 @@ export class SnippetString {
 		return this;
 	}
 
-	appendChoice(values: string[], number?: number): SnippetString {
-		this.appendPlaceholder(values.toString(), number);
-		this.value = this.value.replace(/:/g, '|').replace(/}/g, '|}');
+	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
+		const value = SnippetString._escape(values.toString());
+
+		this.value += '${';
+		this.value += number;
+		this.value += '|';
+		this.value += value;
+		this.value += '|}';
+
 		return this;
 	}
 
