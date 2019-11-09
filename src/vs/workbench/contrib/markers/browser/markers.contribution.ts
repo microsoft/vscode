@@ -25,10 +25,21 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ActivePanelContext } from 'vs/workbench/common/panel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
-import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
+import { IMarkerService, MarkerStatistics, IMarker, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
+import { find } from 'vs/base/common/arrays';
+import { Range } from 'vs/editor/common/core/range';
+import { compare } from 'vs/base/common/strings';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -81,6 +92,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL,
 			'type': 'boolean',
 			'default': true
+		},
+		'problems.showCurrentInStatus': {
+			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS,
+			'type': 'boolean',
+			'default': false
 		}
 	}
 });
@@ -343,3 +359,136 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 }
 
 workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);
+
+class ShowCurrentMarkerInStatusbarContribution extends Disposable implements IEditorContribution {
+
+	public static readonly ID = 'editor.contrib.showCurrentMarkerInStatusbar';
+
+	private readonly rendererDisposable: MutableDisposable<ShowCurrentMarkerInStatusbarRenderer>;
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super();
+		this.rendererDisposable = new MutableDisposable<ShowCurrentMarkerInStatusbarRenderer>();
+		this.onDidConfigurationChange();
+		this._register(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('problems.showCurrentInStatus'))(() => this.onDidConfigurationChange()));
+	}
+
+	private onDidConfigurationChange(): void {
+		this.rendererDisposable.clear();
+		if (this.configurationService.getValue<boolean>('problems.showCurrentInStatus')) {
+			this.rendererDisposable.value = this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarRenderer, this.editor);
+		}
+	}
+}
+
+class ShowCurrentMarkerInStatusbarRenderer extends Disposable {
+
+	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
+	private markers: IMarker[] = [];
+	private currentMarker: IMarker | null = null;
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IMarkerService private readonly markerService: IMarkerService
+	) {
+		super();
+		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+		this._register(markerService.onMarkerChanged(changedResources => this.onMarkerChanged(changedResources)));
+		this._register(editor.onDidChangeModel(() => this.updateMarkers()));
+		this._register(editor.onDidChangeCursorPosition(() => this.render()));
+		this.render();
+	}
+
+	private render(): void {
+		const previousMarker = this.currentMarker;
+		this.currentMarker = this.getMarker();
+		if (this.hasToUpdateStatus(previousMarker, this.currentMarker)) {
+			this.updateStatus();
+		}
+	}
+
+	private hasToUpdateStatus(previousMarker: IMarker | null, currentMarker: IMarker | null): boolean {
+		if (!currentMarker) {
+			return true;
+		}
+		if (!previousMarker) {
+			return true;
+		}
+		return IMarkerData.makeKey(previousMarker) !== IMarkerData.makeKey(currentMarker);
+	}
+
+	private updateStatus(): void {
+		if (this.currentMarker) {
+			const line = this.currentMarker.message.split(/\r\n|\r|\n/g)[0];
+			const text = `${this.getType(this.currentMarker)} ${line}`;
+			if (this.statusBarEntryAccessor.value) {
+				this.statusBarEntryAccessor.value.update({ text });
+			} else {
+				this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ text }, 'statusbar.currentProblem', localize('currentProblem', "Current Problem"), StatusbarAlignment.LEFT);
+			}
+		} else {
+			this.statusBarEntryAccessor.clear();
+		}
+	}
+
+	private getType(marker: IMarker): string {
+		switch (marker.severity) {
+			case MarkerSeverity.Error: return '$(error)';
+			case MarkerSeverity.Warning: return '$(warning)';
+			case MarkerSeverity.Info: return '$(info)';
+		}
+		return '';
+	}
+
+	private getMarker(): IMarker | null {
+		const model = this.editor.getModel();
+		if (!model) {
+			return null;
+		}
+		const position = this.editor.getPosition();
+		if (!position) {
+			return null;
+		}
+		return find(this.markers, marker => Range.containsPosition(marker, position)) || null;
+	}
+
+	private onMarkerChanged(changedResources: ReadonlyArray<URI>): void {
+		const editorModel = this.editor.getModel();
+		if (editorModel && !changedResources.some(r => isEqual(editorModel.uri, r))) {
+			return;
+		}
+		this.updateMarkers();
+	}
+
+	private updateMarkers(): void {
+		const editorModel = this.editor.getModel();
+		if (editorModel) {
+			this.markers = this.markerService.read({
+				resource: editorModel.uri,
+				severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info
+			});
+			this.markers.sort(compareMarker);
+		} else {
+			this.markers = [];
+		}
+		this.render();
+	}
+}
+
+function compareMarker(a: IMarker, b: IMarker): number {
+	let res = compare(a.resource.toString(), b.resource.toString());
+	if (res === 0) {
+		res = MarkerSeverity.compare(a.severity, b.severity);
+	}
+	if (res === 0) {
+		res = Range.compareRangesUsingStarts(a, b);
+	}
+	return res;
+}
+
+registerEditorContribution(ShowCurrentMarkerInStatusbarContribution.ID, ShowCurrentMarkerInStatusbarContribution);

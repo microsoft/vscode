@@ -353,6 +353,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		});
 
 		this._currentResolveCodeLensSymbolsPromise.then(() => {
+			if (this._currentCodeLensModel) { // update the cached state with new resolved items
+				this._codeLensCache.put(model, this._currentCodeLensModel);
+			}
 			this._oldCodeLensModels.clear(); // dispose old models once we have updated the UI with the current model
 			this._currentResolveCodeLensSymbolsPromise = undefined;
 		}, err => {

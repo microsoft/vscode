@@ -220,11 +220,8 @@ export class CodeActionCommand extends EditorCommand {
 			id: codeActionCommandId,
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			description: {
-				description: `Trigger a code action`,
-				args: [{
-					name: 'args',
-					schema: argsSchema,
-				}]
+				description: 'Trigger a code action',
+				args: [{ name: 'args', schema: argsSchema, }]
 			}
 		});
 	}
@@ -277,10 +274,7 @@ export class RefactorAction extends EditorAction {
 			},
 			description: {
 				description: 'Refactor...',
-				args: [{
-					name: 'args',
-					schema: argsSchema
-				}]
+				args: [{ name: 'args', schema: argsSchema }]
 			}
 		});
 	}
@@ -323,10 +317,7 @@ export class SourceAction extends EditorAction {
 			},
 			description: {
 				description: 'Source Action...',
-				args: [{
-					name: 'args',
-					schema: argsSchema
-				}]
+				args: [{ name: 'args', schema: argsSchema }]
 			}
 		});
 	}

@@ -1608,6 +1608,12 @@
           "default": "mixed",
           "description": "%config.untrackedChanges%",
           "scope": "resource"
+        },
+        "git.restoreCommitTemplateComments": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.restoreCommitTemplateComments%"
         }
       }
     },

@@ -66,7 +66,7 @@ export function getCodeActions(
 	const filter = trigger.filter || {};
 
 	const codeActionContext: CodeActionContext = {
-		only: filter.kind ? filter.kind.value : undefined,
+		only: filter.kind?.value,
 		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
@@ -74,21 +74,21 @@ export function getCodeActions(
 	const providers = getCodeActionProviders(model, filter);
 
 	const disposables = new DisposableStore();
-	const promises = providers.map(provider => {
-		return Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token)).then(providedCodeActions => {
+	const promises = providers.map(async provider => {
+		try {
+			const providedCodeActions = await provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token);
 			if (cts.token.isCancellationRequested || !providedCodeActions) {
 				return [];
 			}
 			disposables.add(providedCodeActions);
 			return providedCodeActions.actions.filter(action => action && filtersAction(filter, action));
-		}, (err): CodeAction[] => {
+		} catch (err) {
 			if (isPromiseCanceledError(err)) {
 				throw err;
 			}
-
 			onUnexpectedExternalError(err);
 			return [];
-		});
+		}
 	});
 
 	const listener = CodeActionProviderRegistry.onDidChange(() => {

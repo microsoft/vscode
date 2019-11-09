@@ -844,7 +844,15 @@ export class Repository implements Disposable {
 			return mergeMessage;
 		}
 
-		return await this.repository.getCommitTemplate();
+		let template = await this.repository.getCommitTemplate();
+
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+
+		if (!config.get<boolean>('restoreCommitTemplateComments')) {
+			template = this.cleanUpCommitEditMessage(template);
+		}
+
+		return template;
 	}
 
 	getConfigs(): Promise<{ key: string; value: string; }[]> {
@@ -1278,7 +1286,7 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
 
-	async cleanUpCommitEditMessage(editMessage: string): Promise<string> {
+	cleanUpCommitEditMessage(editMessage: string): string {
 		return this.repository.cleanupCommitEditMessage(editMessage);
 	}
 

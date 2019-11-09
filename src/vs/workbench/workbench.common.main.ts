@@ -256,4 +256,7 @@ import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 // Code Actions
 import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
 
+// Test Custom Editors
+import 'vs/workbench/contrib/testCustomEditors/browser/testCustomEditors';
+
 //#endregion
