@@ -30,7 +30,7 @@ export class CodeActionUi extends Disposable {
 		quickFixActionId: string,
 		preferredFixActionId: string,
 		private readonly delegate: {
-			applyCodeAction: (action: CodeAction, regtriggerAfterApply: boolean) => void
+			applyCodeAction: (action: CodeAction, regtriggerAfterApply: boolean) => Promise<void>
 		},
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -81,7 +81,7 @@ export class CodeActionUi extends Disposable {
 					// Apply if we only have one action or requested autoApply
 					if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && actions.actions.length === 1)) {
 						try {
-							this.delegate.applyCodeAction(actions.actions[0], false);
+							await this.delegate.applyCodeAction(actions.actions[0], false);
 						} finally {
 							actions.dispose();
 						}
