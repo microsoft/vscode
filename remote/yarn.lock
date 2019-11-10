@@ -433,10 +433,10 @@ xterm-addon-webgl@0.4.0-beta2:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.4.0-beta2.tgz#3384a46b8b0856d2b5dc1a6f6724cfc4119de327"
   integrity sha512-yFwMdC5L4PMDmzWV3DJYV1APeGOAcLdFblMRvJRuMzPba25jGmEg0Zg84O/oJ1sg2bjD3mzVA/C0ENn7bpKgHw==
 
-xterm@4.3.0-beta11:
-  version "4.3.0-beta11"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.3.0-beta11.tgz#6be833d3fbebf3f7945ccc79ffb7d8811b31aa4e"
-  integrity sha512-E5V4cDiCWR2aZSnUrhBnGA880DcKkdylkf7CE4rTSxGGET9DPBlTvZciC1Tjn0TPjuJ/B7WQk/6FW/aXs4CS5w==
+xterm@4.3.0-beta17:
+  version "4.3.0-beta17"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.3.0-beta17.tgz#c038cc00cb5be33d2a5f083255c329d9ed186565"
+  integrity sha512-Lgz7vL12MBKJSgK/UXJF22Yw+uEXEE7YZDWfUD+/jbHAKN4geLQJ/Y/b3gxjLL020dnYZuayfKOr2KWdhKsmCA==
 
 yauzl@^2.9.2:
   version "2.10.0"
