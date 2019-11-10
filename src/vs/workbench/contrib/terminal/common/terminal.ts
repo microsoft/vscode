@@ -452,6 +452,7 @@ export const enum TERMINAL_COMMAND_ID {
 	CLEAR_SELECTION = 'workbench.action.terminal.clearSelection',
 	MANAGE_WORKSPACE_SHELL_PERMISSIONS = 'workbench.action.terminal.manageWorkspaceShellPermissions',
 	RENAME = 'workbench.action.terminal.rename',
+	RENAME_NONINTERACTIVE = 'workbench.action.terminal.RenameNonInteractive',
 	FIND_WIDGET_FOCUS = 'workbench.action.terminal.focusFindWidget',
 	FIND_WIDGET_HIDE = 'workbench.action.terminal.hideFindWidget',
 	QUICK_OPEN_TERM = 'workbench.action.quickOpenTerm',
