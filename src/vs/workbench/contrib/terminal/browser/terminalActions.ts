@@ -1068,11 +1068,11 @@ export class RenameTerminalAction extends Action {
 export class RenameActiveTerminalCommand extends Command {
 	public static readonly ID = TERMINAL_COMMAND_ID.RENAME_NONINTERACTIVE;
 	public static readonly LABEL = nls.localize(
-		'workbench.action.terminal.RenameNonInteractive',
+		'workbench.action.terminal.renameNoninteractive',
 		'Rename the Currently Active Terminal'
 	);
 	public static readonly NEW_NAME_ARG_LABEL = nls.localize(
-		'workbench.action.terminal.RenameNonInteractive.newName',
+		'workbench.action.terminal.renameNoninteractive.newName',
 		'The new name for the terminal'
 	);
 
