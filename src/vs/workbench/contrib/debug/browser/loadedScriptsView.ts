@@ -111,7 +111,11 @@ class BaseTreeItem {
 	// a dynamic ID based on the parent chain; required for reparenting (see #55448)
 	getId(): string {
 		const parent = this.getParent();
-		return parent ? `${parent.getId()}/${this._label}` : this._label;
+		return parent ? `${parent.getId()}/${this.getInternalId()}` : this.getInternalId();
+	}
+
+	getInternalId(): string {
+		return this._label;
 	}
 
 	// skips intermediate single-child nodes
@@ -252,6 +256,10 @@ class SessionTreeItem extends BaseTreeItem {
 		this._labelService = labelService;
 		this._initialized = false;
 		this._session = session;
+	}
+
+	getInternalId(): string {
+		return this._session.getId();
 	}
 
 	getSession(): IDebugSession {
@@ -419,7 +427,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'LoadedScriptsView', this.treeContainer, new LoadedScriptsDelegate(),
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>>(WorkbenchAsyncDataTree, 'LoadedScriptsView', this.treeContainer, new LoadedScriptsDelegate(),
 			[new LoadedScriptsRenderer(this.treeLabels)],
 			new LoadedScriptsDataSource(),
 			{

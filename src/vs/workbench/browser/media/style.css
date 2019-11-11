@@ -37,6 +37,7 @@ body {
 	overflow: hidden;
 	font-size: 11px;
 	user-select: none;
+	-webkit-user-select: none;
 }
 
 body.web {
@@ -51,6 +52,18 @@ body.web {
 	position: relative;
 	z-index: 1;
 	overflow: hidden;
+	height: 100vh;
+	width: 100vw;
+}
+
+.monaco-workbench.border {
+	height: calc(100vh - 2px);
+	width: calc(100vw - 2px);
+	border: 1px solid var(--window-border-color);
+}
+
+.monaco-workbench.border.mac {
+	border-radius: 5px;
 }
 
 .monaco-workbench img {
@@ -97,15 +110,18 @@ body.web {
 
 .monaco-workbench.monaco-font-aliasing-antialiased {
 	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 .monaco-workbench.monaco-font-aliasing-none {
 	-webkit-font-smoothing: none;
+	-moz-osx-font-smoothing: unset;
 }
 
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
 	.monaco-workbench.monaco-font-aliasing-auto {
 		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
 	}
 }
 
@@ -150,12 +166,38 @@ body.web {
 
 .monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
-	-webkit-mask-size: 10px 10px;
 	mask-size: 10px 10px;
+	-webkit-mask-size: 10px 10px;
 }
 
 .monaco-workbench .monaco-menu .action-item {
 	cursor: default;
+}
+
+/* Custom Dropdown (select) Arrows */
+
+.monaco-workbench select {
+	-webkit-appearance: none;
+	-moz-appearance: none;
+}
+
+.monaco-workbench .select-container {
+	position: relative;
+}
+
+.monaco-workbench .select-container:after {
+	content: "\eab4";
+	font-family: codicon;
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
+	line-height: 14px;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: 6px;
+	margin: auto;
+	pointer-events: none;
 }
 
 /* START Keyboard Focus Indication Styles */

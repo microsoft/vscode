@@ -50,12 +50,6 @@
 	margin-right: 4px;
 }
 
-.monaco-action-bar .action-label.octicon {
-	font-size: 15px;
-	line-height: 35px;
-	text-align: center;
-}
-
 .monaco-action-bar .action-item.disabled .action-label,
 .monaco-action-bar .action-item.disabled .action-label:hover {
 	opacity: 0.4;

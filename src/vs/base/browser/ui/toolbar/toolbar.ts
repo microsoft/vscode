@@ -129,9 +129,9 @@ export class ToolBar extends Disposable {
 	}
 
 	private getKeybindingLabel(action: IAction): string | undefined {
-		const key = this.lookupKeybindings && this.options.getKeyBinding ? this.options.getKeyBinding(action) : undefined;
+		const key = this.lookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
 
-		return withNullAsUndefined(key && key.getLabel());
+		return withNullAsUndefined(key?.getLabel());
 	}
 
 	addPrimaryAction(primaryAction: IAction): () => void {

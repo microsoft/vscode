@@ -69,9 +69,10 @@ export class TerminalNativeService implements ITerminalNativeService {
 			throw new Error('wslpath does not exist on Windows build < 17063');
 		}
 		return new Promise<string>(c => {
-			execFile('bash.exe', ['-c', 'echo $(wslpath ' + escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
+			const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(path)}`], {}, (error, stdout, stderr) => {
 				c(escapeNonWindowsPath(stdout.trim()));
 			});
+			proc.stdin!.end();
 		});
 	}
 

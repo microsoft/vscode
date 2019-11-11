@@ -34,6 +34,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { STOP_ID, STOP_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, RESTART_SESSION_ID, RESTART_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STEP_INTO_LABEL, STEP_INTO_ID, STEP_OUT_LABEL, STEP_OUT_ID, PAUSE_ID, PAUSE_LABEL, CONTINUE_ID, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 
 const $ = dom.$;
 
@@ -82,8 +83,16 @@ export class CallStackView extends ViewletPanel {
 				this.pauseMessageLabel.title = thread.stoppedDetails.text || '';
 				dom.toggleClass(this.pauseMessageLabel, 'exception', thread.stoppedDetails.reason === 'exception');
 				this.pauseMessage.hidden = false;
+				if (this.toolbar) {
+					this.toolbar.setActions([])();
+				}
+
 			} else {
 				this.pauseMessage.hidden = true;
+				if (this.toolbar) {
+					const collapseAction = new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all');
+					this.toolbar.setActions([collapseAction])();
+				}
 			}
 
 			this.needsRefresh = false;
@@ -113,7 +122,7 @@ export class CallStackView extends ViewletPanel {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>>(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(this.instantiationService),
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),
@@ -322,10 +331,10 @@ export class CallStackView extends ViewletPanel {
 		});
 	}
 
-	private getContextForContributedActions(element: CallStackItem | null): string | number | undefined {
+	private getContextForContributedActions(element: CallStackItem | null): string | number {
 		if (element instanceof StackFrame) {
 			if (element.source.inMemory) {
-				return element.source.raw.path || element.source.reference;
+				return element.source.raw.path || element.source.reference || '';
 			}
 
 			return element.source.uri.toString();
@@ -337,7 +346,7 @@ export class CallStackView extends ViewletPanel {
 			return element.getId();
 		}
 
-		return undefined;
+		return '';
 	}
 }
 
@@ -777,7 +786,7 @@ class StopAction extends Action {
 		private readonly session: IDebugSession,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${STOP_ID}`, STOP_LABEL, 'debug-action stop');
+		super(`action.${STOP_ID}`, STOP_LABEL, 'debug-action codicon-debug-stop');
 	}
 
 	public run(): Promise<any> {
@@ -805,7 +814,7 @@ class RestartAction extends Action {
 		private readonly session: IDebugSession,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${RESTART_SESSION_ID}`, RESTART_LABEL, 'debug-action restart');
+		super(`action.${RESTART_SESSION_ID}`, RESTART_LABEL, 'debug-action codicon-debug-restart');
 	}
 
 	public run(): Promise<any> {
@@ -819,7 +828,7 @@ class StepOverAction extends Action {
 		private readonly thread: IThread,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${STEP_OVER_ID}`, STEP_OVER_LABEL, 'debug-action step-over', thread.stopped);
+		super(`action.${STEP_OVER_ID}`, STEP_OVER_LABEL, 'debug-action codicon-debug-step-over', thread.stopped);
 	}
 
 	public run(): Promise<any> {
@@ -833,7 +842,7 @@ class StepIntoAction extends Action {
 		private readonly thread: IThread,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${STEP_INTO_ID}`, STEP_INTO_LABEL, 'debug-action step-into', thread.stopped);
+		super(`action.${STEP_INTO_ID}`, STEP_INTO_LABEL, 'debug-action codicon-debug-step-into', thread.stopped);
 	}
 
 	public run(): Promise<any> {
@@ -847,7 +856,7 @@ class StepOutAction extends Action {
 		private readonly thread: IThread,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${STEP_OUT_ID}`, STEP_OUT_LABEL, 'debug-action step-out', thread.stopped);
+		super(`action.${STEP_OUT_ID}`, STEP_OUT_LABEL, 'debug-action codicon-debug-step-out', thread.stopped);
 	}
 
 	public run(): Promise<any> {
@@ -861,7 +870,7 @@ class PauseAction extends Action {
 		private readonly thread: IThread,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${PAUSE_ID}`, PAUSE_LABEL, 'debug-action pause', !thread.stopped);
+		super(`action.${PAUSE_ID}`, PAUSE_LABEL, 'debug-action codicon-debug-pause', !thread.stopped);
 	}
 
 	public run(): Promise<any> {
@@ -875,7 +884,7 @@ class ContinueAction extends Action {
 		private readonly thread: IThread,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${CONTINUE_ID}`, CONTINUE_LABEL, 'debug-action continue', thread.stopped);
+		super(`action.${CONTINUE_ID}`, CONTINUE_LABEL, 'debug-action codicon-debug-continue', thread.stopped);
 	}
 
 	public run(): Promise<any> {

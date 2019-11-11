@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
@@ -65,15 +65,23 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		}
 		if (e.hasChanged(EditorOption.layoutInfo)) {
 			const layoutInfo = options.get(EditorOption.layoutInfo);
+			const width = layoutInfo.contentWidth;
+			const height = layoutInfo.contentHeight;
+			const scrollDimensions = this.scrollable.getScrollDimensions();
+			const scrollWidth = scrollDimensions.scrollWidth;
+			const scrollHeight = this._getTotalHeight(width, height, scrollWidth);
+
 			this.scrollable.setScrollDimensions({
-				width: layoutInfo.contentWidth,
-				height: layoutInfo.contentHeight
+				width: width,
+				height: height,
+				scrollHeight: scrollHeight
 			});
+		} else {
+			this._updateHeight();
 		}
 		if (e.hasChanged(EditorOption.smoothScrolling)) {
 			this._configureSmoothScrollDuration();
 		}
-		this._updateHeight();
 	}
 	public onFlushed(lineCount: number): void {
 		this._linesLayout.onFlushed(lineCount);
@@ -87,37 +95,41 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	// ---- end view event handlers
 
-	private _getHorizontalScrollbarHeight(scrollDimensions: IScrollDimensions): number {
+	private _getHorizontalScrollbarHeight(width: number, scrollWidth: number): number {
 		const options = this._configuration.options;
 		const scrollbar = options.get(EditorOption.scrollbar);
 		if (scrollbar.horizontal === ScrollbarVisibility.Hidden) {
 			// horizontal scrollbar not visible
 			return 0;
 		}
-		if (scrollDimensions.width >= scrollDimensions.scrollWidth) {
+		if (width >= scrollWidth) {
 			// horizontal scrollbar not visible
 			return 0;
 		}
 		return scrollbar.horizontalScrollbarSize;
 	}
 
-	private _getTotalHeight(): number {
+	private _getTotalHeight(width: number, height: number, scrollWidth: number): number {
 		const options = this._configuration.options;
-		const scrollDimensions = this.scrollable.getScrollDimensions();
 
 		let result = this._linesLayout.getLinesTotalHeight();
 		if (options.get(EditorOption.scrollBeyondLastLine)) {
-			result += scrollDimensions.height - options.get(EditorOption.lineHeight);
+			result += height - options.get(EditorOption.lineHeight);
 		} else {
-			result += this._getHorizontalScrollbarHeight(scrollDimensions);
+			result += this._getHorizontalScrollbarHeight(width, scrollWidth);
 		}
 
-		return Math.max(scrollDimensions.height, result);
+		return Math.max(height, result);
 	}
 
 	private _updateHeight(): void {
+		const scrollDimensions = this.scrollable.getScrollDimensions();
+		const width = scrollDimensions.width;
+		const height = scrollDimensions.height;
+		const scrollWidth = scrollDimensions.scrollWidth;
+		const scrollHeight = this._getTotalHeight(width, height, scrollWidth);
 		this.scrollable.setScrollDimensions({
-			scrollHeight: this._getTotalHeight()
+			scrollHeight: scrollHeight
 		});
 	}
 

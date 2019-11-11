@@ -118,7 +118,12 @@ export class ExtensionDescriptionRegistry {
 
 			hasOnlyGoodArcs(id: string, good: Set<string>): boolean {
 				const dependencies = G.getArcs(id);
-				return dependencies.every(dependency => good.has(dependency));
+				for (let i = 0; i < dependencies.length; i++) {
+					if (!good.has(dependencies[i])) {
+						return false;
+					}
+				}
+				return true;
 			}
 
 			getNodes(): string[] {

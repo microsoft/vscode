@@ -265,7 +265,7 @@ export class RefreshAction extends Action {
 
 	get enabled(): boolean {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		return !!searchView && searchView.hasSearchResults();
+		return !!searchView && searchView.hasSearchPattern();
 	}
 
 	update(): void {

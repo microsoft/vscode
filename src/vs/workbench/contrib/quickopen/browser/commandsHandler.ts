@@ -32,27 +32,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
+import { isFirefox } from 'vs/base/browser/browser';
 
 export const ALL_COMMANDS_PREFIX = '>';
-
-let lastCommandPaletteInput: string;
-let commandHistory: LRUCache<string, number>;
-let commandCounter = 1;
 
 interface ISerializedCommandHistory {
 	usesLRU?: boolean;
 	entries: { key: string; value: number }[];
-}
-
-function resolveCommandHistory(configurationService: IConfigurationService): number {
-	const config = <IWorkbenchQuickOpenConfiguration>configurationService.getValue();
-
-	let commandHistory = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.history;
-	if (typeof commandHistory !== 'number') {
-		commandHistory = CommandsHistory.DEFAULT_COMMANDS_HISTORY_LENGTH;
-	}
-
-	return commandHistory;
 }
 
 class CommandsHistory extends Disposable {
@@ -62,7 +48,10 @@ class CommandsHistory extends Disposable {
 	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
 	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
 
-	private commandHistoryLength = 0;
+	private static cache: LRUCache<string, number> | undefined;
+	private static counter = 1;
+
+	private configuredCommandsHistoryLength = 0;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -81,10 +70,10 @@ class CommandsHistory extends Disposable {
 	}
 
 	private updateConfiguration(): void {
-		this.commandHistoryLength = resolveCommandHistory(this.configurationService);
+		this.configuredCommandsHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
 
-		if (commandHistory && commandHistory.limit !== this.commandHistoryLength) {
-			commandHistory.limit = this.commandHistoryLength;
+		if (CommandsHistory.cache && CommandsHistory.cache.limit !== this.configuredCommandsHistoryLength) {
+			CommandsHistory.cache.limit = this.configuredCommandsHistoryLength;
 
 			CommandsHistory.saveState(this.storageService);
 		}
@@ -101,7 +90,7 @@ class CommandsHistory extends Disposable {
 			}
 		}
 
-		commandHistory = new LRUCache<string, number>(this.commandHistoryLength, 1);
+		const cache = CommandsHistory.cache = new LRUCache<string, number>(this.configuredCommandsHistoryLength, 1);
 		if (serializedCache) {
 			let entries: { key: string; value: number }[];
 			if (serializedCache.usesLRU) {
@@ -109,30 +98,59 @@ class CommandsHistory extends Disposable {
 			} else {
 				entries = serializedCache.entries.sort((a, b) => a.value - b.value);
 			}
-			entries.forEach(entry => commandHistory.set(entry.key, entry.value));
+			entries.forEach(entry => cache.set(entry.key, entry.value));
 		}
 
-		commandCounter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
+		CommandsHistory.counter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, CommandsHistory.counter);
 	}
 
 	push(commandId: string): void {
-		commandHistory.set(commandId, commandCounter++); // set counter to command
+		if (!CommandsHistory.cache) {
+			return;
+		}
+
+		CommandsHistory.cache.set(commandId, CommandsHistory.counter++); // set counter to command
 
 		CommandsHistory.saveState(this.storageService);
 	}
 
 	peek(commandId: string): number | undefined {
-		return commandHistory.peek(commandId);
+		return CommandsHistory.cache?.peek(commandId);
 	}
 
 	static saveState(storageService: IStorageService): void {
+		if (!CommandsHistory.cache) {
+			return;
+		}
+
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
-		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
+		CommandsHistory.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
 
 		storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
-		storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
+		storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.GLOBAL);
+	}
+
+	static getConfiguredCommandHistoryLength(configurationService: IConfigurationService): number {
+		const config = <IWorkbenchQuickOpenConfiguration>configurationService.getValue();
+
+		const configuredCommandHistoryLength = config.workbench?.commandPalette?.history;
+		if (typeof configuredCommandHistoryLength === 'number') {
+			return configuredCommandHistoryLength;
+		}
+
+		return CommandsHistory.DEFAULT_COMMANDS_HISTORY_LENGTH;
+	}
+
+	static clearHistory(configurationService: IConfigurationService, storageService: IStorageService): void {
+		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(configurationService);
+		CommandsHistory.cache = new LRUCache<string, number>(commandHistoryLength);
+		CommandsHistory.counter = 1;
+
+		CommandsHistory.saveState(storageService);
 	}
 }
+
+let lastCommandPaletteInput: string | undefined = undefined;
 
 export class ShowAllCommandsAction extends Action {
 
@@ -150,7 +168,7 @@ export class ShowAllCommandsAction extends Action {
 
 	run(): Promise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
-		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
+		const restoreInput = config.workbench?.commandPalette?.preserveInput === true;
 
 		// Show with last command palette input if any and configured
 		let value = ALL_COMMANDS_PREFIX;
@@ -179,12 +197,9 @@ export class ClearCommandHistoryAction extends Action {
 	}
 
 	run(): Promise<void> {
-		const commandHistoryLength = resolveCommandHistory(this.configurationService);
+		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
 		if (commandHistoryLength > 0) {
-			commandHistory = new LRUCache<string, number>(commandHistoryLength);
-			commandCounter = 1;
-
-			CommandsHistory.saveState(this.storageService);
+			CommandsHistory.clearHistory(this.configurationService, this.storageService);
 		}
 
 		return Promise.resolve(undefined);
@@ -299,8 +314,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		// Indicate onBeforeRun
 		this.onBeforeRun(this.commandId);
 
-		// Use a timeout to give the quick open widget a chance to close itself first
-		setTimeout(async () => {
+		const commandRunner = (async () => {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'quick open' });
@@ -321,7 +335,16 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 			} else {
 				this.notificationService.info(localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 			}
-		}, 50);
+		});
+
+		// Use a timeout to give the quick open widget a chance to close itself first
+		// Firefox: since the browser is quite picky for certain commands, we do not
+		// use a timeout (https://github.com/microsoft/vscode/issues/83288)
+		if (!isFirefox) {
+			setTimeout(() => commandRunner(), 50);
+		} else {
+			commandRunner();
+		}
 	}
 
 	private onError(error?: Error): void {
@@ -408,7 +431,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 	}
 
 	private updateConfiguration(): void {
-		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
+		this.commandHistoryEnabled = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService) > 0;
 	}
 
 	async getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {

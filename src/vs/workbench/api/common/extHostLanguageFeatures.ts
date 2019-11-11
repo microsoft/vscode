@@ -26,6 +26,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { IdGenerator } from 'vs/base/common/idGenerator';
 
 // --- adapter
 
@@ -348,7 +349,7 @@ class CodeActionAdapter {
 			only: context.only ? new CodeActionKind(context.only) : undefined
 		};
 
-		return asPromise(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then(commandsOrActions => {
+		return asPromise(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then((commandsOrActions): extHostProtocol.ICodeActionListDto | undefined => {
 			if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
 				return undefined;
 			}
@@ -390,7 +391,7 @@ class CodeActionAdapter {
 				}
 			}
 
-			return <extHostProtocol.ICodeActionListDto>{ cacheId, actions };
+			return { cacheId, actions };
 		});
 	}
 
@@ -471,13 +472,13 @@ class OnTypeFormattingAdapter {
 
 class NavigateTypeAdapter {
 
-	private readonly _symbolCache: { [id: number]: vscode.SymbolInformation } = Object.create(null);
-	private readonly _resultCache: { [id: number]: [number, number] } = Object.create(null);
-	private readonly _provider: vscode.WorkspaceSymbolProvider;
+	private readonly _symbolCache = new Map<number, vscode.SymbolInformation>();
+	private readonly _resultCache = new Map<number, [number, number]>();
 
-	constructor(provider: vscode.WorkspaceSymbolProvider) {
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _provider: vscode.WorkspaceSymbolProvider,
+		private readonly _logService: ILogService
+	) { }
 
 	provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolsDto> {
 		const result: extHostProtocol.IWorkspaceSymbolsDto = extHostProtocol.IdObject.mixin({ symbols: [] });
@@ -489,44 +490,42 @@ class NavigateTypeAdapter {
 						continue;
 					}
 					if (!item.name) {
-						console.warn('INVALID SymbolInformation, lacks name', item);
+						this._logService.warn('INVALID SymbolInformation, lacks name', item);
 						continue;
 					}
 					const symbol = extHostProtocol.IdObject.mixin(typeConvert.WorkspaceSymbol.from(item));
-					this._symbolCache[symbol._id!] = item;
+					this._symbolCache.set(symbol._id!, item);
 					result.symbols.push(symbol);
 				}
 			}
 		}).then(() => {
 			if (result.symbols.length > 0) {
-				this._resultCache[result._id!] = [result.symbols[0]._id!, result.symbols[result.symbols.length - 1]._id!];
+				this._resultCache.set(result._id!, [result.symbols[0]._id!, result.symbols[result.symbols.length - 1]._id!]);
 			}
 			return result;
 		});
 	}
 
-	resolveWorkspaceSymbol(symbol: extHostProtocol.IWorkspaceSymbolDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolDto | undefined> {
-
+	async resolveWorkspaceSymbol(symbol: extHostProtocol.IWorkspaceSymbolDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolDto | undefined> {
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return Promise.resolve(symbol);
+			return symbol;
 		}
 
-		const item = this._symbolCache[symbol._id!];
+		const item = this._symbolCache.get(symbol._id!);
 		if (item) {
-			return asPromise(() => this._provider.resolveWorkspaceSymbol!(item, token)).then(value => {
-				return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
-			});
+			const value = await asPromise(() => this._provider.resolveWorkspaceSymbol!(item, token));
+			return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
 		}
-		return Promise.resolve(undefined);
+		return undefined;
 	}
 
 	releaseWorkspaceSymbols(id: number): any {
-		const range = this._resultCache[id];
+		const range = this._resultCache.get(id);
 		if (range) {
 			for (let [from, to] = range; from <= to; from++) {
-				delete this._symbolCache[from];
+				this._symbolCache.delete(from);
 			}
-			delete this._resultCache[id];
+			this._resultCache.delete(id);
 		}
 	}
 }
@@ -539,7 +538,8 @@ class RenameAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.RenameProvider
+		private readonly _provider: vscode.RenameProvider,
+		private readonly _logService: ILogService
 	) { }
 
 	provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
@@ -588,7 +588,7 @@ class RenameAdapter {
 				return undefined;
 			}
 			if (range.start.line > pos.line || range.end.line < pos.line) {
-				console.warn('INVALID rename location: position line must be within range start/end lines');
+				this._logService.warn('INVALID rename location: position line must be within range start/end lines');
 				return undefined;
 			}
 			return { range: typeConvert.Range.from(range), text };
@@ -619,23 +619,26 @@ class SuggestAdapter {
 		return typeof provider.resolveCompletionItem === 'function';
 	}
 
-	private _documents: ExtHostDocuments;
-	private _commands: CommandsConverter;
-	private _provider: vscode.CompletionItemProvider;
-
 	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
 	private _disposables = new Map<number, DisposableStore>();
 
-	constructor(documents: ExtHostDocuments, commands: CommandsConverter, provider: vscode.CompletionItemProvider) {
-		this._documents = documents;
-		this._commands = commands;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _commands: CommandsConverter,
+		private readonly _provider: vscode.CompletionItemProvider,
+		private readonly _logService: ILogService
+	) { }
 
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
+
+		// The default insert/replace ranges. It's important to compute them
+		// before asynchronously asking the provider for its results. See
+		// https://github.com/microsoft/vscode/issues/83400#issuecomment-546851421
+		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
+		const insertRange = replaceRange.with({ end: pos });
 
 		return asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))).then(value => {
 
@@ -657,14 +660,10 @@ class SuggestAdapter {
 			const disposables = new DisposableStore();
 			this._disposables.set(pid, disposables);
 
-			// the default text edit range
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
-				.with({ end: pos });
-
 			const result: extHostProtocol.ISuggestResultDto = {
 				x: pid,
 				b: [],
-				a: typeConvert.Range.from(wordRangeBeforePos),
+				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
 				c: list.isIncomplete || undefined
 			};
 
@@ -711,7 +710,7 @@ class SuggestAdapter {
 
 	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: extHostProtocol.ChainedCacheId): extHostProtocol.ISuggestDataDto | undefined {
 		if (typeof item.label !== 'string' || item.label.length === 0) {
-			console.warn('INVALID text edit -> must have at least a label');
+			this._logService.warn('INVALID text edit -> must have at least a label');
 			return undefined;
 		}
 
@@ -740,31 +739,56 @@ class SuggestAdapter {
 
 		// 'insertText'-logic
 		if (item.textEdit) {
-			result.h = item.textEdit.newText;
+			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.textEdit.newText;
 
 		} else if (typeof item.insertText === 'string') {
-			result.h = item.insertText;
+			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.insertText;
 
 		} else if (item.insertText instanceof SnippetString) {
-			result.h = item.insertText.value;
-			result.i! |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
+			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.insertText.value;
+			result[extHostProtocol.ISuggestDataDtoField.insertTextRules]! |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
 		}
 
 		// 'overwrite[Before|After]'-logic
-		let range: vscode.Range | undefined;
+		let range: vscode.Range | { inserting: vscode.Range, replacing: vscode.Range; } | undefined;
 		if (item.textEdit) {
 			range = item.textEdit.range;
 		} else if (item.range) {
 			range = item.range;
+		} else if (item.range2) {
+			range = item.range2;
 		}
-		result.j = typeConvert.Range.from(range);
 
-		if (range && (!range.isSingleLine || range.start.line !== position.line)) {
-			console.warn('INVALID text edit -> must be single line and on the same line');
-			return undefined;
+		if (range) {
+			if (Range.isRange(range)) {
+				if (!SuggestAdapter._isValidRangeForCompletion(range, position)) {
+					this._logService.trace('INVALID range -> must be single line and on the same line');
+					return undefined;
+				}
+				result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
+
+			} else {
+				if (
+					!SuggestAdapter._isValidRangeForCompletion(range.inserting, position)
+					|| !SuggestAdapter._isValidRangeForCompletion(range.replacing, position)
+					|| !range.inserting.start.isEqual(range.replacing.start)
+					|| !range.replacing.contains(range.inserting)
+				) {
+					this._logService.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
+					return undefined;
+				}
+				result[extHostProtocol.ISuggestDataDtoField.range] = {
+					insert: typeConvert.Range.from(range.inserting),
+					replace: typeConvert.Range.from(range.replacing)
+				};
+			}
 		}
 
 		return result;
+	}
+
+	private static _isValidRangeForCompletion(range: vscode.Range, position: vscode.Position): boolean {
+		return range.isSingleLine || range.start.line === position.line;
 	}
 }
 
@@ -966,7 +990,8 @@ class SelectionRangeAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SelectionRangeProvider
+		private readonly _provider: vscode.SelectionRangeProvider,
+		private readonly _logService: ILogService
 	) { }
 
 	provideSelectionRanges(resource: URI, pos: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]> {
@@ -978,7 +1003,7 @@ class SelectionRangeAdapter {
 				return [];
 			}
 			if (allProviderRanges.length !== positions.length) {
-				console.warn('BAD selection ranges, provider must return ranges for each position');
+				this._logService.warn('BAD selection ranges, provider must return ranges for each position');
 				return [];
 			}
 
@@ -1009,29 +1034,86 @@ class SelectionRangeAdapter {
 
 class CallHierarchyAdapter {
 
+	private readonly _idPool = new IdGenerator('');
+	private readonly _cache = new Map<string, Map<string, vscode.CallHierarchyItem>>();
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.CallHierarchyItemProvider
+		private readonly _provider: vscode.CallHierarchyProvider
 	) { }
 
-	async provideCallsTo(uri: URI, position: IPosition, token: CancellationToken): Promise<[extHostProtocol.ICallHierarchyItemDto, IRange[]][] | undefined> {
+	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
-		const calls = await this._provider.provideCallHierarchyIncomingCalls(doc, pos, token);
-		if (!calls) {
+
+		const item = await this._provider.prepareCallHierarchy(doc, pos, token);
+		if (!item) {
 			return undefined;
 		}
-		return calls.map(call => (<[extHostProtocol.ICallHierarchyItemDto, IRange[]]>[typeConvert.CallHierarchyItem.from(call.from), call.fromRanges.map(typeConvert.Range.from)]));
+		const sessionId = this._idPool.nextId();
+
+		this._cache.set(sessionId, new Map());
+		return this._cacheAndConvertItem(sessionId, item);
 	}
 
-	async provideCallsFrom(uri: URI, position: IPosition, token: CancellationToken): Promise<[extHostProtocol.ICallHierarchyItemDto, IRange[]][] | undefined> {
-		const doc = this._documents.getDocument(uri);
-		const pos = typeConvert.Position.to(position);
-		const calls = await this._provider.provideCallHierarchyOutgoingCalls(doc, pos, token);
+	async provideCallsTo(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IIncomingCallDto[] | undefined> {
+		const item = this._itemFromCache(sessionId, itemId);
+		if (!item) {
+			throw new Error('missing call hierarchy item');
+		}
+		const calls = await this._provider.provideCallHierarchyIncomingCalls(item, token);
 		if (!calls) {
 			return undefined;
 		}
-		return calls.map(call => (<[extHostProtocol.ICallHierarchyItemDto, IRange[]]>[typeConvert.CallHierarchyItem.from(call.to), call.fromRanges.map(typeConvert.Range.from)]));
+		return calls.map(call => {
+			return {
+				from: this._cacheAndConvertItem(sessionId, call.from),
+				fromRanges: call.fromRanges.map(r => typeConvert.Range.from(r))
+			};
+		});
+	}
+
+	async provideCallsFrom(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IOutgoingCallDto[] | undefined> {
+		const item = this._itemFromCache(sessionId, itemId);
+		if (!item) {
+			throw new Error('missing call hierarchy item');
+		}
+		const calls = await this._provider.provideCallHierarchyOutgoingCalls(item, token);
+		if (!calls) {
+			return undefined;
+		}
+		return calls.map(call => {
+			return {
+				to: this._cacheAndConvertItem(sessionId, call.to),
+				fromRanges: call.fromRanges.map(r => typeConvert.Range.from(r))
+			};
+		});
+	}
+
+	releaseSession(sessionId: string): void {
+		this._cache.delete(sessionId.charAt(0));
+	}
+
+	private _cacheAndConvertItem(itemOrSessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
+		const sessionId = itemOrSessionId.charAt(0);
+		const map = this._cache.get(sessionId)!;
+		const dto: extHostProtocol.ICallHierarchyItemDto = {
+			_sessionId: sessionId,
+			_itemId: map.size.toString(36),
+			name: item.name,
+			detail: item.detail,
+			kind: typeConvert.SymbolKind.from(item.kind),
+			uri: item.uri,
+			range: typeConvert.Range.from(item.range),
+			selectionRange: typeConvert.Range.from(item.selectionRange),
+		};
+		map.set(dto._itemId, item);
+		return dto;
+	}
+
+	private _itemFromCache(sessionId: string, itemId: string): vscode.CallHierarchyItem | undefined {
+		const map = this._cache.get(sessionId);
+		return map && map.get(itemId);
 	}
 }
 
@@ -1119,7 +1201,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A, extension: IExtensionDescription | undefined) => Promise<R>, fallbackValue: R): Promise<R> {
+	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A; }, callback: (adapter: A, extension: IExtensionDescription | undefined) => Promise<R>, fallbackValue: R): Promise<R> {
 		const data = this._adapter.get(handle);
 		if (!data) {
 			return Promise.resolve(fallbackValue);
@@ -1330,7 +1412,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- navigate types
 
 	registerWorkspaceSymbolProvider(extension: IExtensionDescription, provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new NavigateTypeAdapter(provider), extension);
+		const handle = this._addNewAdapter(new NavigateTypeAdapter(provider, this._logService), extension);
 		this._proxy.$registerNavigateTypeSupport(handle);
 		return this._createDisposable(handle);
 	}
@@ -1350,7 +1432,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- rename
 
 	registerRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider, this._logService), extension);
 		this._proxy.$registerRenameSupport(handle, this._transformDocumentSelector(selector), RenameAdapter.supportsResolving(provider));
 		return this._createDisposable(handle);
 	}
@@ -1366,7 +1448,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- suggestion
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
-		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider), extension);
+		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService), extension);
 		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}
@@ -1450,7 +1532,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- smart select
 
 	registerSelectionRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new SelectionRangeAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new SelectionRangeAdapter(this._documents, provider, this._logService), extension);
 		this._proxy.$registerSelectionRangeProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
@@ -1461,18 +1543,26 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- call hierarchy
 
-	registerCallHierarchyProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CallHierarchyItemProvider): vscode.Disposable {
+	registerCallHierarchyProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CallHierarchyProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new CallHierarchyAdapter(this._documents, provider), extension);
 		this._proxy.$registerCallHierarchyProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideCallHierarchyIncomingCalls(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<[extHostProtocol.ICallHierarchyItemDto, IRange[]][] | undefined> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsTo(URI.revive(resource), position, token), undefined);
+	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto | undefined> {
+		return this._withAdapter(handle, CallHierarchyAdapter, adapter => Promise.resolve(adapter.prepareSession(URI.revive(resource), position, token)), undefined);
 	}
 
-	$provideCallHierarchyOutgoingCalls(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<[extHostProtocol.ICallHierarchyItemDto, IRange[]][] | undefined> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsFrom(URI.revive(resource), position, token), undefined);
+	$provideCallHierarchyIncomingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IIncomingCallDto[] | undefined> {
+		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsTo(sessionId, itemId, token), undefined);
+	}
+
+	$provideCallHierarchyOutgoingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IOutgoingCallDto[] | undefined> {
+		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsFrom(sessionId, itemId, token), undefined);
+	}
+
+	$releaseCallHierarchy(handle: number, sessionId: string): void {
+		this._withAdapter(handle, CallHierarchyAdapter, adapter => Promise.resolve(adapter.releaseSession(sessionId)), undefined);
 	}
 
 	// --- configuration

@@ -191,7 +191,7 @@ class MarkerModel {
 
 export class MarkerController implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.markerController';
+	public static readonly ID = 'editor.contrib.markerController';
 
 	public static get(editor: ICodeEditor): MarkerController {
 		return editor.getContribution<MarkerController>(MarkerController.ID);
@@ -213,10 +213,6 @@ export class MarkerController implements editorCommon.IEditorContribution {
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
-	}
-
-	public getId(): string {
-		return MarkerController.ID;
 	}
 
 	public dispose(): void {
@@ -249,7 +245,7 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
-		this._widget.onDidClose(() => this._cleanUp(), this, this._disposeOnClose);
+		this._widget.onDidClose(() => this.closeMarkersNavigation(), this, this._disposeOnClose);
 
 		this._disposeOnClose.add(this._model);
 		this._disposeOnClose.add(this._widget);
@@ -479,7 +475,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 	}
 }
 
-registerEditorContribution(MarkerController);
+registerEditorContribution(MarkerController.ID, MarkerController);
 registerEditorAction(NextMarkerAction);
 registerEditorAction(PrevMarkerAction);
 registerEditorAction(NextMarkerInFilesAction);

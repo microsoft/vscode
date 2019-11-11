@@ -46,7 +46,7 @@
 	justify-content: center;
 }
 
-.extension-editor > .header > .icon-container .extension-remote-badge .octicon {
+.extension-editor > .header > .icon-container .extension-remote-badge .codicon {
 	font-size: 28px;
 }
 
@@ -54,6 +54,7 @@
 	padding-left: 20px;
 	overflow: hidden;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .extension-editor > .header > .details > .title {
@@ -77,6 +78,7 @@
 	padding: 0px 4px;
 	border-radius: 4px;
 	user-select: text;
+	-webkit-user-select: text;
 	white-space: nowrap;
 }
 
@@ -98,6 +100,7 @@
 	padding: 0px 4px;
 	border-radius: 4px;
 	user-select: none;
+	-webkit-user-select: none;
 }
 
 .extension-editor > .header > .details > .subtitle {
@@ -109,6 +112,13 @@
 
 .extension-editor > .header > .details > .subtitle > .publisher {
 	font-size: 18px;
+}
+
+.extension-editor > .header > .details > .subtitle,
+.extension-editor > .header > .details > .subtitle .install,
+.extension-editor > .header > .details > .subtitle .rating {
+	display: flex;
+	align-items: center;
 }
 
 .extension-editor > .header > .details > .subtitle > .install > .count {
@@ -219,6 +229,7 @@
 	position: relative;
 	overflow: hidden;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .extension-editor > .body > .content.loading {

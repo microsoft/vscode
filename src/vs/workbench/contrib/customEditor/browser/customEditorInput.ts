@@ -4,38 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memoize } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { DataUri, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { WebviewContentState } from 'vs/editor/common/modes';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ConfirmResult, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
+import { CustomEditorModel } from './customEditorModel';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
-	private _state = WebviewContentState.Readonly;
+	private _model?: CustomEditorModel;
 
 	constructor(
 		resource: URI,
 		viewType: string,
 		id: string,
 		webview: Lazy<UnownedDisposable<WebviewEditorOverlay>>,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
-		super(id, viewType, '', webview, webviewWorkbenchService);
+		super(id, viewType, '', webview, webviewWorkbenchService, lifecycleService);
 		this._editorResource = resource;
 	}
 
@@ -110,34 +108,15 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		}
 	}
 
-	public setState(newState: WebviewContentState): void {
-		this._state = newState;
-		this._onDidChangeDirty.fire();
-	}
-
-	public isDirty() {
-		return this._state === WebviewContentState.Dirty;
-	}
-
-	public async confirmSave(): Promise<ConfirmResult> {
-		if (!this.isDirty()) {
-			return ConfirmResult.DONT_SAVE;
+	public setModel(model: CustomEditorModel) {
+		if (this._model) {
+			throw new Error('Model is already set');
 		}
-		return promptSave(this.dialogService, [this.getResource()]);
+		this._model = model;
+		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 	}
 
-	public async save(): Promise<boolean> {
-		if (!this.isDirty) {
-			return true;
-		}
-		const waitingOn: Promise<boolean>[] = [];
-		this._onWillSave.fire({
-			waitUntil: (thenable: Promise<boolean>): void => { waitingOn.push(thenable); },
-		});
-		const result = await Promise.all(waitingOn);
-		return result.every(x => x);
+	public isDirty(): boolean {
+		return this._model ? this._model.isDirty() : false;
 	}
-
-	private readonly _onWillSave = this._register(new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>());
-	public readonly onWillSave = this._onWillSave.event;
 }

@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { equals } from 'vs/base/common/arrays';
 
 export const enum ContextKeyExprType {
 	Defined = 1,
@@ -575,7 +574,15 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 
 	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof ContextKeyAndExpr) {
-			return equals(this.expr, other.expr, (a, b) => a.equals(b));
+			if (this.expr.length !== other.expr.length) {
+				return false;
+			}
+			for (let i = 0, len = this.expr.length; i < len; i++) {
+				if (!this.expr[i].equals(other.expr[i])) {
+					return false;
+				}
+			}
+			return true;
 		}
 		return false;
 	}
@@ -606,7 +613,7 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 
 				if (e instanceof ContextKeyOrExpr) {
 					// Not allowed, because we don't have parens!
-					throw new Error(`It is not allowed to have an or expression here due to lack of parens!`);
+					throw new Error(`It is not allowed to have an or expression here due to lack of parens! For example "a && (b||c)" is not supported, use "(a&&b) || (a&&c)" instead.`);
 				}
 
 				expr.push(e);
@@ -667,7 +674,15 @@ export class ContextKeyOrExpr implements ContextKeyExpr {
 
 	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof ContextKeyOrExpr) {
-			return equals(this.expr, other.expr, (a, b) => a.equals(b));
+			if (this.expr.length !== other.expr.length) {
+				return false;
+			}
+			for (let i = 0, len = this.expr.length; i < len; i++) {
+				if (!this.expr[i].equals(other.expr[i])) {
+					return false;
+				}
+			}
+			return true;
 		}
 		return false;
 	}

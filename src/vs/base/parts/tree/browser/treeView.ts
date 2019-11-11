@@ -265,7 +265,7 @@ export class ViewItem implements IViewItem {
 			}
 
 			if (this.context.horizontalScrolling) {
-				this.element.style.width = 'fit-content';
+				this.element.style.width = Browser.isFirefox ? '-moz-fit-content' : 'fit-content';
 			}
 
 			try {
@@ -289,7 +289,7 @@ export class ViewItem implements IViewItem {
 
 		const style = window.getComputedStyle(this.element);
 		const paddingLeft = parseFloat(style.paddingLeft!);
-		this.element.style.width = 'fit-content';
+		this.element.style.width = Browser.isFirefox ? '-moz-fit-content' : 'fit-content';
 		this.width = DOM.getContentWidth(this.element) + paddingLeft;
 		this.element.style.width = '';
 	}
@@ -933,7 +933,7 @@ export class TreeView extends HeightMap {
 					null
 				);
 
-				diff = lcs.ComputeDiff(false);
+				diff = lcs.ComputeDiff(false).changes;
 
 				// this means that the result of the diff algorithm would result
 				// in inserting items that were already registered. this can only

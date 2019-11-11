@@ -44,7 +44,16 @@
 	padding: 0px 8px;
 	border-radius: 2px;
 	position: absolute;
-	right: 10px;
+	right: 35px;
+	top: 0;
+}
+
+.settings-editor > .settings-header > .search-container > .settings-clear-widget {
+	margin: 6px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+	position: absolute;
+	right: 0px;
 	top: 0;
 }
 
@@ -273,7 +282,7 @@
 	max-width: 1000px;
 	margin: auto;
 	box-sizing: border-box;
-	padding-left: 217px;
+	padding-left: 219px;
 	padding-right: 20px;
 	overflow: visible;
 }
@@ -336,6 +345,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-category {
 	font-weight: 600;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-category {
@@ -345,11 +355,13 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message {
 	margin-top: 3px;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description {
 	margin-top: -1px;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message {
@@ -384,6 +396,11 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number input[type=number]::-webkit-inner-spin-button {
 	/* Hide arrow button that shows in type=number fields */
 	-webkit-appearance: none !important;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number input[type=number] {
+	/* Hide arrow button that shows in type=number fields */
+	-moz-appearance: textfield !important;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown * {
@@ -471,6 +488,7 @@
 	width: initial;
 	font: inherit;
 	height: 26px;
+	padding: 2px 8px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions {

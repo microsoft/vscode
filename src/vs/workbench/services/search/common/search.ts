@@ -17,6 +17,7 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { relative } from 'vs/base/common/path';
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.view.search';
@@ -328,6 +329,8 @@ export interface ISearchConfigurationProperties {
 	actionsPosition: 'auto' | 'right';
 	maintainFileSearchCache: boolean;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
+	searchOnType: boolean;
+	searchOnTypeDebouncePeriod: number;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
@@ -371,7 +374,8 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 		return !!queryProps.folderQueries && queryProps.folderQueries.every(fq => {
 			const searchPath = fq.folder.fsPath;
 			if (extpath.isEqualOrParent(fsPath, searchPath)) {
-				return !fq.includePattern || !!glob.match(fq.includePattern, fsPath);
+				const relPath = relative(searchPath, fsPath);
+				return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
 			} else {
 				return false;
 			}

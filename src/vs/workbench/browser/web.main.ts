@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
@@ -48,6 +48,7 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedDBLogProvider';
 import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
+import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 
 class BrowserMain extends Disposable {
 
@@ -99,6 +100,9 @@ class BrowserMain extends Disposable {
 		// Prevent native context menus in web
 		this._register(addDisposableListener(this.domElement, EventType.CONTEXT_MENU, (e) => EventHelper.stop(e, true)));
 
+		// Prevent default navigation on drop
+		this._register(addDisposableListener(this.domElement, EventType.DROP, (e) => EventHelper.stop(e, true)));
+
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
@@ -125,7 +129,7 @@ class BrowserMain extends Disposable {
 	}
 
 	private restoreBaseTheme(): void {
-		addClass(this.domElement, window.localStorage.getItem('baseTheme') || getThemeTypeSelector(DARK));
+		addClass(this.domElement, window.localStorage.getItem('vscode.baseTheme') || getThemeTypeSelector(DARK));
 	}
 
 	private saveBaseTheme(): void {
@@ -133,7 +137,7 @@ class BrowserMain extends Disposable {
 		const baseThemes = [DARK, LIGHT, HIGH_CONTRAST].map(baseTheme => getThemeTypeSelector(baseTheme));
 		for (const baseTheme of baseThemes) {
 			if (classes.indexOf(baseTheme) >= 0) {
-				window.localStorage.setItem('baseTheme', baseTheme);
+				window.localStorage.setItem('vscode.baseTheme', baseTheme);
 				break;
 			}
 		}
@@ -161,10 +165,7 @@ class BrowserMain extends Disposable {
 		// Product
 		const productService = {
 			_serviceBrand: undefined,
-			...{
-				...product,				// dev or built time config
-				...{ urlProtocol: '' }	// web related overrides from us
-			}
+			...product
 		};
 		serviceCollection.set(IProductService, productService);
 
@@ -213,17 +214,21 @@ class BrowserMain extends Disposable {
 	private registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): void {
 
 		// Logger
-		const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
 		(async () => {
-			try {
-				await indexedDBLogProvider.database;
-
-				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
-			} catch (error) {
-				logService.info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
-				logService.error(error);
-
+			if (browser.isEdge) {
 				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
+			} else {
+				try {
+					const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
+					await indexedDBLogProvider.database;
+
+					fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
+				} catch (error) {
+					logService.info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
+					logService.error(error);
+
+					fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
+				}
 			}
 
 			const consoleLogService = new ConsoleLogService(logService.getLevel());
@@ -236,7 +241,7 @@ class BrowserMain extends Disposable {
 
 			// Remote file system
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(channel, remoteAgentService.getEnvironment()));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 
 			if (!this.configuration.userDataProvider) {
@@ -292,7 +297,7 @@ class BrowserMain extends Disposable {
 
 		// Multi-root workspace
 		if (workspace && isWorkspaceToOpen(workspace)) {
-			return { id: hash(workspace.workspaceUri.toString()).toString(16), configPath: workspace.workspaceUri };
+			return getWorkspaceIdentifier(workspace.workspaceUri);
 		}
 
 		// Single-folder workspace

@@ -12,7 +12,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -569,47 +568,21 @@ export class RawDebugSession implements IDisposable {
 
 	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<void> {
 
-		let args: ParsedArgs = {
-			_: []
-		};
+		const args: string[] = [];
 
 		for (let arg of vscodeArgs.args) {
-			if (arg.prefix) {
-				const a2 = (arg.prefix || '') + (arg.path || '');
-				const match = /^--(.+)=(.+)$/.exec(a2);
-				if (match && match.length === 3) {
-					const key = match[1];
-					let value = match[2];
+			const a2 = (arg.prefix || '') + (arg.path || '');
+			const match = /^--(.+)=(.+)$/.exec(a2);
+			if (match && match.length === 3) {
+				const key = match[1];
+				let value = match[2];
 
-					if ((key === 'file-uri' || key === 'folder-uri') && !isUri(arg.path)) {
-						value = URI.file(value).toString();
-
-						const v = args[key];
-						if (v) {
-							v.push(value);
-						} else {
-							args[key] = [value];
-						}
-					} else if (key === 'extensionDevelopmentPath' || key === 'enable-proposed-api') {
-						const v = args[key];
-						if (v) {
-							v.push(value);
-						} else {
-							args[key] = [value];
-						}
-					} else {
-						(<any>args)[key] = value;
-					}
-
-				} else {
-					const match = /^--(.+)$/.exec(a2);
-					if (match && match.length === 2) {
-						const key = match[1];
-						(<any>args)[key] = true;
-					} else {
-						args._.push(a2);
-					}
+				if ((key === 'file-uri' || key === 'folder-uri') && !isUri(arg.path)) {
+					value = URI.file(value).toString();
 				}
+				args.push(`--${key}=${value}`);
+			} else {
+				args.push(a2);
 			}
 		}
 

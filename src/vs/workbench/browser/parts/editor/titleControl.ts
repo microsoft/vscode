@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { applyDragImage } from 'vs/base/browser/dnd';
+import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -41,6 +41,7 @@ import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { isFirefox } from 'vs/base/browser/browser';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -228,7 +229,7 @@ export abstract class TitleControl extends Themable {
 		const activeControl = this.group.activeControl;
 		if (activeControl instanceof BaseEditor) {
 			const codeEditor = getCodeEditor(activeControl.getControl());
-			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
+			const scopedContextKeyService = codeEditor?.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.editorToolBarMenuDisposables.add(titleBarMenu);
 			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
@@ -265,11 +266,18 @@ export abstract class TitleControl extends Themable {
 			}
 
 			// If tabs are disabled, treat dragging as if an editor tab was dragged
+			let hasDataTransfer = false;
 			if (!this.accessor.partOptions.showTabs) {
 				const resource = this.group.activeEditor ? toResource(this.group.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 				if (resource) {
 					this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], e);
+					hasDataTransfer = true;
 				}
+			}
+
+			// Firefox: requires to set a text data transfer to get going
+			if (!hasDataTransfer && isFirefox) {
+				e.dataTransfer?.setData(DataTransfers.TEXT, String(this.group.label));
 			}
 
 			// Drag Image

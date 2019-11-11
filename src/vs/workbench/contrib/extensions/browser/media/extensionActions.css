@@ -12,18 +12,6 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-action-bar .action-item .action-label.clear-extensions {
-	background: url('clear-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-action-bar .action-item .action-label.clear-extensions {
-	background: url('clear-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-action-bar .action-item .action-label.clear-extensions {
-	background: url('clear-hc.svg') center center no-repeat;
-}
-
 .monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
 .monaco-action-bar .action-item .action-label.extension-action.multiserver.update:after,
 .monaco-action-bar .action-item .action-label.extension-action.extension-editor-dropdown-action.dropdown:after {
@@ -70,12 +58,18 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.disable-status {
 	margin-left: 0;
+	margin-top: 6px;
 	padding-left: 0;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable,
-.extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.system-disable {
-	margin: 0.15em;
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {
+	margin-right: 0.15em;
+}
+
+.extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.system-disable.codicon-info,
+.extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.system-disable.codicon-warning {
+	margin-top: 0.25em;
+	margin-left: 0.1em;
 }
 
 .monaco-action-bar .action-item .action-label.system-disable.codicon {
@@ -104,17 +98,10 @@
 	height: 18px;
 	width: 10px;
 	border: none;
-	background: url('configure-light.svg') center center no-repeat;
+	color: inherit;
+	background: none;
 	outline-offset: 0px;
-	margin-top: 0.15em
-}
-
-.vs-dark .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
-	background: url('configure-dark.svg') center center no-repeat;
-}
-
-.hc-black .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
-	background: url('configure-hc.svg') center center no-repeat;
+	margin-top: 0.2em;
 }
 
 .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {

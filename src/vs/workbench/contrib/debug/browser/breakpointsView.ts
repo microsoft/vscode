@@ -161,21 +161,19 @@ export class BreakpointsView extends ViewletPanel {
 
 		const breakpointType = element instanceof Breakpoint && element.logMessage ? nls.localize('Logpoint', "Logpoint") : nls.localize('Breakpoint', "Breakpoint");
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
-			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), '', true, () => {
+			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), '', true, async () => {
 				if (element instanceof Breakpoint) {
-					return openBreakpointSource(element, false, false, this.debugService, this.editorService).then(editor => {
-						if (editor) {
-							const codeEditor = editor.getControl();
-							if (isCodeEditor(codeEditor)) {
-								codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
-							}
+					const editor = await openBreakpointSource(element, false, false, this.debugService, this.editorService);
+					if (editor) {
+						const codeEditor = editor.getControl();
+						if (isCodeEditor(codeEditor)) {
+							codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
 						}
-					});
+					}
+				} else {
+					this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+					this.onBreakpointsChange();
 				}
-
-				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
-				this.onBreakpointsChange();
-				return Promise.resolve(undefined);
 			}));
 			actions.push(new Separator());
 		}
@@ -707,6 +705,25 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 			className: breakpoint.logMessage ? 'debug-breakpoint-log' : 'debug-breakpoint-conditional',
 			message: appendMessage(messages.join('\n'))
 		};
+	}
+
+	const focusedThread = debugService.getViewModel().focusedThread;
+	if (focusedThread) {
+		const callStack = focusedThread ? focusedThread.getCallStack() : undefined;
+		const topStackFrame = callStack ? callStack[0] : undefined;
+		if (topStackFrame && topStackFrame.source.uri.toString() === breakpoint.uri.toString() && topStackFrame.range.startLineNumber === breakpoint.lineNumber) {
+			if (topStackFrame.range.startColumn === breakpoint.column) {
+				return {
+					className: 'debug-breakpoint-and-top-stack-frame-at-column',
+					message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
+				};
+			} else if (breakpoint.column === undefined) {
+				return {
+					className: 'debug-breakpoint-and-top-stack-frame',
+					message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
+				};
+			}
+		}
 	}
 
 	return {

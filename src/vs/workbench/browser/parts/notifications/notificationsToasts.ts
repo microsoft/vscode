@@ -95,7 +95,7 @@ export class NotificationsToasts extends Themable {
 
 		// Filter
 		this._register(this.model.onDidFilterChange(filter => {
-			if (filter === NotificationsFilter.SILENT) {
+			if (filter === NotificationsFilter.SILENT || filter === NotificationsFilter.ERROR) {
 				this.hide();
 			}
 		}));
@@ -164,6 +164,7 @@ export class NotificationsToasts extends Themable {
 
 		// Create toast with item and show
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
+			ariaRole: 'dialog', // https://github.com/microsoft/vscode/issues/82728
 			ariaLabel: localize('notificationsToast', "Notification Toast"),
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});

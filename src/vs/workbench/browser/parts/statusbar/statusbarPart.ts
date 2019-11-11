@@ -7,7 +7,7 @@ import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
@@ -628,7 +628,7 @@ class StatusbarEntryItem extends Disposable {
 	private entry!: IStatusbarEntry;
 
 	private labelContainer!: HTMLElement;
-	private label!: OcticonLabel;
+	private label!: CodiconLabel;
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());
@@ -657,7 +657,7 @@ class StatusbarEntryItem extends Disposable {
 		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 
 		// Label
-		this.label = new OcticonLabel(this.labelContainer);
+		this.label = new CodiconLabel(this.labelContainer);
 
 		// Add to parent
 		this.container.appendChild(this.labelContainer);

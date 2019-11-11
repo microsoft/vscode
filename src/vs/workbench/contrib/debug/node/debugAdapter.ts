@@ -133,7 +133,6 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 			this.socket.end();
 			this.socket = undefined;
 		}
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -215,14 +214,14 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				this._onExit.fire(code);
 			});
 
-			this.serverProcess.stdout.on('close', () => {
+			this.serverProcess.stdout!.on('close', () => {
 				this._onError.fire(new Error('read error'));
 			});
-			this.serverProcess.stdout.on('error', error => {
+			this.serverProcess.stdout!.on('error', error => {
 				this._onError.fire(error);
 			});
 
-			this.serverProcess.stdin.on('error', error => {
+			this.serverProcess.stdin!.on('error', error => {
 				this._onError.fire(error);
 			});
 
@@ -232,7 +231,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				// this.serverProcess.stdout.on('data', (data: string) => {
 				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 				// });
-				this.serverProcess.stderr.on('data', (data: string) => {
+				this.serverProcess.stderr!.on('data', (data: string) => {
 					const channel = outputService.getChannel(ExtensionsChannelId);
 					if (channel) {
 						channel.append(sanitize(data));
@@ -241,7 +240,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			}
 
 			// finally connect to the DA
-			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);
+			this.connect(this.serverProcess.stdout!, this.serverProcess.stdin!);
 
 		} catch (err) {
 			this._onError.fire(err);

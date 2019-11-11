@@ -17,8 +17,8 @@
   ],
   "main": "./client/out/htmlMain",
   "scripts": {
-    "compile": "gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
-    "watch": "gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
+    "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
+    "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
@@ -40,16 +40,6 @@
             "type": "string"
           },
           "scope": "resource"
-        },
-        "html.experimental.customData": {
-          "type": "array",
-          "description": "A list of JSON file paths that define custom tags, properties and other HTML syntax constructs. Only workspace folder setting will be read.",
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "scope": "resource",
-          "deprecationMessage": "This setting is no longe experimental. Use `html.customData` instead."
         },
         "html.format.enable": {
           "type": "boolean",
@@ -197,10 +187,10 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^6.0.0-next.1",
+    "vscode-languageclient": "^6.0.0-next.3",
     "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "^12.11.7"
   }
 }

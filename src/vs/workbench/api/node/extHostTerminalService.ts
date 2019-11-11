@@ -45,14 +45,14 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, name);
+		const terminal = new ExtHostTerminal(this._proxy, { name, shellPath, shellArgs }, name);
 		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);
 		return terminal;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, options.name);
+		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
 		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
 		this._terminals.push(terminal);
 		return terminal;
@@ -123,7 +123,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
 	}
 
-	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
+	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
 			executable: shellLaunchConfigDto.executable,
@@ -156,16 +156,21 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		}
 
 		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
-		// Get the environment
-		const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
-		const lastActiveWorkspace = apiLastActiveWorkspace ? {
-			uri: apiLastActiveWorkspace.uri,
-			name: apiLastActiveWorkspace.name,
-			index: apiLastActiveWorkspace.index,
-			toResource: () => {
-				throw new Error('Not implemented');
+		let lastActiveWorkspace: IWorkspaceFolder | null = null;
+		if (activeWorkspaceRootUriComponents && activeWorkspaceRootUri) {
+			// Get the environment
+			const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
+			if (apiLastActiveWorkspace) {
+				lastActiveWorkspace = {
+					uri: apiLastActiveWorkspace.uri,
+					name: apiLastActiveWorkspace.name,
+					index: apiLastActiveWorkspace.index,
+					toResource: () => {
+						throw new Error('Not implemented');
+					}
+				};
 			}
-		} as IWorkspaceFolder : null;
+		}
 
 		// Get the initial cwd
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');

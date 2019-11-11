@@ -4,14 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as vscode from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2 } from 'vscode';
 
 suite('workspace-namespace', () => {
 
 	suite('Tasks', () => {
+		let disposables: Disposable[] = [];
+
+		teardown(() => {
+			disposables.forEach(d => d.dispose());
+			disposables.length = 0;
+		});
 
 		test('CustomExecution task should start and shutdown successfully', (done) => {
-			interface CustomTestingTaskDefinition extends vscode.TaskDefinition {
+			interface CustomTestingTaskDefinition extends TaskDefinition {
 				/**
 				 * One of the task properties. This can be used to customize the task in the tasks.json
 				 */
@@ -19,45 +25,58 @@ suite('workspace-namespace', () => {
 			}
 			const taskType: string = 'customTesting';
 			const taskName = 'First custom task';
-			const reg1 = vscode.window.onDidOpenTerminal(term => {
-				reg1.dispose();
-				const reg2 = vscode.window.onDidWriteTerminalData(e => {
-					reg2.dispose();
-					assert.equal(e.data, 'testing\r\n');
+			let isPseudoterminalClosed = false;
+			disposables.push(window.onDidOpenTerminal(term => {
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						assert.equal(e.data, 'testing\r\n');
+					} catch (e) {
+						done(e);
+					}
+					disposables.push(window.onDidCloseTerminal(() => {
+						try {
+							// Pseudoterminal.close should have fired by now, additionally we want
+							// to make sure all events are flushed before continuing with more tests
+							assert.ok(isPseudoterminalClosed);
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
 					term.dispose();
-				});
-			});
-			const taskProvider = vscode.tasks.registerTaskProvider(taskType, {
+				}));
+			}));
+			disposables.push(tasks.registerTaskProvider(taskType, {
 				provideTasks: () => {
-					const result: vscode.Task[] = [];
+					const result: Task[] = [];
 					const kind: CustomTestingTaskDefinition = {
 						type: taskType,
 						customProp1: 'testing task one'
 					};
-					const writeEmitter = new vscode.EventEmitter<string>();
-					const execution = new vscode.CustomExecution((): Thenable<vscode.Pseudoterminal> => {
-						const pty: vscode.Pseudoterminal = {
+					const writeEmitter = new EventEmitter<string>();
+					const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
+						const pty: Pseudoterminal = {
 							onDidWrite: writeEmitter.event,
-							open: () => {
-								writeEmitter.fire('testing\r\n');
-							},
-							close: () => {
-								taskProvider.dispose();
-								done();
-							}
+							open: () => writeEmitter.fire('testing\r\n'),
+							close: () => isPseudoterminalClosed = true
 						};
 						return Promise.resolve(pty);
 					});
-					const task = new vscode.Task2(kind, vscode.TaskScope.Workspace, taskName, taskType, execution);
+					const task = new Task2(kind, TaskScope.Workspace, taskName, taskType, execution);
 					result.push(task);
 					return result;
 				},
-				resolveTask(_task: vscode.Task): vscode.Task | undefined {
+				resolveTask(_task: Task): Task | undefined {
+					try {
 					assert.fail('resolveTask should not trigger during the test');
+					} catch (e) {
+						done(e);
+					}
 					return undefined;
 				}
-			});
-			vscode.commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+			}));
+			commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
 		});
 	});
 });

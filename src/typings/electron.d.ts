@@ -1,4 +1,4 @@
-// Type definitions for Electron 6.0.12
+// Type definitions for Electron 6.1.4
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -70,6 +70,7 @@ declare namespace Electron {
 
 	interface RendererInterface extends CommonInterface {
 		BrowserWindowProxy: typeof BrowserWindowProxy;
+		contextBridge: ContextBridge;
 		desktopCapturer: DesktopCapturer;
 		ipcRenderer: IpcRenderer;
 		remote: Remote;
@@ -83,6 +84,7 @@ declare namespace Electron {
 	const autoUpdater: AutoUpdater;
 	const clipboard: Clipboard;
 	const contentTracing: ContentTracing;
+	const contextBridge: ContextBridge;
 	const crashReporter: CrashReporter;
 	const desktopCapturer: DesktopCapturer;
 	const dialog: Dialog;
@@ -2509,6 +2511,13 @@ declare namespace Electron {
 		 * resultFilePath if it is not empty or into a temporary file.
 		 */
 		stopRecording(resultFilePath: string): Promise<string>;
+	}
+
+	interface ContextBridge extends EventEmitter {
+
+		// Docs: http://electronjs.org/docs/api/context-bridge
+
+		exposeInMainWorld(apiKey: string, api: Record<string, any>): void;
 	}
 
 	interface Cookie {

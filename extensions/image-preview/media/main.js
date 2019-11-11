@@ -70,7 +70,8 @@
 	let ctrlPressed = false;
 	let altPressed = false;
 	let hasLoadedImage = false;
-	let consumeClick = false;
+	let consumeClick = true;
+	let isActive = false;
 
 	// Elements
 	const container = document.body;
@@ -117,10 +118,16 @@
 		});
 	}
 
-	function changeActive(value) {
+	function setActive(value) {
+		isActive = value;
 		if (value) {
-			container.classList.add('zoom-in');
-			consumeClick = true;
+			if (isMac ? altPressed : ctrlPressed) {
+				container.classList.remove('zoom-in');
+				container.classList.add('zoom-out');
+			} else {
+				container.classList.remove('zoom-out');
+				container.classList.add('zoom-in');
+			}
 		} else {
 			ctrlPressed = false;
 			altPressed = false;
@@ -136,6 +143,34 @@
 
 		scale = image.clientWidth / image.naturalWidth;
 		updateScale(scale);
+	}
+
+	function zoomIn() {
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		let i = 0;
+		for (; i < zoomLevels.length; ++i) {
+			if (zoomLevels[i] > scale) {
+				break;
+			}
+		}
+		updateScale(zoomLevels[i] || MAX_SCALE);
+	}
+
+	function zoomOut() {
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		let i = zoomLevels.length - 1;
+		for (; i >= 0; --i) {
+			if (zoomLevels[i] < scale) {
+				break;
+			}
+		}
+		updateScale(zoomLevels[i] || MIN_SCALE);
 	}
 
 	window.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
@@ -174,7 +209,10 @@
 			return;
 		}
 
-		consumeClick = false;
+		ctrlPressed = e.ctrlKey;
+		altPressed = e.altKey;
+
+		consumeClick = !isActive;
 	});
 
 	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
@@ -184,14 +222,6 @@
 
 		if (e.button !== 0) {
 			return;
-		}
-
-		ctrlPressed = e.ctrlKey;
-		altPressed = e.altKey;
-
-		if (isMac ? altPressed : ctrlPressed) {
-			container.classList.remove('zoom-in');
-			container.classList.add('zoom-out');
 		}
 
 		if (consumeClick) {
@@ -204,25 +234,14 @@
 		}
 
 		if (!(isMac ? altPressed : ctrlPressed)) { // zoom in
-			let i = 0;
-			for (; i < zoomLevels.length; ++i) {
-				if (zoomLevels[i] > scale) {
-					break;
-				}
-			}
-			updateScale(zoomLevels[i] || MAX_SCALE);
+			zoomIn();
 		} else {
-			let i = zoomLevels.length - 1;
-			for (; i >= 0; --i) {
-				if (zoomLevels[i] < scale) {
-					break;
-				}
-			}
-			updateScale(zoomLevels[i] || MIN_SCALE);
+			zoomOut();
 		}
 	});
 
 	container.addEventListener('wheel', (/** @type {WheelEvent} */ e) => {
+		e.preventDefault();
 		if (!image || !hasLoadedImage) {
 			return;
 		}
@@ -232,18 +251,17 @@
 			return;
 		}
 
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (scale === 'fit') {
 			firstZoom();
 		}
 
 		let delta = e.deltaY > 0 ? 1 : -1;
 		updateScale(scale * (1 - delta * SCALE_PINCH_FACTOR));
-	});
+	}, { passive: false });
 
-	window.addEventListener('scroll', () => {
+	window.addEventListener('scroll', e => {
+		e.preventDefault();
+
 		if (!image || !hasLoadedImage || !image.parentElement || scale === 'fit') {
 			return;
 		}
@@ -252,7 +270,7 @@
 		if (entry) {
 			vscode.setState({ scale: entry.scale, offsetX: window.scrollX, offsetY: window.scrollY });
 		}
-	});
+	}, { passive: false });
 
 	container.classList.add('image');
 
@@ -290,8 +308,17 @@
 			case 'setScale':
 				updateScale(e.data.scale);
 				break;
+
 			case 'setActive':
-				changeActive(e.data.value);
+				setActive(e.data.value);
+				break;
+
+			case 'zoomIn':
+				zoomIn();
+				break;
+
+			case 'zoomOut':
+				zoomOut();
 				break;
 		}
 	});

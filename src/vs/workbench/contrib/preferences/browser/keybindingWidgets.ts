@@ -82,7 +82,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 	stopRecordingKeys(): void {
 		this._reset();
-		this.recordDisposables.dispose();
+		this.recordDisposables.clear();
 	}
 
 	setInputValue(value: string): void {
@@ -164,7 +164,7 @@ export class DefineKeybindingWidget extends Widget {
 	readonly onShowExistingKeybidings: Event<string | null> = this._onShowExistingKeybindings.event;
 
 	constructor(
-		parent: HTMLElement,
+		parent: HTMLElement | null,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService
 	) {

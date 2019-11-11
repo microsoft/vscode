@@ -37,7 +37,7 @@ import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
-import { isEqualOrParent } from 'vs/base/common/resources';
+import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
@@ -170,10 +170,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
-				this._extensionHostProcess.stdout.setEncoding('utf8');
-				this._extensionHostProcess.stderr.setEncoding('utf8');
-				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
-				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
+				this._extensionHostProcess.stdout!.setEncoding('utf8');
+				this._extensionHostProcess.stderr!.setEncoding('utf8');
+				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout!, 'data');
+				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr!, 'data');
 				const onOutput = Event.any(
 					Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
 					Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -410,7 +410,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						configuration: withNullAsUndefined(workspace.configuration),
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace),
-						isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false
+						isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
 					},
 					remote: {
 						authority: this._environmentService.configuration.remoteAuthority,
@@ -431,19 +431,19 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
 
-		// Send to local console unless we run tests from cli
-		if (!this._isExtensionDevTestFromCli) {
-			log(entry, 'Extension Host');
-		}
-
-		// Log on main side if running tests from cli
 		if (this._isExtensionDevTestFromCli) {
-			logRemoteEntry(this._logService, entry);
-		}
 
-		// Broadcast to other windows if we are in development mode
-		else if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
-			this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
+			// Log on main side if running tests from cli
+			logRemoteEntry(this._logService, entry);
+		} else {
+
+			// Send to local console
+			log(entry, 'Extension Host');
+
+			// Broadcast to other windows if we are in development mode
+			if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
+				this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
+			}
 		}
 	}
 

@@ -12,6 +12,7 @@ import { ExtHostDocumentData, setWordDefinitionFor } from 'vs/workbench/api/comm
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as vscode from 'vscode';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
@@ -84,7 +85,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		if (!promise) {
 			promise = this._proxy.$tryOpenDocument(uri).then(() => {
 				this._documentLoader.delete(uri.toString());
-				return this._documentsAndEditors.getDocument(uri);
+				return assertIsDefined(this._documentsAndEditors.getDocument(uri));
 			}, err => {
 				this._documentLoader.delete(uri.toString());
 				return Promise.reject(err);

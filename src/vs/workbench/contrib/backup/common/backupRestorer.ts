@@ -10,7 +10,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IUntitledResourceInput } from 'vs/workbench/common/editor';
+import { IUntitledTextResourceInput } from 'vs/workbench/common/editor';
 import { toLocalResource } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -74,7 +74,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		await this.editorService.openEditors(inputs);
 	}
 
-	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {
+	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledTextResourceInput {
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
 		// this is a (weak) strategy to find out if the untitled input had

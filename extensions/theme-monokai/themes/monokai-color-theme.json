@@ -36,7 +36,6 @@
 		"editorGroup.dropBackground": "#41433980",
 		"tab.inactiveBackground": "#34352f",
 		"tab.border": "#1e1f1c",
-		"tab.modifiedBorder": "#007acc",
 		"tab.inactiveForeground": "#ccccc7", // needs to be bright so it's readable when another editor group is focused
 		"widget.shadow": "#000000",
 		"progressBar.background": "#75715E",
@@ -105,7 +104,6 @@
 	"tokenColors": [
 		{
 			"settings": {
-				"background": "#272822",
 				"foreground": "#F8F8F2"
 			}
 		},
@@ -115,7 +113,6 @@
 				"source.groovy.embedded"
 			],
 			"settings": {
-				"background": "#272822",
 				"foreground": "#F8F8F2"
 			}
 		},
@@ -287,7 +284,6 @@
 			"name": "Invalid",
 			"scope": "invalid",
 			"settings": {
-				"background": "#F92672",
 				"fontStyle": "",
 				"foreground": "#F8F8F0"
 			}
@@ -296,7 +292,6 @@
 			"name": "Invalid deprecated",
 			"scope": "invalid.deprecated",
 			"settings": {
-				"background": "#AE81FF",
 				"foreground": "#F8F8F0"
 			}
 		},

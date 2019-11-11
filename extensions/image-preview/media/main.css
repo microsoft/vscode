@@ -21,6 +21,7 @@ body img {
 .container {
 	padding: 5px 0 0 10px;
 	box-sizing: border-box;
+	-webkit-user-select: none;
 	user-select: none;
 }
 

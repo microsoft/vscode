@@ -726,6 +726,45 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
+	test('combining marks', () => {
+		withTestCodeEditor([
+			'abcabc',
+			'ãããããã',
+			'辻󠄀辻󠄀辻󠄀',
+			'பு',
+		], {}, (editor, cursor) => {
+
+			cursor.setSelections('test', [new Selection(2, 1, 2, 1)]);
+			moveRight(cursor);
+			assertCursor(cursor, new Position(2, 3));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(2, 1));
+
+			cursor.setSelections('test', [new Selection(3, 1, 3, 1)]);
+			moveRight(cursor);
+			assertCursor(cursor, new Position(3, 4));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(3, 1));
+
+			cursor.setSelections('test', [new Selection(4, 1, 4, 1)]);
+			moveRight(cursor);
+			assertCursor(cursor, new Position(4, 3));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(4, 1));
+
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			moveDown(cursor);
+			assertCursor(cursor, new Position(2, 5));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(3, 4));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(2, 5));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(1, 3));
+
+		});
+	});
+
 	test('issue #4905 - column select is biased to the right', () => {
 		const model = createTextModel([
 			'var gulp = require("gulp");',
@@ -2591,7 +2630,37 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(5, 1));
+			assertCursor(cursor, new Position(4, 1));
+		});
+
+		model.dispose();
+	});
+
+	test('issue #40695: maintain cursor position when copying lines using ctrl+c, ctrl+v', () => {
+		let model = createTextModel(
+			[
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        // Another line',
+				'        return 3;',
+				'    }',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			editor.setSelections([new Selection(4, 10, 4, 10)]);
+			cursorCommand(cursor, H.Paste, { text: '        // I\'m gonna copy this line\n', pasteOnNewLine: true });
+
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        // Another line',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(5, 10));
 		});
 
 		model.dispose();
@@ -4841,6 +4910,32 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #53357: Over typing ignores characters after backslash', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'console.log();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [new Selection(1, 13, 1, 13)]);
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'\');');
+
+			cursorCommand(cursor, H.Type, { text: 'it' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\');');
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\\\');');
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\\\'\'\');');
+		});
+		mode.dispose();
+	});
+
 	test('issue #2773: Accents (´`¨^, others?) are inserted in the wrong position (Mac)', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -4930,6 +5025,26 @@ suite('autoClosingPairs', () => {
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
 
 			assert.equal(model.getValue(), 'abc\'');
+		});
+		mode.dispose();
+	});
+
+	test('issue #82701: auto close does not execute when IME is canceled via backspace', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'{}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 2, 1, 2)]);
+
+			// Typing a + backspace
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: 'a' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+			assert.equal(model.getValue(), '{}');
 		});
 		mode.dispose();
 	});

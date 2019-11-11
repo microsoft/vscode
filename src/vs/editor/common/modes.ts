@@ -19,7 +19,6 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureR
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { keys } from 'vs/base/common/map';
 
 /**
  * Open ended enum at runtime
@@ -453,7 +452,7 @@ export interface CompletionItem {
 	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 	 */
-	range: IRange;
+	range: IRange | { insert: IRange, replace: IRange };
 	/**
 	 * An optional set of characters that when pressed while this completion is active will accept it first and
 	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -941,12 +940,6 @@ export namespace SymbolKinds {
 	/**
 	 * @internal
 	 */
-	export function names(): readonly string[] {
-		return keys(byName);
-	}
-	/**
-	 * @internal
-	 */
 	export function toString(kind: SymbolKind): string | undefined {
 		return byKind.get(kind);
 	}
@@ -954,7 +947,7 @@ export namespace SymbolKinds {
 	 * @internal
 	 */
 	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		return `symbol-icon ${inline ? 'inline' : 'block'} ${byKind.get(kind) || 'property'}`;
+		return `codicon ${inline ? 'inline' : 'block'} codicon-symbol-${byKind.get(kind) || 'property'}`;
 	}
 }
 
@@ -1451,14 +1444,6 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
-/**
- * @internal
- */
-export const enum WebviewContentState {
-	Readonly = 1,
-	Unchanged = 2,
-	Dirty = 3,
-}
 
 export interface CodeLens {
 	range: IRange;
@@ -1617,9 +1602,9 @@ export interface ITokenizationRegistry {
 
 	/**
 	 * Get the tokenization support for a language.
-	 * Returns `undefined` if not found.
+	 * Returns `null` if not found.
 	 */
-	get(language: string): ITokenizationSupport | undefined;
+	get(language: string): ITokenizationSupport | null;
 
 	/**
 	 * Get the promise of a tokenization support for a language.
@@ -1632,9 +1617,9 @@ export interface ITokenizationRegistry {
 	 */
 	setColorMap(colorMap: Color[]): void;
 
-	getColorMap(): Color[] | undefined;
+	getColorMap(): Color[] | null;
 
-	getDefaultBackground(): Color | undefined;
+	getDefaultBackground(): Color | null;
 }
 
 /**

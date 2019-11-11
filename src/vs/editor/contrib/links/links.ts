@@ -18,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LinkProviderRegistry } from 'vs/editor/common/modes';
-import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
+import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
 import { Link, getLinks, LinksList } from 'vs/editor/contrib/links/getLinks';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -99,7 +99,7 @@ class LinkOccurrence {
 
 class LinkDetector implements editorCommon.IEditorContribution {
 
-	private static readonly ID: string = 'editor.linkDetector';
+	public static readonly ID: string = 'editor.linkDetector';
 
 	public static get(editor: ICodeEditor): LinkDetector {
 		return editor.getContribution<LinkDetector>(LinkDetector.ID);
@@ -168,10 +168,6 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;
 		this.beginCompute();
-	}
-
-	public getId(): string {
-		return LinkDetector.ID;
 	}
 
 	private onModelChanged(): void {
@@ -283,10 +279,10 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		if (!occurrence) {
 			return;
 		}
-		this.openLinkOccurrence(occurrence, mouseEvent.hasSideBySideModifier);
+		this.openLinkOccurrence(occurrence, mouseEvent.hasSideBySideModifier, true /* from user gesture */);
 	}
 
-	public openLinkOccurrence(occurrence: LinkOccurrence, openToSide: boolean): void {
+	public openLinkOccurrence(occurrence: LinkOccurrence, openToSide: boolean, fromUserGesture = false): void {
 
 		if (!this.openerService) {
 			return;
@@ -296,7 +292,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		link.resolve(CancellationToken.None).then(uri => {
 			// open the uri
-			return this.openerService.open(uri, { openToSide });
+			return this.openerService.open(uri, { openToSide, fromUserGesture });
 
 		}, err => {
 			const messageOrError =
@@ -390,7 +386,7 @@ class OpenLinkAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(LinkDetector);
+registerEditorContribution(LinkDetector.ID, LinkDetector);
 registerEditorAction(OpenLinkAction);
 
 registerThemingParticipant((theme, collector) => {

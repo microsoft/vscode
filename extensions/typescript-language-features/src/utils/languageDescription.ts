@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename } from 'path';
+import * as vscode from 'vscode';
 import * as languageModeIds from './languageModeIds';
 
 export const enum DiagnosticLanguage {
@@ -47,4 +48,12 @@ export function isTsConfigFileName(fileName: string): boolean {
 
 export function isJsConfigOrTsConfigFileName(fileName: string): boolean {
 	return /^[jt]sconfig\.(.+\.)?json$/i.test(basename(fileName));
+}
+
+export function doesResourceLookLikeATypeScriptFile(resource: vscode.Uri): boolean {
+	return /\.tsx?$/i.test(resource.fsPath);
+}
+
+export function doesResourceLookLikeAJavaScriptFile(resource: vscode.Uri): boolean {
+	return /\.jsx?$/i.test(resource.fsPath);
 }

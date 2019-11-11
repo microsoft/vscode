@@ -311,7 +311,7 @@ namespace TaskDTO {
 		const result: TaskDTO = {
 			_id: task._id,
 			name: task.configurationProperties.name,
-			definition: TaskDefinitionDTO.from(task.getDefinition()),
+			definition: TaskDefinitionDTO.from(task.getDefinition(true)),
 			source: TaskSourceDTO.from(task._source),
 			execution: undefined,
 			presentationOptions: !ConfiguringTask.is(task) && task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
@@ -322,6 +322,9 @@ namespace TaskDTO {
 		};
 		if (task.configurationProperties.group) {
 			result.group = task.configurationProperties.group;
+		}
+		if (task.configurationProperties.detail) {
+			result.detail = task.configurationProperties.detail;
 		}
 		if (!ConfiguringTask.is(task) && task.command) {
 			if (task.command.runtime === RuntimeType.Process) {
@@ -380,6 +383,7 @@ namespace TaskDTO {
 				group: task.group,
 				isBackground: !!task.isBackground,
 				problemMatchers: task.problemMatchers.slice(),
+				detail: task.detail
 			}
 		);
 		return result;

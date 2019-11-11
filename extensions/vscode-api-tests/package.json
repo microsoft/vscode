@@ -44,7 +44,25 @@
 				"editor.lineNumbers": "off",
 				"editor.tabSize": 2
 			}
-		}
+		},
+		"taskDefinitions": [
+				{
+					"type": "custombuildscript",
+					"required": [
+						"flavor"
+					],
+					"properties": {
+						"flavor": {
+							"type": "string",
+							"description": "The build flavor. Should be either '32' or '64'."
+						},
+						"flags": {
+							"type": "array",
+							"description": "Additional build flags."
+						}
+					}
+				}
+			]
 	},
 	"scripts": {
 		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
@@ -52,7 +70,7 @@
 	},
 	"devDependencies": {
 		"@types/mocha": "2.2.43",
-		"@types/node": "^10.14.8",
+		"@types/node": "^12.11.7",
 		"mocha-junit-reporter": "^1.17.0",
 		"mocha-multi-reporters": "^1.1.7",
 		"typescript": "^1.6.2",

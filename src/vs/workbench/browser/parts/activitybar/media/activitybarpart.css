@@ -24,10 +24,12 @@
 }
 
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-label.toggle-more {
+	mask: url('ellipsis-activity-bar.svg') no-repeat 50% 50%;
 	-webkit-mask: url('ellipsis-activity-bar.svg') no-repeat 50% 50%;
 }
 
 .monaco-workbench .activitybar .global-activity .monaco-action-bar .action-label.update-activity {
+	mask: url('settings-activity-bar.svg') no-repeat 50% 50%;
 	-webkit-mask: url('settings-activity-bar.svg') no-repeat 50% 50%;
 }
 
@@ -36,6 +38,11 @@
 }
 
 .monaco-workbench .activitybar .menubar {
+	width: 100%;
+	height: 35px;
+}
+
+.monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
 	width: 100%;
 	height: 35px;
 }

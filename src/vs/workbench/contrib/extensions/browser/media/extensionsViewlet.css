@@ -8,9 +8,9 @@
 }
 
 .extensions-viewlet > .header {
-	height: 38px;
+	height: 41px;
 	box-sizing: border-box;
-	padding: 5px 9px 5px 16px;
+	padding: 5px 12px 6px 16px;
 }
 
 .extensions-viewlet > .header > .search-box {
@@ -21,6 +21,7 @@
 	padding: 4px;
 	border: 1px solid transparent;
 	-webkit-appearance: textfield;
+	-moz-appearance: textfield;
 }
 
 .extensions-viewlet > .extensions {
@@ -31,7 +32,7 @@
 	margin-right: 4px;
 }
 
-.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item > .action-label.icon.octicon {
+.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item > .action-label.icon.codicon {
 	vertical-align: middle;
 	line-height: 22px;
 }
@@ -47,7 +48,7 @@
 }
 
 .extensions-viewlet > .extensions .panel-header {
-	padding-right: 6px;
+	padding-right: 12px;
 }
 
 .extensions-viewlet > .extensions .panel-header > .title {
@@ -84,11 +85,12 @@
 	box-sizing: border-box;
 }
 
-.extensions-viewlet > .extensions .monaco-list-row > .bookmark > .recommendation > .octicon {
+.extensions-viewlet > .extensions .monaco-list-row > .bookmark > .recommendation > .codicon {
 	position: absolute;
 	top: 1px;
 	left: 1px;
-	font-size: 90%;
+	color: inherit;
+	font-size: 80%;
 }
 
 .extensions-viewlet > .extensions .extension {
@@ -146,7 +148,7 @@
 	justify-content: center;
 }
 
-.extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header .extension-remote-badge > .octicon {
+.extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header .extension-remote-badge > .codicon {
 	font-size: 12px;
 }
 
@@ -189,10 +191,17 @@
 	font-size: 80%;
 	padding-left: 6px;
 	min-width: fit-content;
+	min-width: -moz-fit-content;
 }
 
 .extensions-viewlet:not(.narrow) > .extensions .extension > .details > .header-container > .header > .version {
 	flex: 1;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count,
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .ratings {
+	display: flex;
+	align-items: center;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count:not(:empty) {
@@ -200,7 +209,7 @@
 	margin: 0 6px;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count > .octicon {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header .codicon {
 	font-size: 120%;
 	margin-right: 2px;
 }

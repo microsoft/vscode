@@ -86,8 +86,14 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	let model = new SingleLineTestModel('some  text');
 
 	const textAreaInputHost: ITextAreaInputHost = {
-		getPlainTextToCopy: (): string => '',
-		getHTMLToCopy: (): string => '',
+		getDataToCopy: () => {
+			return {
+				isFromEmptySelection: false,
+				multicursorText: null,
+				text: '',
+				html: undefined
+			};
+		},
 		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
 
 			if (browser.isIPad) {

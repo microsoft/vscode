@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService, combinedAppender, LogAppender, ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, combinedAppender, LogAppender, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -22,13 +22,8 @@ export class WebTelemetryAppender implements ITelemetryAppender {
 	constructor(private _logService: ILogService, private _appender: IRemoteAgentService) { }
 
 	log(eventName: string, data: any): void {
-		data = validateTelemetryData(data);
 		this._logService.trace(`telemetry/${eventName}`, data);
-
-		this._appender.logTelemetry('/monacoworkbench/' + eventName, {
-			properties: data.properties,
-			measurements: data.measurements
-		});
+		this._appender.logTelemetry(eventName, data);
 	}
 
 	flush(): Promise<void> {
@@ -52,11 +47,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (!environmentService.args['disable-telemetry'] && !!productService.enableTelemetry) {
+		if (!!productService.enableTelemetry) {
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new WebTelemetryAppender(logService, remoteAgentService), new LogAppender(logService)),
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.configuration.remoteAuthority),
-				piiPaths: [environmentService.appRoot]
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties)
 			};
 
 			this.impl = this._register(new BaseTelemetryService(config, configurationService));
