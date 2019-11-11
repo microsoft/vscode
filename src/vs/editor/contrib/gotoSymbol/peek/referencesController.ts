@@ -151,10 +151,8 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 				if (this._widget && this._model && this._editor.hasModel()) { // might have been closed
 
 					// set title
-					if (this._model.references.length === 1) {
-						this._widget.setMetaTitle(nls.localize('metaTitle.1', "1 result"));
-					} else if (!this._model.isEmpty) {
-						this._widget.setMetaTitle(nls.localize('metaTitle.N', "{0} results", this._model.references.length));
+					if (!this._model.isEmpty) {
+						this._widget.setMetaTitle(nls.localize('metaTitle.N', "{0} ({1})", this._model.title, this._model.references.length));
 					} else {
 						this._widget.setMetaTitle('');
 					}
