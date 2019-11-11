@@ -112,13 +112,17 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		}));
 
 		result.push(...viewToggleActions);
-		const parentActions = super.getContextMenuActions();
+		const parentActions = this.getViewletContextMenuActions();
 		if (viewToggleActions.length && parentActions.length) {
 			result.push(new Separator());
 		}
 
 		result.push(...parentActions);
 		return result;
+	}
+
+	protected getViewletContextMenuActions() {
+		return super.getContextMenuActions();
 	}
 
 	setVisible(visible: boolean): void {
@@ -273,7 +277,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		});
 	}
 
-	private toggleViewVisibility(viewId: string): void {
+	protected toggleViewVisibility(viewId: string): void {
 		const visible = !this.viewsModel.isVisible(viewId);
 		type ViewsToggleVisibilityClassification = {
 			viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };

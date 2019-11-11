@@ -51,6 +51,7 @@ import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/r
 import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 
 interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -444,6 +445,31 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 			});
 		}
 		return this.actions;
+	}
+
+	getContextMenuActions(): IAction[] {
+		const result: IAction[] = [];
+		let viewToggleActions: IAction[] = [];
+		if (this.allViews.has(this.remoteExplorerService.targetType)) {
+			let viewDescriptors: IViewDescriptor[] = Array.from(this.allViews.get(this.remoteExplorerService.targetType)!.values());
+			viewDescriptors.push(this.helpPanelDescriptor);
+			viewToggleActions = viewDescriptors.map(viewDescriptor => (<IAction>{
+				id: `${viewDescriptor.id}.toggleVisibility`,
+				label: viewDescriptor.name,
+				checked: this.viewsModel.isVisible(viewDescriptor.id),
+				enabled: viewDescriptor.canToggleVisibility,
+				run: () => this.toggleViewVisibility(viewDescriptor.id)
+			}));
+
+			result.push(...viewToggleActions);
+		}
+		const parentActions = this.getViewletContextMenuActions();
+		if (viewToggleActions.length && parentActions.length) {
+			result.push(new Separator());
+		}
+
+		result.push(...parentActions);
+		return result;
 	}
 
 	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
