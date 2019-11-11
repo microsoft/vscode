@@ -9,7 +9,7 @@
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
     "iconv-lite": "0.5.0",
-    "jschardet": "1.6.0",
+    "jschardet": "2.1.1",
     "native-watchdog": "1.2.0",
     "node-pty": "^0.10.0-beta2",
     "onigasm-umd": "^2.2.2",
