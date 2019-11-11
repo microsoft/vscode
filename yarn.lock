@@ -133,6 +133,13 @@
   dependencies:
     "@types/node" "*"
 
+"@types/http-proxy-agent@^2.0.1":
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/@types/http-proxy-agent/-/http-proxy-agent-2.0.1.tgz#2f95077f6bfe7adc39cc0f0042da85997ae77fc7"
+  integrity sha512-dgsgbsgI3t+ZkdzF9H19uBaLsurIZJJjJsVpj4mCLp8B6YghQ7jVwyqhaL0PcVtuC3nOi0ZBhAi2Dd9jCUwdFA==
+  dependencies:
+    "@types/node" "*"
+
 "@types/iconv-lite@0.0.1":
   version "0.0.1"
   resolved "https://registry.yarnpkg.com/@types/iconv-lite/-/iconv-lite-0.0.1.tgz#aa3b8bda2be512b1ae0a057b942e869c370a5569"
@@ -9033,10 +9040,10 @@ vscode-nsfw@1.2.8:
     lodash.isundefined "^3.0.1"
     nan "^2.10.0"
 
-vscode-proxy-agent@^0.5.1:
-  version "0.5.1"
-  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.5.1.tgz#7fd15e157c02176a0dca9f87840ad0991a62ca57"
-  integrity sha512-Nnkc7gBk9iAbbZURYZm3p/wvDvRVwDvdzEvDqF1Jh40p6przwQU/JTlV1XLrmd4cCwh6TOAWD81Z3cq+K7Xdmw==
+vscode-proxy-agent@^0.5.2:
+  version "0.5.2"
+  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.5.2.tgz#0c90d24d353957b841d741da7b2701e3f0a044c4"
+  integrity sha512-1cCNPxrWIrmUwS+1XGaXxkh3G1y7z2fpXl1sT74OZvELaryQWYb3NMxMLJJ4Q/CpPLEyuhp/bAN7nzHxxFcQ5Q==
   dependencies:
     debug "^3.1.0"
     http-proxy-agent "^2.1.0"

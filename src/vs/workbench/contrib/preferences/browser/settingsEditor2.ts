@@ -319,6 +319,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this.focusSearch();
 	}
 
+	onHide(): void {
+		this.searchWidget.onHide();
+	}
+
 	focusSettings(): void {
 		// Update ARIA global labels
 		const labelElement = this.settingsAriaExtraLabelsContainer.querySelector('#settings_aria_more_actions_shortcut_label');

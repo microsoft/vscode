@@ -384,10 +384,10 @@ vscode-nsfw@1.2.8:
     lodash.isundefined "^3.0.1"
     nan "^2.10.0"
 
-vscode-proxy-agent@^0.5.1:
-  version "0.5.1"
-  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.5.1.tgz#7fd15e157c02176a0dca9f87840ad0991a62ca57"
-  integrity sha512-Nnkc7gBk9iAbbZURYZm3p/wvDvRVwDvdzEvDqF1Jh40p6przwQU/JTlV1XLrmd4cCwh6TOAWD81Z3cq+K7Xdmw==
+vscode-proxy-agent@^0.5.2:
+  version "0.5.2"
+  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.5.2.tgz#0c90d24d353957b841d741da7b2701e3f0a044c4"
+  integrity sha512-1cCNPxrWIrmUwS+1XGaXxkh3G1y7z2fpXl1sT74OZvELaryQWYb3NMxMLJJ4Q/CpPLEyuhp/bAN7nzHxxFcQ5Q==
   dependencies:
     debug "^3.1.0"
     http-proxy-agent "^2.1.0"
@@ -406,10 +406,10 @@ vscode-textmate@^4.3.0:
   dependencies:
     oniguruma "^7.2.0"
 
-vscode-windows-ca-certs@0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-windows-ca-certs/-/vscode-windows-ca-certs-0.1.0.tgz#d58eeb40b536130918cfde2b01e6dc7e5c1bd757"
-  integrity sha512-ZfZbfJIE09Q0dwGqmqTj7kuAq4g6lul9WPJvo0DkKjln8/FL+dY3wUKIKbYwWQp4x56SBTLBq3tJkD72xQ9Gqw==
+vscode-windows-ca-certs@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-windows-ca-certs/-/vscode-windows-ca-certs-0.2.0.tgz#086f0f4de57e2760a35ac6920831bff246237115"
+  integrity sha512-YBrJRT0zos+Yb1Qdn73GD8QZr7pa2IE96b5Y1hmmp6XeR8aYB7Iiq5gDAF/+/AxL+caSR9KPZQ6jiYWh5biD7w==
   dependencies:
     node-addon-api "1.6.2"
 

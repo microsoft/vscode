@@ -96,7 +96,7 @@
         {
             type: 'comment',
             name: 'confirmationPending',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'updateLabels',
             addLabel: 'confirmation-pending',
             removeLabel: 'confirmed'

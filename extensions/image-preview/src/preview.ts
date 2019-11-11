@@ -229,8 +229,11 @@ class Preview extends Disposable {
 				// Show blank image
 				return encodeURI('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==');
 
-
 			default:
+				// Avoid adding cache busting if there is already a query string
+				if (resource.query) {
+					return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true));
+				}
 				return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true) + `?version=${version}`);
 		}
 	}

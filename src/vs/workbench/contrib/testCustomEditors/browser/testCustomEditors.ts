@@ -25,7 +25,9 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
-export class TestCustomEditorsAction extends Action {
+const ENABLE = false;
+
+class TestCustomEditorsAction extends Action {
 
 	static readonly ID = 'workbench.action.openCustomEditor';
 	static readonly LABEL = nls.localize('openCustomEditor', "Test Open Custom Editor");
@@ -45,7 +47,7 @@ export class TestCustomEditorsAction extends Action {
 	}
 }
 
-export class TestCustomEditor extends BaseEditor {
+class TestCustomEditor extends BaseEditor {
 
 	static ID = 'testCustomEditor';
 
@@ -109,7 +111,7 @@ export class TestCustomEditor extends BaseEditor {
 	layout(dimension: Dimension): void { }
 }
 
-export class TestCustomEditorInput extends EditorInput {
+class TestCustomEditorInput extends EditorInput {
 	private model: TestCustomEditorModel | undefined = undefined;
 	private dirty = false;
 
@@ -176,7 +178,7 @@ export class TestCustomEditorInput extends EditorInput {
 	}
 }
 
-export class TestCustomEditorModel extends EditorModel {
+class TestCustomEditorModel extends EditorModel {
 
 	public value: string = '';
 
@@ -185,32 +187,34 @@ export class TestCustomEditorModel extends EditorModel {
 	}
 }
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
-		TestCustomEditor,
-		TestCustomEditor.ID,
-		nls.localize('testCustomEditor', "Test Custom Editor")
-	),
-	[
-		new SyncDescriptor<EditorInput>(TestCustomEditorInput),
-	]
-);
+if (ENABLE) {
+	Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+		new EditorDescriptor(
+			TestCustomEditor,
+			TestCustomEditor.ID,
+			nls.localize('testCustomEditor', "Test Custom Editor")
+		),
+		[
+			new SyncDescriptor<EditorInput>(TestCustomEditorInput),
+		]
+	);
 
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+	const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(TestCustomEditorsAction, TestCustomEditorsAction.ID, TestCustomEditorsAction.LABEL), 'Test Open Custom Editor');
+	registry.registerWorkbenchAction(new SyncActionDescriptor(TestCustomEditorsAction, TestCustomEditorsAction.ID, TestCustomEditorsAction.LABEL), 'Test Open Custom Editor');
 
-class TestCustomEditorInputFactory implements IEditorInputFactory {
+	class TestCustomEditorInputFactory implements IEditorInputFactory {
 
-	serialize(editorInput: TestCustomEditorInput): string {
-		return JSON.stringify({
-			resource: editorInput.resource.toString()
-		});
+		serialize(editorInput: TestCustomEditorInput): string {
+			return JSON.stringify({
+				resource: editorInput.resource.toString()
+			});
+		}
+
+		deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): TestCustomEditorInput {
+			return new TestCustomEditorInput(URI.parse(JSON.parse(serializedEditorInput).resource));
+		}
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): TestCustomEditorInput {
-		return new TestCustomEditorInput(URI.parse(JSON.parse(serializedEditorInput).resource));
-	}
+	Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(TestCustomEditor.ID, TestCustomEditorInputFactory);
 }
-
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(TestCustomEditor.ID, TestCustomEditorInputFactory);
