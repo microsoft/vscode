@@ -473,7 +473,9 @@ async function readCaCertificates() {
 }
 
 async function readWindowsCaCertificates() {
-	const winCA = await import('vscode-windows-ca-certs');
+	const winCA = await new Promise<any>((resolve, reject) => {
+		require(['vscode-windows-ca-certs'], resolve, reject);
+	});
 
 	let ders: any[] = [];
 	const store = winCA();
