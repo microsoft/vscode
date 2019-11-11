@@ -14,14 +14,14 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel, OneReference } from '../referencesModel';
-import { ReferenceWidget, LayoutData, ctxReferenceWidgetSearchTreeFocused } from './referencesWidget';
+import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { Location } from 'vs/editor/common/modes';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
@@ -361,12 +361,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ctxReferenceWidgetSearchTreeFocused),
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
 	handler(accessor: ServicesAccessor) {
 		const listService = accessor.get(IListService);
-		const focus = listService.lastFocusedList && listService.lastFocusedList.getFocus();
-		if (focus instanceof OneReference) {
-			withController(accessor, controller => controller.openReference(focus, true));
+		const focus = <any[]>listService.lastFocusedList?.getFocus();
+		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
+			withController(accessor, controller => controller.openReference(focus[0], true));
 		}
 	}
 });
