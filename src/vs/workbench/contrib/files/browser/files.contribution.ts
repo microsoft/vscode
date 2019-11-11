@@ -427,7 +427,7 @@ configurationRegistry.registerConfiguration({
 		'explorer.compressSingleChildFolders': {
 			'type': 'boolean',
 			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should compress single child folders in a combined tree element. Useful for Java project folder structures, for example."),
-			'default': false
+			'default': true
 		},
 	}
 });
