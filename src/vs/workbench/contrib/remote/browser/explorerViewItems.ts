@@ -84,7 +84,6 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 				options.push({ text: view.name, authority: isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority] });
 			}
 		});
-		// options = [{ text: 'WSL', authority: 'wsl' }, { text: 'SSH', authority: 'ssh-remote' }, { text: 'Containers', authority: 'dev-container' }];
 		return options;
 	}
 }
