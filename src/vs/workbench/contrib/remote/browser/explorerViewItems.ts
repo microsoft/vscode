@@ -15,9 +15,13 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import { IViewDescriptor } from 'vs/workbench/common/views';
+import { startsWith } from 'vs/base/common/strings';
+import { isStringArray } from 'vs/base/common/types';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface IRemoteSelectItem extends ISelectOptionItem {
-	authority: string;
+	authority: string[];
 }
 
 export class SwitchRemoteViewItem extends SelectActionViewItem {
@@ -30,13 +34,35 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		super(null, action, optionsItems, 0, contextViewService, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
 		this._register(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
 		}));
+
+		this.setSelectionForConnection(optionsItems, environmentService, remoteExplorerService);
+	}
+
+	private setSelectionForConnection(optionsItems: IRemoteSelectItem[], environmentService: IWorkbenchEnvironmentService, remoteExplorerService: IRemoteExplorerService) {
 		// TODO: set from saved state
-		remoteExplorerService.targetType = optionsItems[0].authority;
+		if (this.optionsItems.length > 0) {
+			const remoteAuthority = environmentService.configuration.remoteAuthority;
+			let index = 0;
+			if (remoteAuthority) {
+				const actualRemoteAuthority = remoteAuthority.split('+')[0];
+				for (let optionIterator = 0; (optionIterator < this.optionsItems.length) && (index === 0); optionIterator++) {
+					for (let authorityIterator = 0; authorityIterator < optionsItems[optionIterator].authority.length; authorityIterator++) {
+						if (optionsItems[optionIterator].authority[authorityIterator] === actualRemoteAuthority) {
+							index = optionIterator;
+							break;
+						}
+					}
+				}
+			}
+			this.select(index);
+			remoteExplorerService.targetType = optionsItems[index].authority[0];
+		}
 	}
 
 	render(container: HTMLElement) {
@@ -51,9 +77,14 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		return this.optionsItems[index];
 	}
 
-	static createOptionItems(): IRemoteSelectItem[] {
+	static createOptionItems(views: IViewDescriptor[]): IRemoteSelectItem[] {
 		let options: IRemoteSelectItem[] = [];
-		options = [{ text: 'WSL', authority: 'wsl' }, { text: 'SSH', authority: 'ssh-remote' }, { text: 'Containers', authority: 'dev-container' }];
+		views.forEach(view => {
+			if (view.group && startsWith(view.group, 'targets') && view.remoteAuthority) {
+				options.push({ text: view.name, authority: isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority] });
+			}
+		});
+		// options = [{ text: 'WSL', authority: 'wsl' }, { text: 'SSH', authority: 'ssh-remote' }, { text: 'Containers', authority: 'dev-container' }];
 		return options;
 	}
 }
@@ -71,6 +102,6 @@ export class SwitchRemoteAction extends Action {
 	}
 
 	public async run(item: IRemoteSelectItem): Promise<any> {
-		this.remoteExplorerService.targetType = item.authority;
+		this.remoteExplorerService.targetType = item.authority[0];
 	}
 }
