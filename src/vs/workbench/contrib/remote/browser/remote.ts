@@ -16,10 +16,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { FilterViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
@@ -51,7 +50,6 @@ import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/r
 import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 
 interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -368,11 +366,9 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	}
 }
 
-export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
+export class RemoteViewlet extends FilterViewContainerViewlet implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	private actions: IAction[] | undefined;
-	private allViews: Map<string, Map<string, IViewDescriptor>> = new Map();
-	static ConstantViews: string = 'constant-views';
 	helpInformations: HelpInformation[] = [];
 
 	constructor(
@@ -387,8 +383,7 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 		@IExtensionService extensionService: IExtensionService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-
+		super(VIEWLET_ID, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 		remoteHelpExtPoint.setHandler((extensions) => {
 			let helpInformation: HelpInformation[] = [];
 			for (let extension of extensions) {
@@ -406,25 +401,12 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 		});
 
 		this._register(this.remoteExplorerService.onDidChangeTargetType(() => {
-			this.getViewsNotForTarget(this.remoteExplorerService.targetType).forEach(item => this.viewsModel.setVisible(item.id, false));
-			this.getViewsForTarget(this.remoteExplorerService.targetType).forEach(item => this.viewsModel.setVisible(item.id, true));
+			this._onDidChangeFilterValue.fire(this.remoteExplorerService.targetType);
 		}));
+	}
 
-		this._register(this.viewsModel.onDidChangeActiveViews((viewDescriptors) => {
-			viewDescriptors.forEach(descriptor => {
-				let extensionRemoteAuthority = isStringArray(descriptor.remoteAuthority) ? descriptor.remoteAuthority[0] : descriptor.remoteAuthority;
-				if (!extensionRemoteAuthority) {
-					return;
-				}
-				if (!this.allViews.has(extensionRemoteAuthority)) {
-					this.allViews.set(extensionRemoteAuthority, new Map());
-				}
-				this.allViews.get(extensionRemoteAuthority)!.set(descriptor.id, descriptor);
-				if (extensionRemoteAuthority !== this.remoteExplorerService.targetType) {
-					this.viewsModel.setVisible(descriptor.id, false);
-				}
-			});
-		}));
+	protected getFilterOn(viewDescriptor: IViewDescriptor): string | undefined {
+		return isStringArray(viewDescriptor.remoteAuthority) ? viewDescriptor.remoteAuthority[0] : viewDescriptor.remoteAuthority;
 	}
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
@@ -447,31 +429,6 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 		return this.actions;
 	}
 
-	getContextMenuActions(): IAction[] {
-		const result: IAction[] = [];
-		let viewToggleActions: IAction[] = [];
-		if (this.allViews.has(this.remoteExplorerService.targetType)) {
-			let viewDescriptors: IViewDescriptor[] = Array.from(this.allViews.get(this.remoteExplorerService.targetType)!.values());
-			viewDescriptors.push(this.helpPanelDescriptor);
-			viewToggleActions = viewDescriptors.map(viewDescriptor => (<IAction>{
-				id: `${viewDescriptor.id}.toggleVisibility`,
-				label: viewDescriptor.name,
-				checked: this.viewsModel.isVisible(viewDescriptor.id),
-				enabled: viewDescriptor.canToggleVisibility,
-				run: () => this.toggleViewVisibility(viewDescriptor.id)
-			}));
-
-			result.push(...viewToggleActions);
-		}
-		const parentActions = this.getViewletContextMenuActions();
-		if (viewToggleActions.length && parentActions.length) {
-			result.push(new Separator());
-		}
-
-		result.push(...parentActions);
-		return result;
-	}
-
 	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
 		if (!extension.description.enableProposedApi) {
 			return;
@@ -488,33 +445,6 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 			feedback: extension.value.feedback,
 			issues: extension.value.issues
 		});
-	}
-
-	private getViewsForTarget(target: string): IViewDescriptor[] {
-		return this.allViews.has(target) ? Array.from(this.allViews.get(target)!.values()) : [];
-	}
-
-	private getViewsNotForTarget(target: string): IViewDescriptor[] {
-		const iterable = this.allViews.keys();
-		let key = iterable.next();
-		let views: IViewDescriptor[] = [];
-		while (!key.done) {
-			if (key.value !== target) {
-				views = views.concat(this.getViewsForTarget(key.value));
-			}
-			key = iterable.next();
-		}
-		return views;
-	}
-
-	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
-		const panels: ViewletPanel[] = super.onDidAddViews(added);
-		for (let i = 0; i < added.length; i++) {
-			if ((added[i].viewDescriptor.id === HelpPanel.ID) /* || (startsWith(added[i].viewDescriptor.group ?? '', 'details'))*/) { // For now, we keep details expanded since we don't have forwarded ports yet
-				panels[i].setExpanded(false);
-			}
-		}
-		return panels;
 	}
 
 	getTitle(): string {
