@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { URI } from 'vs/base/common/uri';
 
 const SERVICE_NAME = 'VS Code';
 const ACCOUNT = 'MyAccount';
@@ -21,10 +24,13 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
 
+	readonly _onDidGetCallback: Emitter<URI> = this._register(new Emitter<URI>());
+
 	constructor(
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
 		if (productService.settingsSyncStoreUrl && configurationService.getValue('configurationSync.enableAuth')) {
@@ -37,29 +43,35 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 		}
 	}
 
-	getToken(): Promise<string | null> {
+	async getToken(): Promise<string | undefined> {
 		if (this.status === AuthTokenStatus.Disabled) {
 			throw new Error('Not enabled');
 		}
-		return this.credentialsService.getPassword(SERVICE_NAME, ACCOUNT);
+
+		const token = await this.credentialsService.getPassword(SERVICE_NAME, ACCOUNT);
+		if (token) {
+			return token;
+		}
+
+		return;
 	}
 
-	async updateToken(token: string): Promise<void> {
-		if (this.status === AuthTokenStatus.Disabled) {
-			throw new Error('Not enabled');
+	async login(): Promise<void> {
+		const token = await this.quickInputService.input({ placeHolder: localize('enter token', "Please provide the auth bearer token"), ignoreFocusLost: true, });
+		if (token) {
+			await this.credentialsService.setPassword(SERVICE_NAME, ACCOUNT, token);
+			this.setStatus(AuthTokenStatus.Active);
 		}
-		await this.credentialsService.setPassword(SERVICE_NAME, ACCOUNT, token);
-		this.setStatus(AuthTokenStatus.Active);
 	}
 
 	async refreshToken(): Promise<void> {
 		if (this.status === AuthTokenStatus.Disabled) {
 			throw new Error('Not enabled');
 		}
-		await this.deleteToken();
+		await this.logout();
 	}
 
-	async deleteToken(): Promise<void> {
+	async logout(): Promise<void> {
 		if (this.status === AuthTokenStatus.Disabled) {
 			throw new Error('Not enabled');
 		}
@@ -75,4 +87,3 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	}
 
 }
-
