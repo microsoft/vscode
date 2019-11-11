@@ -117,6 +117,14 @@
             comment: "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"
         },
         {
+            type: 'label',
+            name: '*needs more info',
+            action: 'updateLabels',
+            addLabel: 'needs more info',
+            removeLabel: '*needs more info',
+            comment: "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"
+        },
+        {
             type: 'comment',
             name: 'a11ymas',
             allowUsers: ['AccessibilityTestingTeam-TCS', 'dixitsonali95', 'Mohini78', 'ChitrarupaSharma', 'mspatil110', 'umasarath52', 'v-umnaik'],
