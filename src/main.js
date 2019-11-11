@@ -150,8 +150,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 			} else {
 				app.commandLine.appendSwitch(argvKey);
 			}
-		} else {
-			app.commandLine.appendSwitch(argvKey, argvValue);
 		}
 	});
 
