@@ -6,7 +6,7 @@
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import * as assert from 'assert';
 import { ITokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { TokenStyle, comments, variables, types, functions, keywords, numbers, strings, getTokenClassificationRegistry, TokenStylingRule } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TokenStyle, comments, variables, types, functions, keywords, numbers, strings, getTokenClassificationRegistry } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { Color } from 'vs/base/common/color';
 import { isString } from 'vs/base/common/types';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -44,14 +44,6 @@ function tokenStyleAsString(ts: TokenStyle | undefined | null) {
 	return str;
 }
 
-function getTokenStyleRules(rules: [string, TokenStyle][]): TokenStylingRule[] {
-	return rules.map(e => {
-		const rule = tokenClassificationRegistry.getTokenStylingRule(e[0], e[1]);
-		assert.ok(rule);
-		return rule!;
-	});
-}
-
 function assertTokenStyle(actual: TokenStyle | undefined | null, expected: TokenStyle | undefined | null, message?: string) {
 	assert.equal(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
 }
@@ -87,7 +79,7 @@ suite('Themes - TokenStyleResolving', () => {
 		assertTokenStyles(themeData, {
 			[comments]: ts('#88846f', undefinedStyle),
 			[variables]: ts('#F8F8F2', unsetStyle),
-			[types]: ts('#A6E22E', { underline: true, bold: false, italic: false }),
+			[types]: ts('#A6E22E', { underline: true }),
 			[functions]: ts('#A6E22E', unsetStyle),
 			[strings]: ts('#E6DB74', undefinedStyle),
 			[numbers]: ts('#AE81FF', undefinedStyle),
@@ -187,7 +179,7 @@ suite('Themes - TokenStyleResolving', () => {
 		assertTokenStyles(themeData, {
 			[comments]: ts('#384887', undefinedStyle),
 			[variables]: ts(undefined, unsetStyle),
-			[types]: ts('#ffeebb', { underline: true, bold: false, italic: false }),
+			[types]: ts('#ffeebb', { underline: true }),
 			[functions]: ts('#ddbb88', unsetStyle),
 			[strings]: ts('#22aa44', undefinedStyle),
 			[numbers]: ts('#f280d0', undefinedStyle),
@@ -259,43 +251,43 @@ suite('Themes - TokenStyleResolving', () => {
 		assertTokenStyle(tokenStyle, defaultTokenStyle, 'keyword.operators');
 
 		tokenStyle = themeData.resolveScopes([['storage']]);
-		assertTokenStyle(tokenStyle, ts('#F92672', { italic: true, underline: false, bold: false }), 'storage');
+		assertTokenStyle(tokenStyle, ts('#F92672', { italic: true }), 'storage');
 
 		tokenStyle = themeData.resolveScopes([['storage.type']]);
-		assertTokenStyle(tokenStyle, ts('#66D9EF', { italic: true, underline: false, bold: false }), 'storage.type');
+		assertTokenStyle(tokenStyle, ts('#66D9EF', { italic: true }), 'storage.type');
 
 		tokenStyle = themeData.resolveScopes([['entity.name.class']]);
-		assertTokenStyle(tokenStyle, ts('#A6E22E', { underline: true, italic: false, bold: false }), 'entity.name.class');
+		assertTokenStyle(tokenStyle, ts('#A6E22E', { underline: true }), 'entity.name.class');
 
 		tokenStyle = themeData.resolveScopes([['meta.structure.dictionary.json', 'string.quoted.double.json']]);
 		assertTokenStyle(tokenStyle, ts('#66D9EF', undefined), 'json property');
 
 		tokenStyle = themeData.resolveScopes([['keyword'], ['storage.type'], ['entity.name.class']]);
-		assertTokenStyle(tokenStyle, ts('#66D9EF', { italic: true, underline: false, bold: false }), 'storage.type');
+		assertTokenStyle(tokenStyle, ts('#66D9EF', { italic: true }), 'storage.type');
 
 	});
 
 	test('rule matching', async () => {
 		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
 		themeData.setCustomColors({ 'editor.foreground': '#000000' });
-		themeData.setTokenStyleRules(getTokenStyleRules([
-			['types', ts('#ff0000', undefined)],
-			['classes', ts('#0000ff', { italic: true })],
-			['*.static', ts(undefined, { bold: true })],
-			['*.declaration', ts(undefined, { italic: true })],
-			['*.async.static', ts('#00ffff', { bold: false, underline: true })],
-			['*.async', ts('#000fff', { italic: false, underline: true })]
-		]));
+		themeData.setCustomTokenStyleRules({
+			'types': '#ff0000',
+			'classes': { foreground: '#0000ff', fontStyle: 'italic' },
+			'*.static': { fontStyle: 'bold' },
+			'*.declaration': { fontStyle: 'italic' },
+			'*.async.static': { fontStyle: 'italic underline' },
+			'*.async': { foreground: '#000fff', fontStyle: '-italic underline' }
+		});
 
 		assertTokenStyles(themeData, {
 			'types': ts('#ff0000', undefinedStyle),
-			'types.static': ts('#ff0000', { bold: true, italic: undefined, underline: undefined }),
-			'types.static.declaration': ts('#ff0000', { bold: true, italic: true, underline: undefined }),
-			'classes': ts('#0000ff', { bold: undefined, italic: true, underline: undefined }),
-			'classes.static.declaration': ts('#0000ff', { bold: true, italic: true, underline: undefined }),
-			'classes.declaration': ts('#0000ff', { bold: undefined, italic: true, underline: undefined }),
-			'classes.declaration.async': ts('#000fff', { bold: undefined, italic: false, underline: true }),
-			'classes.declaration.async.static': ts('#00ffff', { bold: false, italic: false, underline: true }),
+			'types.static': ts('#ff0000', { bold: true }),
+			'types.static.declaration': ts('#ff0000', { bold: true, italic: true }),
+			'classes': ts('#0000ff', { italic: true }),
+			'classes.static.declaration': ts('#0000ff', { bold: true, italic: true }),
+			'classes.declaration': ts('#0000ff', { italic: true }),
+			'classes.declaration.async': ts('#000fff', { underline: true, italic: false }),
+			'classes.declaration.async.static': ts('#000fff', { italic: true, underline: true, bold: true }),
 		});
 
 	});

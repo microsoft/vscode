@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID, IColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID, IColorCustomizations, CUSTOM_EDITOR_TOKENSTYLES_SETTING, IExperimentalTokenStyleCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -29,6 +29,7 @@ import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
+import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -92,6 +93,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.configurationService.getValue<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING) || {};
 	}
 
+	private get tokenStylesCustomizations(): IExperimentalTokenStyleCustomizations {
+		return this.configurationService.getValue<IExperimentalTokenStyleCustomizations>(CUSTOM_EDITOR_TOKENSTYLES_SETTING) || {};
+	}
+
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -126,6 +131,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 		themeData.setCustomColors(this.colorCustomizations);
 		themeData.setCustomTokenColors(this.tokenColorCustomizations);
+		themeData.setCustomTokenStyleRules(this.tokenStylesCustomizations);
 		this.updateDynamicCSSRules(themeData);
 		this.applyTheme(themeData, undefined, true);
 
@@ -154,18 +160,22 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 			const themeSpecificWorkbenchColors: IJSONSchema = { properties: {} };
 			const themeSpecificTokenColors: IJSONSchema = { properties: {} };
+			const themeSpecificTokenStyling: IJSONSchema = { properties: {} };
 
 			const workbenchColors = { $ref: workbenchColorsSchemaId, additionalProperties: false };
 			const tokenColors = { properties: tokenColorSchema.properties, additionalProperties: false };
+			const tokenStyling = { $ref: tokenStylingSchemaId, additionalProperties: false };
 			for (let t of event.themes) {
 				// add theme specific color customization ("[Abyss]":{ ... })
 				const themeId = `[${t.settingsId}]`;
 				themeSpecificWorkbenchColors.properties![themeId] = workbenchColors;
 				themeSpecificTokenColors.properties![themeId] = tokenColors;
+				themeSpecificTokenStyling.properties![themeId] = tokenStyling;
 			}
 
 			colorCustomizationsSchema.allOf![1] = themeSpecificWorkbenchColors;
 			tokenColorCustomizationSchema.allOf![1] = themeSpecificTokenColors;
+			experimentalTokenStylingCustomizationSchema.allOf![1] = themeSpecificTokenStyling;
 
 			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration, tokenColorCustomizationConfiguration);
 
@@ -306,6 +316,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				}
 				if (e.affectsConfiguration(CUSTOM_EDITOR_COLORS_SETTING)) {
 					this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
+					hasColorChanges = true;
+				}
+				if (e.affectsConfiguration(CUSTOM_EDITOR_TOKENSTYLES_SETTING)) {
+					this.currentColorTheme.setCustomTokenStyleRules(this.tokenStylesCustomizations);
 					hasColorChanges = true;
 				}
 				if (hasColorChanges) {
@@ -698,12 +712,18 @@ const tokenColorCustomizationSchema: IConfigurationPropertySchema = {
 	default: {},
 	allOf: [tokenColorSchema]
 };
+const experimentalTokenStylingCustomizationSchema: IConfigurationPropertySchema = {
+	description: nls.localize('editorColorsTokenStyles', "Overrides token color and styles from the currently selected color theme."),
+	default: {},
+	allOf: [{ $ref: tokenStylingSchemaId }]
+};
 const tokenColorCustomizationConfiguration: IConfigurationNode = {
 	id: 'editor',
 	order: 7.2,
 	type: 'object',
 	properties: {
-		[CUSTOM_EDITOR_COLORS_SETTING]: tokenColorCustomizationSchema
+		[CUSTOM_EDITOR_COLORS_SETTING]: tokenColorCustomizationSchema,
+		[CUSTOM_EDITOR_TOKENSTYLES_SETTING]: experimentalTokenStylingCustomizationSchema
 	}
 };
 configurationRegistry.registerConfiguration(tokenColorCustomizationConfiguration);
