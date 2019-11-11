@@ -398,29 +398,23 @@ export class ElectronWindow extends Disposable {
 			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
 		};
 
-		// Handle internal open() calls
-		this.openerService.registerOpener({
-			open: async (resource: URI, options?: OpenOptions): Promise<boolean> => {
-
-				// If either the caller wants to open externally or the
-				// scheme is one where we prefer to open externally
-				// we handle this resource by delegating the opening to
-				// the main process to prevent window focus issues.
-				if (this.shouldOpenExternal(resource, options)) {
-					const { resolved } = await this.openerService.resolveExternalUri(resource, options);
-					const success = await this.electronService.openExternal(encodeURI(resolved.toString(true)));
-					if (!success && resolved.scheme === Schemas.file) {
+		// Handle external open() calls
+		this.openerService.setExternalOpener({
+			openExternal: async (href: string) => {
+				const success = await this.electronService.openExternal(href);
+				if (!success) {
+					const fileCandidate = URI.parse(href);
+					if (fileCandidate.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
-						await this.electronService.showItemInFolder(resolved.fsPath);
+						await this.electronService.showItemInFolder(fileCandidate.fsPath);
 					}
-
-					return true;
 				}
 
-				return false; // not handled by us
+				return true;
 			}
 		});
 
+		// Register external URI resolver
 		this.openerService.registerExternalUriResolver({
 			resolveExternalUri: async (uri: URI, options?: OpenOptions) => {
 				if (options?.allowTunneling) {
@@ -438,12 +432,6 @@ export class ElectronWindow extends Disposable {
 				return undefined;
 			}
 		});
-	}
-
-	private shouldOpenExternal(resource: URI, options?: OpenOptions) {
-		const scheme = resource.scheme.toLowerCase();
-		const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
-		return options?.openExternal || preferOpenExternal;
 	}
 
 	private updateTouchbarMenu(): void {
