@@ -552,16 +552,18 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, Fi
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3, KeyCode.Enter] },
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Find previous', category);
 
-// Commands miht be affected by Web restrictons
+// Commands might be affected by Web restrictons
 if (BrowserFeatures.clipboard.writeText) {
 	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C],
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
 	}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FOCUS)), 'Terminal: Copy Selection', category);
 }
 if (BrowserFeatures.clipboard.readText) {
 	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V],
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }
 	}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Paste into Active Terminal', category);
 }
