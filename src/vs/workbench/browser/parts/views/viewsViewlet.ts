@@ -196,7 +196,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return this.panels.filter(view => view.id === id)[0];
 	}
 
-	protected makeViews(added: IAddedViewDescriptorRef[]): { panel: ViewletPanel, size: number, index: number }[] {
+	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		const panelsToAdd: { panel: ViewletPanel, size: number, index: number }[] = [];
 		for (const { viewDescriptor, collapsed, index, size } of added) {
 			const panel = this.createView(viewDescriptor,
@@ -221,24 +221,15 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 			this.viewDisposables.splice(index, 0, combinedDisposable(contextMenuDisposable, collapseDisposable));
 			panelsToAdd.push({ panel, size: size || panel.minimumSize, index });
 		}
-		return panelsToAdd;
-	}
-
-	protected showPanels(panels: ViewletPanel[]) {
-		this.restoreViewSizes();
-
-		for (const panel of panels) {
-			panel.setVisible(this.isVisible());
-		}
-	}
-
-	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
-		const panelsToAdd: { panel: ViewletPanel, size: number, index: number }[] = this.makeViews(added);
 
 		this.addPanels(panelsToAdd);
+		this.restoreViewSizes();
 
-		const panels: ViewletPanel[] = panelsToAdd.map(panel => panel.panel);
-		this.showPanels(panels);
+		const panels: ViewletPanel[] = [];
+		for (const { panel } of panelsToAdd) {
+			panel.setVisible(this.isVisible());
+			panels.push(panel);
+		}
 		return panels;
 	}
 
