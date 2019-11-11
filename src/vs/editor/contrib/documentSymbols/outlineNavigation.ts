@@ -8,7 +8,7 @@ import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
@@ -45,8 +45,16 @@ class Navigator {
 
 	private _up(): TreeElement | undefined {
 		const sibling = this._sibling(true);
-		if (sibling) {
-			return sibling._child(true) ?? sibling.element;
+		if (!sibling) {
+			return this.element.parent;
+		}
+		let nav: Navigator = sibling;
+		while (nav) {
+			let next = nav._child(true);
+			if (!next) {
+				return nav.element;
+			}
+			nav = Navigator.for(next);
 		}
 		return undefined;
 	}
@@ -56,9 +64,13 @@ class Navigator {
 		if (firstChild) {
 			return firstChild;
 		}
-		const sibling = this._sibling(false);
-		if (sibling) {
-			return sibling.element;
+		let nav: Navigator | undefined = this;
+		while (nav) {
+			const next = nav._sibling(false);
+			if (next) {
+				return next.element;
+			}
+			nav = nav.element.parent && Navigator.for(nav.element.parent);
 		}
 		return undefined;
 	}
@@ -135,7 +147,9 @@ export class OutlineNavigation implements IEditorContribution {
 		let nextElement = nav.navigate(up);
 
 		if (nextElement instanceof OutlineElement) {
-			this._editor.setPosition(Range.lift(nextElement.symbol.selectionRange).getStartPosition());
+			const pos = Range.lift(nextElement.symbol.selectionRange).getStartPosition();
+			this._editor.setPosition(pos);
+			this._editor.revealPosition(pos, ScrollType.Smooth);
 		}
 	}
 
