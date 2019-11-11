@@ -123,5 +123,12 @@
             action: 'updateLabels',
             addLabel: 'a11ymas'
         },
+        {
+            type: 'label',
+            name: '*needs more info',
+            action: 'updateLabels',
+            addLabel: 'needs more info',
+            removeLabel: '*needs more info'
+        },
     ]
 }
