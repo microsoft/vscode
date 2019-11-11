@@ -29,26 +29,6 @@ export abstract class TreeElement {
 		}
 	}
 
-	// todo@joh sort by position!
-	firstChild(): TreeElement | undefined {
-		const [first] = Object.keys(this.children);
-		return this.children[first];
-	}
-
-	lastChild(): TreeElement | undefined {
-		const [last] = Object.keys(this.children).slice(-1);
-		return this.children[last];
-	}
-
-	sibling(next: boolean): TreeElement | undefined {
-		if (!this.parent) {
-			return undefined;
-		}
-		const all = Object.keys(this.parent.children);
-		const index = all.indexOf(this.id) + (next ? +1 : -1);
-		return this.parent.children[all[index]];
-	}
-
 	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
 		// complex id-computation which contains the origin/extension,
 		// the parent path, and some dedupe logic when names collide

@@ -15,6 +15,82 @@ import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/edit
 import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { values } from 'vs/base/common/collections';
+
+class Navigator {
+
+	private static readonly _instances = new WeakMap<OutlineElement, Navigator>();
+
+	static for(element: OutlineElement): Navigator {
+		let res = this._instances.get(element);
+		if (!res) {
+			res = new Navigator(element);
+			this._instances.set(element, res);
+		}
+		return res;
+	}
+
+	private readonly _children: OutlineElement[] = [];
+
+	private constructor(readonly element: OutlineElement) {
+		this._children = values(element.children).sort(Navigator._compare);
+	}
+
+	parent(): OutlineElement | undefined {
+		const { parent } = this.element;
+		return parent instanceof OutlineElement ? parent : undefined;
+	}
+
+	firstChild(): OutlineElement | undefined {
+		return this._children[0];
+	}
+
+	lastChild(): OutlineElement | undefined {
+		return this._children[this._children.length - 1];
+	}
+
+	nextSibling(): OutlineElement | undefined {
+		const parent = this.parent();
+		if (!parent) {
+			return undefined;
+		}
+		const parentNav = Navigator.for(parent);
+		const idx = parentNav._children.indexOf(this.element);
+		if (idx < 0 || idx + 1 >= parentNav._children.length) {
+			return undefined;
+		}
+		return parentNav._children[idx + 1];
+	}
+
+	previousSibling(): OutlineElement | undefined {
+		const parent = this.parent();
+		if (!parent) {
+			return undefined;
+		}
+		const parentNav = Navigator.for(parent);
+		const idx = parentNav._children.indexOf(this.element);
+		if (idx - 1 < 0) {
+			return undefined;
+		}
+		return parentNav._children[idx - 1];
+	}
+
+	navigate(next: boolean): OutlineElement | undefined {
+		return next ? this._navNext() : this._navPrev();
+	}
+
+	private _navNext(): OutlineElement | undefined {
+		return undefined;
+	}
+
+	private _navPrev(): OutlineElement | undefined {
+		return undefined;
+	}
+
+	private static _compare(a: OutlineElement, b: OutlineElement): number {
+		return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
+	}
+}
 
 export class OutlineNavigation implements IEditorContribution {
 
@@ -58,23 +134,16 @@ export class OutlineNavigation implements IEditorContribution {
 		const outlineModel = await OutlineModel.create(textModel, this._cts.token);
 		const element = outlineModel.getItemEnclosingPosition(position);
 
-		if (!element) {
+		if (!element || this._cts.token.isCancellationRequested) {
 			return;
 		}
 
-		let nextElement = element.sibling(next);
-		if (!nextElement && element.parent) {
-			let nextParent = element.parent.sibling(next);
-			if (nextParent) {
-				nextElement = next ? nextParent.firstChild() : nextParent.lastChild();
-			}
-		}
+		let nav = Navigator.for(element);
+		let nextElement = nav.navigate(next);
 
-		if (!(nextElement instanceof OutlineElement)) {
-			return;
+		if (nextElement) {
+			this._editor.setPosition(Range.lift(nextElement.symbol.selectionRange).getStartPosition());
 		}
-
-		this._editor.setPosition(Range.lift(nextElement.symbol.selectionRange).getStartPosition());
 	}
 
 }
