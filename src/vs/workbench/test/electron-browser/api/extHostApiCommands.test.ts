@@ -112,7 +112,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
 
-		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
 		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService());

@@ -11,6 +11,7 @@ import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/commo
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { Emitter, Event } from 'vs/base/common/event';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostDiagnostics', () => {
 
@@ -387,7 +388,7 @@ suite('ExtHostDiagnostics', () => {
 			assertRegistered(): void {
 
 			}
-		});
+		}, new NullLogService());
 
 		let collection1 = diags.createDiagnosticCollection('foo');
 		let collection2 = diags.createDiagnosticCollection('foo'); // warns, uses a different owner
@@ -436,7 +437,7 @@ suite('ExtHostDiagnostics', () => {
 			assertRegistered(): void {
 
 			}
-		});
+		}, new NullLogService());
 
 
 		//
