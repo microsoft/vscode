@@ -118,7 +118,11 @@ class BufferSynchronizer {
 		}
 	}
 
-	public beforeCommand(command: string) {
+	public reset(): void {
+		this._pending.clear();
+	}
+
+	public beforeCommand(command: string): void {
 		if (command === 'updateOpen') {
 			return;
 		}
@@ -397,6 +401,7 @@ export default class BufferSyncSupport extends Disposable {
 	public reset(): void {
 		this.pendingGetErr?.cancel();
 		this.pendingDiagnostics.clear();
+		this.synchronizer.reset();
 
 		for (const buffer of this.syncedBuffers.allBuffers) {
 			buffer.open();
