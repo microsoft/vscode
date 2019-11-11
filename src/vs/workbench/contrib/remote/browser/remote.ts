@@ -419,8 +419,6 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 					this.allViews.set(extensionRemoteAuthority, new Map());
 				}
 				this.allViews.get(extensionRemoteAuthority)!.set(descriptor.id, descriptor);
-				// Need to set it to visible so that gets added through onDidAddViews
-				this.viewsModel.setVisible(descriptor.id, true);
 				if (extensionRemoteAuthority !== this.remoteExplorerService.targetType) {
 					this.viewsModel.setVisible(descriptor.id, false);
 				}
