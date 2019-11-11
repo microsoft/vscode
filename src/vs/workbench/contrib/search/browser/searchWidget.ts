@@ -149,6 +149,8 @@ export class SearchWidget extends Widget {
 	private _onDidHeightChange = this._register(new Emitter<void>());
 	readonly onDidHeightChange: Event<void> = this._onDidHeightChange.event;
 
+	private temporarilySkipSearchOnChange = false;
+
 	constructor(
 		container: HTMLElement,
 		options: ISearchWidgetOptions,
@@ -404,6 +406,11 @@ export class SearchWidget extends Widget {
 		this._onReplaceToggled.fire();
 	}
 
+	setValue(value: string, skipSearchOnChange: boolean) {
+		this.searchInput.setValue(value);
+		this.temporarilySkipSearchOnChange = skipSearchOnChange || this.temporarilySkipSearchOnChange;
+	}
+
 	setReplaceAllActionState(enabled: boolean): void {
 		if (this.replaceAllAction.enabled !== enabled) {
 			this.replaceAllAction.enabled = enabled;
@@ -450,8 +457,12 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 
 		if (this.searchConfiguration.searchOnType) {
-			this._onSearchCancel.fire({ focus: false });
-			this._searchDelayer.trigger((() => this.submitSearch()), this.searchConfiguration.searchOnTypeDebouncePeriod);
+			if (this.temporarilySkipSearchOnChange) {
+				this.temporarilySkipSearchOnChange = false;
+			} else {
+				this._onSearchCancel.fire({ focus: false });
+				this._searchDelayer.trigger((() => this.submitSearch()), this.searchConfiguration.searchOnTypeDebouncePeriod);
+			}
 		}
 	}
 
