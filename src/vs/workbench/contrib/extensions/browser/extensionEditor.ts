@@ -452,10 +452,8 @@ export class ExtensionEditor extends BaseEditor {
 	private setSubText(extension: IExtension, reloadAction: ReloadAction, template: IExtensionEditorTemplate): void {
 		hide(template.subtextContainer);
 
-		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
-		const undoIgnoreAction = this.instantiationService.createInstance(UndoIgnoreExtensionRecommendationAction);
-		ignoreAction.extension = extension;
-		undoIgnoreAction.extension = extension;
+		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction, extension);
+		const undoIgnoreAction = this.instantiationService.createInstance(UndoIgnoreExtensionRecommendationAction, extension);
 		ignoreAction.enabled = false;
 		undoIgnoreAction.enabled = false;
 
