@@ -16,14 +16,24 @@ const opn = require('opn');
 const minimist = require('vscode-minimist');
 
 const APP_ROOT = path.dirname(__dirname);
+const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
-const PORT = 8080;
 
 const args = minimist(process.argv, {
 	string: [
-		'no-launch'
+		'no-launch',
+		'scheme',
+		'host'
+	],
+	number: [
+		'port'
 	]
 });
+
+const PORT = args.port || process.env.PORT || 8080;
+const SCHEME = args.scheme || process.env.VSCODE_SCHEME || 'http';
+const HOST = args.host || 'localhost';
+const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
 
 const server = http.createServer((req, res) => {
 	const parsedUrl = url.parse(req.url, true);
@@ -56,7 +66,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-	console.log(`Web UI available at http://localhost:${PORT}`);
+	console.log(`Web UI available at ${SCHEME}://${AUTHORITY}`);
 });
 
 server.on('error', err => {
@@ -87,7 +97,7 @@ function handleStaticExtension(req, res, parsedUrl) {
 	// Strip `/static-extension/` from the path
 	const relativeFilePath = path.normalize(decodeURIComponent(parsedUrl.pathname.substr('/static-extension/'.length)));
 
-	const filePath = path.join(APP_ROOT, 'extensions', relativeFilePath);
+	const filePath = path.join(EXTENSIONS_ROOT, relativeFilePath);
 
 	return serveFile(req, res, filePath);
 }
@@ -97,12 +107,12 @@ function handleStaticExtension(req, res, parsedUrl) {
  * @param {import('http').ServerResponse} res
  */
 async function handleRoot(req, res) {
-	const extensionFolders = await util.promisify(fs.readdir)(path.join(APP_ROOT, 'extensions'));
+	const extensionFolders = await util.promisify(fs.readdir)(EXTENSIONS_ROOT);
 	const mapExtensionFolderToExtensionPackageJSON = new Map();
 
 	await Promise.all(extensionFolders.map(async extensionFolder => {
 		try {
-			const packageJSON = JSON.parse((await util.promisify(fs.readFile)(path.join(APP_ROOT, 'extensions', extensionFolder, 'package.json'))).toString());
+			const packageJSON = JSON.parse((await util.promisify(fs.readFile)(path.join(EXTENSIONS_ROOT, extensionFolder, 'package.json'))).toString());
 			if (packageJSON.main && packageJSON.name !== 'vscode-api-tests') {
 				return; // unsupported
 			}
@@ -125,14 +135,14 @@ async function handleRoot(req, res) {
 	mapExtensionFolderToExtensionPackageJSON.forEach((packageJSON, extensionFolder) => {
 		staticExtensions.push({
 			packageJSON,
-			extensionLocation: { scheme: 'http', authority: `localhost:${PORT}`, path: `/static-extension/${extensionFolder}` }
+			extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${extensionFolder}` }
 		});
 	});
 
 	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
 			staticExtensions,
-			folderUri: { scheme: 'memfs', path: `/` }
+			folderUri: { scheme: 'memfs', path: `/sample-folder` }
 		})))
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');
@@ -221,5 +231,5 @@ async function serveFile(req, res, filePath, responseHeaders = Object.create(nul
 }
 
 if (args.launch !== false) {
-	opn(`http://localhost:${PORT}`);
+	opn(`${SCHEME}://${HOST}:${PORT}`);
 }

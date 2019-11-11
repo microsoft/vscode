@@ -466,10 +466,14 @@ export class OutlinePanel extends ViewletPanel {
 		}
 
 		const textModel = editor.getModel();
-		const loadingMessage = oldModel && new TimeoutTimer(
-			() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(textModel.uri))),
-			100
-		);
+
+		let loadingMessage: IDisposable | undefined;
+		if (!oldModel) {
+			loadingMessage = new TimeoutTimer(
+				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(textModel.uri))),
+				100
+			);
+		}
 
 		const requestDelay = OutlineModel.getRequestDelay(textModel);
 		this._progressBar.infinite().show(requestDelay);

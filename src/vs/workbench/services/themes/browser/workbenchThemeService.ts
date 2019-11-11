@@ -676,7 +676,7 @@ const themeSettingsConfiguration: IConfigurationNode = {
 };
 configurationRegistry.registerConfiguration(themeSettingsConfiguration);
 
-function tokenGroupSettings(description: string) {
+function tokenGroupSettings(description: string): IJSONSchema {
 	return {
 		description,
 		default: '#FF0000',

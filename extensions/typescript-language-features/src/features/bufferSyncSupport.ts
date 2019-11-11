@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { coalesce } from '../utils/arrays';
 import { Delayer } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
@@ -278,9 +279,7 @@ class GetErrRequest {
 	) {
 		const args: Proto.GeterrRequestArgs = {
 			delay: 0,
-			files: Array.from(files.entries)
-				.map(entry => client.normalizedPath(entry.resource))
-				.filter(x => !!x) as string[]
+			files: coalesce(Array.from(files.entries).map(entry => client.normalizedPath(entry.resource)))
 		};
 
 		client.executeAsync('geterr', args, _token.token)
@@ -338,6 +337,9 @@ export default class BufferSyncSupport extends Disposable {
 	private readonly _onDelete = this._register(new vscode.EventEmitter<vscode.Uri>());
 	public readonly onDelete = this._onDelete.event;
 
+	private readonly _onWillChange = this._register(new vscode.EventEmitter<vscode.Uri>());
+	public readonly onWillChange = this._onWillChange.event;
+
 	public listen(): void {
 		if (this.listening) {
 			return;
@@ -392,7 +394,10 @@ export default class BufferSyncSupport extends Disposable {
 		return vscode.Uri.file(filePath);
 	}
 
-	public reOpenDocuments(): void {
+	public reset(): void {
+		this.pendingGetErr?.cancel();
+		this.pendingDiagnostics.clear();
+
 		for (const buffer of this.syncedBuffers.allBuffers) {
 			buffer.open();
 		}
@@ -425,6 +430,7 @@ export default class BufferSyncSupport extends Disposable {
 			return;
 		}
 		this.pendingDiagnostics.delete(resource);
+		this.pendingGetErr?.files.delete(resource);
 		this.syncedBuffers.delete(resource);
 		syncedBuffer.close();
 		this._onDelete.fire(resource);
@@ -456,6 +462,8 @@ export default class BufferSyncSupport extends Disposable {
 		if (!syncedBuffer) {
 			return;
 		}
+
+		this._onWillChange.fire(syncedBuffer.resource);
 
 		syncedBuffer.onContentChanged(e.contentChanges);
 		const didTrigger = this.requestDiagnostic(syncedBuffer);
@@ -518,8 +526,10 @@ export default class BufferSyncSupport extends Disposable {
 		if (this.pendingGetErr) {
 			this.pendingGetErr.cancel();
 
-			for (const file of this.pendingGetErr.files.entries) {
-				orderedFileSet.set(file.resource, undefined);
+			for (const { resource } of this.pendingGetErr.files.entries) {
+				if (this.syncedBuffers.get(resource)) {
+					orderedFileSet.set(resource, undefined);
+				}
 			}
 		}
 

@@ -23,7 +23,7 @@ import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
-import { flatten } from './utils/arrays';
+import { flatten, coalesce } from './utils/arrays';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -182,7 +182,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	private populateService(): void {
 		this.fileConfigurationManager.reset();
-		this.client.bufferSyncSupport.reOpenDocuments();
+		this.client.bufferSyncSupport.reset();
 		this.client.bufferSyncSupport.requestAllDiagnostics();
 
 		// See https://github.com/Microsoft/TypeScript/issues/5530
@@ -245,13 +245,13 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		}
 		const relatedInformation = diagnostic.relatedInformation;
 		if (relatedInformation) {
-			converted.relatedInformation = relatedInformation.map((info: any) => {
-				let span = info.span;
+			converted.relatedInformation = coalesce(relatedInformation.map((info: any) => {
+				const span = info.span;
 				if (!span) {
 					return undefined;
 				}
 				return new vscode.DiagnosticRelatedInformation(typeConverters.Location.fromTextSpan(this.client.toResource(span.file), span), info.message);
-			}).filter((x: any) => !!x) as vscode.DiagnosticRelatedInformation[];
+			}));
 		}
 		if (diagnostic.reportsUnnecessary) {
 			converted.tags = [vscode.DiagnosticTag.Unnecessary];

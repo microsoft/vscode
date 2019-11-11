@@ -452,10 +452,8 @@ export class ExtensionEditor extends BaseEditor {
 	private setSubText(extension: IExtension, reloadAction: ReloadAction, template: IExtensionEditorTemplate): void {
 		hide(template.subtextContainer);
 
-		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
-		const undoIgnoreAction = this.instantiationService.createInstance(UndoIgnoreExtensionRecommendationAction);
-		ignoreAction.extension = extension;
-		undoIgnoreAction.extension = extension;
+		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction, extension);
+		const undoIgnoreAction = this.instantiationService.createInstance(UndoIgnoreExtensionRecommendationAction, extension);
 		ignoreAction.enabled = false;
 		undoIgnoreAction.enabled = false;
 
@@ -848,6 +846,7 @@ export class ExtensionEditor extends BaseEditor {
 				const renders = [
 					this.renderSettings(content, manifest, layout),
 					this.renderCommands(content, manifest, layout),
+					this.renderCodeActions(content, manifest, layout),
 					this.renderLanguages(content, manifest, layout),
 					this.renderColorThemes(content, manifest, layout),
 					this.renderIconThemes(content, manifest, layout),
@@ -1068,6 +1067,37 @@ export class ExtensionEditor extends BaseEditor {
 						$('td', undefined, webviewEditor.viewType),
 						$('td', undefined, webviewEditor.priority),
 						$('td', undefined, arrays.coalesce(webviewEditor.selector.map(x => x.filenamePattern)).join(', '))))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderCodeActions(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const codeActions = manifest.contributes?.codeActions || [];
+		if (!codeActions.length) {
+			return false;
+		}
+
+		const flatActions = arrays.flatten(
+			codeActions.map(contribution =>
+				contribution.actions.map(action => ({ ...action, languages: contribution.languages }))));
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('codeActions', "Code Actions ({0})", flatActions.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('codeActions.title', "Title")),
+					$('th', undefined, localize('codeActions.kind', "Kind")),
+					$('th', undefined, localize('codeActions.description', "Description")),
+					$('th', undefined, localize('codeActions.languages', "Languages"))),
+				...flatActions.map(action =>
+					$('tr', undefined,
+						$('td', undefined, action.title),
+						$('td', undefined, $('code', undefined, action.kind)),
+						$('td', undefined, action.description ?? ''),
+						$('td', undefined, ...action.languages.map(language => $('code', undefined, language)))))
 			)
 		);
 

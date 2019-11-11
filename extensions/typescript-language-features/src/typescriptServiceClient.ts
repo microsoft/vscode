@@ -35,6 +35,11 @@ export interface TsDiagnostics {
 	readonly diagnostics: Proto.Diagnostic[];
 }
 
+interface ToCancelOnResourceChanged {
+	readonly resource: vscode.Uri;
+	cancel(): void;
+}
+
 namespace ServerState {
 	export const enum Type {
 		None,
@@ -42,7 +47,7 @@ namespace ServerState {
 		Errored
 	}
 
-	export const None = new class { readonly type = Type.None; };
+	export const None = { type: Type.None } as const;
 
 	export class Running {
 		readonly type = Type.Running;
@@ -60,6 +65,8 @@ namespace ServerState {
 			public tsserverVersion: string | undefined,
 			public langaugeServiceEnabled: boolean,
 		) { }
+
+		public readonly toCancelOnResourceChange = new Set<ToCancelOnResourceChanged>();
 	}
 
 	export class Errored {
@@ -129,8 +136,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		this.diagnosticsManager = new DiagnosticsManager('typescript');
 		this.bufferSyncSupport.onDelete(resource => {
+			this.cancelInflightRequestsForResource(resource);
 			this.diagnosticsManager.delete(resource);
 		}, null, this._disposables);
+
+		this.bufferSyncSupport.onWillChange(resource => {
+			this.cancelInflightRequestsForResource(resource);
+		});
 
 		vscode.workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this._configuration;
@@ -171,6 +183,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._register(this.pluginManager.onDidChangePlugins(() => {
 			this.restartTsServer();
 		}));
+	}
+
+	private cancelInflightRequestsForResource(resource: vscode.Uri): void {
+		if (this.serverState.type !== ServerState.Type.Running) {
+			return;
+		}
+
+		for (const request of this.serverState.toCancelOnResourceChange) {
+			if (request.resource.toString() === resource.toString()) {
+				request.cancel();
+			}
+		}
 	}
 
 	public get configuration() {
@@ -609,12 +633,37 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
-		const execution = this.executeImpl(command, args, {
-			isAsync: false,
-			token,
-			expectsResult: true,
-			lowPriority: config?.lowPriority
-		});
+		let execution: Promise<ServerResponse.Response<Proto.Response>>;
+
+		if (config?.cancelOnResourceChange) {
+			const runningServerState = this.service();
+
+			const source = new vscode.CancellationTokenSource();
+			token.onCancellationRequested(() => source.cancel());
+
+			const inFlight: ToCancelOnResourceChanged = {
+				resource: config.cancelOnResourceChange,
+				cancel: () => source.cancel(),
+			};
+			runningServerState.toCancelOnResourceChange.add(inFlight);
+
+			execution = this.executeImpl(command, args, {
+				isAsync: false,
+				token: source.token,
+				expectsResult: true,
+				...config,
+			}).finally(() => {
+				runningServerState.toCancelOnResourceChange.delete(inFlight);
+				source.dispose();
+			});
+		} else {
+			execution = this.executeImpl(command, args, {
+				isAsync: false,
+				token,
+				expectsResult: true,
+				...config,
+			});
+		}
 
 		if (config?.nonRecoverable) {
 			execution.catch(() => this.fatalError(command));
@@ -654,10 +703,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private fatalError(command: string): void {
 		/* __GDPR__
 			"fatalError" : {
-				"${include}": [
-					"${TypeScriptCommonProperties}",
-					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				]
+				"${include}": [ "${TypeScriptCommonProperties}" ],
+				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.logTelemetry('fatalError', { command });

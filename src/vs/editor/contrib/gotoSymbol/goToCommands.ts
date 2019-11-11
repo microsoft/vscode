@@ -18,7 +18,7 @@ import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { LocationLink, Location, isLocationLink } from 'vs/editor/common/modes';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
-import { ReferencesController, RequestOptions } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
+import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -33,6 +33,9 @@ import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/symbolNav
 import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editorOptions';
 import { isStandalone } from 'vs/base/browser/browser';
 import { URI } from 'vs/base/common/uri';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { assertType } from 'vs/base/common/types';
 
 export interface SymbolNavigationActionConfig {
 	openToSide: boolean;
@@ -100,11 +103,9 @@ abstract class SymbolNavigationAction extends EditorAction {
 		return promise;
 	}
 
-	protected abstract _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel>;
+	protected abstract _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel | undefined>;
 
 	protected abstract _getNoResultFoundMessage(info: IWordAtPosition | null): string;
-
-	protected abstract _getMetaTitle(model: ReferencesModel): string;
 
 	protected abstract _getAlternativeCommand(): string;
 
@@ -114,13 +115,13 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 		const gotoLocation = this._getGoToPreference(editor);
 		if (this._configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1)) {
-			this._openInPeek(editorService, editor, model);
+			this._openInPeek(editor, model);
 
 		} else {
 			const next = model.firstReference()!;
 			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
 			if (targetEditor && model.references.length > 1 && gotoLocation === 'gotoAndPeek') {
-				this._openInPeek(editorService, targetEditor, model);
+				this._openInPeek(targetEditor, model);
 			} else {
 				model.dispose();
 			}
@@ -153,18 +154,10 @@ abstract class SymbolNavigationAction extends EditorAction {
 		}, editor, sideBySide);
 	}
 
-	private _openInPeek(editorService: ICodeEditorService, target: ICodeEditor, model: ReferencesModel) {
+	private _openInPeek(target: ICodeEditor, model: ReferencesModel) {
 		let controller = ReferencesController.get(target);
 		if (controller && target.hasModel()) {
-			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), {
-				getMetaTitle: (model) => {
-					return this._getMetaTitle(model);
-				},
-				onGoto: (reference) => {
-					controller.closeWidget();
-					return this._openReference(target, editorService, reference, false);
-				}
-			});
+			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this._configuration.openInPeek);
 		} else {
 			model.dispose();
 		}
@@ -176,7 +169,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 export class DefinitionAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getDefinitionsAtPosition(model, position, token));
+		return new ReferencesModel(await getDefinitionsAtPosition(model, position, token), nls.localize('def.title', 'Definitions'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
@@ -185,12 +178,8 @@ export class DefinitionAction extends SymbolNavigationAction {
 			: nls.localize('generic.noResults', "No definition found");
 	}
 
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
-	}
-
 	protected _getAlternativeCommand(): string {
-		return 'editor.action.referenceSearch.trigger';
+		return 'editor.action.goToReferences';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
@@ -280,7 +269,8 @@ registerEditorAction(class PeekDefinitionAction extends DefinitionAction {
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDefinitionProvider,
 				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.F12,
@@ -299,7 +289,7 @@ registerEditorAction(class PeekDefinitionAction extends DefinitionAction {
 class DeclarationAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getDeclarationsAtPosition(model, position, token));
+		return new ReferencesModel(await getDeclarationsAtPosition(model, position, token), nls.localize('decl.title', 'Declarations'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
@@ -308,12 +298,8 @@ class DeclarationAction extends SymbolNavigationAction {
 			: nls.localize('decl.generic.noResults', "No declaration found");
 	}
 
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('decl.meta.title', " – {0} declarations", model.references.length) : '';
-	}
-
 	protected _getAlternativeCommand(): string {
-		return 'editor.action.referenceSearch.trigger';
+		return 'editor.action.goToReferences';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
@@ -356,10 +342,6 @@ registerEditorAction(class GoToDeclarationAction extends DeclarationAction {
 			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
 			: nls.localize('decl.generic.noResults', "No declaration found");
 	}
-
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('decl.meta.title', " – {0} declarations", model.references.length) : '';
-	}
 });
 
 registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
@@ -388,7 +370,7 @@ registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
 class TypeDefinitionAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getTypeDefinitionsAtPosition(model, position, token));
+		return new ReferencesModel(await getTypeDefinitionsAtPosition(model, position, token), nls.localize('typedef.title', 'Type Definitions'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
@@ -397,12 +379,8 @@ class TypeDefinitionAction extends SymbolNavigationAction {
 			: nls.localize('goToTypeDefinition.generic.noResults', "No type definition found");
 	}
 
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('meta.typeDefinitions.title', " – {0} type definitions", model.references.length) : '';
-	}
-
 	protected _getAlternativeCommand(): string {
-		return 'editor.action.referenceSearch.trigger';
+		return 'editor.action.goToReferences';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
@@ -460,12 +438,9 @@ registerEditorAction(class PeekTypeDefinitionAction extends TypeDefinitionAction
 			alias: 'Peek Type Definition',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasTypeDefinitionProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: 0,
-				weight: KeybindingWeight.EditorContrib
-			}
+				PeekContext.notInPeekEditor,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			)
 		});
 	}
 });
@@ -477,17 +452,13 @@ registerEditorAction(class PeekTypeDefinitionAction extends TypeDefinitionAction
 class ImplementationAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getImplementationsAtPosition(model, position, token));
+		return new ReferencesModel(await getImplementationsAtPosition(model, position, token), nls.localize('impl.title', 'Implementations'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
 			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
-	}
-
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('meta.implementations.title', " – {0} implementations", model.references.length) : '';
 	}
 
 	protected _getAlternativeCommand(): string {
@@ -549,6 +520,7 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 			alias: 'Peek Implementations',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasImplementationProvider,
+				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
 			kbOpts: {
@@ -567,19 +539,13 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 class ReferencesAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getReferencesAtPosition(model, position, token));
+		return new ReferencesModel(await getReferencesAtPosition(model, position, token), nls.localize('ref.title', 'References'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info
 			? nls.localize('references.no', "No references found for '{0}'", info.word)
 			: nls.localize('references.noGeneric', "No references found");
-	}
-
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1
-			? nls.localize('meta.titleReference', " – {0} references", model.references.length)
-			: '';
 	}
 
 	protected _getAlternativeCommand(): string {
@@ -648,23 +614,87 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 
 //#endregion
 
-//#region --- REFERENCE search special commands
 
-const defaultReferenceSearchOptions: RequestOptions = {
-	getMetaTitle(model) {
-		return model.references.length > 1 ? nls.localize('meta.titleReference', " – {0} references", model.references.length) : '';
+//#region --- GENERIC goto symbols command
+
+class GenericGoToLocationAction extends SymbolNavigationAction {
+
+	constructor(
+		private readonly _references: Location[],
+		private readonly _gotoMultipleBehaviour: GoToLocationValues | undefined
+	) {
+		super({
+			muteMessage: true,
+			openInPeek: false,
+			openToSide: false
+		}, {
+			id: 'editor.action.goToLocation',
+			label: nls.localize('label.generic', "Go To Any Symbol"),
+			alias: 'Go To Any Symbol',
+			precondition: ContextKeyExpr.and(
+				PeekContext.notInPeekEditor,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()
+			),
+		});
 	}
-};
+
+	protected async _getLocationModel(_model: ITextModel, _position: corePosition.Position, _token: CancellationToken): Promise<ReferencesModel | undefined> {
+		return new ReferencesModel(this._references, nls.localize('generic.title', 'Locations'));
+	}
+
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
+		return info && nls.localize('generic.noResult', "No results for '{0}'", info.word) || '';
+	}
+
+	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
+		return this._gotoMultipleBehaviour ?? editor.getOption(EditorOption.gotoLocation).multipleReferences;
+	}
+
+	protected _getAlternativeCommand() { return ''; }
+}
+
+CommandsRegistry.registerCommand({
+	id: 'editor.action.goToLocations',
+	description: {
+		description: 'Go to locations from a position in a file',
+		args: [
+			{ name: 'uri', description: 'The text document in which to start', constraint: URI },
+			{ name: 'position', description: 'The position at which to start', constraint: corePosition.Position.isIPosition },
+			{ name: 'locations', description: 'An array of locations.', constraint: Array },
+			{ name: 'multiple', description: 'Define what to do when having multiple results, either `peek`, `gotoAndPeek`, or `goto' },
+		]
+	},
+	handler: async (accessor: ServicesAccessor, resource: any, position: any, references: any, multiple?: any) => {
+		assertType(URI.isUri(resource));
+		assertType(corePosition.Position.isIPosition(position));
+		assertType(Array.isArray(references));
+		assertType(typeof multiple === 'undefined' || typeof multiple === 'string');
+
+		const editorService = accessor.get(ICodeEditorService);
+		const editor = await editorService.openCodeEditor({ resource }, editorService.getFocusedCodeEditor());
+
+		if (isCodeEditor(editor)) {
+			editor.setPosition(position);
+			editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
+
+			return editor.invokeWithinContext(accessor => {
+				const command = new GenericGoToLocationAction(references, multiple as GoToLocationValues);
+				accessor.get(IInstantiationService).invokeFunction(command.run.bind(command), editor);
+			});
+		}
+	}
+});
+
+//#endregion
+
+
+//#region --- REFERENCE search special commands
 
 CommandsRegistry.registerCommand({
 	id: 'editor.action.findReferences',
-	handler: (accessor: ServicesAccessor, resource: URI, position: corePosition.IPosition) => {
-		if (!(resource instanceof URI)) {
-			throw new Error('illegal argument, uri');
-		}
-		if (!position) {
-			throw new Error('illegal argument, position');
-		}
+	handler: (accessor: ServicesAccessor, resource: any, position: any) => {
+		assertType(URI.isUri(resource));
+		assertType(corePosition.Position.isIPosition(position));
 
 		const codeEditorService = accessor.get(ICodeEditorService);
 		return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
@@ -677,51 +707,14 @@ CommandsRegistry.registerCommand({
 				return undefined;
 			}
 
-			const references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), corePosition.Position.lift(position), token).then(references => new ReferencesModel(references)));
+			const references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), corePosition.Position.lift(position), token).then(references => new ReferencesModel(references, nls.localize('ref.title', 'References'))));
 			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-			return Promise.resolve(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
+			return Promise.resolve(controller.toggleWidget(range, references, false));
 		});
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'editor.action.showReferences',
-	description: {
-		description: 'Show references at a position in a file',
-		args: [
-			{ name: 'uri', description: 'The text document in which to show references', constraint: URI },
-			{ name: 'position', description: 'The position at which to show', constraint: corePosition.Position.isIPosition },
-			{ name: 'locations', description: 'An array of locations.', constraint: Array },
-		]
-	},
-	handler: (accessor: ServicesAccessor, resource: URI, position: corePosition.IPosition, references: Location[]) => {
-		if (!(resource instanceof URI)) {
-			throw new Error('illegal argument, uri expected');
-		}
-
-		if (!references) {
-			throw new Error('missing references');
-		}
-
-		const codeEditorService = accessor.get(ICodeEditorService);
-
-		return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
-			if (!isCodeEditor(control)) {
-				return undefined;
-			}
-
-			const controller = ReferencesController.get(control);
-			if (!controller) {
-				return undefined;
-			}
-
-			return controller.toggleWidget(
-				new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-				createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
-				defaultReferenceSearchOptions
-			);
-		});
-	},
-});
+// use NEW command
+CommandsRegistry.registerCommandAlias('editor.action.showReferences', 'editor.action.goToLocations');
 
 //#endregion

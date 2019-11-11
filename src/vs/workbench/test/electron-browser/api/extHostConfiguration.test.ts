@@ -35,7 +35,7 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfigProvider(shape, createExtHostWorkspace(), createConfigurationData(contents));
+		return new ExtHostConfigProvider(shape, createExtHostWorkspace(), createConfigurationData(contents), new NullLogService());
 	}
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
@@ -283,7 +283,8 @@ suite('ExtHostConfiguration', function () {
 				workspace: new ConfigurationModel({}, []),
 				folders: [],
 				configurationScopes: []
-			}
+			},
+			new NullLogService()
 		);
 
 		let actual = testObject.getConfiguration().inspect('editor.wordWrap')!;
@@ -331,7 +332,8 @@ suite('ExtHostConfiguration', function () {
 				workspace,
 				folders,
 				configurationScopes: []
-			}
+			},
+			new NullLogService()
 		);
 
 		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap')!;
@@ -407,7 +409,8 @@ suite('ExtHostConfiguration', function () {
 				workspace,
 				folders,
 				configurationScopes: []
-			}
+			},
+			new NullLogService()
 		);
 
 		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap')!;
@@ -607,7 +610,8 @@ suite('ExtHostConfiguration', function () {
 					'config': false,
 					'updatedconfig': false
 				}
-			})
+			}),
+			new NullLogService()
 		);
 
 		const newConfigData = createConfigurationData({

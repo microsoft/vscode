@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery, isSerializedFileMatch, ISerializedSearchProgressItem } from 'vs/workbench/services/search/common/search';
-import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
+import { FileSearchManager } from 'vs/workbench/services/search/common/fileSearchManager';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
@@ -56,6 +56,17 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		this.registerInternalFileSearchProvider('file', new SearchService());
 	}
 
+	private registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
+		const handle = this._handlePool++;
+		this._internalFileSearchProvider = provider;
+		this._internalFileSearchHandle = handle;
+		this._proxy.$registerFileSearchProvider(handle, this._transformScheme(scheme));
+		return toDisposable(() => {
+			this._internalFileSearchProvider = null;
+			this._proxy.$unregisterProvider(handle);
+		});
+	}
+
 	private _transformScheme(scheme: string): string {
 		return this._uriTransformer.transformOutgoingScheme(scheme);
 	}
@@ -88,17 +99,6 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return toDisposable(() => {
 			this._fileSearchUsedSchemes.delete(scheme);
 			this._fileSearchProvider.delete(handle);
-			this._proxy.$unregisterProvider(handle);
-		});
-	}
-
-	registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
-		const handle = this._handlePool++;
-		this._internalFileSearchProvider = provider;
-		this._internalFileSearchHandle = handle;
-		this._proxy.$registerFileSearchProvider(handle, this._transformScheme(scheme));
-		return toDisposable(() => {
-			this._internalFileSearchProvider = null;
 			this._proxy.$unregisterProvider(handle);
 		});
 	}

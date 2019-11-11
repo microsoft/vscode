@@ -9,7 +9,7 @@
   "main": "./out/index.js",
   "private": true,
   "scripts": {
-    "postinstall": "npm run compile",
+    "prepare": "npm run compile",
     "compile": "npm run copy-driver && npm run copy-driver-definition && tsc",
     "watch": "concurrently \"npm run watch-driver\" \"npm run watch-driver-definition\" \"tsc --watch\"",
     "copy-driver": "cpx src/driver.js out/",

@@ -28,7 +28,7 @@ export class PreviewManager {
 	public resolve(
 		resource: vscode.Uri,
 		webviewEditor: vscode.WebviewPanel,
-	) {
+	): vscode.WebviewEditorCapabilities {
 		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
@@ -42,6 +42,17 @@ export class PreviewManager {
 				this.setActivePreview(undefined);
 			}
 		});
+
+		const onEdit = new vscode.EventEmitter<{ now: number }>();
+		return {
+			editingCapability: {
+				onEdit: onEdit.event,
+				save: async () => { },
+				hotExit: async () => { },
+				applyEdits: async () => { },
+				undoEdits: async (edits) => { console.log('undo', edits); },
+			}
+		};
 	}
 
 	public get activePreview() { return this._activePreview; }

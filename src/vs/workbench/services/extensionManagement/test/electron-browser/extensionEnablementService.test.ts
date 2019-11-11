@@ -39,13 +39,15 @@ function storageService(instantiationService: TestInstantiationService): IStorag
 
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {
+		const extensionManagementService = instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService, { onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event, onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService);
+		const extensionManagementServerService = instantiationService.get(IExtensionManagementServerService) || instantiationService.stub(IExtensionManagementServerService, <IExtensionManagementServerService>{ localExtensionManagementServer: { extensionManagementService } });
 		super(
 			storageService(instantiationService),
 			instantiationService.get(IWorkspaceContextService),
 			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, { configuration: Object.create(null) } as IWorkbenchEnvironmentService),
-			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService,
-				{ onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event, onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService),
-			instantiationService.get(IConfigurationService), instantiationService.get(IExtensionManagementServerService),
+			extensionManagementService,
+			instantiationService.get(IConfigurationService),
+			extensionManagementServerService,
 			productService
 		);
 	}
