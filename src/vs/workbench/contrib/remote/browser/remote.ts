@@ -402,7 +402,7 @@ export class RemoteViewlet extends FilterViewContainerViewlet implements IViewMo
 		});
 
 		this._register(this.remoteExplorerService.onDidChangeTargetType(() => {
-			this._onDidChangeFilterValue.fire(this.remoteExplorerService.targetType);
+			this.onDidChangeFilterValue.fire(this.remoteExplorerService.targetType);
 		}));
 	}
 

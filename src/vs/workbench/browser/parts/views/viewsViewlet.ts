@@ -330,8 +330,7 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 	private allViews: Map<string, Map<string, IViewDescriptor>> = new Map();
 	private filterValue: string;
 
-	protected _onDidChangeFilterValue: Emitter<string> = new Emitter();
-	private onDidChangeFilterValue: Event<string> = this._onDidChangeFilterValue.event;
+	protected onDidChangeFilterValue: Emitter<string> = new Emitter();
 
 	constructor(
 		viewletId: string,
@@ -346,7 +345,7 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(viewletId, `${viewletId}.state`, false, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-		this._register(this.onDidChangeFilterValue(newFilterValue => {
+		this._register(this.onDidChangeFilterValue.event(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);
 		}));
