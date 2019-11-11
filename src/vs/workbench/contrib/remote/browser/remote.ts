@@ -384,6 +384,7 @@ export class RemoteViewlet extends FilterViewContainerViewlet implements IViewMo
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
 	) {
 		super(VIEWLET_ID, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		remoteHelpExtPoint.setHandler((extensions) => {
 			let helpInformation: HelpInformation[] = [];
 			for (let extension of extensions) {
