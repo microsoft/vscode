@@ -149,7 +149,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			let done = (!extension.isUnderDevelopment);
 			function informOnce(selector: vscode.DocumentSelector) {
 				if (!done) {
-					console.info(`Extension '${extension.identifier.value}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
+					extHostLogService.info(`Extension '${extension.identifier.value}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
 					done = true;
 				}
 			}
@@ -180,7 +180,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostCommands.registerCommand(true, id, (...args: any[]): any => {
 					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
-						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
+						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
 						return undefined;
 					}
 
@@ -190,10 +190,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 					}).then((result) => {
 						if (!result) {
-							console.warn('Edits from command ' + id + ' were not applied.');
+							extHostLogService.warn('Edits from command ' + id + ' were not applied.');
 						}
 					}, (err) => {
-						console.warn('An error occurred while running command ' + id, err);
+						extHostLogService.warn('An error occurred while running command ' + id, err);
 					});
 				});
 			},
@@ -202,7 +202,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
 					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
-						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
+						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
 						return undefined;
 					}
 
