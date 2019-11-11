@@ -269,16 +269,15 @@ class GetErrRequest {
 		files: ResourceMap<void>,
 		onDone: () => void
 	) {
-		const token = new vscode.CancellationTokenSource();
-		return new GetErrRequest(client, files, token, onDone);
+		return new GetErrRequest(client, files, onDone);
 	}
 
 	private _done: boolean = false;
+	private readonly _token: vscode.CancellationTokenSource = new vscode.CancellationTokenSource();
 
 	private constructor(
 		client: ITypeScriptServiceClient,
 		public readonly files: ResourceMap<void>,
-		private readonly _token: vscode.CancellationTokenSource,
 		onDone: () => void
 	) {
 		const args: Proto.GeterrRequestArgs = {
@@ -286,7 +285,7 @@ class GetErrRequest {
 			files: coalesce(Array.from(files.entries).map(entry => client.normalizedPath(entry.resource)))
 		};
 
-		client.executeAsync('geterr', args, _token.token)
+		client.executeAsync('geterr', args, this._token.token)
 			.finally(() => {
 				if (this._done) {
 					return;
