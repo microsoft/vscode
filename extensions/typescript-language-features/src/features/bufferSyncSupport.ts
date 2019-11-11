@@ -154,7 +154,7 @@ class BufferSynchronizer {
 	}
 
 	private get supportsBatching(): boolean {
-		return this.client.apiVersion.gte(API.v340) && vscode.workspace.getConfiguration('typescript', null).get<boolean>('useBatchedBufferSync', true);
+		return this.client.apiVersion.gte(API.v340);
 	}
 
 	private updatePending(resource: vscode.Uri, f: (pending: ResourceMap<CloseOperation | OpenOperation | ChangeOperation>) => void): void {
