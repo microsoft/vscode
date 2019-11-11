@@ -14,6 +14,11 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+
+export interface IRemoteSelectItem extends ISelectOptionItem {
+	authority: string;
+}
 
 export class SwitchRemoteViewItem extends SelectActionViewItem {
 
@@ -21,16 +26,17 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 
 	constructor(
 		action: IAction,
+		private readonly optionsItems: IRemoteSelectItem[],
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService
+		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
 	) {
-		super(null, action, [{ text: 'wsl' }, { text: 'ssh-remote' }], 0, contextViewService, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
+		super(null, action, optionsItems, 0, contextViewService, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
 		this._register(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
 		}));
 		// TODO: set from saved state
-		remoteExplorerService.targetType = 'wsl';
+		remoteExplorerService.targetType = optionsItems[0].authority;
 	}
 
 	render(container: HTMLElement) {
@@ -39,6 +45,16 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
 			container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
 		}));
+	}
+
+	protected getActionContext(_: string, index: number): any {
+		return this.optionsItems[index];
+	}
+
+	static createOptionItems(): IRemoteSelectItem[] {
+		let options: IRemoteSelectItem[] = [];
+		options = [{ text: 'WSL', authority: 'wsl' }, { text: 'SSH', authority: 'ssh-remote' }, { text: 'Containers', authority: 'dev-container' }];
+		return options;
 	}
 }
 
@@ -54,7 +70,7 @@ export class SwitchRemoteAction extends Action {
 		super(id, label);
 	}
 
-	public async run(item: string): Promise<any> {
-		this.remoteExplorerService.targetType = item;
+	public async run(item: IRemoteSelectItem): Promise<any> {
+		this.remoteExplorerService.targetType = item.authority;
 	}
 }
