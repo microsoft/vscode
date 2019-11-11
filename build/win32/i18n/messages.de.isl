@@ -6,4 +6,4 @@ AddToPath=Zu PATH hinzuf�gen (nach dem Neustart verf�gbar)
 RunAfter=%1 nach der Installation ausf�hren
 Other=Andere:
 SourceFile=%1-Quelldatei
-OpenWithCodeContextMenu=Öfnnen mit %1
+OpenWithCodeContextMenu= Mit %1 �ffnen

@@ -6,4 +6,4 @@ AddToPath=Hozz�ad�s a PATH-hoz (�jraind�t�s ut�n lesz el�rhet�)
 RunAfter=%1 ind�t�sa a telep�t�s ut�n
 Other=Egy�b:
 SourceFile=%1 forr�sf�jl
-OpenWithCodeContextMenu=Nyitva %1
+OpenWithCodeContextMenu=Megnyit�s a k�vetkez�vel: %1
