@@ -506,15 +506,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private async promptForImportantExeBasedExtension(): Promise<boolean> {
 
-		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
-		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
-
-		if (config.ignoreRecommendations
-			|| config.showRecommendationsOnlyOnDemand
-			|| this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
-			return false;
-		}
-
 		let recommendationsToSuggest = Object.keys(this._importantExeBasedRecommendations);
 
 		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
@@ -527,10 +518,20 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				"exeName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 			}
 			*/
-			this.telemetryService.publicLog('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: tip.exeFriendlyName || basename(tip.windowsPath!) });
+			this.telemetryService.publicLog('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
 
 		});
+
 		if (recommendationsToSuggest.length === 0) {
+			return false;
+		}
+
+		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
+		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
+
+		if (config.ignoreRecommendations
+			|| config.showRecommendationsOnlyOnDemand
+			|| this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
 			return false;
 		}
 
