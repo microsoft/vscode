@@ -931,7 +931,7 @@ export class SearchView extends ViewletPanel {
 
 	clearSearchResults(): void {
 		this.viewModel.searchResult.clear();
-		this.showEmptyStage();
+		this.showEmptyStage(true);
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.showSearchWithoutFolderMessage();
 		}
@@ -1509,13 +1509,13 @@ export class SearchView extends ViewletPanel {
 		}));
 	}
 
-	private showEmptyStage(): void {
+	private showEmptyStage(forceHideMessages = false): void {
 		// disable 'result'-actions
 		this.updateActions();
 
 		// clean up ui
 		// this.replaceService.disposeAllReplacePreviews();
-		if (!this.configurationService.getValue<ISearchConfiguration>().search.searchOnType) {
+		if (forceHideMessages || !this.configurationService.getValue<ISearchConfiguration>().search.searchOnType) {
 			// when in search to type, don't preemptively hide, as it causes flickering and shifting of the live results
 			dom.hide(this.messagesElement);
 		}
