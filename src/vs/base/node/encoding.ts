@@ -199,8 +199,6 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, 
 	return null;
 }
 
-const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
-
 /**
  * Guesses the encoding from buffer.
  */
@@ -209,14 +207,6 @@ async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
 
 	const guessed = jschardet.detect(buffer);
 	if (!guessed || !guessed.encoding) {
-		return null;
-	}
-
-	const enc = guessed.encoding.toLowerCase();
-
-	// Ignore encodings that cannot guess correctly
-	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
-	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
 		return null;
 	}
 
