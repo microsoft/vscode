@@ -699,6 +699,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	protected update() {
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
 		super.update();
 		if (!this.visible) {
 			return;
@@ -763,7 +764,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.matchOnLabel = this.matchOnLabel;
 		this.ui.setComboboxAccessibility(true);
 		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
 	}
 }
 
@@ -857,6 +857,7 @@ class InputBox extends QuickInput implements IInputBox {
 	}
 
 	protected update() {
+		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
 		super.update();
 		if (!this.visible) {
 			return;
@@ -882,7 +883,6 @@ class InputBox extends QuickInput implements IInputBox {
 			this.ui.message.textContent = this.validationMessage;
 			this.showMessageDecoration(Severity.Error);
 		}
-		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
 	}
 }
 
