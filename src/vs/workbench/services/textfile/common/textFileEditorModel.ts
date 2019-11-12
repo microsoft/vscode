@@ -32,6 +32,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export interface IBackupMetaData {
 	mtime: number;
+	ctime: number;
 	size: number;
 	etag: string;
 	orphaned: boolean;
@@ -224,6 +225,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (isEqual(target, this.resource) && this.lastResolvedFileStat) {
 				meta = {
 					mtime: this.lastResolvedFileStat.mtime,
+					ctime: this.lastResolvedFileStat.ctime,
 					size: this.lastResolvedFileStat.size,
 					etag: this.lastResolvedFileStat.etag,
 					orphaned: this.inOrphanMode
@@ -313,6 +315,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			resource: this.resource,
 			name: basename(this.resource),
 			mtime: resolvedBackup.meta ? resolvedBackup.meta.mtime : Date.now(),
+			ctime: resolvedBackup.meta ? resolvedBackup.meta.ctime : Date.now(),
 			size: resolvedBackup.meta ? resolvedBackup.meta.size : 0,
 			etag: resolvedBackup.meta ? resolvedBackup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: resolvedBackup.value,
@@ -397,6 +400,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			resource: this.resource,
 			name: content.name,
 			mtime: content.mtime,
+			ctime: content.ctime,
 			size: content.size,
 			etag: content.etag,
 			isDirectory: false,

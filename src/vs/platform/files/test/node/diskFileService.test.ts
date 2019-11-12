@@ -213,23 +213,32 @@ suite('Disk File Service', function () {
 		assert.equal(exists, false);
 	});
 
-	test('resolve', async () => {
-		const resolved = await service.resolve(URI.file(testDir), { resolveTo: [URI.file(join(testDir, 'deep'))] });
-		assert.equal(resolved.children!.length, 8);
+	test('resolve - file', async () => {
+		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver/index.html'));
+		const resolved = await service.resolve(resource);
 
-		const deep = (getByName(resolved, 'deep')!);
-		assert.equal(deep.children!.length, 4);
+		assert.equal(resolved.name, 'index.html');
+		assert.equal(resolved.resource.toString(), resource.toString());
+		assert.equal(resolved.children, undefined);
+		assert.ok(resolved.mtime! > 0);
+		assert.ok(resolved.ctime! > 0);
+		assert.ok(resolved.size! > 0);
 	});
 
 	test('resolve - directory', async () => {
 		const testsElements = ['examples', 'other', 'index.html', 'site.css'];
 
-		const result = await service.resolve(URI.file(getPathFromAmdModule(require, './fixtures/resolver')));
+		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver'));
+		const result = await service.resolve(resource);
 
 		assert.ok(result);
+		assert.equal(result.resource.toString(), resource.toString());
+		assert.equal(result.name, 'resolver');
 		assert.ok(result.children);
 		assert.ok(result.children!.length > 0);
 		assert.ok(result!.isDirectory);
+		assert.ok(result.mtime! > 0);
+		assert.ok(result.ctime! > 0);
 		assert.equal(result.children!.length, testsElements.length);
 
 		assert.ok(result.children!.every(entry => {
@@ -242,12 +251,18 @@ suite('Disk File Service', function () {
 			assert.ok(basename(value.resource.fsPath));
 			if (['examples', 'other'].indexOf(basename(value.resource.fsPath)) >= 0) {
 				assert.ok(value.isDirectory);
+				assert.equal(value.mtime, undefined);
+				assert.equal(value.ctime, undefined);
 			} else if (basename(value.resource.fsPath) === 'index.html') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
+				assert.equal(value.mtime, undefined);
+				assert.equal(value.ctime, undefined);
 			} else if (basename(value.resource.fsPath) === 'site.css') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
+				assert.equal(value.mtime, undefined);
+				assert.equal(value.ctime, undefined);
 			} else {
 				assert.ok(!'Unexpected value ' + basename(value.resource.fsPath));
 			}
@@ -260,9 +275,12 @@ suite('Disk File Service', function () {
 		const result = await service.resolve(URI.file(getPathFromAmdModule(require, './fixtures/resolver')), { resolveMetadata: true });
 
 		assert.ok(result);
+		assert.equal(result.name, 'resolver');
 		assert.ok(result.children);
 		assert.ok(result.children!.length > 0);
 		assert.ok(result!.isDirectory);
+		assert.ok(result.mtime! > 0);
+		assert.ok(result.ctime! > 0);
 		assert.equal(result.children!.length, testsElements.length);
 
 		assert.ok(result.children!.every(entry => {
@@ -277,16 +295,30 @@ suite('Disk File Service', function () {
 			assert.ok(basename(value.resource.fsPath));
 			if (['examples', 'other'].indexOf(basename(value.resource.fsPath)) >= 0) {
 				assert.ok(value.isDirectory);
+				assert.ok(value.mtime! > 0);
+				assert.ok(value.ctime! > 0);
 			} else if (basename(value.resource.fsPath) === 'index.html') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
+				assert.ok(value.mtime! > 0);
+				assert.ok(value.ctime! > 0);
 			} else if (basename(value.resource.fsPath) === 'site.css') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
+				assert.ok(value.mtime! > 0);
+				assert.ok(value.ctime! > 0);
 			} else {
 				assert.ok(!'Unexpected value ' + basename(value.resource.fsPath));
 			}
 		});
+	});
+
+	test('resolve - directory with resolveTo', async () => {
+		const resolved = await service.resolve(URI.file(testDir), { resolveTo: [URI.file(join(testDir, 'deep'))] });
+		assert.equal(resolved.children!.length, 8);
+
+		const deep = (getByName(resolved, 'deep')!);
+		assert.equal(deep.children!.length, 4);
 	});
 
 	test('resolve - directory - resolveTo single directory', async () => {

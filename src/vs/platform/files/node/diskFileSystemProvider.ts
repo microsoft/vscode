@@ -80,7 +80,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 			return {
 				type: this.toType(stat, isSymbolicLink),
-				ctime: stat.ctime.getTime(),
+				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size
 			};
