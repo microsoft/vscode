@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 .extensions-viewlet {
+	position: absolute;
 	height: 100%;
+	width: 100%;
 }
 
 .extensions-viewlet > .header {
