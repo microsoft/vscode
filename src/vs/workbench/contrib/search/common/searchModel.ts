@@ -639,7 +639,7 @@ export class SearchResult extends Disposable {
 	private _query: ITextQuery | null = null;
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
-	private disposePastResults: () => void | undefined;
+	private disposePastResults: () => void = () => { };
 
 	constructor(
 		private _searchModel: SearchModel,
@@ -663,7 +663,6 @@ export class SearchResult extends Disposable {
 		const oldFolderMatches = this.folderMatches();
 		new Promise(resolve => this.disposePastResults = resolve)
 			.then(() => oldFolderMatches.forEach(match => match.dispose()));
-		this._register({ dispose: () => this.disposePastResults && this.disposePastResults() });
 
 		this._rangeHighlightDecorations.removeHighlightRange();
 		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatchWithResource>();
@@ -724,7 +723,7 @@ export class SearchResult extends Disposable {
 		});
 
 		this._otherFilesMatch!.add(other, silent);
-		if (this.disposePastResults) { this.disposePastResults(); }
+		this.disposePastResults();
 	}
 
 	clear(): void {
@@ -893,6 +892,7 @@ export class SearchResult extends Disposable {
 	}
 
 	dispose(): void {
+		this.disposePastResults();
 		this.disposeMatches();
 		this._rangeHighlightDecorations.dispose();
 		super.dispose();
