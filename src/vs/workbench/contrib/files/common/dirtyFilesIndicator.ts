@@ -42,11 +42,11 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 	}
 
 	private onWorkingCopyDidChangeDirty(copy: IWorkingCopy): void {
-		if (!!(copy.capabilities & WorkingCopyCapabilities.AutoSave) && this.autoSaveConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return; // do not indicate changes to working copies that are auto saved after short delay
+		const gotDirty = copy.isDirty();
+		if (gotDirty && !!(copy.capabilities & WorkingCopyCapabilities.AutoSave) && this.autoSaveConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return; // do not indicate dirty of working copies that are auto saved after short delay
 		}
 
-		const gotDirty = copy.isDirty();
 		if (gotDirty || this.hasDirtyCount) {
 			this.updateActivityBadge();
 		}
