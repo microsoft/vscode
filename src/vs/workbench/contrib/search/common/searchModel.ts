@@ -639,6 +639,7 @@ export class SearchResult extends Disposable {
 	private _query: ITextQuery | null = null;
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
+	private clearOldTrigger: () => void | undefined;
 
 	constructor(
 		private _searchModel: SearchModel,
@@ -658,8 +659,16 @@ export class SearchResult extends Disposable {
 	}
 
 	set query(query: ITextQuery | null) {
-		// When updating the query we could change the roots, so ensure we clean up the old roots first.
-		this.clear();
+		// When updating the query we could change the roots, so keep a reference to them to clean up
+		// when we trigger `clearOldTrigger`, when `add` is called.
+		const oldFolderMatches = this.folderMatches();
+		new Promise(resolve => this.clearOldTrigger = resolve)
+			.then(() => oldFolderMatches.forEach(match => match.dispose()));
+		this._register({ dispose: () => this.clearOldTrigger && this.clearOldTrigger() });
+
+		this._rangeHighlightDecorations.removeHighlightRange();
+		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatchWithResource>();
+
 		if (!query) {
 			return;
 		}
@@ -716,6 +725,7 @@ export class SearchResult extends Disposable {
 		});
 
 		this._otherFilesMatch!.add(other, silent);
+		if (this.clearOldTrigger) { this.clearOldTrigger(); }
 	}
 
 	clear(): void {
@@ -954,7 +964,10 @@ export class SearchModel extends Disposable {
 		this.cancelSearch();
 
 		this._searchQuery = query;
-		this.searchResult.clear();
+		if (!this.searchConfig.searchOnType) {
+			this.searchResult.clear();
+		}
+
 		this._searchResult.query = this._searchQuery;
 
 		const progressEmitter = new Emitter<void>();
@@ -1032,7 +1045,7 @@ export class SearchModel extends Disposable {
 			duration,
 			type: stats && stats.type,
 			scheme,
-			searchOnTypeEnabled: this.configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType
+			searchOnTypeEnabled: this.searchConfig.searchOnType
 		});
 		return completed;
 	}
@@ -1047,6 +1060,10 @@ export class SearchModel extends Disposable {
 		if ((<IFileMatch>p).resource) {
 			this._searchResult.add([<IFileMatch>p], true);
 		}
+	}
+
+	private get searchConfig() {
+		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 
 	cancelSearch(): boolean {

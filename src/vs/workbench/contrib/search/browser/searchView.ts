@@ -1169,6 +1169,7 @@ export class SearchView extends ViewletPanel {
 
 		if (contentPattern.length === 0) {
 			this.clearSearchResults();
+			this.clearMessage();
 			return;
 		}
 
@@ -1466,7 +1467,7 @@ export class SearchView extends ViewletPanel {
 
 			dom.append(messageEl, $('p', undefined, resultMsg));
 			this.reLayout();
-		} else if (!msgWasHidden) {
+		} else if (msgWasHidden) {
 			dom.hide(this.messagesElement);
 		}
 	}
@@ -1514,7 +1515,11 @@ export class SearchView extends ViewletPanel {
 
 		// clean up ui
 		// this.replaceService.disposeAllReplacePreviews();
-		dom.hide(this.messagesElement);
+		if (!this.configurationService.getValue<ISearchConfiguration>().search.searchOnType) {
+			// when in search to type, don't preemptively hide, as it causes flickering and shifting of the live results
+			dom.hide(this.messagesElement);
+		}
+
 		dom.show(this.resultsElement);
 		this.currentSelectedFileMatch = undefined;
 	}
