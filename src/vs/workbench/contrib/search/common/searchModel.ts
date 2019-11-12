@@ -662,6 +662,7 @@ export class SearchResult extends Disposable {
 		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
 		const oldFolderMatches = this.folderMatches();
 		new Promise(resolve => this.disposePastResults = resolve)
+			.then(() => oldFolderMatches.forEach(match => match.clear()))
 			.then(() => oldFolderMatches.forEach(match => match.dispose()));
 
 		this._rangeHighlightDecorations.removeHighlightRange();
@@ -907,6 +908,8 @@ export class SearchModel extends Disposable {
 	private _replaceString: string | null = null;
 	private _replacePattern: ReplacePattern | null = null;
 	private _preserveCase: boolean = false;
+	private _startStreamDelay: Promise<void> = Promise.resolve();
+	private _resultQueue: IFileMatch[] = [];
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -972,6 +975,9 @@ export class SearchModel extends Disposable {
 		const progressEmitter = new Emitter<void>();
 		this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
 
+		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
+		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 100 : 0));
+
 		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
 		const currentRequest = this.searchService.textSearch(this._searchQuery, this.currentCancelTokenSource.token, p => {
 			progressEmitter.fire();
@@ -1015,6 +1021,9 @@ export class SearchModel extends Disposable {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
 
+		this._searchResult.add(this._resultQueue);
+		this._resultQueue = [];
+
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 
@@ -1055,9 +1064,14 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private onSearchProgress(p: ISearchProgressItem): void {
+	private async onSearchProgress(p: ISearchProgressItem) {
 		if ((<IFileMatch>p).resource) {
-			this._searchResult.add([<IFileMatch>p], true);
+			this._resultQueue.push(<IFileMatch>p);
+			await this._startStreamDelay;
+			if (this._resultQueue.length) {
+				this._searchResult.add(this._resultQueue, true);
+				this._resultQueue = [];
+			}
 		}
 	}
 
