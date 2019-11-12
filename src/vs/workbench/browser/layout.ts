@@ -747,6 +747,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (config.silentNotifications) {
 				this.notificationService.setFilter(NotificationsFilter.ERROR);
 			}
+			this.state.zenMode.transitionDisposables.add(this.configurationService.onDidChangeConfiguration(c => {
+				const silentNotificationsKey = 'zenMode.silentNotifications';
+				if (c.affectsConfiguration(silentNotificationsKey)) {
+					const filter = this.configurationService.getValue(silentNotificationsKey) ? NotificationsFilter.ERROR : NotificationsFilter.OFF;
+					this.notificationService.setFilter(filter);
+				}
+			}));
 
 			if (config.centerLayout) {
 				this.centerEditorLayout(true, true);

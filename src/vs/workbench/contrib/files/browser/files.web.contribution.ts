@@ -10,9 +10,6 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
-import { DirtyFilesTracker } from 'vs/workbench/contrib/files/common/dirtyFilesTracker';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // Register file editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -25,6 +22,3 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		new SyncDescriptor<EditorInput>(FileEditorInput)
 	]
 );
-
-// Register Dirty Files Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);

@@ -304,7 +304,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			return; // already disposed
 		}
 
-		if (this.mapResourceToPendingModelLoaders.has(model.getResource())) {
+		if (this.mapResourceToPendingModelLoaders.has(model.resource)) {
 			return; // not yet loaded
 		}
 

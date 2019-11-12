@@ -82,6 +82,8 @@ import 'vs/workbench/services/extensions/common/staticExtensions';
 import 'vs/workbench/services/userDataSync/common/settingsMergeService';
 import 'vs/workbench/services/path/common/remotePathService';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
+import 'vs/workbench/services/workingCopy/common/workingCopyService';
+import 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';

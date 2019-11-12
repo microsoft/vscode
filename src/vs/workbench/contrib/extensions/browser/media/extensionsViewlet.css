@@ -25,7 +25,7 @@
 }
 
 .extensions-viewlet > .extensions {
-	height: calc(100% - 38px);
+	height: calc(100% - 41px);
 }
 
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar {

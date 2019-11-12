@@ -84,6 +84,7 @@ interface QuickInputUI {
 	onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	keyMods: Writeable<IKeyMods>;
+	keyDownSeenSinceShown: boolean;
 	isScreenReaderOptimized(): boolean;
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
@@ -216,6 +217,7 @@ class QuickInput extends Disposable implements IQuickInput {
 				}
 			}),
 		);
+		this.ui.keyDownSeenSinceShown = false;
 		this.ui.show(this);
 		this.visible = true;
 		this.update();
@@ -554,6 +556,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				}
 			}));
 			this.visibleDisposables.add(this.ui.inputBox.onKeyDown(event => {
+				this.ui.keyDownSeenSinceShown = true;
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
 						this.ui.list.focus('Next');
@@ -652,7 +655,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	private registerQuickNavigation() {
 		return dom.addDisposableListener(this.ui.container, dom.EventType.KEY_UP, e => {
-			if (this.canSelectMany || !this.quickNavigate) {
+			if (this.canSelectMany || !this.quickNavigate || !this.ui.keyDownSeenSinceShown) {
 				return;
 			}
 
@@ -699,10 +702,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	protected update() {
-		super.update();
 		if (!this.visible) {
 			return;
 		}
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
+		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
 		}
@@ -763,7 +767,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.matchOnLabel = this.matchOnLabel;
 		this.ui.setComboboxAccessibility(true);
 		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
 	}
 }
 
@@ -857,10 +860,11 @@ class InputBox extends QuickInput implements IInputBox {
 	}
 
 	protected update() {
-		super.update();
 		if (!this.visible) {
 			return;
 		}
+		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
+		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
 		}
@@ -882,7 +886,6 @@ class InputBox extends QuickInput implements IInputBox {
 			this.ui.message.textContent = this.validationMessage;
 			this.showMessageDecoration(Severity.Error);
 		}
-		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
 	}
 }
 
@@ -1111,6 +1114,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			inputBox.setFocus();
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			this.getUI().keyDownSeenSinceShown = true;
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Enter:
@@ -1172,6 +1176,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
 			keyMods: this.keyMods,
+			keyDownSeenSinceShown: false,
 			isScreenReaderOptimized: () => this.isScreenReaderOptimized(),
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
