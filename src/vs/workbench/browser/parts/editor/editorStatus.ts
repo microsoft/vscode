@@ -52,9 +52,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
 import { find } from 'vs/base/common/arrays';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -834,61 +831,22 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-const CONTEXT_CURRENT_MARKER = new RawContextKey<boolean>('hasActiveProblem', false);
-
 class ShowCurrentMarkerInStatusbarContribution extends Disposable {
-
-	private static readonly INITIAL_STATE_KEY = 'statusbar.currentProblem.initialState';
-	private static readonly STATUSBAR_ENTRY_ID = 'statusbar.currentProblem';
 
 	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 	private editor: ICodeEditor | undefined = undefined;
 	private markers: IMarker[] = [];
 	private currentMarker: IMarker | null = null;
-	private showByDefault: boolean = false;
-
-	private currentMarkerContextKey: IContextKey<boolean>;
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IMarkerService private readonly markerService: IMarkerService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-		this.currentMarkerContextKey = CONTEXT_CURRENT_MARKER.bindTo(contextKeyService);
-
-		this.registerListeners();
-		this.registerCommand();
-	}
-
-	private registerListeners(): void {
-		this._register(this.markerService.onMarkerChanged(changedResources => this.onMarkerChanged(changedResources)));
-
-		this.showByDefault = this.storageService.getBoolean(ShowCurrentMarkerInStatusbarContribution.INITIAL_STATE_KEY, StorageScope.GLOBAL, false);
-		this._register(Event.filter(this.statusbarService.onDidChangeEntryVisibility, e => e.id === ShowCurrentMarkerInStatusbarContribution.STATUSBAR_ENTRY_ID && e.visible)(() => {
-			this.showByDefault = true;
-			this.storageService.store(ShowCurrentMarkerInStatusbarContribution.INITIAL_STATE_KEY, true, StorageScope.GLOBAL);
-		}));
-		this._register(Event.filter(this.storageService.onDidChangeStorage, e => e.key === ShowCurrentMarkerInStatusbarContribution.INITIAL_STATE_KEY && e.scope === StorageScope.GLOBAL)(() => {
-			this.showByDefault = this.storageService.getBoolean(ShowCurrentMarkerInStatusbarContribution.INITIAL_STATE_KEY, StorageScope.GLOBAL, false);
-		}));
-	}
-
-	private registerCommand(): void {
-		CommandsRegistry.registerCommand('statusbar.showCurrentProblem', () => {
-			this.showByDefault = true;
-			this.updateStatus();
-			this.statusbarService.updateEntryVisibility(ShowCurrentMarkerInStatusbarContribution.STATUSBAR_ENTRY_ID, true);
-		});
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: {
-				id: 'statusbar.showCurrentProblem',
-				title: nls.localize('show current problem in status', "Show Current Problem in Status Bar")
-			},
-			when: CONTEXT_CURRENT_MARKER
-		});
+		this._register(markerService.onMarkerChanged(changedResources => this.onMarkerChanged(changedResources)));
+		this._register(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('problems.showCurrentInStatus'))(() => this.updateStatus()));
 	}
 
 	update(editor: ICodeEditor | undefined): void {
@@ -899,27 +857,18 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 	private updateStatus(): void {
 		const previousMarker = this.currentMarker;
 		this.currentMarker = this.getMarker();
-		this.currentMarkerContextKey.set(!!this.currentMarker);
 		if (this.hasToUpdateStatus(previousMarker, this.currentMarker)) {
 			if (this.currentMarker) {
 				const line = this.currentMarker.message.split(/\r\n|\r|\n/g)[0];
 				const text = `${this.getType(this.currentMarker)} ${line}`;
 				if (!this.statusBarEntryAccessor.value) {
-					this.statusBarEntryAccessor.value = this.createStatusbarEntry();
+					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ text: '' }, 'statusbar.currentProblem', nls.localize('currentProblem', "Current Problem"), StatusbarAlignment.LEFT);
 				}
 				this.statusBarEntryAccessor.value.update({ text });
 			} else {
 				this.statusBarEntryAccessor.clear();
 			}
 		}
-	}
-
-	private createStatusbarEntry(): IStatusbarEntryAccessor {
-		const entry = this.statusbarService.addEntry({ text: '' }, ShowCurrentMarkerInStatusbarContribution.STATUSBAR_ENTRY_ID, nls.localize('currentProblem', "Current Problem"), StatusbarAlignment.LEFT);
-		if (!this.showByDefault) {
-			this.statusbarService.updateEntryVisibility(ShowCurrentMarkerInStatusbarContribution.STATUSBAR_ENTRY_ID, false);
-		}
-		return entry;
 	}
 
 	private hasToUpdateStatus(previousMarker: IMarker | null, currentMarker: IMarker | null): boolean {
@@ -942,6 +891,9 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 	}
 
 	private getMarker(): IMarker | null {
+		if (!this.configurationService.getValue<boolean>('problems.showCurrentInStatus')) {
+			return null;
+		}
 		if (!this.editor) {
 			return null;
 		}
