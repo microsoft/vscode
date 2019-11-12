@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as ts from 'typescript';
+import * as es from 'event-stream';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as tss from './treeshaking';
+import * as gulp from 'gulp';
+import * as webpack from 'webpack';
+const webpackGulp = require('webpack-stream');
 
 const REPO_ROOT = path.join(__dirname, '../../');
 const SRC_DIR = path.join(REPO_ROOT, 'src');
@@ -356,4 +360,31 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 	function _startsWith(haystack: string, needle: string): boolean {
 		return haystack.length >= needle.length && haystack.substr(0, needle.length) === needle;
 	}
+}
+
+export function bundleESM() {
+	const result = es.through();
+
+	const webpackConfigPath = path.join(__dirname, '../../build/monaco/monaco.webpack.config.js');
+
+	const webpackConfig = {
+		...require(webpackConfigPath),
+		...{ mode: 'production' }
+	};
+
+	const webpackDone = (err: any, stats: any) => {
+		if (err) {
+			result.emit('error', err);
+		}
+		const { compilation } = stats;
+		if (compilation.errors.length > 0) {
+			result.emit('error', compilation.errors.join('\n'));
+		}
+		if (compilation.warnings.length > 0) {
+			result.emit('data', compilation.warnings.join('\n'));
+		}
+	};
+
+	return webpackGulp(webpackConfig, webpack, webpackDone)
+		.pipe(gulp.dest('out-editor-esm-bundle'));
 }

@@ -310,6 +310,28 @@ gulp.task('editor-distro',
 	)
 );
 
+const bundleEditorESMTask = task.define('editor-esm-bundle-webpack', () => {
+	return standalone.bundleESM();
+});
+
+gulp.task('editor-esm-bundle',
+	task.series(
+		task.parallel(
+			util.rimraf('out-editor-src'),
+			util.rimraf('out-editor-build'),
+			util.rimraf('out-editor-esm'),
+			util.rimraf('out-monaco-editor-core'),
+			util.rimraf('out-editor'),
+			util.rimraf('out-editor-min')
+		),
+		extractEditorSrcTask,
+		createESMSourcesAndResourcesTask,
+		compileEditorESMTask,
+		bundleEditorESMTask,
+		finalEditorResourcesTask
+	)
+);
+
 //#region monaco type checking
 
 function createTscCompileTask(watch) {
