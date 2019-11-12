@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/outlineTree';
-import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
@@ -17,8 +15,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { values } from 'vs/base/common/collections';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { KeyMod } from 'vs/editor/common/standalone/standaloneBase';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 class Navigator {
 
@@ -124,7 +121,7 @@ export class OutlineNavigation implements IEditorContribution {
 	async goto(up: boolean) {
 
 		if (this._cts) {
-			this._cts.cancel();
+			this._cts.dispose(true);
 		}
 
 		if (!this._editor.hasModel()) {
@@ -172,8 +169,7 @@ registerEditorAction(class extends EditorAction {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.DownArrow,
-					secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.DownArrow],
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.DownArrow,
 				},
 			}
 		});
@@ -197,8 +193,7 @@ registerEditorAction(class extends EditorAction {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.UpArrow,
-					secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.UpArrow],
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.UpArrow,
 				},
 			}
 		});
