@@ -199,10 +199,6 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, 
 	return null;
 }
 
-
-const MINIMUM_THRESHOLD = 0.2;
-
-
 /**
  * Guesses the encoding from buffer.
  */
@@ -213,8 +209,6 @@ async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
-
-	const enc = guessed.encoding.toLowerCase();
 
 	return toIconvLiteEncoding(guessed.encoding);
 }
