@@ -834,7 +834,7 @@ export class MemFS implements vscode.FileSystemProvider, vscode.FileSearchProvid
 							ranges: new vscode.Range(new vscode.Position(i, index), new vscode.Position(i, index + query.pattern.length)),
 							preview: {
 								text: line,
-								matches: new vscode.Range(new vscode.Position(i, index), new vscode.Position(i, index + query.pattern.length))
+								matches: new vscode.Range(new vscode.Position(0, index), new vscode.Position(0, index + query.pattern.length))
 							}
 						});
 					}
