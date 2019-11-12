@@ -247,6 +247,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}
 	}
 
+	public onHide(): void {
+		this.inputWidget.onHide();
+	}
+
 	public layout(dimension: Dimension): void {
 		this.inputWidget.layout(dimension);
 		this.placeholderText.style.width = `${dimension.width}px`;

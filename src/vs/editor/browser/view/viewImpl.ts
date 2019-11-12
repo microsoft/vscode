@@ -528,6 +528,10 @@ export class View extends ViewEventHandler {
 		return this._textAreaHandler.isFocused();
 	}
 
+	public refreshFocusState() {
+		this._textAreaHandler.refreshFocusState();
+	}
+
 	public addContentWidget(widgetData: IContentWidgetData): void {
 		this.contentWidgets.addWidget(widgetData.widget);
 		this.layoutContentWidget(widgetData);

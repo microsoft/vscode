@@ -37,7 +37,7 @@ import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/com
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -425,16 +425,21 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 	}
 
 	private filterMarker(marker: Marker, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		if (this.options.filterErrors && MarkerSeverity.Error === marker.marker.severity) {
-			return true;
+		let shouldAppear: boolean = false;
+		if (this.options.showErrors && MarkerSeverity.Error === marker.marker.severity) {
+			shouldAppear = true;
 		}
 
-		if (this.options.filterWarnings && MarkerSeverity.Warning === marker.marker.severity) {
-			return true;
+		if (this.options.showWarnings && MarkerSeverity.Warning === marker.marker.severity) {
+			shouldAppear = true;
 		}
 
-		if (this.options.filterInfos && MarkerSeverity.Info === marker.marker.severity) {
-			return true;
+		if (this.options.showInfos && MarkerSeverity.Info === marker.marker.severity) {
+			shouldAppear = true;
+		}
+
+		if (!shouldAppear) {
+			return false;
 		}
 
 		if (!this.options.textFilter) {

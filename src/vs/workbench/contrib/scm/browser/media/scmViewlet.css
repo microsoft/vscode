@@ -51,6 +51,7 @@
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label .codicon {
 	font-size: 14px;
+	vertical-align: sub;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item:last-of-type {

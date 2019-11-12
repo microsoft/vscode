@@ -1119,16 +1119,6 @@ export class IssueReporter extends Disposable {
 		if (element) {
 			return element;
 		} else {
-			const error = new Error(`${elementId} not found.`);
-			this.logService.error(error);
-			type IssueReporterGetElementErrorClassification = {
-				message: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-			};
-			type IssueReporterGetElementErrorEvent = {
-				message: string;
-			};
-			this.telemetryService.publicLog2<IssueReporterGetElementErrorEvent, IssueReporterGetElementErrorClassification>('issueReporterGetElementError', { message: error.message });
-
 			return undefined;
 		}
 	}

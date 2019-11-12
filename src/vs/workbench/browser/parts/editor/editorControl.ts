@@ -208,6 +208,7 @@ export class EditorControl extends Disposable {
 		if (controlInstanceContainer) {
 			this.parent.removeChild(controlInstanceContainer);
 			hide(controlInstanceContainer);
+			this._activeControl.onHide();
 		}
 
 		// Indicate to editor control

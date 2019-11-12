@@ -16,6 +16,7 @@ import * as strings from 'vs/base/common/strings';
 import { ITextAreaWrapper, ITypeData, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export interface ICompositionData {
 	data: string;
@@ -162,7 +163,7 @@ export class TextAreaInput extends Disposable {
 	private _isDoingComposition: boolean;
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(host: ITextAreaInputHost, textArea: FastDomNode<HTMLTextAreaElement>) {
+	constructor(host: ITextAreaInputHost, private textArea: FastDomNode<HTMLTextAreaElement>) {
 		super();
 		this._host = host;
 		this._textArea = this._register(new TextAreaWrapper(textArea));
@@ -482,6 +483,14 @@ export class TextAreaInput extends Disposable {
 		return this._hasFocus;
 	}
 
+	public refreshFocusState(): void {
+		if (document.body.contains(this.textArea.domNode) && document.activeElement === this.textArea.domNode) {
+			this._setHasFocus(true);
+		} else {
+			this._setHasFocus(false);
+		}
+	}
+
 	private _setHasFocus(newHasFocus: boolean): void {
 		if (this._hasFocus === newHasFocus) {
 			// no change
@@ -533,7 +542,7 @@ export class TextAreaInput extends Disposable {
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const dataToCopy = this._host.getDataToCopy(ClipboardEventUtils.canUseTextData(e) && browser.hasClipboardSupport());
+		const dataToCopy = this._host.getDataToCopy(ClipboardEventUtils.canUseTextData(e) && BrowserFeatures.clipboard.richText);
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,

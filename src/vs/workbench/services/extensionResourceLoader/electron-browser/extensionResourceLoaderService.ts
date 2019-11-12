@@ -8,7 +8,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
-class ExtensionResourceLoaderService implements IExtensionResourceLoaderService {
+export class ExtensionResourceLoaderService implements IExtensionResourceLoaderService {
 
 	_serviceBrand: undefined;
 

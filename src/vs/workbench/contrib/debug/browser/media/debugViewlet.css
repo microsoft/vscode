@@ -140,9 +140,7 @@
 	text-transform: uppercase;
 }
 
-.debug-viewlet .debug-call-stack .thread:hover > .state,
-.debug-viewlet .debug-call-stack .session:hover > .state,
-.debug-viewlet .debug-call-stack .monaco-list-row.focused .state {
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .state {
 	display: none;
 }
 
@@ -159,6 +157,7 @@
 	width: 16px;
 	height: 100%;
 	margin-right: 8px;
+	vertical-align: text-top;
 }
 
 .debug-viewlet .debug-call-stack .thread > .state > .label,
@@ -240,7 +239,7 @@
 	overflow: hidden;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .codicon {
 	color: inherit !important;
 }
 

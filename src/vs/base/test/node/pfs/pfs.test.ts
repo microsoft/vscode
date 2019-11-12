@@ -49,7 +49,13 @@ function toReadable(value: string, throwError?: boolean): Readable {
 	});
 }
 
-suite('PFS', () => {
+suite('PFS', function () {
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/84066
+	// we see random test failures when accessing the native file system. To
+	// diagnose further, we retry node.js file access tests up to 3 times to
+	// rule out any random disk issue.
+	this.retries(3);
 
 	test('writeFile', async () => {
 		const id = uuid.generateUuid();

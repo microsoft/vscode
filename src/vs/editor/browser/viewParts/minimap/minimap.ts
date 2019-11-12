@@ -503,6 +503,7 @@ export class Minimap extends ViewPart {
 		this._slider.setPosition('absolute');
 		this._slider.setClassName('minimap-slider');
 		this._slider.setLayerHinting(true);
+		this._slider.setContain('strict');
 		this._domNode.appendChild(this._slider);
 
 		this._sliderHorizontal = createFastDomNode(document.createElement('div'));

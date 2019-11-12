@@ -7,14 +7,15 @@ import { flatten } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CodeActionCommand, RefactorAction, SourceAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { values } from 'vs/base/common/map';
+import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import * as nls from 'vs/nls';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationNode, IConfigurationRegistry, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { CodeActionExtensionPointFields, CodeActionsExtensionPoint } from 'vs/workbench/contrib/codeActions/common/extensionPoint';
+import { CodeActionsExtensionPoint, ContributedCodeAction } from 'vs/workbench/contrib/codeActions/common/extensionPoint';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 
@@ -25,14 +26,15 @@ const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 	}
 });
 
-const codeActionsOnSaveSchema: IJSONSchema = {
+const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	type: 'object',
 	properties: codeActionsOnSaveDefaultProperties,
 	'additionalProperties': {
 		type: 'boolean'
 	},
 	default: {},
-	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
+	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save."),
+	scope: ConfigurationScope.RESOURCE
 };
 
 export const editorConfiguration = Object.freeze<IConfigurationNode>({
@@ -42,7 +44,8 @@ export const editorConfiguration = Object.freeze<IConfigurationNode>({
 		'editor.codeActionsOnSaveTimeout': {
 			type: 'number',
 			default: 750,
-			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled.")
+			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled."),
+			scope: ConfigurationScope.RESOURCE
 		},
 	}
 });
@@ -85,22 +88,24 @@ export class CodeActionWorkbenchContribution extends Disposable implements IWork
 	}
 
 	private getSourceActions(contributions: readonly CodeActionsExtensionPoint[]) {
+		const defaultKinds = Object.keys(codeActionsOnSaveDefaultProperties).map(value => new CodeActionKind(value));
 		const sourceActions = new Map<string, { readonly title: string }>();
 		for (const contribution of contributions) {
-			const kind = new CodeActionKind(contribution[CodeActionExtensionPointFields.kind]);
-			const defaultKinds = Object.keys(codeActionsOnSaveDefaultProperties).map(value => new CodeActionKind(value));
-			if (CodeActionKind.Source.contains(kind)
-				// Exclude any we already included by default
-				&& !defaultKinds.some(defaultKind => defaultKind.contains(kind))
-			) {
-				sourceActions.set(kind.value, contribution);
+			for (const action of contribution.actions) {
+				const kind = new CodeActionKind(action.kind);
+				if (CodeActionKind.Source.contains(kind)
+					// Exclude any we already included by default
+					&& !defaultKinds.some(defaultKind => defaultKind.contains(kind))
+				) {
+					sourceActions.set(kind.value, action);
+				}
 			}
 		}
 		return sourceActions;
 	}
 
 	private getSchemaAdditions(): IJSONSchema[] {
-		const conditionalSchema = (command: string, values: string[]): IJSONSchema => {
+		const conditionalSchema = (command: string, actions: readonly ContributedCodeAction[]): IJSONSchema => {
 			return {
 				if: {
 					properties: {
@@ -115,7 +120,10 @@ export class CodeActionWorkbenchContribution extends Disposable implements IWork
 							properties: {
 								'kind': {
 									anyOf: [
-										{ enum: values },
+										{
+											enum: actions.map(action => action.kind),
+											enumDescriptions: actions.map(action => action.description ?? action.title),
+										},
 										{ type: 'string' },
 									]
 								}
@@ -126,16 +134,22 @@ export class CodeActionWorkbenchContribution extends Disposable implements IWork
 			};
 		};
 
-		const getActions = (ofKind: CodeActionKind): string[] => {
-			return this._contributedCodeActions
-				.map(desc => desc[CodeActionExtensionPointFields.kind])
-				.filter(kind => ofKind.contains(new CodeActionKind(kind)));
+		const getActions = (ofKind: CodeActionKind): ContributedCodeAction[] => {
+			const allActions = flatten(this._contributedCodeActions.map(desc => desc.actions.slice()));
+
+			const out = new Map<string, ContributedCodeAction>();
+			for (const action of allActions) {
+				if (!out.has(action.kind) && ofKind.contains(new CodeActionKind(action.kind))) {
+					out.set(action.kind, action);
+				}
+			}
+			return values(out);
 		};
 
 		return [
-			conditionalSchema(CodeActionCommand.Id, getActions(CodeActionKind.Empty)),
-			conditionalSchema(RefactorAction.Id, getActions(CodeActionKind.Refactor)),
-			conditionalSchema(SourceAction.Id, getActions(CodeActionKind.Source)),
+			conditionalSchema(codeActionCommandId, getActions(CodeActionKind.Empty)),
+			conditionalSchema(refactorCommandId, getActions(CodeActionKind.Refactor)),
+			conditionalSchema(sourceActionCommandId, getActions(CodeActionKind.Source)),
 		];
 	}
 }

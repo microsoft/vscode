@@ -117,6 +117,11 @@ export class MarkersModel {
 		this.resourcesByUri = new Map<string, ResourceMarkers>();
 	}
 
+	private _total: number = 0;
+	get total(): number {
+		return this._total;
+	}
+
 	getResourceMarkers(resource: URI): ResourceMarkers | null {
 		return withUndefinedAsNull(this.resourcesByUri.get(resource.toString()));
 	}
@@ -129,6 +134,7 @@ export class MarkersModel {
 				if (resourceMarkers) {
 					this.resourcesByUri.delete(resource.toString());
 					change.removed.push(resourceMarkers);
+					this._total -= resourceMarkers.markers.length;
 				}
 			} else {
 				const resourceMarkersId = this.id(resource.toString());
@@ -149,12 +155,14 @@ export class MarkersModel {
 				}), compareMarkers);
 
 				if (resourceMarkers) {
+					this._total -= resourceMarkers.markers.length;
 					resourceMarkers.markers = markers;
 					change.updated.push(resourceMarkers);
 				} else {
 					resourceMarkers = new ResourceMarkers(resourceMarkersId, resource, markers);
 					change.added.push(resourceMarkers);
 				}
+				this._total += resourceMarkers.markers.length;
 				this.resourcesByUri.set(resource.toString(), resourceMarkers);
 			}
 		}

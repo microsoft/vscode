@@ -16,10 +16,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { FilterViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
@@ -47,7 +46,10 @@ import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
+import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
+import { isStringArray } from 'vs/base/common/types';
+import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 
 interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -364,10 +366,9 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	}
 }
 
-
-export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
+export class RemoteViewlet extends FilterViewContainerViewlet implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
-
+	private actions: IAction[] | undefined;
 	helpInformations: HelpInformation[] = [];
 
 	constructor(
@@ -380,10 +381,10 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-
+		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		remoteHelpExtPoint.setHandler((extensions) => {
 			let helpInformation: HelpInformation[] = [];
 			for (let extension of extensions) {
@@ -399,6 +400,30 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 				viewsRegistry.deregisterViews([this.helpPanelDescriptor], VIEW_CONTAINER);
 			}
 		});
+	}
+
+	protected getFilterOn(viewDescriptor: IViewDescriptor): string | undefined {
+		return isStringArray(viewDescriptor.remoteAuthority) ? viewDescriptor.remoteAuthority[0] : viewDescriptor.remoteAuthority;
+	}
+
+	public getActionViewItem(action: Action): IActionViewItem | undefined {
+		if (action.id === SwitchRemoteAction.ID) {
+			return this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(VIEW_CONTAINER)));
+		}
+
+		return super.getActionViewItem(action);
+	}
+
+	public getActions(): IAction[] {
+		if (!this.actions) {
+			this.actions = [
+				this.instantiationService.createInstance(SwitchRemoteAction, SwitchRemoteAction.ID, SwitchRemoteAction.LABEL),
+			];
+			this.actions.forEach(a => {
+				this._register(a);
+			});
+		}
+		return this.actions;
 	}
 
 	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
@@ -417,38 +442,6 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 			feedback: extension.value.feedback,
 			issues: extension.value.issues
 		});
-	}
-
-	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
-		// too late, already added to the view model
-		const result = super.onDidAddViews(added);
-
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		if (remoteAuthority) {
-			const actualRemoteAuthority = remoteAuthority.split('+')[0];
-			added.forEach((descriptor) => {
-				const panel = this.getView(descriptor.viewDescriptor.id);
-				if (!panel) {
-					return;
-				}
-
-				const descriptorAuthority = descriptor.viewDescriptor.remoteAuthority;
-				if (typeof descriptorAuthority === 'undefined') {
-					panel.setExpanded(true);
-				} else if (descriptor.viewDescriptor.id === HelpPanel.ID) {
-					// Do nothing, keep the default behavior for Help
-				} else {
-					const descriptorAuthorityArr = Array.isArray(descriptorAuthority) ? descriptorAuthority : [descriptorAuthority];
-					if (descriptorAuthorityArr.indexOf(actualRemoteAuthority) >= 0) {
-						panel.setExpanded(true);
-					} else {
-						panel.setExpanded(false);
-					}
-				}
-			});
-		}
-
-		return result;
 	}
 
 	getTitle(): string {

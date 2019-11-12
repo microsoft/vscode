@@ -21,7 +21,7 @@ suite('references', function () {
 		}, {
 			uri: URI.file('/src/can'),
 			range: new Range(1, 1, 1, 1)
-		}]);
+		}], 'FOO');
 
 		let ref = model.nearestReference(URI.file('/src/can'), new Position(1, 1));
 		assert.equal(ref!.uri.path, '/src/can');

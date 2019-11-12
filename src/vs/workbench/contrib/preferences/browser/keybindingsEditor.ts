@@ -65,22 +65,22 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private _onLayout: Emitter<void> = this._register(new Emitter<void>());
 	readonly onLayout: Event<void> = this._onLayout.event;
 
-	private keybindingsEditorModel: KeybindingsEditorModel;
+	private keybindingsEditorModel: KeybindingsEditorModel | null = null;
 
-	private headerContainer: HTMLElement;
-	private actionsContainer: HTMLElement;
-	private searchWidget: KeybindingsSearchWidget;
+	private headerContainer!: HTMLElement;
+	private actionsContainer!: HTMLElement;
+	private searchWidget!: KeybindingsSearchWidget;
 
-	private overlayContainer: HTMLElement;
-	private defineKeybindingWidget: DefineKeybindingWidget;
+	private overlayContainer!: HTMLElement;
+	private defineKeybindingWidget!: DefineKeybindingWidget;
 
 	private columnItems: ColumnItem[] = [];
-	private keybindingsListContainer: HTMLElement;
-	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry | null;
-	private listEntries: IListEntry[];
-	private keybindingsList: WorkbenchList<IListEntry>;
+	private keybindingsListContainer!: HTMLElement;
+	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry | null = null;
+	private listEntries: IListEntry[] = [];
+	private keybindingsList!: WorkbenchList<IListEntry>;
 
-	private dimension: DOM.Dimension;
+	private dimension: DOM.Dimension | null = null;
 	private delayedFiltering: Delayer<void>;
 	private latestEmptyFilters: string[] = [];
 	private delayedFilterLogging: Delayer<void>;
@@ -88,11 +88,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private keybindingFocusContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
-	private actionBar: ActionBar;
-	private sortByPrecedenceAction: Action;
-	private recordKeysAction: Action;
+	private readonly sortByPrecedenceAction: Action;
+	private readonly recordKeysAction: Action;
 
-	private ariaLabelElement: HTMLElement;
+	private ariaLabelElement!: HTMLElement;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -115,6 +114,16 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.keybindingFocusContextKey = CONTEXT_KEYBINDING_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
+
+		const recordKeysActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS);
+		const recordKeysActionLabel = localize('recordKeysLabel', "Record Keys");
+		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, 'codicon-record-keys');
+		this.recordKeysAction.checked = false;
+
+		const sortByPrecedenceActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE);
+		const sortByPrecedenceActionLabel = localize('sortByPrecedeneLabel', "Sort by Precedence");
+		this.sortByPrecedenceAction = new Action('keybindings.editor.sortByPrecedence', sortByPrecedenceActionKeybinding ? localize('sortByPrecedeneLabelWithKeybinding', "{0} ({1})", sortByPrecedenceActionLabel, sortByPrecedenceActionKeybinding.getLabel()) : sortByPrecedenceActionLabel, 'codicon-sort-precedence');
+		this.sortByPrecedenceAction.checked = false;
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -298,7 +307,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.position = 'absolute';
 		this.overlayContainer.style.zIndex = '10';
 		this.defineKeybindingWidget = this._register(this.instantiationService.createInstance(DefineKeybindingWidget, this.overlayContainer));
-		this._register(this.defineKeybindingWidget.onDidChange(keybindingStr => this.defineKeybindingWidget.printExisting(this.keybindingsEditorModel.fetch(`"${keybindingStr}"`).length)));
+		this._register(this.defineKeybindingWidget.onDidChange(keybindingStr => this.defineKeybindingWidget.printExisting(this.keybindingsEditorModel!.fetch(`"${keybindingStr}"`).length)));
 		this._register(this.defineKeybindingWidget.onShowExistingKeybidings(keybindingStr => this.searchWidget.setValue(`"${keybindingStr}"`)));
 		this.hideOverlayContainer();
 	}
@@ -337,10 +346,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.actionsContainer = DOM.append(searchContainer, DOM.$('.keybindings-search-actions-container'));
 		const recordingBadge = this.createRecordingBadge(this.actionsContainer);
 
-		const sortByPrecedenceActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE);
-		const sortByPrecedenceActionLabel = localize('sortByPrecedeneLabel', "Sort by Precedence");
-		this.sortByPrecedenceAction = new Action('keybindings.editor.sortByPrecedence', sortByPrecedenceActionKeybinding ? localize('sortByPrecedeneLabelWithKeybinding', "{0} ({1})", sortByPrecedenceActionLabel, sortByPrecedenceActionKeybinding.getLabel()) : sortByPrecedenceActionLabel, 'codicon-sort-precedence');
-		this.sortByPrecedenceAction.checked = false;
 		this._register(this.sortByPrecedenceAction.onDidChange(e => {
 			if (e.checked !== undefined) {
 				this.renderKeybindingsEntries(false);
@@ -348,10 +353,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			this.updateSearchOptions();
 		}));
 
-		const recordKeysActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS);
-		const recordKeysActionLabel = localize('recordKeysLabel', "Record Keys");
-		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, 'codicon-record-keys');
-		this.recordKeysAction.checked = false;
 		this._register(this.recordKeysAction.onDidChange(e => {
 			if (e.checked !== undefined) {
 				DOM.toggleClass(recordingBadge, 'disabled', !e.checked);
@@ -370,7 +371,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			}
 		}));
 
-		this.actionBar = this._register(new ActionBar(this.actionsContainer, {
+		const actionBar = this._register(new ActionBar(this.actionsContainer, {
 			animated: false,
 			actionViewItemProvider: (action: Action) => {
 				if (action.id === this.sortByPrecedenceAction.id) {
@@ -383,7 +384,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			}
 		}));
 
-		this.actionBar.push([this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction], { label: false, icon: true });
+		actionBar.push([this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction], { label: false, icon: true });
 	}
 
 	private updateSearchOptions(): void {
@@ -563,6 +564,9 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private layoutKeybindingsList(): void {
+		if (!this.dimension) {
+			return;
+		}
 		let width = this.dimension.width - 27;
 		for (const columnItem of this.columnItems) {
 			if (columnItem.width && !columnItem.proportion) {
@@ -855,7 +859,7 @@ abstract class Column extends Disposable {
 
 class ActionsColumn extends Column {
 
-	private actionBar: ActionBar;
+	private readonly actionBar: ActionBar;
 	readonly element: HTMLElement;
 
 	constructor(
@@ -864,13 +868,8 @@ class ActionsColumn extends Column {
 		@IKeybindingService private keybindingsService: IKeybindingService
 	) {
 		super(keybindingsEditor);
-		this.element = this.create(parent);
-	}
-
-	create(parent: HTMLElement): HTMLElement {
-		const actionsContainer = DOM.append(parent, $('.column.actions', { id: 'actions_' + ++Column.COUNTER }));
-		this.actionBar = new ActionBar(actionsContainer, { animated: false });
-		return actionsContainer;
+		this.element = DOM.append(parent, $('.column.actions', { id: 'actions_' + ++Column.COUNTER }));
+		this.actionBar = new ActionBar(this.element, { animated: false });
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
@@ -914,7 +913,7 @@ class ActionsColumn extends Column {
 
 class CommandColumn extends Column {
 
-	private commandColumn: HTMLElement;
+	private readonly commandColumn: HTMLElement;
 	readonly element: HTMLElement;
 
 	constructor(
@@ -922,12 +921,7 @@ class CommandColumn extends Column {
 		keybindingsEditor: IKeybindingsEditor,
 	) {
 		super(keybindingsEditor);
-		this.element = this.create(parent);
-	}
-
-	private create(parent: HTMLElement): HTMLElement {
-		this.commandColumn = DOM.append(parent, $('.column.command', { id: 'command_' + ++Column.COUNTER }));
-		return this.commandColumn;
+		this.element = this.commandColumn = DOM.append(parent, $('.column.command', { id: 'command_' + ++Column.COUNTER }));
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
@@ -962,7 +956,7 @@ class CommandColumn extends Column {
 
 class KeybindingColumn extends Column {
 
-	private keybindingLabel: HTMLElement;
+	private readonly keybindingLabel: HTMLElement;
 	readonly element: HTMLElement;
 
 	constructor(
@@ -970,13 +964,9 @@ class KeybindingColumn extends Column {
 		keybindingsEditor: IKeybindingsEditor,
 	) {
 		super(keybindingsEditor);
-		this.element = this.create(parent);
-	}
 
-	private create(parent: HTMLElement): HTMLElement {
-		const column = DOM.append(parent, $('.column.keybinding', { id: 'keybinding_' + ++Column.COUNTER }));
-		this.keybindingLabel = DOM.append(column, $('div.keybinding-label'));
-		return column;
+		this.element = DOM.append(parent, $('.column.keybinding', { id: 'keybinding_' + ++Column.COUNTER }));
+		this.keybindingLabel = DOM.append(this.element, $('div.keybinding-label'));
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
@@ -994,7 +984,7 @@ class KeybindingColumn extends Column {
 
 class SourceColumn extends Column {
 
-	private sourceColumn: HTMLElement;
+	private readonly sourceColumn: HTMLElement;
 	readonly element: HTMLElement;
 
 	constructor(
@@ -1002,12 +992,7 @@ class SourceColumn extends Column {
 		keybindingsEditor: IKeybindingsEditor,
 	) {
 		super(keybindingsEditor);
-		this.element = this.create(parent);
-	}
-
-	create(parent: HTMLElement): HTMLElement {
-		this.sourceColumn = DOM.append(parent, $('.column.source', { id: 'source_' + ++Column.COUNTER }));
-		return this.sourceColumn;
+		this.element = this.sourceColumn = DOM.append(parent, $('.column.source', { id: 'source_' + ++Column.COUNTER }));
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
@@ -1024,8 +1009,8 @@ class SourceColumn extends Column {
 class WhenColumn extends Column {
 
 	readonly element: HTMLElement;
-	private whenLabel: HTMLElement;
-	private whenInput: InputBox;
+	private readonly whenLabel: HTMLElement;
+	private readonly whenInput: InputBox;
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	private _onDidAccept: Emitter<void> = this._register(new Emitter<void>());
@@ -1041,14 +1026,11 @@ class WhenColumn extends Column {
 		@IThemeService private readonly themeService: IThemeService
 	) {
 		super(keybindingsEditor);
-		this.element = this.create(parent);
-	}
 
-	private create(parent: HTMLElement): HTMLElement {
-		const column = DOM.append(parent, $('.column.when', { id: 'when_' + ++Column.COUNTER }));
+		this.element = DOM.append(parent, $('.column.when', { id: 'when_' + ++Column.COUNTER }));
 
-		this.whenLabel = DOM.append(column, $('div.when-label'));
-		this.whenInput = new InputBox(column, this.contextViewService, {
+		this.whenLabel = DOM.append(this.element, $('div.when-label'));
+		this.whenInput = new InputBox(this.element, this.contextViewService, {
 			validationOptions: {
 				validation: (value) => {
 					try {
@@ -1068,8 +1050,6 @@ class WhenColumn extends Column {
 		this._register(attachInputBoxStyler(this.whenInput, this.themeService));
 		this._register(DOM.addStandardDisposableListener(this.whenInput.inputElement, DOM.EventType.KEY_DOWN, e => this.onInputKeyDown(e)));
 		this._register(DOM.addDisposableListener(this.whenInput.inputElement, DOM.EventType.BLUR, () => this.cancelEditing()));
-
-		return column;
 	}
 
 	private onInputKeyDown(e: IKeyboardEvent): void {

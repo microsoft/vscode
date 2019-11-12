@@ -19,6 +19,7 @@ import product from 'vs/platform/product/common/product';
 import { serializableToMap } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 
+// TODO@ben remove properties that are node/electron only
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
 	constructor(
@@ -300,7 +301,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						break;
 					case 'inspect-brk-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
-						extensionHostDebugEnvironment.params.break = false;
+						extensionHostDebugEnvironment.params.break = true;
 						break;
 				}
 			}

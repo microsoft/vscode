@@ -142,7 +142,7 @@ export class LinkDetector {
 	private decorateLink(link: HTMLElement, onclick: () => void) {
 		link.classList.add('link');
 		link.title = platform.isMacintosh ? nls.localize('fileLinkMac', "Cmd + click to follow link") : nls.localize('fileLink', "Ctrl + click to follow link");
-		link.onmousemove = (event) => link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey);
+		link.onmousemove = (event) => { link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey); };
 		link.onmouseleave = () => link.classList.remove('pointer');
 		link.onclick = (event) => {
 			const selection = window.getSelection();

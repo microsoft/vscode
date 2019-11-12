@@ -38,6 +38,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { RemoteConnectionState, Deprecated_RemoteAuthorityContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
 const CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
@@ -365,7 +366,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveI
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);
 
-const extensionKindSchema = {
+const extensionKindSchema: IJSONSchema = {
 	type: 'string',
 	enum: [
 		'ui',

@@ -207,8 +207,17 @@ export enum FileType {
 
 export interface IStat {
 	type: FileType;
+
+	/**
+	 * The last modification date represented as millis from unix epoch.
+	 */
 	mtime: number;
+
+	/**
+	 * The creation date represented as millis from unix epoch.
+	 */
 	ctime: number;
+
 	size: number;
 }
 
@@ -583,13 +592,20 @@ interface IBaseStat {
 	size?: number;
 
 	/**
-	 * The last modification date represented
-	 * as millis from unix epoch.
+	 * The last modification date represented as millis from unix epoch.
 	 *
 	 * The value may or may not be resolved as
 	 * it is optional.
 	 */
 	mtime?: number;
+
+	/**
+	 * The creation date represented as millis from unix epoch.
+	 *
+	 * The value may or may not be resolved as
+	 * it is optional.
+	 */
+	ctime?: number;
 
 	/**
 	 * A unique identifier thet represents the
@@ -608,6 +624,7 @@ interface IBaseStat {
 
 export interface IBaseStatWithMetadata extends IBaseStat {
 	mtime: number;
+	ctime: number;
 	etag: string;
 	size: number;
 }
@@ -618,14 +635,19 @@ export interface IBaseStatWithMetadata extends IBaseStat {
 export interface IFileStat extends IBaseStat {
 
 	/**
-	 * The resource is a directory
+	 * The resource is a file.
+	 */
+	isFile: boolean;
+
+	/**
+	 * The resource is a directory.
 	 */
 	isDirectory: boolean;
 
 	/**
 	 * The resource is a symbolic link.
 	 */
-	isSymbolicLink?: boolean;
+	isSymbolicLink: boolean;
 
 	/**
 	 * The children of the file stat or undefined if none.
@@ -635,6 +657,7 @@ export interface IFileStat extends IBaseStat {
 
 export interface IFileStatWithMetadata extends IFileStat, IBaseStatWithMetadata {
 	mtime: number;
+	ctime: number;
 	etag: string;
 	size: number;
 	children?: IFileStatWithMetadata[];
@@ -703,7 +726,7 @@ export interface IResolveFileOptions {
 	readonly resolveSingleChildDescendants?: boolean;
 
 	/**
-	 * Will resolve mtime, size and etag of files if enabled. This can have a negative impact
+	 * Will resolve mtime, ctime, size and etag of files if enabled. This can have a negative impact
 	 * on performance and thus should only be used when these values are required.
 	 */
 	readonly resolveMetadata?: boolean;

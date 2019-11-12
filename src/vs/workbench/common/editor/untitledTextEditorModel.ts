@@ -16,8 +16,9 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export class UntitledTextEditorModel extends BaseTextEditorModel implements IEncodingSupport {
+export class UntitledTextEditorModel extends BaseTextEditorModel implements IEncodingSupport, IWorkingCopy {
 
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 
@@ -30,31 +31,31 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 	private readonly _onDidChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeEncoding: Event<void> = this._onDidChangeEncoding.event;
 
-	private dirty: boolean = false;
-	private versionId: number = 0;
-	private readonly contentChangeEventScheduler: RunOnceScheduler;
+	readonly capabilities = 0;
+
+	private dirty = false;
+	private versionId = 0;
+	private readonly contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledTextEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
 	private configuredEncoding?: string;
 
 	constructor(
 		private readonly preferredMode: string | undefined,
-		private readonly resource: URI,
-		private _hasAssociatedFilePath: boolean,
+		public readonly resource: URI,
+		public readonly hasAssociatedFilePath: boolean,
 		private readonly initialValue: string | undefined,
 		private preferredEncoding: string | undefined,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super(modelService, modeService);
 
-		this.contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledTextEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
+		// Make known to working copy service
+		this._register(this.workingCopyService.registerWorkingCopy(this));
 
 		this.registerListeners();
-	}
-
-	get hasAssociatedFilePath(): boolean {
-		return this._hasAssociatedFilePath;
 	}
 
 	private registerListeners(): void {
@@ -114,10 +115,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 		this._onDidChangeDirty.fire();
 	}
 
-	getResource(): URI {
-		return this.resource;
-	}
-
 	revert(): void {
 		this.setDirty(false);
 
@@ -147,7 +144,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 		}
 
 		// untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this._hasAssociatedFilePath || !!backup || !!this.initialValue);
+		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
 
 		let untitledContents: ITextBufferFactory;
 		if (backup) {
@@ -190,7 +187,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 
 		// mark the untitled text editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this._hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+		if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
 			this.setDirty(false);
 		}
 
