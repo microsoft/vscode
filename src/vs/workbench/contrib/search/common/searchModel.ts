@@ -639,7 +639,7 @@ export class SearchResult extends Disposable {
 	private _query: ITextQuery | null = null;
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
-	private clearOldTrigger: () => void | undefined;
+	private disposePastResults: () => void | undefined;
 
 	constructor(
 		private _searchModel: SearchModel,
@@ -662,9 +662,9 @@ export class SearchResult extends Disposable {
 		// When updating the query we could change the roots, so keep a reference to them to clean up
 		// when we trigger `clearOldTrigger`, when `add` is called.
 		const oldFolderMatches = this.folderMatches();
-		new Promise(resolve => this.clearOldTrigger = resolve)
+		new Promise(resolve => this.disposePastResults = resolve)
 			.then(() => oldFolderMatches.forEach(match => match.dispose()));
-		this._register({ dispose: () => this.clearOldTrigger && this.clearOldTrigger() });
+		this._register({ dispose: () => this.disposePastResults && this.disposePastResults() });
 
 		this._rangeHighlightDecorations.removeHighlightRange();
 		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatchWithResource>();
@@ -725,7 +725,7 @@ export class SearchResult extends Disposable {
 		});
 
 		this._otherFilesMatch!.add(other, silent);
-		if (this.clearOldTrigger) { this.clearOldTrigger(); }
+		if (this.disposePastResults) { this.disposePastResults(); }
 	}
 
 	clear(): void {
