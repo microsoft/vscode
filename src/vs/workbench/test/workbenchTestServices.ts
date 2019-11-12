@@ -93,6 +93,7 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { find } from 'vs/base/common/arrays';
 import { WorkingCopyService, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IAutoSaveConfigurationService, AutoSaveConfigurationService } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -207,13 +208,13 @@ export class TestTextFileService extends NativeTextFileService {
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IHistoryService historyService: IHistoryService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IElectronService electronService: IElectronService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IAutoSaveConfigurationService autoSaveConfigurationService: IAutoSaveConfigurationService
 	) {
 		super(
 			contextService,
@@ -228,13 +229,13 @@ export class TestTextFileService extends NativeTextFileService {
 			notificationService,
 			backupFileService,
 			historyService,
-			contextKeyService,
 			dialogService,
 			fileDialogService,
 			editorService,
 			textResourceConfigurationService,
 			electronService,
-			productService
+			productService,
+			autoSaveConfigurationService
 		);
 	}
 
@@ -297,11 +298,13 @@ export class TestTextFileService extends NativeTextFileService {
 export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
+	const contextKeyService = <IContextKeyService>instantiationService.createInstance(MockContextKeyService);
+	instantiationService.stub(IContextKeyService, contextKeyService);
 	const workspaceContextService = new TestContextService(TestWorkspace);
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 	const configService = new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configService);
+	instantiationService.stub(IAutoSaveConfigurationService, new AutoSaveConfigurationService(contextKeyService, configService));
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledTextEditorService, instantiationService.createInstance(UntitledTextEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
@@ -1467,6 +1470,4 @@ export class TestDialogMainService implements IDialogMainService {
 	}
 }
 
-export class TestWorkingCopyService extends WorkingCopyService {
-
-}
+export class TestWorkingCopyService extends WorkingCopyService { }

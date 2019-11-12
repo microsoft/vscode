@@ -16,7 +16,7 @@ import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel
 import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, QuickOpenItemAccessorClass } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -51,6 +51,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IAutoSaveConfigurationService, AutoSaveMode } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
 
 const HELP_PREFIX = '?';
 
@@ -735,7 +736,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
 	) {
 		super(editorService);
 
@@ -753,7 +755,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			this.description = labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
-			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			if (this.dirty && this.autoSaveConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 				this.dirty = false; // no dirty decoration if auto save is on with a short timeout
 			}
 		}

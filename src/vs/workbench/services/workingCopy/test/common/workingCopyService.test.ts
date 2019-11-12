@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { WorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { TestWorkingCopyService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('WorkingCopyService', () => {
 
@@ -48,7 +49,7 @@ suite('WorkingCopyService', () => {
 	}
 
 	test('registry - basics', () => {
-		const service = new WorkingCopyService();
+		const service = new TestWorkingCopyService();
 
 		const onDidChangeDirty: IWorkingCopy[] = [];
 		service.onDidChangeDirty(copy => onDidChangeDirty.push(copy));
@@ -104,7 +105,7 @@ suite('WorkingCopyService', () => {
 	});
 
 	test('registry - multiple copies on same resource', () => {
-		const service = new WorkingCopyService();
+		const service = new TestWorkingCopyService();
 
 		const onDidChangeDirty: IWorkingCopy[] = [];
 		service.onDidChangeDirty(copy => onDidChangeDirty.push(copy));

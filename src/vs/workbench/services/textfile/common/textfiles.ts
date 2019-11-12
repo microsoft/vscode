@@ -11,7 +11,6 @@ import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteF
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isNative } from 'vs/base/common/platform';
@@ -22,8 +21,6 @@ export const ITextFileService = createDecorator<ITextFileService>('textFileServi
 export interface ITextFileService extends IDisposable {
 
 	_serviceBrand: undefined;
-
-	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 
 	readonly onFilesAssociationChange: Event<void>;
 
@@ -144,16 +141,6 @@ export interface ITextFileService extends IDisposable {
 	 * confirming for all dirty resources.
 	 */
 	confirmSave(resources?: URI[]): Promise<ConfirmResult>;
-
-	/**
-	 * Convenient fast access to the current auto save mode.
-	 */
-	getAutoSaveMode(): AutoSaveMode;
-
-	/**
-	 * Convenient fast access to the raw configured auto save settings.
-	 */
-	getAutoSaveConfiguration(): IAutoSaveConfiguration;
 }
 
 
@@ -341,8 +328,6 @@ export class TextFileModelChangeEvent {
 	}
 }
 
-export const AutoSaveContext = new RawContextKey<string>('config.files.autoSave', undefined);
-
 export interface ITextFileOperationResult {
 	results: IResult[];
 }
@@ -351,20 +336,6 @@ export interface IResult {
 	source: URI;
 	target?: URI;
 	success?: boolean;
-}
-
-export interface IAutoSaveConfiguration {
-	autoSaveDelay?: number;
-	autoSaveFocusChange: boolean;
-	autoSaveApplicationChange: boolean;
-}
-
-export const enum AutoSaveMode {
-	OFF,
-	AFTER_SHORT_DELAY,
-	AFTER_LONG_DELAY,
-	ON_FOCUS_CHANGE,
-	ON_WINDOW_CHANGE
 }
 
 export const enum SaveReason {

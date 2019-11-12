@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -30,6 +30,7 @@ import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/c
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IAutoSaveConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
 
 export interface IBackupMetaData {
 	mtime: number;
@@ -121,11 +122,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
 	) {
 		super(modelService, modeService);
 
-		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
+		this.updateAutoSaveConfiguration(autoSaveConfigurationService.getAutoSaveConfiguration());
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -135,7 +137,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private registerListeners(): void {
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this._register(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
+		this._register(this.autoSaveConfigurationService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
 		this._register(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
 		this._register(this.onDidStateChange(e => this.onStateChange(e)));
 	}
