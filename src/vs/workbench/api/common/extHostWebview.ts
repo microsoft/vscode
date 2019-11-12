@@ -16,6 +16,7 @@ import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/we
 import * as vscode from 'vscode';
 import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
+import { assertIsDefined } from 'vs/base/common/types';
 
 type IconPath = URI | { light: URI, dark: URI };
 
@@ -113,7 +114,8 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 
 	readonly _onDidChangeViewStateEmitter = this._register(new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
 	public readonly onDidChangeViewState: Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = this._onDidChangeViewStateEmitter.event;
-	_capabilities: vscode.WebviewEditorCapabilities;
+
+	public _capabilities?: vscode.WebviewEditorCapabilities;
 
 	constructor(
 		handle: WebviewPanelHandle,
@@ -245,7 +247,7 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 	}
 
 	_undoEdits(edits: string[]): void {
-		this._capabilities.editingCapability?.undoEdits(edits);
+		assertIsDefined(this._capabilities).editingCapability?.undoEdits(edits);
 	}
 
 	private assertNotDisposed() {

@@ -180,7 +180,7 @@ export class PatternInputWidget extends Widget {
 		}
 	}
 
-	get searchConfig() {
+	private get searchConfig() {
 		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 }

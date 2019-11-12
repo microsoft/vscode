@@ -797,8 +797,7 @@ export class SearchView extends ViewletPanel {
 				if (this.searchWidget.searchInput.getRegex()) {
 					selectedText = strings.escapeRegExpCharacters(selectedText);
 				}
-
-				this.searchWidget.searchInput.setValue(selectedText);
+				this.searchWidget.setValue(selectedText, true);
 				updatedText = true;
 				this.onQueryChanged();
 			}

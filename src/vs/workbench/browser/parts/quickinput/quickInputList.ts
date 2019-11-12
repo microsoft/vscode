@@ -598,10 +598,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const activeContrast = theme.getColor(activeContrastBorder);
 	if (activeContrast) {
-		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { border: 1px dotted ${activeContrast}; }`);
-		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row { border: 1px solid transparent; }`);
-		collector.addRule(`.quick-input-list .monaco-list .quick-input-list-entry { padding: 0 5px; height: 18px; align-items: center; }`);
-		collector.addRule(`.quick-input-list .monaco-list .quick-input-list-entry-action-bar { margin-top: 0; }`);
+		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { outline: 1px dotted ${activeContrast}; outline-offset: -1px; }`);
 	}
 	const pickerGroupBorderColor = theme.getColor(pickerGroupBorder);
 	if (pickerGroupBorderColor) {

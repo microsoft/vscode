@@ -751,9 +751,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		if (confirmDragAndDrop) {
 			const confirmation = await this.dialogService.confirm({
 				message: items.length > 1 && items.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
-					: items.length > 1 ? getConfirmMessage(localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", items.length), items.map(s => s.resource))
+					: items.length > 1 ? getConfirmMessage(localize('confirmMultiMove', "Are you sure you want to move the following {0} files into '{1}'?", items.length, target.name), items.map(s => s.resource))
 						: items[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
-							: localize('confirmMove', "Are you sure you want to move '{0}'?", items[0].name),
+							: localize('confirmMove', "Are you sure you want to move '{0}' into '{1}'?", items[0].name, target.name),
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
 				},

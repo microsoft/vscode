@@ -112,6 +112,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this.createEditor(parent);
 	}
 
+	onHide() { }
+
 	/**
 	 * Called to create the editor in the parent HTMLElement.
 	 */

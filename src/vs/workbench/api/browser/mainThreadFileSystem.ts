@@ -52,7 +52,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$stat(uri: UriComponents): Promise<IStat> {
 		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: true }).then(stat => {
 			return {
-				ctime: 0,
+				ctime: stat.ctime,
 				mtime: stat.mtime,
 				size: stat.size,
 				type: MainThreadFileSystem._getFileType(stat)
