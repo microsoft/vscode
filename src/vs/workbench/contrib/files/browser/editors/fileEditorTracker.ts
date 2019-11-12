@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration, SideBySideEditor as SideBySideEditorChoice } from 'vs/workbench/common/editor';
-import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileEditorModel, TextFileModelChangeEvent, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -60,6 +60,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 		// Update editors from disk changes
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+
+		// Open editors from dirty text file models
+		this._register(this.textFileService.models.onModelsDirty(e => this.onTextFilesDirty(e)));
 
 		// Editor changing
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.handleOutOfWorkspaceWatchers()));
@@ -357,6 +360,31 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				this.activeOutOfWorkspaceWatchers.set(resource, disposable);
 			}
 		});
+	}
+
+	private onTextFilesDirty(e: readonly TextFileModelChangeEvent[]): void {
+
+		// If files become dirty but are not opened, we open it in the background unless there are pending to be saved
+		this.doOpenDirtyResources(distinct(e.filter(e => {
+
+			// Only dirty models that are not PENDING_SAVE
+			const model = this.textFileService.models.get(e.resource);
+			const shouldOpen = model?.isDirty() && !model.hasState(ModelState.PENDING_SAVE);
+
+			// Only if not open already
+			return shouldOpen && !this.editorService.isOpen({ resource: e.resource });
+		}).map(e => e.resource), r => r.toString()));
+	}
+
+	private doOpenDirtyResources(resources: URI[]): void {
+
+		// Open
+		this.editorService.openEditors(resources.map(resource => {
+			return {
+				resource,
+				options: { inactive: true, pinned: true, preserveFocus: true }
+			};
+		}));
 	}
 
 	dispose(): void {

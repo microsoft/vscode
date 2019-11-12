@@ -92,6 +92,7 @@ import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/ele
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { find } from 'vs/base/common/arrays';
+import { WorkingCopyService, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -330,6 +331,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
 	instantiationService.stub(IViewletService, new TestViewletService());
+	instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
 
 	return instantiationService;
 }
@@ -1463,4 +1465,8 @@ export class TestDialogMainService implements IDialogMainService {
 	showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.OpenDialogReturnValue> {
 		throw new Error('Method not implemented.');
 	}
+}
+
+export class TestWorkingCopyService extends WorkingCopyService {
+
 }

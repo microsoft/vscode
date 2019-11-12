@@ -60,6 +60,7 @@ import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/pl
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class ElectronWindow extends Disposable {
 
@@ -67,14 +68,16 @@ export class ElectronWindow extends Disposable {
 	private readonly touchBarDisposables = this._register(new DisposableStore());
 	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
 
-	private customTitleContextMenuDisposable = this._register(new DisposableStore());
+	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
 
 	private previousConfiguredZoomLevel: number | undefined;
 
-	private addFoldersScheduler: RunOnceScheduler;
-	private pendingFoldersToAdd: URI[];
+	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
+	private pendingFoldersToAdd: URI[] = [];
 
-	private closeEmptyWindowScheduler: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
+	private readonly closeEmptyWindowScheduler: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
+
+	private isDocumentedEdited = false;
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -99,12 +102,10 @@ export class ElectronWindow extends Disposable {
 		@IElectronService private readonly electronService: IElectronService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService
+		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super();
-
-		this.pendingFoldersToAdd = [];
-		this.addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 
 		this.registerListeners();
 		this.create();
@@ -259,6 +260,19 @@ export class ElectronWindow extends Disposable {
 				DOM.EventHelper.stop(e);
 
 				this.electronService.handleTitleDoubleClick();
+			}));
+		}
+
+		// Document edited (macOS only): indicate for dirty working copies
+		if (isMacintosh) {
+			this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
+				const gotDirty = workingCopy.isDirty();
+				if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
+					const hasDirtyFiles = this.workingCopyService.hasDirty;
+					this.isDocumentedEdited = hasDirtyFiles;
+
+					this.electronService.setDocumentEdited(hasDirtyFiles);
+				}
 			}));
 		}
 	}

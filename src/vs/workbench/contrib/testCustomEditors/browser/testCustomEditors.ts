@@ -24,7 +24,9 @@ import { isEqual } from 'vs/base/common/resources';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkingCopy, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
+const CUSTOM_SCHEME = 'testCustomEditor';
 const ENABLE = false;
 
 class TestCustomEditorsAction extends Action {
@@ -35,13 +37,15 @@ class TestCustomEditorsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<boolean> {
-		await this.editorService.openEditor(new TestCustomEditorInput(URI.parse(`testCustomEditor:/${generateUuid()}`)));
+		const input = this.instantiationService.createInstance(TestCustomEditorInput, URI.parse(`${CUSTOM_SCHEME}:/${generateUuid()}`));
+		await this.editorService.openEditor(input);
 
 		return true;
 	}
@@ -111,12 +115,17 @@ class TestCustomEditor extends BaseEditor {
 	layout(dimension: Dimension): void { }
 }
 
-class TestCustomEditorInput extends EditorInput {
+class TestCustomEditorInput extends EditorInput implements IWorkingCopy {
 	private model: TestCustomEditorModel | undefined = undefined;
+
 	private dirty = false;
 
-	constructor(public readonly resource: URI) {
+	readonly capabilities = 0;
+
+	constructor(public readonly resource: URI, @IWorkingCopyService workingCopyService: IWorkingCopyService) {
 		super();
+
+		this._register(workingCopyService.registerWorkingCopy(this));
 	}
 
 	getResource(): URI {
@@ -128,7 +137,7 @@ class TestCustomEditorInput extends EditorInput {
 	}
 
 	getName(): string {
-		return `Custom Editor: ${this.resource.toString()}`;
+		return this.resource.toString();
 	}
 
 	setValue(value: string) {
@@ -139,9 +148,11 @@ class TestCustomEditorInput extends EditorInput {
 		this.setDirty(value.length > 0);
 	}
 
-	setDirty(dirty: boolean) {
-		this.dirty = dirty;
-		this._onDidChangeDirty.fire();
+	private setDirty(dirty: boolean) {
+		if (this.dirty !== dirty) {
+			this.dirty = dirty;
+			this._onDidChangeDirty.fire();
+		}
 	}
 
 	isDirty(): boolean {
@@ -175,6 +186,17 @@ class TestCustomEditorInput extends EditorInput {
 
 	matches(other: EditorInput) {
 		return other instanceof TestCustomEditorInput && isEqual(other.resource, this.resource);
+	}
+
+	dispose(): void {
+		this.setDirty(false);
+
+		if (this.model) {
+			this.model.dispose();
+			this.model = undefined;
+		}
+
+		super.dispose();
 	}
 }
 
@@ -212,7 +234,7 @@ if (ENABLE) {
 		}
 
 		deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): TestCustomEditorInput {
-			return new TestCustomEditorInput(URI.parse(JSON.parse(serializedEditorInput).resource));
+			return instantiationService.createInstance(TestCustomEditorInput, URI.parse(JSON.parse(serializedEditorInput).resource));
 		}
 	}
 
