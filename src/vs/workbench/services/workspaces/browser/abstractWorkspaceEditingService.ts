@@ -8,14 +8,10 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER, IEnterWorkspaceResult } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IBackupFileService, toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
-import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
 import { isEqual, getComparisonKey } from 'vs/base/common/resources';
@@ -36,9 +32,6 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService private readonly contextService: WorkspaceService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
@@ -127,7 +120,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			// Do not allow workspace folders with scheme different than the current remote scheme
 			const schemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
 			if (schemas.length && foldersToAdd.some(f => schemas.indexOf(f.uri.scheme) === -1)) {
-				return Promise.reject(new Error(nls.localize('differentSchemeRoots', "Workspace folders from different providers are not allowed in the same workspace.")));
+				throw new Error(nls.localize('differentSchemeRoots', "Workspace folders from different providers are not allowed in the same workspace."));
 			}
 		}
 
@@ -267,7 +260,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		);
 	}
 
-	async enterWorkspace(path: URI): Promise<void> {
+	abstract async enterWorkspace(path: URI): Promise<void>;
+
+	protected async doEnterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
 		if (!!this.environmentService.extensionTestsLocationURI) {
 			throw new Error('Entering a new workspace is not possible in tests.');
 		}
@@ -282,34 +277,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		const workspaceImpl = this.contextService as WorkspaceService;
 		await workspaceImpl.initialize(workspace);
 
-		const result = await this.workspacesService.enterWorkspace(path);
-		if (result) {
-
-			// Migrate storage to new workspace
-			await this.migrateStorage(result.workspace);
-
-			// Reinitialize backup service
-			this.environmentService.configuration.backupPath = result.backupPath;
-			this.environmentService.configuration.backupWorkspaceResource = result.backupPath ? toBackupWorkspaceResource(result.backupPath, this.environmentService) : undefined;
-			if (this.backupFileService instanceof BackupFileService) {
-				this.backupFileService.reinitialize();
-			}
-		}
-
-		// TODO@aeschli: workaround until restarting works
-		if (this.environmentService.configuration.remoteAuthority) {
-			this.hostService.reload();
-		}
-
-		// Restart the extension host: entering a workspace means a new location for
-		// storage and potentially a change in the workspace.rootPath property.
-		else {
-			this.extensionService.restartExtensionHost();
-		}
-	}
-
-	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		return this.storageService.migrate(toWorkspace);
+		return this.workspacesService.enterWorkspace(path);
 	}
 
 	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
@@ -338,7 +306,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	protected getCurrentWorkspaceIdentifier(): IWorkspaceIdentifier | undefined {
 		const workspace = this.contextService.getWorkspace();
-		if (workspace && workspace.configuration) {
+		if (workspace?.configuration) {
 			return { id: workspace.id, configPath: workspace.configuration };
 		}
 

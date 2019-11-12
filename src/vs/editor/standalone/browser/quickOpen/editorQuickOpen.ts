@@ -24,7 +24,7 @@ export interface IQuickOpenControllerOpts {
 
 export class QuickOpenController implements editorCommon.IEditorContribution, IDecorator {
 
-	private static readonly ID = 'editor.controller.quickOpenController';
+	public static readonly ID = 'editor.controller.quickOpenController';
 
 	public static get(editor: ICodeEditor): QuickOpenController {
 		return editor.getContribution<QuickOpenController>(QuickOpenController.ID);
@@ -37,10 +37,6 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 
 	constructor(editor: ICodeEditor, @IThemeService private readonly themeService: IThemeService) {
 		this.editor = editor;
-	}
-
-	public getId(): string {
-		return QuickOpenController.ID;
 	}
 
 	public dispose(): void {
@@ -173,4 +169,4 @@ export interface IDecorator {
 	clearDecorations(): void;
 }
 
-registerEditorContribution(QuickOpenController);
+registerEditorContribution(QuickOpenController.ID, QuickOpenController);

@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelpart';
 import { IAction } from 'vs/base/common/actions';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
@@ -60,22 +60,19 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	readonly snap = true;
 
 	get preferredHeight(): number | undefined {
-		const sidebarDimension = assertIsDefined(this.layoutService.getDimension(Parts.SIDEBAR_PART));
-		return sidebarDimension.height * 0.4;
+		// Don't worry about titlebar or statusbar visibility
+		// The difference is minimal and keeps this function clean
+		return this.layoutService.dimension.height * 0.4;
 	}
 
 	get preferredWidth(): number | undefined {
-		const statusbarDimension = assertIsDefined(this.layoutService.getDimension(Parts.STATUSBAR_PART));
-		return statusbarDimension.width * 0.4;
+		return this.layoutService.dimension.width * 0.4;
 	}
 
 	//#endregion
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean; }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
 	readonly onDidPanelClose: Event<IPanel> = this.onDidCompositeClose.event;
-
-	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
 
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
@@ -444,10 +441,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private setStoredCachedViewletsValue(value: string): void {
 		this.storageService.store(PanelPart.PINNED_PANELS, value, StorageScope.GLOBAL);
-	}
-
-	setVisible(visible: boolean): void {
-		this._onDidVisibilityChange.fire(visible);
 	}
 
 	toJSON(): object {

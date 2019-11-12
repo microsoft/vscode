@@ -21,7 +21,7 @@ import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChan
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { EditorProgressService } from 'vs/workbench/services/progress/browser/editorProgressService';
+import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -32,7 +32,7 @@ import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -49,7 +49,8 @@ import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -125,8 +126,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
@@ -171,7 +173,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 				[IContextKeyService, scopedContextKeyService],
-				[IEditorProgressService, new EditorProgressService(this.progressBar)]
+				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this))]
 			));
 
 			// Context keys
@@ -253,7 +255,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (this.isEmpty) {
 				EventHelper.stop(e);
 
-				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
+				this.openEditor(this.untitledTextEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
 			}
 		}));
 
@@ -824,7 +826,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Determine options
 		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : undefined,
-			pinned: !this.accessor.partOptions.enablePreview || editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
+			pinned: !this.accessor.partOptions.enablePreview || editor.isDirty() || options?.pinned || typeof options?.index === 'number',
 			active: this._group.count === 0 || !options || !options.inactive
 		};
 
@@ -838,13 +840,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let activateGroup = false;
 		let restoreGroup = false;
 
-		if (options && options.activation === EditorActivation.ACTIVATE) {
+		if (options?.activation === EditorActivation.ACTIVATE) {
 			// Respect option to force activate an editor group.
 			activateGroup = true;
-		} else if (options && options.activation === EditorActivation.RESTORE) {
+		} else if (options?.activation === EditorActivation.RESTORE) {
 			// Respect option to force restore an editor group.
 			restoreGroup = true;
-		} else if (options && options.activation === EditorActivation.PRESERVE) {
+		} else if (options?.activation === EditorActivation.PRESERVE) {
 			// Respect option to preserve active editor group.
 			activateGroup = false;
 			restoreGroup = false;
@@ -916,23 +918,67 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return openEditorPromise;
 	}
 
-	private doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): void {
+	private async doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): Promise<void> {
 
 		// Report error only if this was not us restoring previous error state or
 		// we are told to ignore errors that occur from opening an editor
 		if (this.isRestored && !isPromiseCanceledError(error) && (!options || !options.ignoreError)) {
-			const actions: INotificationActions = { primary: [] };
+
+			// Extract possible error actions from the error
+			let errorActions: ReadonlyArray<IAction> | undefined = undefined;
 			if (isErrorWithActions(error)) {
-				actions.primary = (error as IErrorWithActions).actions;
+				errorActions = (error as IErrorWithActions).actions;
 			}
 
-			const handle = this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
-				actions
-			});
+			// If the context is USER, we try to show a modal dialog instead of a background notification
+			if (options?.context === EditorOpenContext.USER) {
+				const buttons: string[] = [];
+				if (Array.isArray(errorActions) && errorActions.length > 0) {
+					errorActions.forEach(action => buttons.push(action.label));
+				} else {
+					buttons.push(localize('ok', 'OK'));
+				}
 
-			Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
+				let cancelId: number | undefined = undefined;
+				if (buttons.length === 1) {
+					buttons.push(localize('cancel', "Cancel"));
+					cancelId = 1;
+				}
+
+				const result = await this.dialogService.show(
+					Severity.Error,
+					localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
+					buttons,
+					{
+						detail: toErrorMessage(error),
+						cancelId
+					}
+				);
+
+				// Make sure to run any error action if present
+				if (result.choice !== cancelId && Array.isArray(errorActions)) {
+					const errorAction = errorActions[result.choice];
+					if (errorAction) {
+						errorAction.run();
+					}
+				}
+			}
+
+			// Otherwise, show a background notification.
+			else {
+				const actions: INotificationActions = { primary: [] };
+				if (Array.isArray(errorActions)) {
+					actions.primary = errorActions;
+				}
+
+				const handle = this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
+					actions
+				});
+
+				Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
+			}
 		}
 
 		// Event
@@ -1068,7 +1114,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Do close
-		this.doCloseEditor(editor, options && options.preserveFocus ? false : undefined);
+		this.doCloseEditor(editor, options?.preserveFocus ? false : undefined);
 	}
 
 	private doCloseEditor(editor: EditorInput, focusNext = (this.accessor.activeGroup === this), fromError?: boolean): void {
@@ -1317,7 +1363,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close active editor last if contained in editors list to close
 		if (closeActiveEditor) {
-			this.doCloseActiveEditor(options && options.preserveFocus ? false : undefined);
+			this.doCloseActiveEditor(options?.preserveFocus ? false : undefined);
 		}
 
 		// Forward to title control
@@ -1523,7 +1569,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 }
 
 class EditorOpeningEvent implements IEditorOpeningEvent {
-	private override: () => Promise<IEditor | undefined> | undefined;
+	private override: (() => Promise<IEditor | undefined>) | undefined = undefined;
 
 	constructor(
 		private _group: GroupIdentifier,
@@ -1548,7 +1594,7 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 		this.override = callback;
 	}
 
-	isPrevented(): () => Promise<IEditor | undefined> | undefined {
+	isPrevented(): (() => Promise<IEditor | undefined>) | undefined {
 		return this.override;
 	}
 }

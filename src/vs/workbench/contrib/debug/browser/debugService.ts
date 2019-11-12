@@ -30,7 +30,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { parse, getFirstFrame } from 'vs/base/common/console';
 import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -120,7 +120,7 @@ export class DebugService implements IDebugService {
 		this._onWillNewSession = new Emitter<IDebugSession>();
 		this._onDidEndSession = new Emitter<IDebugSession>();
 
-		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this);
+		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.toDispose.push(this.configurationManager);
 
 		this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
@@ -289,6 +289,13 @@ export class DebugService implements IDebugService {
 					throw new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
 						"Compound must have \"configurations\" attribute set in order to start multiple configurations."));
 				}
+				if (compound.preLaunchTask) {
+					const taskResult = await this.runTaskAndCheckErrors(launch?.workspace || this.contextService.getWorkspace(), compound.preLaunchTask);
+					if (taskResult === TaskRunResult.Failure) {
+						this.endInitializingState();
+						return false;
+					}
+				}
 
 				const values = await Promise.all(compound.configurations.map(configData => {
 					const name = typeof configData === 'string' ? configData : configData.name;
@@ -394,10 +401,10 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const workspace = launch ? launch.workspace : undefined;
+				const workspace = launch ? launch.workspace : this.contextService.getWorkspace();
 				const taskResult = await this.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask);
 				if (taskResult === TaskRunResult.Success) {
-					return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
+					return this.doCreateSession(launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
 				}
 				return false;
 			} catch (err) {
@@ -701,13 +708,13 @@ export class DebugService implements IDebugService {
 
 	//---- task management
 
-	private async runTaskAndCheckErrors(root: IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<TaskRunResult> {
+	private async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | TaskIdentifier | undefined): Promise<TaskRunResult> {
 		try {
 			const taskSummary = await this.runTask(root, taskId);
 
 			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
-			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+			const failureExitCode = taskSummary && taskSummary.exitCode !== 0;
 			const onTaskErrors = this.configurationService.getValue<IDebugConfiguration>('debug').onTaskErrors;
 			if (successExitCode || onTaskErrors === 'debugAnyway' || (errorCount === 0 && !failureExitCode)) {
 				return TaskRunResult.Success;
@@ -750,7 +757,7 @@ export class DebugService implements IDebugService {
 		}
 	}
 
-	private async runTask(root: IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<ITaskSummary | null> {
+	private async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<ITaskSummary | null> {
 		if (!taskId) {
 			return Promise.resolve(null);
 		}
@@ -768,9 +775,28 @@ export class DebugService implements IDebugService {
 
 		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
 		let taskStarted = false;
-		const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(tasks => {
+		const inactivePromise: Promise<ITaskSummary | null> = new Promise((c, e) => once(e => {
+			// When a task isBackground it will go inactive when it is safe to launch.
+			// But when a background task is terminated by the user, it will also fire an inactive event.
+			// This means that we will not get to see the real exit code from running the task (undefined when terminated by the user).
+			// Catch the ProcessEnded event here, which occurs before inactive, and capture the exit code to prevent this.
+			return (e.kind === TaskEventKind.Inactive
+				|| (e.kind === TaskEventKind.ProcessEnded && e.exitCode === undefined))
+				&& e.taskId === task._id;
+		}, this.taskService.onDidStateChange)(e => {
+			taskStarted = true;
+			c(e.kind === TaskEventKind.ProcessEnded ? { exitCode: e.exitCode } : null);
+		}));
+
+		const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(async (tasks): Promise<ITaskSummary | null> => {
 			if (tasks.filter(t => t._id === task._id).length) {
-				// task is already running - nothing to do.
+				// Check that the task isn't busy and if it is, wait for it
+				const busyTasks = await this.taskService.getBusyTasks();
+				if (busyTasks.filter(t => t._id === task._id).length) {
+					taskStarted = true;
+					return inactivePromise;
+				}
+				// task is already running and isn't busy - nothing to do.
 				return Promise.resolve(null);
 			}
 			once(e => ((e.kind === TaskEventKind.Active) || (e.kind === TaskEventKind.DependsOnStarted)) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
@@ -780,10 +806,7 @@ export class DebugService implements IDebugService {
 			});
 			const taskPromise = this.taskService.run(task);
 			if (task.configurationProperties.isBackground) {
-				return new Promise((c, e) => once(e => e.kind === TaskEventKind.Inactive && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
-					taskStarted = true;
-					c(null);
-				}));
+				return inactivePromise;
 			}
 
 			return taskPromise;

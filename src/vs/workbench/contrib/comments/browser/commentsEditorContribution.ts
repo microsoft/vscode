@@ -21,7 +21,7 @@ import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editor
 import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
-import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/peekView/peekView';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -146,20 +146,20 @@ class CommentingRangeDecorator {
 	}
 }
 
-export class ReviewController implements IEditorContribution {
+export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
-	private editor: ICodeEditor;
+	private editor!: ICodeEditor;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _commentInfos: ICommentInfo[];
-	private _commentingRangeDecorator: CommentingRangeDecorator;
+	private _commentingRangeDecorator!: CommentingRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
-	private _addInProgress: boolean;
+	private _addInProgress!: boolean;
 	private _emptyThreadsToAddQueue: [number, IEditorMouseEvent | undefined][] = [];
-	private _computeCommentingRangePromise: CancelablePromise<ICommentInfo[]> | null;
-	private _computeCommentingRangeScheduler: Delayer<Array<ICommentInfo | null>> | null;
+	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
+	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
 
 	constructor(
@@ -243,8 +243,8 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	public static get(editor: ICodeEditor): ReviewController {
-		return editor.getContribution<ReviewController>(ID);
+	public static get(editor: ICodeEditor): CommentController {
+		return editor.getContribution<CommentController>(ID);
 	}
 
 	public revealCommentThread(threadId: string, commentUniqueId: number, fetchOnceIfNotExist: boolean): void {
@@ -312,10 +312,6 @@ export class ReviewController implements IEditorContribution {
 			sortedWidgets[idx].reveal();
 			this.editor.setSelection(sortedWidgets[idx].commentThread.range);
 		}
-	}
-
-	public getId(): string {
-		return ID;
 	}
 
 	public dispose(): void {
@@ -686,7 +682,7 @@ export class NextCommentThreadAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = ReviewController.get(editor);
+		let controller = CommentController.get(editor);
 		if (controller) {
 			controller.nextCommentThread();
 		}
@@ -694,7 +690,7 @@ export class NextCommentThreadAction extends EditorAction {
 }
 
 
-registerEditorContribution(ReviewController);
+registerEditorContribution(ID, CommentController);
 registerEditorAction(NextCommentThreadAction);
 
 CommandsRegistry.registerCommand({
@@ -705,7 +701,7 @@ CommandsRegistry.registerCommand({
 			return Promise.resolve();
 		}
 
-		const controller = ReviewController.get(activeEditor);
+		const controller = CommentController.get(activeEditor);
 		if (!controller) {
 			return Promise.resolve();
 		}

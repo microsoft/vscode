@@ -74,7 +74,13 @@ export interface ParsedArgs {
 	'force'?: boolean;
 	'force-user-env'?: boolean;
 
-	// node flags
+	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
+	'no-proxy-server'?: boolean;
+	'proxy-server'?: string;
+	'proxy-bypass-list'?: string;
+	'proxy-pac-url'?: string;
+	'inspect'?: string;
+	'inspect-brk'?: string;
 	'js-flags'?: string;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
@@ -106,8 +112,6 @@ export interface IEnvironmentService {
 	userHome: string;
 	userDataPath: string;
 
-	appNameLong: string;
-	appQuality?: string;
 	appSettingsHome: URI;
 
 	// user roaming data
@@ -115,7 +119,6 @@ export interface IEnvironmentService {
 	settingsResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
-	localeResource: URI;
 	argvResource: URI;
 
 	// sync resources
@@ -139,6 +142,7 @@ export interface IEnvironmentService {
 	extensionsPath?: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
+	logExtensionHostCommunication?: boolean;
 
 	debugExtensionHost: IExtensionHostDebugParams;
 

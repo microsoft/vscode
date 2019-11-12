@@ -287,13 +287,13 @@ export class MenuItemAction extends ExecuteCommandAction {
 
 export class SyncActionDescriptor {
 
-	private _descriptor: SyncDescriptor0<Action>;
+	private readonly _descriptor: SyncDescriptor0<Action>;
 
-	private _id: string;
-	private _label?: string;
-	private _keybindings: IKeybindings | undefined;
-	private _keybindingContext: ContextKeyExpr | undefined;
-	private _keybindingWeight: number | undefined;
+	private readonly _id: string;
+	private readonly _label?: string;
+	private readonly _keybindings: IKeybindings | undefined;
+	private readonly _keybindingContext: ContextKeyExpr | undefined;
+	private readonly _keybindingWeight: number | undefined;
 
 	constructor(ctor: IConstructorSignature2<string, string, Action>,
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number

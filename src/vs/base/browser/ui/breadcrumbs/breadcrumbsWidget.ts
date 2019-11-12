@@ -328,7 +328,9 @@ export class BreadcrumbsWidget {
 		item.render(container);
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
-		dom.addClass(container, 'monaco-breadcrumb-item');
+		dom.addClasses(container, 'monaco-breadcrumb-item');
+		const iconContainer = dom.$('.codicon.codicon-chevron-right');
+		container.appendChild(iconContainer);
 	}
 
 	private _onClick(event: IMouseEvent): void {

@@ -13,11 +13,11 @@ import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFa
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -62,7 +62,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		nls.localize('textEditor', "Text Editor"),
 	),
 	[
-		new SyncDescriptor(UntitledEditorInput),
+		new SyncDescriptor(UntitledTextEditorInput),
 		new SyncDescriptor(ResourceEditorInput)
 	]
 );
@@ -102,7 +102,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-interface ISerializedUntitledEditorInput {
+interface ISerializedUntitledTextEditorInput {
 	resource: string;
 	resourceJSON: object;
 	modeId: string | undefined;
@@ -110,7 +110,7 @@ interface ISerializedUntitledEditorInput {
 }
 
 // Register Editor Input Factory
-class UntitledEditorInputFactory implements IEditorInputFactory {
+class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -122,36 +122,36 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 			return undefined; // never restore untitled unless hot exit is enabled
 		}
 
-		const untitledEditorInput = <UntitledEditorInput>editorInput;
+		const untitledTextEditorInput = <UntitledTextEditorInput>editorInput;
 
-		let resource = untitledEditorInput.getResource();
-		if (untitledEditorInput.hasAssociatedFilePath) {
+		let resource = untitledTextEditorInput.getResource();
+		if (untitledTextEditorInput.hasAssociatedFilePath) {
 			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority); // untitled with associated file path use the local schema
 		}
 
-		const serialized: ISerializedUntitledEditorInput = {
+		const serialized: ISerializedUntitledTextEditorInput = {
 			resource: resource.toString(), // Keep for backwards compatibility
 			resourceJSON: resource.toJSON(),
-			modeId: untitledEditorInput.getMode(),
-			encoding: untitledEditorInput.getEncoding()
+			modeId: untitledTextEditorInput.getMode(),
+			encoding: untitledTextEditorInput.getEncoding()
 		};
 
 		return JSON.stringify(serialized);
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledEditorInput {
-		return instantiationService.invokeFunction<UntitledEditorInput>(accessor => {
-			const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledTextEditorInput {
+		return instantiationService.invokeFunction<UntitledTextEditorInput>(accessor => {
+			const deserialized: ISerializedUntitledTextEditorInput = JSON.parse(serializedEditorInput);
 			const resource = !!deserialized.resourceJSON ? URI.revive(<UriComponents>deserialized.resourceJSON) : URI.parse(deserialized.resource);
 			const mode = deserialized.modeId;
 			const encoding = deserialized.encoding;
 
-			return accessor.get(IEditorService).createInput({ resource, mode, encoding, forceUntitled: true }) as UntitledEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, mode, encoding, forceUntitled: true }) as UntitledTextEditorInput;
 		});
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(UntitledEditorInput.ID, UntitledEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(UntitledTextEditorInput.ID, UntitledTextEditorInputFactory);
 
 interface ISerializedSideBySideEditorInput {
 	name: string;
@@ -218,7 +218,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
 
 // Register Editor Contributions
-registerEditorContribution(OpenWorkspaceButtonContribution);
+registerEditorContribution(OpenWorkspaceButtonContribution.ID, OpenWorkspaceButtonContribution);
 
 // Register Editor Status
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatus, LifecyclePhase.Ready);
@@ -227,7 +227,10 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL), 'Change End of Line Sequence');
-registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
+
+if (Object.keys(SUPPORTED_ENCODINGS).length > 1) {
+	registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
+}
 
 export class QuickOpenActionContributor extends ActionBarContributor {
 	private openToSideActionInstance: OpenToSideFromQuickOpenAction | undefined;
@@ -585,7 +588,7 @@ appendEditorToolItem(
 appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Trim Whitespace"),
+		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Leading/Trailing Whitespace Differences"),
 		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-dark.svg')),
 		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-light.svg'))
 	},
@@ -597,7 +600,7 @@ appendEditorToolItem(
 appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: nls.localize('showTrimWhitespace.label', "Show Trim Whitespace"),
+		title: nls.localize('showTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
 		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-disabled-dark.svg')),
 		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-disabled-light.svg'))
 	},

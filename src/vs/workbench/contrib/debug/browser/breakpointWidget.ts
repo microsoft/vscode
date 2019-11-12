@@ -35,6 +35,8 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
@@ -48,6 +50,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	_serviceBrand: undefined;
 
 	private selectContainer!: HTMLElement;
+	private inputContainer!: HTMLElement;
 	private input!: IActiveCodeEditor;
 	private toDispose: lifecycle.IDisposable[];
 	private conditionInput = '';
@@ -55,6 +58,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private logMessageInput = '';
 	private breakpoint: IBreakpoint | undefined;
 	private context: Context;
+	private heightInPx: number | undefined;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private column: number | undefined, context: Context | undefined,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -64,6 +68,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
@@ -158,7 +163,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			this.input.focus();
 		});
 
-		this.createBreakpointInput(dom.append(container, $('.inputContainer')));
+		this.inputContainer = $('.inputContainer');
+		this.createBreakpointInput(dom.append(container, this.inputContainer));
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
 		this.toDispose.push(this.input.getModel().onDidChangeContent(() => {
@@ -170,7 +176,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+		this.heightInPx = heightInPixel;
 		this.input.layout({ height: heightInPixel, width: widthInPixel - 113 });
+		this.centerInputVertically();
 	}
 
 	private createBreakpointInput(container: HTMLElement): void {
@@ -180,7 +188,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateBreakpointWidgetService, this]));
 
-		const options = getSimpleEditorOptions();
+		const options = this.createEditorOptions();
 		const codeEditorWidgetOptions = getSimpleCodeEditorWidgetOptions();
 		this.input = <IActiveCodeEditor>scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
@@ -227,6 +235,29 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				return suggestionsPromise;
 			}
 		}));
+
+		this.toDispose.push(this._configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.lineHeight')) {
+				this.input.updateOptions(this.createEditorOptions());
+				this.centerInputVertically();
+			}
+		}));
+	}
+
+	private createEditorOptions(): IEditorOptions {
+		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
+		const options = getSimpleEditorOptions();
+		options.fontSize = editorConfig.fontSize;
+		return options;
+	}
+
+	private centerInputVertically() {
+		if (this.container && typeof this.heightInPx === 'number') {
+			const lineHeight = this.input.getOption(EditorOption.lineHeight);
+			const lineNum = this.input.getModel().getLineCount();
+			const newTopMargin = (this.heightInPx - lineNum * lineHeight) / 2;
+			this.inputContainer.style.marginTop = newTopMargin + 'px';
+		}
 	}
 
 	private createDecorations(): IDecorationOptions[] {

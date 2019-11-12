@@ -10,7 +10,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -92,7 +92,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	}
 
 	private restoreTextResourceEditorViewState(editor: EditorInput, control: IEditor) {
-		if (editor instanceof UntitledEditorInput || editor instanceof ResourceEditorInput) {
+		if (editor instanceof UntitledTextEditorInput || editor instanceof ResourceEditorInput) {
 			const viewState = this.loadTextEditorViewState(editor.getResource());
 			if (viewState) {
 				control.restoreViewState(viewState);
@@ -111,17 +111,17 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	protected getConfigurationOverrides(): IEditorOptions {
 		const options = super.getConfigurationOverrides();
 
-		options.readOnly = !(this.input instanceof UntitledEditorInput); // all resource editors are readonly except for the untitled one;
+		options.readOnly = !(this.input instanceof UntitledTextEditorInput); // all resource editors are readonly except for the untitled one;
 
 		return options;
 	}
 
 	protected getAriaLabel(): string {
 		const input = this.input;
-		const isReadonly = !(this.input instanceof UntitledEditorInput);
+		const isReadonly = !(this.input instanceof UntitledTextEditorInput);
 
 		let ariaLabel: string;
-		const inputName = input && input.getName();
+		const inputName = input?.getName();
 		if (isReadonly) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
 		} else {
@@ -161,7 +161,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	protected saveState(): void {
 
 		// Save View State (only for untitled)
-		if (this.input instanceof UntitledEditorInput) {
+		if (this.input instanceof UntitledTextEditorInput) {
 			this.saveTextResourceEditorViewState(this.input);
 		}
 
@@ -169,7 +169,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	}
 
 	private saveTextResourceEditorViewState(input: EditorInput | undefined): void {
-		if (!(input instanceof UntitledEditorInput) && !(input instanceof ResourceEditorInput)) {
+		if (!(input instanceof UntitledTextEditorInput) && !(input instanceof ResourceEditorInput)) {
 			return; // only enabled for untitled and resource inputs
 		}
 

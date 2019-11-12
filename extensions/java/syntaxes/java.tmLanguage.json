@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/ed8ad7451b4d0454374885a102dbe63befdea509",
+	"version": "https://github.com/atom/language-java/commit/123beb50115b0bfb0db8f2325df6d05fb8a016a8",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -582,7 +582,7 @@
 							}
 						},
 						{
-							"match": "{(@link)\\s+(\\S+)?#([\\w$]+\\s*\\([^\\(\\)]*\\)).*}",
+							"match": "{(@link)\\s+(\\S+)?#([\\w$]+\\s*\\([^\\(\\)]*\\)).*?}",
 							"captures": {
 								"1": {
 									"name": "keyword.other.documentation.javadoc.java"

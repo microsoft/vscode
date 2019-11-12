@@ -45,14 +45,14 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, name);
+		const terminal = new ExtHostTerminal(this._proxy, { name, shellPath, shellArgs }, name);
 		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);
 		return terminal;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, options.name);
+		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
 		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
 		this._terminals.push(terminal);
 		return terminal;
@@ -155,10 +155,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			}
 		}
 
+		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
 		let lastActiveWorkspace: IWorkspaceFolder | null = null;
-		let activeWorkspaceRootUri: URI | undefined;
-		if (activeWorkspaceRootUriComponents) {
-			let activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
+		if (activeWorkspaceRootUriComponents && activeWorkspaceRootUri) {
 			// Get the environment
 			const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
 			if (apiLastActiveWorkspace) {

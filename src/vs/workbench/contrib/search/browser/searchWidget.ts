@@ -118,15 +118,15 @@ export class SearchWidget extends Widget {
 	private replaceActive: IContextKey<boolean>;
 	private replaceActionBar!: ActionBar;
 	private _replaceHistoryDelayer: Delayer<void>;
-
+	private _searchDelayer: Delayer<void>;
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
 
 	private _onSearchSubmit = this._register(new Emitter<void>());
 	readonly onSearchSubmit: Event<void> = this._onSearchSubmit.event;
 
-	private _onSearchCancel = this._register(new Emitter<void>());
-	readonly onSearchCancel: Event<void> = this._onSearchCancel.event;
+	private _onSearchCancel = this._register(new Emitter<{ focus: boolean }>());
+	readonly onSearchCancel: Event<{ focus: boolean }> = this._onSearchCancel.event;
 
 	private _onReplaceToggled = this._register(new Emitter<void>());
 	readonly onReplaceToggled: Event<void> = this._onReplaceToggled.event;
@@ -149,6 +149,8 @@ export class SearchWidget extends Widget {
 	private _onDidHeightChange = this._register(new Emitter<void>());
 	readonly onDidHeightChange: Event<void> = this._onDidHeightChange.event;
 
+	private temporarilySkipSearchOnChange = false;
+
 	constructor(
 		container: HTMLElement,
 		options: ISearchWidgetOptions,
@@ -165,6 +167,7 @@ export class SearchWidget extends Widget {
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this._replaceHistoryDelayer = new Delayer<void>(500);
+		this._searchDelayer = this._register(new Delayer<void>(this.searchConfiguration.searchOnTypeDebouncePeriod));
 		this.render(container, options);
 
 		this.configurationService.onDidChangeConfiguration(e => {
@@ -323,9 +326,6 @@ export class SearchWidget extends Widget {
 		this.searchInput.setRegex(!!options.isRegex);
 		this.searchInput.setCaseSensitive(!!options.isCaseSensitive);
 		this.searchInput.setWholeWords(!!options.isWholeWords);
-		this._register(this.onSearchSubmit(() => {
-			this.searchInput.inputBox.addToHistory();
-		}));
 		this._register(this.searchInput.onCaseSensitiveKeyDown((keyboardEvent: IKeyboardEvent) => this.onCaseSensitiveKeyDown(keyboardEvent)));
 		this._register(this.searchInput.onRegexKeyDown((keyboardEvent: IKeyboardEvent) => this.onRegexKeyDown(keyboardEvent)));
 		this._register(this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged()));
@@ -389,6 +389,7 @@ export class SearchWidget extends Widget {
 		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputBox.inputElement));
 		this._register(this.replaceInputFocusTracker.onDidFocus(() => this.replaceInputBoxFocused.set(true)));
 		this._register(this.replaceInputFocusTracker.onDidBlur(() => this.replaceInputBoxFocused.set(false)));
+		this._register(this.replaceInput.onPreserveCaseKeyDown((keyboardEvent: IKeyboardEvent) => this.onPreserveCaseKeyDown(keyboardEvent)));
 	}
 
 	triggerReplaceAll(): Promise<any> {
@@ -403,6 +404,11 @@ export class SearchWidget extends Widget {
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
+	}
+
+	setValue(value: string, skipSearchOnChange: boolean) {
+		this.searchInput.setValue(value);
+		this.temporarilySkipSearchOnChange = skipSearchOnChange || this.temporarilySkipSearchOnChange;
 	}
 
 	setReplaceAllActionState(enabled: boolean): void {
@@ -449,6 +455,15 @@ export class SearchWidget extends Widget {
 	private onSearchInputChanged(): void {
 		this.searchInput.clearMessage();
 		this.setReplaceAllActionState(false);
+
+		if (this.searchConfiguration.searchOnType) {
+			if (this.temporarilySkipSearchOnChange) {
+				this.temporarilySkipSearchOnChange = false;
+			} else {
+				this._onSearchCancel.fire({ focus: false });
+				this._searchDelayer.trigger((() => this.submitSearch()), this.searchConfiguration.searchOnTypeDebouncePeriod);
+			}
+		}
 	}
 
 	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
@@ -463,7 +478,7 @@ export class SearchWidget extends Widget {
 		}
 
 		else if (keyboardEvent.equals(KeyCode.Escape)) {
-			this._onSearchCancel.fire();
+			this._onSearchCancel.fire({ focus: true });
 			keyboardEvent.preventDefault();
 		}
 
@@ -496,11 +511,24 @@ export class SearchWidget extends Widget {
 
 	private onRegexKeyDown(keyboardEvent: IKeyboardEvent) {
 		if (keyboardEvent.equals(KeyCode.Tab)) {
+			if (this.isReplaceShown()) {
+				this.replaceInput.focusOnPreserve();
+				keyboardEvent.preventDefault();
+			}
+		}
+	}
+
+	private onPreserveCaseKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(KeyCode.Tab)) {
 			if (this.isReplaceActive()) {
 				this.focusReplaceAllAction();
 			} else {
 				this._onBlur.fire();
 			}
+			keyboardEvent.preventDefault();
+		}
+		else if (KeyMod.Shift | KeyCode.Tab) {
+			this.focusRegexAction();
 			keyboardEvent.preventDefault();
 		}
 	}
@@ -550,13 +578,10 @@ export class SearchWidget extends Widget {
 
 		const value = this.searchInput.getValue();
 		const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
-		if (value) {
-			if (useGlobalFindBuffer) {
-				this.clipboardServce.writeFindText(value);
-			}
-
-			this._onSearchSubmit.fire();
+		if (value && useGlobalFindBuffer) {
+			this.clipboardServce.writeFindText(value);
 		}
+		this._onSearchSubmit.fire();
 	}
 
 	dispose(): void {

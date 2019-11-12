@@ -6,7 +6,7 @@
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -34,7 +34,7 @@ export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry
 				return -1000;
 			}
 
-			matches = /^details@(\d+)$/.exec(group);
+			matches = /^details(@(\d+))?$/.exec(group);
 
 			if (matches) {
 				return -500;
@@ -55,15 +55,20 @@ export class LabelContribution implements IWorkbenchContribution {
 	private registerFormatters(): void {
 		this.remoteAgentService.getEnvironment().then(remoteEnvironment => {
 			if (remoteEnvironment) {
+				const formatting: ResourceLabelFormatting = {
+					label: '${path}',
+					separator: remoteEnvironment.os === OperatingSystem.Windows ? '\\' : '/',
+					tildify: remoteEnvironment.os !== OperatingSystem.Windows,
+					normalizeDriveLetter: remoteEnvironment.os === OperatingSystem.Windows,
+					workspaceSuffix: isWeb ? undefined : Schemas.vscodeRemote
+				};
 				this.labelService.registerFormatter({
 					scheme: Schemas.vscodeRemote,
-					formatting: {
-						label: '${path}',
-						separator: remoteEnvironment.os === OperatingSystem.Windows ? '\\' : '/',
-						tildify: remoteEnvironment.os !== OperatingSystem.Windows,
-						normalizeDriveLetter: remoteEnvironment.os === OperatingSystem.Windows,
-						workspaceSuffix: isWeb ? undefined : Schemas.vscodeRemote
-					}
+					formatting
+				});
+				this.labelService.registerFormatter({
+					scheme: Schemas.userData,
+					formatting
 				});
 			}
 		});

@@ -75,6 +75,7 @@ export class ExplorerModel implements IDisposable {
 
 export class ExplorerItem {
 	private _isDirectoryResolved: boolean;
+	private _isDisposed: boolean;
 	public isError = false;
 
 	constructor(
@@ -87,6 +88,11 @@ export class ExplorerItem {
 		private _mtime?: number,
 	) {
 		this._isDirectoryResolved = false;
+		this._isDisposed = false;
+	}
+
+	get isDisposed(): boolean {
+		return this._isDisposed;
 	}
 
 	get isDirectoryResolved(): boolean {
@@ -218,6 +224,7 @@ export class ExplorerItem {
 				if (formerLocalChild) {
 					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
 					local.addChild(formerLocalChild);
+					oldLocalChildren.delete(diskChild.resource);
 				}
 
 				// New child: add
@@ -225,6 +232,10 @@ export class ExplorerItem {
 					local.addChild(diskChild);
 				}
 			});
+
+			for (let child of oldLocalChildren.values()) {
+				child._dispose();
+			}
 		}
 	}
 
@@ -274,8 +285,18 @@ export class ExplorerItem {
 	}
 
 	forgetChildren(): void {
+		for (let c of this.children.values()) {
+			c._dispose();
+		}
 		this.children.clear();
 		this._isDirectoryResolved = false;
+	}
+
+	private _dispose() {
+		this._isDisposed = true;
+		for (let child of this.children.values()) {
+			child._dispose();
+		}
 	}
 
 	private getPlatformAwareName(name: string): string {

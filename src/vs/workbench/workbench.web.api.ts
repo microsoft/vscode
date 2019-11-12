@@ -15,35 +15,51 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
+
+interface IResourceUriProvider {
+	(uri: URI): URI;
+}
+
+interface IStaticExtension {
+	packageJSON: IExtensionManifest;
+	extensionLocation: URI;
+}
+
+interface ICommontTelemetryPropertiesResolver {
+	(): { [key: string]: any };
+}
+
+interface IExternalUriResolver {
+	(uri: URI): Promise<URI>;
+}
 
 interface IWorkbenchConstructionOptions {
 
 	/**
-	 * Experimental: the remote authority is the IP:PORT from where the workbench is served
+	 * The remote authority is the IP:PORT from where the workbench is served
 	 * from. It is for example being used for the websocket connections as address.
 	 */
-	remoteAuthority?: string;
+	readonly remoteAuthority?: string;
 
 	/**
 	 * The connection token to send to the server.
 	 */
-	connectionToken?: string;
+	readonly connectionToken?: string;
 
 	/**
-	 * Experimental: An endpoint to serve iframe content ("webview") from. This is required
+	 * An endpoint to serve iframe content ("webview") from. This is required
 	 * to provide full security isolation from the workbench host.
 	 */
-	webviewEndpoint?: string;
+	readonly webviewEndpoint?: string;
 
 	/**
-	 * Experimental: a handler for opening workspaces and providing the initial workspace.
+	 * A handler for opening workspaces and providing the initial workspace.
 	 */
-	workspaceProvider?: IWorkspaceProvider;
+	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * Experimental: The userDataProvider is used to handle user specific application
+	 * The user data provider is used to handle user specific application
 	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
 	 */
 	userDataProvider?: IFileSystemProvider;
@@ -51,63 +67,56 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * A factory for web sockets.
 	 */
-	webSocketFactory?: IWebSocketFactory;
+	readonly webSocketFactory?: IWebSocketFactory;
 
 	/**
 	 * A provider for resource URIs.
 	 */
-	resourceUriProvider?: (uri: URI) => URI;
+	readonly resourceUriProvider?: IResourceUriProvider;
 
 	/**
-	 * Experimental: Whether to enable the smoke test driver.
+	 * The credentials provider to store and retrieve secrets.
 	 */
-	driver?: boolean;
+	readonly credentialsProvider?: ICredentialsProvider;
 
 	/**
-	 * Experimental: The credentials provider to store and retrieve secrets.
+	 * Add static extensions that cannot be uninstalled but only be disabled.
 	 */
-	credentialsProvider?: ICredentialsProvider;
+	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
 
 	/**
-	 * Experimental: Add static extensions that cannot be uninstalled but only be disabled.
+	 * Support for URL callbacks.
 	 */
-	staticExtensions?: { packageJSON: IExtensionManifest, extensionLocation: URI }[];
+	readonly urlCallbackProvider?: IURLCallbackProvider;
 
 	/**
-	 * Experimental: Support for URL callbacks.
+	 * Support for update reporting.
 	 */
-	urlCallbackProvider?: IURLCallbackProvider;
+	readonly updateProvider?: IUpdateProvider;
+
+	/**
+	 * Support adding additional properties to telemetry.
+	 */
+	readonly resolveCommonTelemetryProperties?: ICommontTelemetryPropertiesResolver;
+
+	/**
+	 * Resolves an external uri before it is opened.
+	 */
+	readonly resolveExternalUri?: IExternalUriResolver;
 
 	/**
 	 * Current logging level. Default is `LogLevel.Info`.
 	 */
-	logLevel?: LogLevel;
-
-
-	/**
-	 * Experimental: Support for update reporting.
-	 */
-	updateProvider?: IUpdateProvider;
+	readonly logLevel?: LogLevel;
 
 	/**
-	 * Experimental: If provided, will be called when logging telemetry events.
+	 * Whether to enable the smoke test driver.
 	 */
-	telemetryAppender?: ITelemetryAppender;
-
-
-	/**
-	 * Experimental: Support adding additional properties to telemetry.
-	 */
-	resolveCommonTelemetryProperties?: () => { [key: string]: any };
-
-	/**
-	 * Experimental: Resolves an external uri before it is opened.
-	 */
-	readonly resolveExternalUri?: (uri: URI) => Promise<URI>;
+	readonly driver?: boolean;
 }
 
 /**
- * Experimental: Creates the workbench with the provided options in the provided container.
+ * Creates the workbench with the provided options in the provided container.
  *
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
@@ -144,10 +153,14 @@ export {
 	IWebSocketFactory,
 	IWebSocket,
 
+	// Resources
+	IResourceUriProvider,
+
 	// Credentials
 	ICredentialsProvider,
 
 	// Static Extensions
+	IStaticExtension,
 	IExtensionManifest,
 
 	// Callbacks
@@ -161,5 +174,8 @@ export {
 	IUpdate,
 
 	// Telemetry
-	ITelemetryAppender
+	ICommontTelemetryPropertiesResolver,
+
+	// External Uris
+	IExternalUriResolver
 };

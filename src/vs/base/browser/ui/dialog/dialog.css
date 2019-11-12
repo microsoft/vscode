@@ -27,12 +27,12 @@
 	min-width: 500px;
 	max-width: 90%;
 	min-height: 75px;
-	padding: 5px;
+	padding: 10px;
 }
 
 /** Dialog: Title Actions Row */
 .monaco-workbench .dialog-box .dialog-toolbar-row {
-	padding-right: 1px;
+	padding-bottom: 4px;
 }
 
 .monaco-workbench .dialog-box .action-label {
@@ -59,17 +59,17 @@
 .monaco-workbench .dialog-box .dialog-message-row {
 	display: flex;
 	flex-grow: 1;
-	padding: 10px 15px 20px;
 	align-items: center;
+	padding: 0 10px;
 }
 
 .monaco-workbench .dialog-box .dialog-message-row .dialog-icon {
-	flex: 0 0 40px;
-	height: 40px;
+	flex: 0 0 48px;
+	height: 48px;
 	align-self: baseline;
 	background-position: center;
 	background-repeat: no-repeat;
-	background-size: 40px;
+	background-size: 48px;
 }
 
 .vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
@@ -121,8 +121,10 @@
 	flex-direction: column;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	padding-left: 20px;
+	padding-left: 24px;
 	user-select: text;
+	-webkit-user-select: text;
+	-ms-user-select: text;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	white-space: normal;
 }
@@ -134,7 +136,6 @@
 	flex: 1; /* let the message always grow */
 	white-space: normal;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
-	padding-bottom: 10px;
 }
 
 /** Dialog: Details */
@@ -142,6 +143,7 @@
 	line-height: 22px;
 	flex: 1; /* let the message always grow */
 	opacity: .9;
+	margin-top: 8px;
 }
 
 .monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
@@ -152,6 +154,13 @@
 .monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row {
 	padding: 15px 0px 0px;
 	display: flex;
+}
+
+.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row .dialog-checkbox-message {
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
 }
 
 /** Dialog: Buttons Row */
@@ -166,6 +175,7 @@
 .monaco-workbench .dialog-box > .dialog-buttons-row {
 	display: flex;
 	white-space: nowrap;
+	padding: 20px 10px 10px;
 }
 
 /** Dialog: Buttons */
@@ -175,7 +185,8 @@
 }
 
 .monaco-workbench .dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	max-width: fit-content;
+	width: fit-content;
+	width: -moz-fit-content;
 	padding: 5px 10px;
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	overflow: hidden;

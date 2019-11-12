@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../common/media/task.contribution';
-
 import * as nls from 'vs/nls';
 
 import { QuickOpenHandler } from 'vs/workbench/contrib/tasks/browser/taskQuickOpen';
@@ -35,6 +33,11 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { RunAutomaticTasks, ManageAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import schemaVersion1 from '../common/jsonSchema_v1';
+import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
+import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
+import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -101,7 +104,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 
 			if (promise && (event.kind === TaskEventKind.Active) && (this.activeTasksCount === 1)) {
-				this.progressService.withProgress({ location: ProgressLocation.Window }, progress => {
+				this.progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
 					progress.report({ message: nls.localize('building', 'Building...') });
 					return promise!;
 				}).then(() => {
@@ -288,10 +291,6 @@ let schema: IJSONSchema = {
 	}
 };
 
-import schemaVersion1 from '../common/jsonSchema_v1';
-import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
-import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
@@ -304,4 +303,74 @@ jsonRegistry.registerSchema(tasksSchemaId, schema);
 ProblemMatcherRegistry.onMatcherChanged(() => {
 	updateProblemMatchers();
 	jsonRegistry.notifySchemaChanged(tasksSchemaId);
+});
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	id: 'task',
+	order: 100,
+	title: nls.localize('tasksConfigurationTitle', "Tasks"),
+	type: 'object',
+	properties: {
+		'task.problemMatchers.neverPrompt': {
+			markdownDescription: nls.localize('task.problemMatchers.neverPrompt', "Configures whether to show the problem matcher prompt when running a task. Set to `true` to never promp, or use a dictionary of task types to turn off prompting only for specific task types."),
+			'oneOf': [
+				{
+					type: 'boolean',
+					markdownDescription: nls.localize('task.problemMatchers.neverPrompt.boolean', 'Sets problem matcher prompting behavior for all tasks.')
+				},
+				{
+					type: 'object',
+					patternProperties: {
+						'.*': {
+							type: 'boolean'
+						}
+					},
+					markdownDescription: nls.localize('task.problemMatchers.neverPrompt.array', 'An object containing task type-boolean pairs to never prompt for problem matchers on.'),
+					default: {
+						'shell': true
+					}
+				}
+			],
+			default: false
+		},
+		'task.autoDetect': {
+			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions my provide settings to disabled auto detection."),
+			type: 'string',
+			enum: ['on', 'off'],
+			default: 'on'
+		},
+		'task.slowProviderWarning': {
+			markdownDescription: nls.localize('task.slowProviderWarning', "Configures whether a warning is shown when a provider is slow"),
+			'oneOf': [
+				{
+					type: 'boolean',
+					markdownDescription: nls.localize('task.slowProviderWarning.boolean', 'Sets the slow provider warning for all tasks.')
+				},
+				{
+					type: 'array',
+					items: {
+						type: 'string',
+						markdownDescription: nls.localize('task.slowProviderWarning.array', 'An array of task types to never show the slow provider warning.')
+					}
+				}
+			],
+			default: true
+		},
+		'task.quickOpen.history': {
+			markdownDescription: nls.localize('task.quickOpen.history', "Controls the number of recent items tracked in task quick open dialog."),
+			type: 'number',
+			default: 30, minimum: 0, maximum: 30
+		},
+		'task.quickOpen.detail': {
+			markdownDescription: nls.localize('task.quickOpen.detail', "Controls whether to show the task detail for task that have a detail in the Run Task quick pick."),
+			type: 'boolean',
+			default: true
+		},
+		'task.quickOpen.skip': {
+			type: 'boolean',
+			description: nls.localize('task.quickOpen.skip', "Controls whether the task quick pick is skipped when there is only one task to pick from."),
+			default: false
+		}
+	}
 });

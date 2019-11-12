@@ -38,7 +38,8 @@
           "tasks.json",
           "keybindings.json",
           "extensions.json",
-          "argv.json"
+          "argv.json",
+          "profiles.json"
         ]
       }
     ],
@@ -72,8 +73,8 @@
         "url": "vscode://schemas/workspaceConfig"
       },
       {
-        "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
-        "url": "vscode://schemas/locale"
+        "fileMatch": "**/argv.json",
+        "url": "vscode://schemas/argv"
       },
       {
         "fileMatch": "/.vscode/settings.json",
@@ -114,6 +115,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "^12.11.7"
   }
 }

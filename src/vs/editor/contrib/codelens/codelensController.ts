@@ -21,7 +21,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
-	private static readonly ID: string = 'css.editor.codeLens';
+	public static readonly ID: string = 'css.editor.codeLens';
 
 	private _isEnabled: boolean;
 
@@ -76,10 +76,6 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.clear();
 		this._oldCodeLensModels.clear();
 		dispose(this._currentCodeLensModel);
-	}
-
-	getId(): string {
-		return CodeLensContribution.ID;
 	}
 
 	private _onModelChange(): void {
@@ -330,7 +326,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		this._currentResolveCodeLensSymbolsPromise = createCancelablePromise(token => {
+		const resolvePromise = createCancelablePromise(token => {
 
 			const promises = toResolve.map((request, i) => {
 
@@ -355,15 +351,23 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 			return Promise.all(promises);
 		});
+		this._currentResolveCodeLensSymbolsPromise = resolvePromise;
 
 		this._currentResolveCodeLensSymbolsPromise.then(() => {
+			if (this._currentCodeLensModel) { // update the cached state with new resolved items
+				this._codeLensCache.put(model, this._currentCodeLensModel);
+			}
 			this._oldCodeLensModels.clear(); // dispose old models once we have updated the UI with the current model
-			this._currentResolveCodeLensSymbolsPromise = undefined;
+			if (resolvePromise === this._currentResolveCodeLensSymbolsPromise) {
+				this._currentResolveCodeLensSymbolsPromise = undefined;
+			}
 		}, err => {
 			onUnexpectedError(err); // can also be cancellation!
-			this._currentResolveCodeLensSymbolsPromise = undefined;
+			if (resolvePromise === this._currentResolveCodeLensSymbolsPromise) {
+				this._currentResolveCodeLensSymbolsPromise = undefined;
+			}
 		});
 	}
 }
 
-registerEditorContribution(CodeLensContribution);
+registerEditorContribution(CodeLensContribution.ID, CodeLensContribution);

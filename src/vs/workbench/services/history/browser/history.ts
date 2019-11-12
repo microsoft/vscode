@@ -7,7 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
@@ -59,7 +59,7 @@ export class TextEditorState {
 	}
 
 	justifiesNewPushState(other: TextEditorState, event?: ICursorPositionChangedEvent): boolean {
-		if (event && event.source === 'api') {
+		if (event?.source === 'api') {
 			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
 		}
 
@@ -125,8 +125,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
 
-	private fileInputFactory: IFileInputFactory;
-
 	private canNavigateBackContextKey: IContextKey<boolean>;
 	private canNavigateForwardContextKey: IContextKey<boolean>;
 	private canNavigateToLastEditLocationContextKey: IContextKey<boolean>;
@@ -148,8 +146,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false)).bindTo(this.contextKeyService);
 		this.canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false)).bindTo(this.contextKeyService);
 		this.canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false)).bindTo(this.contextKeyService);
-
-		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileInputFactory();
 
 		this.index = -1;
 		this.lastIndex = -1;
@@ -227,7 +223,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeControl && activeControl.input && activeControl.group ? { editor: activeControl.input, groupId: activeControl.group.id } : undefined;
+		this.lastActiveEditor = activeControl?.input && activeControl.group ? { editor: activeControl.input, groupId: activeControl.group.id } : undefined;
 
 		// Dispose old listeners
 		this.activeEditorListeners.clear();
@@ -486,7 +482,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {
-		const input = editor ? editor.input : undefined;
+		const input = editor?.input;
 
 		// Ensure we have at least a name to show and not configured to exclude input
 		if (!input || !input.getName() || !this.include(input)) {
@@ -596,7 +592,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// stack but we need to keep our currentTextEditorState up to date with
 		// the navigtion that occurs.
 		if (this.navigatingInStack) {
-			if (codeEditor && control && control.input) {
+			if (codeEditor && control?.input) {
 				this.currentTextEditorState = new TextEditorState(control.input, codeEditor.getSelection());
 			} else {
 				this.currentTextEditorState = null; // we navigated to a non text editor
@@ -607,7 +603,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		else {
 
 			// navigation inside text editor
-			if (codeEditor && control && control.input) {
+			if (codeEditor && control?.input) {
 				this.handleTextEditorEvent(control, codeEditor, event);
 			}
 
@@ -615,7 +611,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			else {
 				this.currentTextEditorState = null; // at this time we have no active text editor view state
 
-				if (control && control.input) {
+				if (control?.input) {
 					this.handleNonTextEditorEvent(control);
 				}
 			}
@@ -738,8 +734,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
-		if (this.fileInputFactory.isFileInput(input)) {
-			return { resource: input.getResource() };
+		const resource = input.getResource();
+		if (resource && this.fileService.canHandleResource(resource)) {
+			return { resource: resource };
 		}
 
 		return input;
@@ -849,7 +846,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const resourceInput = arg2 as IResourceInput;
 
-		return resourceInput && resourceInput.resource.toString() === resource.toString();
+		return resourceInput?.resource.toString() === resource.toString();
 	}
 
 	getHistory(): Array<IEditorInput | IResourceInput> {
@@ -928,7 +925,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Editor input: via factory
 		const { editorInputJSON } = serializedEditorHistoryEntry;
-		if (editorInputJSON && editorInputJSON.deserialized) {
+		if (editorInputJSON?.deserialized) {
 			const factory = registry.getEditorInputFactory(editorInputJSON.typeId);
 			if (factory) {
 				const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
@@ -1000,7 +997,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 				resource = (input as IResourceInput).resource;
 			}
 
-			if (resource && resource.scheme === filterByScheme) {
+			if (resource?.scheme === filterByScheme) {
 				return resource;
 			}
 		}

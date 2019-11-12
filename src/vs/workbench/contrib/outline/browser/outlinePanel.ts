@@ -40,7 +40,7 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { basename } from 'vs/base/common/resources';
@@ -247,6 +247,7 @@ export class OutlinePanel extends ViewletPanel {
 	private _treeDataSource!: OutlineDataSource;
 	private _treeRenderer!: OutlineElementRenderer;
 	private _treeComparator!: OutlineItemComparator;
+	private _treeFilter!: OutlineFilter;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
 
 	private readonly _contextKeyFocused: IContextKey<boolean>;
@@ -313,6 +314,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._treeRenderer = this._instantiationService.createInstance(OutlineElementRenderer);
 		this._treeDataSource = new OutlineDataSource();
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
+		this._treeFilter = this._instantiationService.createInstance(OutlineFilter, 'outline');
 		this._tree = this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			'OutlinePanel',
@@ -326,8 +328,10 @@ export class OutlinePanel extends ViewletPanel {
 				multipleSelectionSupport: false,
 				filterOnType: this._outlineViewState.filterOnType,
 				sorter: this._treeComparator,
+				filter: this._treeFilter,
 				identityProvider: new OutlineIdentityProvider(),
-				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider()
+				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+				hideTwistiesOfChildlessElements: true
 			}
 		);
 
@@ -364,6 +368,10 @@ export class OutlinePanel extends ViewletPanel {
 			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
 				this._tree.updateChildren();
 			}
+			if (e.affectsConfiguration('outline')) {
+				this._treeFilter.update();
+				this._tree.refilter();
+			}
 		}));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
@@ -393,7 +401,7 @@ export class OutlinePanel extends ViewletPanel {
 		const group = this._register(new RadioGroup([
 			new SimpleToggleAction(this._outlineViewState, localize('sortByPosition', "Sort By: Position"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByPosition, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByPosition),
 			new SimpleToggleAction(this._outlineViewState, localize('sortByName', "Sort By: Name"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByName, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByName),
-			new SimpleToggleAction(this._outlineViewState, localize('sortByKind', "Sort By: Type"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByKind, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByKind),
+			new SimpleToggleAction(this._outlineViewState, localize('sortByKind', "Sort By: Category"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByKind, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByKind),
 		]));
 		const result = [
 			new SimpleToggleAction(this._outlineViewState, localize('followCur', "Follow Cursor"), () => this._outlineViewState.followCursor, action => this._outlineViewState.followCursor = action.checked),
@@ -458,10 +466,14 @@ export class OutlinePanel extends ViewletPanel {
 		}
 
 		const textModel = editor.getModel();
-		const loadingMessage = oldModel && new TimeoutTimer(
-			() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(textModel.uri))),
-			100
-		);
+
+		let loadingMessage: IDisposable | undefined;
+		if (!oldModel) {
+			loadingMessage = new TimeoutTimer(
+				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(textModel.uri))),
+				100
+			);
+		}
 
 		const requestDelay = OutlineModel.getRequestDelay(textModel);
 		this._progressBar.infinite().show(requestDelay);

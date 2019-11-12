@@ -102,10 +102,6 @@ export class EnvironmentService implements IEnvironmentService {
 		return parseUserDataDir(this._args, process);
 	}
 
-	get appNameLong(): string { return product.nameLong; }
-
-	get appQuality(): string | undefined { return product.quality; }
-
 	@memoize
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
@@ -138,9 +134,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get keyboardLayoutResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
-
-	@memoize
-	get localeResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'locale.json'); }
 
 	@memoize
 	get argvResource(): URI {
@@ -242,6 +235,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
+	@memoize
+	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this._args.verbose; }

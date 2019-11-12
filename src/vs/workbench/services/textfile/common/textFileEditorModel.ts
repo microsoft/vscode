@@ -100,7 +100,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private disposed = false;
 
 	constructor(
-		private resource: URI,
+		private readonly resource: URI,
 		private preferredEncoding: string | undefined,	// encoding as chosen by the user
 		private preferredMode: string | undefined,		// mode as chosen by the user
 		@INotificationService private readonly notificationService: INotificationService,
@@ -329,8 +329,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private async loadFromFile(options?: ILoadOptions): Promise<TextFileEditorModel> {
-		const forceReadFromDisk = options && options.forceReadFromDisk;
-		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || (options && options.allowBinary);
+		const forceReadFromDisk = options?.forceReadFromDisk;
+		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || options?.allowBinary;
 
 		// Decide on etag
 		let etag: string | undefined;
@@ -436,7 +436,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		} else {
 			type FileGetClassification = {} & FileTelemetryDataFragment;
 
-			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
+			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(options?.reason ?? LoadReason.OTHER));
 		}
 
 		return this;
@@ -781,11 +781,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Check for keybindings file
 		if (isEqual(this.resource, this.environmentService.keybindingsResource)) {
 			return 'keybindings';
-		}
-
-		// Check for locale file
-		if (isEqual(this.resource, joinPath(this.environmentService.userRoamingDataHome, 'locale.json'))) {
-			return 'locale';
 		}
 
 		// Check for snippets

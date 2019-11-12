@@ -149,7 +149,7 @@ export class EditorGroup extends Disposable {
 
 		for (const editor of this.editors) {
 			const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
-			if (editorResource && editorResource.toString() === resource.toString()) {
+			if (editorResource?.toString() === resource.toString()) {
 				return editor;
 			}
 		}
@@ -176,8 +176,8 @@ export class EditorGroup extends Disposable {
 	openEditor(editor: EditorInput, options?: IEditorOpenOptions): void {
 		const index = this.indexOf(editor);
 
-		const makePinned = options && options.pinned;
-		const makeActive = (options && options.active) || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
+		const makePinned = options?.pinned;
+		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
 
 		// New editor
 		if (index === -1) {

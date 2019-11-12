@@ -156,7 +156,7 @@ export class EditorControl extends Disposable {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
-		const forceReload = options && options.forceReload;
+		const forceReload = options?.forceReload;
 		const inputMatches = control.input && control.input.matches(editor);
 		if (inputMatches && !forceReload) {
 
@@ -208,6 +208,7 @@ export class EditorControl extends Disposable {
 		if (controlInstanceContainer) {
 			this.parent.removeChild(controlInstanceContainer);
 			hide(controlInstanceContainer);
+			this._activeControl.onHide();
 		}
 
 		// Indicate to editor control

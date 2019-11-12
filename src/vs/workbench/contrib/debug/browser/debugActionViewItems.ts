@@ -36,7 +36,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	private selected = 0;
 
 	constructor(
-		private context: any,
+		private context: unknown,
 		private action: IAction,
 		@IDebugService private readonly debugService: IDebugService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -69,7 +69,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	render(container: HTMLElement): void {
 		this.container = container;
 		dom.addClass(container, 'start-debug-action-item');
-		this.start = dom.append(container, $('.icon'));
+		this.start = dom.append(container, $('.codicon.codicon-debug-start'));
 		this.start.title = this.action.label;
 		this.start.setAttribute('role', 'button');
 		this.start.tabIndex = 0;

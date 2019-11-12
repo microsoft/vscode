@@ -139,6 +139,7 @@
 .monaco-editor .settings-header-widget .title-container {
 	display: flex;
 	user-select: none;
+	-webkit-user-select: none;
 }
 
 .vs .monaco-editor .settings-header-widget .title-container {
@@ -170,6 +171,7 @@
 	cursor: pointer;
 	font-weight: bold;
 	user-select: none;
+	-webkit-user-select: none;
 	display: flex;
 }
 

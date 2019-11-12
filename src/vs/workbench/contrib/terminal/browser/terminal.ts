@@ -141,7 +141,7 @@ export interface ITerminalService {
 	 * @param path The path to be escaped and formatted.
 	 * @returns An escaped version of the path to be execuded in the terminal.
 	 */
-	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
+	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType): Promise<string>;
 
 	extHostReady(remoteAuthority: string): void;
 	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
@@ -166,6 +166,14 @@ export interface ISearchOptions {
 	 */
 	incremental?: boolean;
 }
+
+export enum WindowsShellType {
+	CommandPrompt,
+	PowerShell,
+	Wsl,
+	GitBash
+}
+export type TerminalShellType = WindowsShellType | undefined;
 
 export interface ITerminalInstance {
 	/**
@@ -226,7 +234,9 @@ export interface ITerminalInstance {
 	 * is the processes' exit code, an exit code of null means the process was killed as a result of
 	 * the ITerminalInstance being disposed.
 	 */
-	onExit: Event<number>;
+	onExit: Event<number | undefined>;
+
+	readonly exitCode: number | undefined;
 
 	processReady: Promise<void>;
 
@@ -235,6 +245,11 @@ export interface ITerminalInstance {
 	 * explicit name given to the terminal instance through the extension API.
 	 */
 	readonly title: string;
+
+	/**
+	 * The shell type of the terminal.
+	 */
+	readonly shellType: TerminalShellType;
 
 	/**
 	 * The focus state of the terminal before exiting.
@@ -430,6 +445,11 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventSource: TitleEventSource): void;
+
+	/**
+	 * Sets the shell type of the terminal instance.
+	 */
+	setShellType(shellType: TerminalShellType): void;
 
 	waitForTitle(): Promise<string>;
 

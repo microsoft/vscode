@@ -68,7 +68,11 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		return Promise.resolve(undefined);
 	}
 
-	async $createAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<URI> {
+	async $createAppUri(uri: UriComponents): Promise<URI> {
+		return this.urlService.create(uri);
+	}
+
+	async $proposedCreateAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<URI> {
 		const payload: Partial<UriComponents> = options && options.payload ? options.payload : Object.create(null);
 
 		// we define the authority to be the extension ID to ensure

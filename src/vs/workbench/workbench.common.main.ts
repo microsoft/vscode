@@ -70,7 +70,7 @@ import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
-import 'vs/workbench/services/untitled/common/untitledEditorService';
+import 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
@@ -80,6 +80,8 @@ import 'vs/workbench/services/extensionManagement/common/extensionEnablementServ
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
 import 'vs/workbench/services/userDataSync/common/settingsMergeService';
+import 'vs/workbench/services/path/common/remotePathService';
+import 'vs/workbench/services/remote/common/remoteExplorerService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -251,5 +253,11 @@ import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
+
+// Code Actions
+import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
+
+// Test Custom Editors
+import 'vs/workbench/contrib/testCustomEditors/browser/testCustomEditors';
 
 //#endregion

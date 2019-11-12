@@ -38,3 +38,14 @@
 .monaco-workbench .call-hierarchy .tree {
 	height: 100%;
 }
+
+.monaco-workbench .call-hierarchy .tree .callhierarchy-element {
+	display: flex;
+	flex: 1;
+	flex-flow: row nowrap;
+	align-items: center;
+}
+
+.monaco-workbench .call-hierarchy .tree .callhierarchy-element .monaco-icon-label {
+	padding-left: 4px;
+}

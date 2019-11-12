@@ -59,7 +59,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IAuthTokenService } from 'vs/platform/auth/common/auth';
-import { AuthTokenService } from 'vs/platform/auth/common/authTokenService';
+import { AuthTokenService } from 'vs/platform/auth/electron-browser/authTokenService';
 import { AuthTokenChannel } from 'vs/platform/auth/common/authTokenIpc';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';

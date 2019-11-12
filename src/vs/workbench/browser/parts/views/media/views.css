@@ -45,7 +45,8 @@
 .monaco-workbench .tree-explorer-viewlet-tree-view .message {
 	display: flex;
 	padding: 4px 12px 0px 18px;
-	user-select: text
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .message p {
@@ -108,6 +109,7 @@
 	width: 16px;
 	height: 22px;
 	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {

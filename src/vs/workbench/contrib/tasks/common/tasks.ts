@@ -8,7 +8,7 @@ import * as Types from 'vs/base/common/types';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
-import { UriComponents } from 'vs/base/common/uri';
+import { UriComponents, URI } from 'vs/base/common/uri';
 
 import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -274,7 +274,7 @@ export namespace PresentationOptions {
 export enum RuntimeType {
 	Shell = 1,
 	Process = 2,
-	CustomExecution2 = 3
+	CustomExecution = 3
 }
 
 export namespace RuntimeType {
@@ -284,8 +284,8 @@ export namespace RuntimeType {
 				return RuntimeType.Shell;
 			case 'process':
 				return RuntimeType.Process;
-			case 'customExecution2':
-				return RuntimeType.CustomExecution2;
+			case 'customExecution':
+				return RuntimeType.CustomExecution;
 			default:
 				return RuntimeType.Process;
 		}
@@ -438,7 +438,7 @@ export interface KeyedTaskIdentifier extends TaskIdentifier {
 }
 
 export interface TaskDependency {
-	workspaceFolder: IWorkspaceFolder;
+	uri: URI;
 	task: string | KeyedTaskIdentifier | undefined;
 }
 
@@ -503,6 +503,11 @@ export interface ConfigurationProperties {
 	 * The order the dependsOn tasks should be executed in.
 	 */
 	dependsOrder?: DependsOrder;
+
+	/**
+	 * A description of the task.
+	 */
+	detail?: string;
 
 	/**
 	 * The problem watchers to use for this task
@@ -680,8 +685,8 @@ export class CustomTask extends CommonTask {
 					type = 'process';
 					break;
 
-				case RuntimeType.CustomExecution2:
-					type = 'customExecution2';
+				case RuntimeType.CustomExecution:
+					type = 'customExecution';
 					break;
 
 				case undefined:

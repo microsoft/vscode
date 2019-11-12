@@ -9,7 +9,7 @@ steps:
     sudo service xvfb start
 - task: NodeTool@0
   inputs:
-    versionSpec: "10.15.1"
+    versionSpec: "12.13.0"
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
     keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
@@ -19,7 +19,7 @@ steps:
   inputs:
     versionSpec: "1.x"
 - script: |
-    yarn --frozen-lockfile
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
   displayName: Install Dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
@@ -29,7 +29,7 @@ steps:
     vstsFeed: '$(ArtifactFeed)'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - script: |
-    yarn gulp electron-x64
+    yarn electron x64
   displayName: Download Electron
 - script: |
     yarn gulp hygiene --skip-tslint

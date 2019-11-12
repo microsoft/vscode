@@ -310,6 +310,11 @@ export interface ConfigurationProperties {
 	group?: string | GroupKind;
 
 	/**
+	 * A description of the task.
+	 */
+	detail?: string;
+
+	/**
 	 * The other tasks the task depend on
 	 */
 	dependsOn?: string | TaskIdentifier | Array<string | TaskIdentifier>;
@@ -547,7 +552,7 @@ interface MetaData<T, U> {
 }
 
 
-function _isEmpty<T>(this: void, value: T | undefined, properties: MetaData<T, any>[] | undefined): boolean {
+function _isEmpty<T>(this: void, value: T | undefined, properties: MetaData<T, any>[] | undefined, allowEmptyArray: boolean = false): boolean {
 	if (value === undefined || value === null || properties === undefined) {
 		return true;
 	}
@@ -556,7 +561,7 @@ function _isEmpty<T>(this: void, value: T | undefined, properties: MetaData<T, a
 		if (property !== undefined && property !== null) {
 			if (meta.type !== undefined && !meta.type.isEmpty(property)) {
 				return false;
-			} else if (!Array.isArray(property) || property.length > 0) {
+			} else if (!Array.isArray(property) || (property.length > 0) || allowEmptyArray) {
 				return false;
 			}
 		}
@@ -586,11 +591,11 @@ function _assignProperties<T>(this: void, target: T | undefined, source: T | und
 	return target;
 }
 
-function _fillProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: MetaData<T, any>[] | undefined): T | undefined {
+function _fillProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: MetaData<T, any>[] | undefined, allowEmptyArray: boolean = false): T | undefined {
 	if (!source || _isEmpty(source, properties)) {
 		return target;
 	}
-	if (!target || _isEmpty(target, properties)) {
+	if (!target || _isEmpty(target, properties, allowEmptyArray)) {
 		return source;
 	}
 	for (let meta of properties!) {
@@ -722,7 +727,7 @@ namespace ShellConfiguration {
 	}
 
 	export function isEmpty(this: void, value: Tasks.ShellConfiguration): boolean {
-		return _isEmpty(value, properties);
+		return _isEmpty(value, properties, true);
 	}
 
 	export function assignProperties(this: void, target: Tasks.ShellConfiguration | undefined, source: Tasks.ShellConfiguration | undefined): Tasks.ShellConfiguration | undefined {
@@ -730,7 +735,7 @@ namespace ShellConfiguration {
 	}
 
 	export function fillProperties(this: void, target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration | undefined {
-		return _fillProperties(target, source, properties);
+		return _fillProperties(target, source, properties, true);
 	}
 
 	export function fillDefaults(this: void, value: Tasks.ShellConfiguration, context: ParseContext): Tasks.ShellConfiguration {
@@ -1115,6 +1120,20 @@ namespace ProblemMatcherConverter {
 		return result;
 	}
 
+	export function fromWithOsConfig(this: void, external: ConfigurationProperties & { [key: string]: any; }, context: ParseContext): ProblemMatcher[] | undefined {
+		let result: ProblemMatcher[] | undefined = undefined;
+		if (external.windows && external.windows.problemMatcher && context.platform === Platform.Windows) {
+			result = from(external.windows.problemMatcher, context);
+		} else if (external.osx && external.osx.problemMatcher && context.platform === Platform.Mac) {
+			result = from(external.osx.problemMatcher, context);
+		} else if (external.linux && external.linux.problemMatcher && context.platform === Platform.Linux) {
+			result = from(external.linux.problemMatcher, context);
+		} else if (external.problemMatcher) {
+			result = from(external.problemMatcher, context);
+		}
+		return result;
+	}
+
 	export function from(this: void, config: ProblemMatcherConfig.ProblemMatcherType | undefined, context: ParseContext): ProblemMatcher[] {
 		let result: ProblemMatcher[] = [];
 		if (config === undefined) {
@@ -1212,9 +1231,12 @@ namespace GroupKind {
 namespace TaskDependency {
 	export function from(this: void, external: string | TaskIdentifier, context: ParseContext): Tasks.TaskDependency | undefined {
 		if (Types.isString(external)) {
-			return { workspaceFolder: context.workspaceFolder, task: external };
+			return { uri: context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri, task: external };
 		} else if (TaskIdentifier.is(external)) {
-			return { workspaceFolder: context.workspaceFolder, task: Tasks.TaskDefinition.createTaskIdentifier(external as Tasks.TaskIdentifier, context.problemReporter) };
+			return {
+				uri: context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri,
+				task: Tasks.TaskDefinition.createTaskIdentifier(external as Tasks.TaskIdentifier, context.problemReporter)
+			};
 		} else {
 			return undefined;
 		}
@@ -1305,8 +1327,12 @@ namespace ConfigurationProperties {
 		if (includeCommandOptions && (external.options !== undefined)) {
 			result.options = CommandOptions.from(external.options, context);
 		}
-		if (external.problemMatcher) {
-			result.problemMatchers = ProblemMatcherConverter.from(external.problemMatcher, context);
+		const configProblemMatcher = ProblemMatcherConverter.fromWithOsConfig(external, context);
+		if (configProblemMatcher !== undefined) {
+			result.problemMatchers = configProblemMatcher;
+		}
+		if (external.detail) {
+			result.detail = external.detail;
 		}
 		return isEmpty(result) ? undefined : result;
 	}
@@ -1569,6 +1595,7 @@ namespace CustomTask {
 		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'dependsOn');
 		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'problemMatchers');
 		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'promptOnClose');
+		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'detail');
 		result.command.presentation = CommandConfiguration.PresentationOptions.assignProperties(
 			result.command.presentation!, configuredProps.configurationProperties.presentation)!;
 		result.command.options = CommandOptions.assignProperties(result.command.options, configuredProps.configurationProperties.options);
@@ -1580,6 +1607,7 @@ namespace CustomTask {
 		fillProperty(resultConfigProps, contributedConfigProps, 'dependsOn');
 		fillProperty(resultConfigProps, contributedConfigProps, 'problemMatchers');
 		fillProperty(resultConfigProps, contributedConfigProps, 'promptOnClose');
+		fillProperty(resultConfigProps, contributedConfigProps, 'detail');
 		result.command.presentation = CommandConfiguration.PresentationOptions.fillProperties(
 			result.command.presentation!, contributedConfigProps.presentation)!;
 		result.command.options = CommandOptions.fillProperties(result.command.options, contributedConfigProps.options);
@@ -2047,80 +2075,3 @@ export function createCustomTask(contributedTask: Tasks.ContributedTask, configu
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
 }
 
-/*
-class VersionConverter {
-	constructor(private problemReporter: IProblemReporter) {
-	}
-
-	public convert(fromConfig: ExternalTaskRunnerConfiguration): ExternalTaskRunnerConfiguration {
-		let result: ExternalTaskRunnerConfiguration;
-		result.version = '2.0.0';
-		if (Array.isArray(fromConfig.tasks)) {
-
-		} else {
-			result.tasks = [];
-		}
-
-
-		return result;
-	}
-
-	private convertGlobalTask(fromConfig: ExternalTaskRunnerConfiguration): TaskDescription {
-		let command: string = this.getGlobalCommand(fromConfig);
-		if (!command) {
-			this.problemReporter.error(nls.localize('Converter.noGlobalName', 'No global command specified. Can\'t convert to 2.0.0 version.'));
-			return undefined;
-		}
-		let result: TaskDescription = {
-			taskName: command
-		};
-		if (fromConfig.isShellCommand) {
-			result.type = 'shell';
-		} else {
-			result.type = 'process';
-			result.args = fromConfig.args;
-		}
-		if (fromConfig.)
-
-		return result;
-	}
-
-	private getGlobalCommand(fromConfig: ExternalTaskRunnerConfiguration): string {
-		if (fromConfig.command) {
-			return fromConfig.command;
-		} else if (fromConfig.windows && fromConfig.windows.command) {
-			return fromConfig.windows.command;
-		} else if (fromConfig.osx && fromConfig.osx.command) {
-			return fromConfig.osx.command;
-		} else if (fromConfig.linux && fromConfig.linux.command) {
-			return fromConfig.linux.command;
-		} else {
-			return undefined;
-		}
-	}
-
-	private createCommandLine(command: string, args: string[], isWindows: boolean): string {
-		let result: string[];
-		let commandHasSpace = false;
-		let argHasSpace = false;
-		if (TaskDescription.hasUnescapedSpaces(command)) {
-			result.push(`"${command}"`);
-			commandHasSpace = true;
-		} else {
-			result.push(command);
-		}
-		if (args) {
-			for (let arg of args) {
-				if (TaskDescription.hasUnescapedSpaces(arg)) {
-					result.push(`"${arg}"`);
-					argHasSpace= true;
-				} else {
-					result.push(arg);
-				}
-			}
-		}
-		return result.join(' ');
-	}
-
-}
-*/

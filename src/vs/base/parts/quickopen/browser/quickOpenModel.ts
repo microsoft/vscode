@@ -351,7 +351,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		row1.appendChild(icon);
 
 		// Label
-		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportOcticons: true });
+		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportCodicons: true });
 
 		// Keybinding
 		const keybindingContainer = document.createElement('span');
@@ -434,7 +434,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 				}
 			} else {
 				DOM.removeClass(groupData.container, 'results-group-separator');
-				groupData.container.style.borderTopColor = null;
+				groupData.container.style.borderTopColor = '';
 			}
 
 			// Group Label

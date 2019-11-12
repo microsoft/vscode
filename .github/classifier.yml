@@ -15,7 +15,7 @@
         css-less-scss: [],
         debug-console: [],
         debug: {
-            assignees: [ isidorn ],
+            assignees: [ weinand ],
             assignLabel: false
         },
         diff-editor: : {
@@ -144,6 +144,7 @@
         explorer-custom: [],
         extension-host: [],
         extensions: [],
+        extensions-development: [ octref ],
         file-decorations: [],
         file-encoding: {
             assignees: [],

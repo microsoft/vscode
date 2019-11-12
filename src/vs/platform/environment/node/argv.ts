@@ -7,13 +7,10 @@ import * as minimist from 'vscode-minimist';
 import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { join } from 'vs/base/common/path';
-import { writeFileSync } from 'vs/base/node/pfs';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
  */
-
 const helpCategories = {
 	o: localize('optionsUpperCase', "Options"),
 	e: localize('extensionsManagement', "Extensions Management"),
@@ -111,7 +108,14 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'trace-options': { type: 'string' },
 	'force-user-env': { type: 'boolean' },
 
+	// chromium flags
+	'no-proxy-server': { type: 'boolean' },
+	'proxy-server': { type: 'string' },
+	'proxy-bypass-list': { type: 'string' },
+	'proxy-pac-url': { type: 'string' },
 	'js-flags': { type: 'string' }, // chrome js flags
+	'inspect': { type: 'string' },
+	'inspect-brk': { type: 'string' },
 	'nolazy': { type: 'boolean' }, // node inspect
 	'_urls': { type: 'string[]' },
 
@@ -154,7 +158,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			}
 		}
 	}
-	// remote aliases to avoid confusion
+	// remove aliases to avoid confusion
 	const parsedArgs = minimist(args, { string, boolean, alias });
 
 	const cleanedArgs: any = {};
@@ -177,7 +181,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			delete parsedArgs[o.deprecates];
 		}
 
-		if (val) {
+		if (typeof val !== 'undefined') {
 			if (o.type === 'string[]') {
 				if (val && !Array.isArray(val)) {
 					val = [val];
@@ -303,34 +307,3 @@ export function buildVersionMessage(version: string | undefined, commit: string 
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
 
-
-export function addArg(argv: string[], ...args: string[]): string[] {
-	const endOfArgsMarkerIndex = argv.indexOf('--');
-	if (endOfArgsMarkerIndex === -1) {
-		argv.push(...args);
-	} else {
-		// if the we have an argument "--" (end of argument marker)
-		// we cannot add arguments at the end. rather, we add
-		// arguments before the "--" marker.
-		argv.splice(endOfArgsMarkerIndex, 0, ...args);
-	}
-
-	return argv;
-}
-
-export function createWaitMarkerFile(verbose?: boolean): string | undefined {
-	const randomWaitMarkerPath = join(os.tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
-
-	try {
-		writeFileSync(randomWaitMarkerPath, '');
-		if (verbose) {
-			console.log(`Marker file for --wait created: ${randomWaitMarkerPath}`);
-		}
-		return randomWaitMarkerPath;
-	} catch (err) {
-		if (verbose) {
-			console.error(`Failed to create marker file for --wait: ${err}`);
-		}
-		return undefined;
-	}
-}

@@ -395,6 +395,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set commitTemplate(commitTemplate: string | undefined) {
+		if (commitTemplate === this._commitTemplate) {
+			return;
+		}
+
 		this._commitTemplate = commitTemplate;
 		this._proxy.$updateSourceControl(this.handle, { commitTemplate });
 	}

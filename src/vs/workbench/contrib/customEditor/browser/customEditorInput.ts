@@ -4,40 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memoize } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/path';
-import { isEqual, DataUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { WebviewContentState } from 'vs/editor/common/modes';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ConfirmResult, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
 import { Schemas } from 'vs/base/common/network';
+import { basename } from 'vs/base/common/path';
+import { DataUri, isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { CustomEditorModel } from './customEditorModel';
 
-export class CustomFileEditorInput extends WebviewInput {
+export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
-	private _hasResolved = false;
 	private readonly _editorResource: URI;
-	private _state = WebviewContentState.Readonly;
+	private _model?: CustomEditorModel;
 
 	constructor(
 		resource: URI,
 		viewType: string,
 		id: string,
-		webview: UnownedDisposable<WebviewEditorOverlay>,
+		webview: Lazy<UnownedDisposable<WebviewEditorOverlay>>,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
-		@IDialogService private readonly dialogService: IDialogService,
 	) {
-		super(id, viewType, '', webview);
+		super(id, viewType, '', webview, webviewWorkbenchService, lifecycleService);
 		this._editorResource = resource;
 	}
 
@@ -112,42 +108,15 @@ export class CustomFileEditorInput extends WebviewInput {
 		}
 	}
 
-	public async resolve(): Promise<IEditorModel> {
-		if (!this._hasResolved) {
-			this._hasResolved = true;
-			await this._webviewEditorService.resolveWebview(this);
+	public setModel(model: CustomEditorModel) {
+		if (this._model) {
+			throw new Error('Model is already set');
 		}
-		return super.resolve();
+		this._model = model;
+		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 	}
 
-	public setState(newState: WebviewContentState): void {
-		this._state = newState;
-		this._onDidChangeDirty.fire();
+	public isDirty(): boolean {
+		return this._model ? this._model.isDirty() : false;
 	}
-
-	public isDirty() {
-		return this._state === WebviewContentState.Dirty;
-	}
-
-	public async confirmSave(): Promise<ConfirmResult> {
-		if (!this.isDirty()) {
-			return ConfirmResult.DONT_SAVE;
-		}
-		return promptSave(this.dialogService, [this.getResource()]);
-	}
-
-	public async save(): Promise<boolean> {
-		if (!this.isDirty) {
-			return true;
-		}
-		const waitingOn: Promise<boolean>[] = [];
-		this._onWillSave.fire({
-			waitUntil: (thenable: Promise<boolean>): void => { waitingOn.push(thenable); },
-		});
-		const result = await Promise.all(waitingOn);
-		return result.every(x => x);
-	}
-
-	private readonly _onWillSave = this._register(new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>());
-	public readonly onWillSave = this._onWillSave.event;
 }

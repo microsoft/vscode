@@ -39,8 +39,7 @@
 	font-size: 11px;
 	cursor: default;
 	font-weight: normal;
-	-webkit-margin-before: 0;
-	-webkit-margin-after: 0;
+	margin: 0;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
@@ -70,6 +69,10 @@
 
 .monaco-workbench .part > .title > .title-actions .action-label .label {
 	display: none;
+}
+
+.monaco-workbench .part > .title > .title-actions .action-label.codicon {
+	color: inherit;
 }
 
 .monaco-workbench .part > .content {

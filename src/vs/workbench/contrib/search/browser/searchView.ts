@@ -53,7 +53,7 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/co
 import { FileMatch, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult, FolderMatch, FolderMatchWithResource } from 'vs/workbench/contrib/search/common/searchModel';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { relativePath } from 'vs/base/common/resources';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -129,6 +129,7 @@ export class SearchView extends ViewletPanel {
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
 	private currentSearchQ = Promise.resolve();
+	private addToSearchHistoryDelayer: Delayer<void>;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -144,7 +145,7 @@ export class SearchView extends ViewletPanel {
 		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IThemeService protected themeService: IThemeService,
 		@ISearchHistoryService private readonly searchHistoryService: ISearchHistoryService,
@@ -177,11 +178,13 @@ export class SearchView extends ViewletPanel {
 		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE);
 
 		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
-		this._register(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
+		this._register(this.untitledTextEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
+
+		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(500));
 
 		this.actions = [
 			this._register(this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)),
@@ -246,7 +249,7 @@ export class SearchView extends ViewletPanel {
 				if (this.searchWidget.isReplaceActive()) {
 					this.searchWidget.focusReplaceAllAction();
 				} else {
-					this.searchWidget.focusRegexAction();
+					this.searchWidget.isReplaceShown() ? this.searchWidget.replaceInput.focusOnPreserve() : this.searchWidget.focusRegexAction();
 				}
 				dom.EventHelper.stop(e);
 			}
@@ -266,7 +269,7 @@ export class SearchView extends ViewletPanel {
 		this.inputPatternIncludes.setValue(patternIncludes);
 
 		this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true));
-		this.inputPatternIncludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
+		this.inputPatternIncludes.onCancel(() => this.cancelSearch(false));
 		this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
 
 		// excludes list
@@ -282,7 +285,8 @@ export class SearchView extends ViewletPanel {
 		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(useExcludesAndIgnoreFiles);
 
 		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true));
-		this.inputPatternExcludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
+		this.inputPatternExcludes.onCancel(() => this.cancelSearch(false));
+		this.inputPatternExcludes.onChangeIgnoreBox(() => this.onQueryChanged(true));
 		this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocused);
 
 		this.messagesElement = dom.append(this.container, $('.messages'));
@@ -383,7 +387,7 @@ export class SearchView extends ViewletPanel {
 		}
 
 		this._register(this.searchWidget.onSearchSubmit(() => this.onQueryChanged()));
-		this._register(this.searchWidget.onSearchCancel(() => this.cancelSearch()));
+		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.onQueryChanged(true)));
 
 		this._register(this.searchWidget.onDidHeightChange(() => this.reLayout()));
@@ -794,9 +798,9 @@ export class SearchView extends ViewletPanel {
 				if (this.searchWidget.searchInput.getRegex()) {
 					selectedText = strings.escapeRegExpCharacters(selectedText);
 				}
-
-				this.searchWidget.searchInput.setValue(selectedText);
+				this.searchWidget.setValue(selectedText, true);
 				updatedText = true;
+				this.onQueryChanged();
 			}
 		}
 
@@ -922,6 +926,10 @@ export class SearchView extends ViewletPanel {
 		return !this.viewModel.searchResult.isEmpty();
 	}
 
+	hasSearchPattern(): boolean {
+		return this.searchWidget && this.searchWidget.searchInput.getValue().length > 0;
+	}
+
 	clearSearchResults(): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
@@ -935,9 +943,9 @@ export class SearchView extends ViewletPanel {
 		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
 	}
 
-	cancelSearch(): boolean {
+	cancelSearch(focus: boolean = true): boolean {
 		if (this.viewModel.cancelSearch()) {
-			this.searchWidget.focus();
+			if (focus) { this.searchWidget.focus(); }
 			return true;
 		}
 		return false;
@@ -1161,6 +1169,7 @@ export class SearchView extends ViewletPanel {
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 
 		if (contentPattern.length === 0) {
+			this.clearSearchResults();
 			return;
 		}
 
@@ -1242,7 +1251,7 @@ export class SearchView extends ViewletPanel {
 	}
 
 	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): void {
-		this.searchWidget.searchInput.onSearchSubmit();
+		this.addToSearchHistoryDelayer.trigger(() => this.searchWidget.searchInput.onSearchSubmit());
 		this.inputPatternExcludes.onSearchSubmit();
 		this.inputPatternIncludes.onSearchSubmit();
 
@@ -1255,7 +1264,7 @@ export class SearchView extends ViewletPanel {
 
 	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): Thenable<void> {
 		let progressComplete: () => void;
-		this.progressService.withProgress({ location: VIEWLET_ID }, _progress => {
+		this.progressService.withProgress({ location: VIEWLET_ID, delay: 300 }, _progress => {
 			return new Promise(resolve => progressComplete = resolve);
 		});
 
@@ -1487,8 +1496,10 @@ export class SearchView extends ViewletPanel {
 		this.messageDisposables.push(dom.addDisposableListener(openFolderLink, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, false);
 
-			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
-			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
+			const action = env.isMacintosh ?
+				this.instantiationService.createInstance(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL) :
+				this.instantiationService.createInstance(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL);
+
 			this.actionRunner!.run(action).then(() => {
 				action.dispose();
 			}, err => {
@@ -1595,7 +1606,7 @@ export class SearchView extends ViewletPanel {
 		}
 
 		// remove search results from this resource as it got disposed
-		if (!this.untitledEditorService.isDirty(resource)) {
+		if (!this.untitledTextEditorService.isDirty(resource)) {
 			const matches = this.viewModel.searchResult.matches();
 			for (let i = 0, len = matches.length; i < len; i++) {
 				if (resource.toString() === matches[i].resource.toString()) {

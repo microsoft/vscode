@@ -19,7 +19,7 @@ const paths = require('./paths');
 // @ts-ignore
 const product = require('../product.json');
 // @ts-ignore
-const app = require('electron').app;
+const { app, protocol } = require('electron');
 
 // Enable portable support
 const portable = bootstrap.configurePortable();
@@ -32,11 +32,30 @@ const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
 app.setPath('userData', userDataPath);
 
+// Set logs path before app 'ready' event if running portable
+// to ensure that no 'logs' folder is created on disk at a
+// location outside of the portable directory
+// (https://github.com/microsoft/vscode/issues/56651)
+if (portable.isPortable) {
+	app.setAppLogsPath(path.join(userDataPath, 'logs'));
+}
+
 // Update cwd based on environment and platform
 setCurrentWorkingDirectory();
 
+// Register custom schemes with privileges
+protocol.registerSchemesAsPrivileged([
+	{ scheme: 'vscode-resource', privileges: { secure: true, supportFetchAPI: true, corsEnabled: true } }
+]);
+
 // Global app listeners
 registerListeners();
+
+// Cached data
+const nodeCachedDataDir = getNodeCachedDir();
+
+// Configure static command line arguments
+const argvConfig = configureCommandlineSwitchesSync(args);
 
 /**
  * Support user defined locale: load it early before app('ready')
@@ -45,20 +64,12 @@ registerListeners();
  * @type {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>} nlsConfig | undefined
  */
 let nlsConfigurationPromise = undefined;
-const userDefinedLocale = getUserDefinedLocale();
+
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
-
-userDefinedLocale.then(locale => {
-	if (locale && !nlsConfigurationPromise) {
-		nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
-	}
-});
-
-// Cached data
-const nodeCachedDataDir = getNodeCachedDir();
-
-// Configure command line switches
-configureCommandlineSwitches(args);
+const locale = getUserDefinedLocale(argvConfig);
+if (locale) {
+	nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+}
 
 // Load our code once ready
 app.once('ready', function () {
@@ -100,9 +111,9 @@ async function onReady() {
 	perf.mark('main:appReady');
 
 	try {
-		const [cachedDataDir, locale] = await Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]);
+		const [cachedDataDir, nlsConfig] = await Promise.all([nodeCachedDataDir.ensureExists(), resolveNlsConfiguration()]);
 
-		startup(cachedDataDir, await resolveNlsConfiguration(locale));
+		startup(cachedDataDir, nlsConfig);
 	} catch (error) {
 		console.error(error);
 	}
@@ -113,22 +124,32 @@ async function onReady() {
  *
  * @param {ParsedArgs} cliArgs
  */
-function configureCommandlineSwitches(cliArgs) {
+function configureCommandlineSwitchesSync(cliArgs) {
+	const SUPPORTED_ELECTRON_SWITCHES = [
+
+		// alias from us for --disable-gpu
+		'disable-hardware-acceleration',
+
+		// provided by Electron
+		'disable-color-correct-rendering'
+	];
 
 	// Read argv config
-	const argvConfig = readArgvConfig();
+	const argvConfig = readArgvConfigSync();
 
 	// Append each flag to Electron
-	Object.keys(argvConfig).forEach(flag => {
-		const value = argvConfig[flag];
-		if (value === true || value === 'true') {
-			if (flag === 'disable-gpu') {
-				app.disableHardwareAcceleration(); // needs to be called explicitly
-			}
+	Object.keys(argvConfig).forEach(argvKey => {
+		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) === -1) {
+			return; // unsupported argv key
+		}
 
-			app.commandLine.appendArgument(flag);
-		} else {
-			app.commandLine.appendSwitch(flag, value);
+		const argvValue = argvConfig[argvKey];
+		if (argvValue === true || argvValue === 'true') {
+			if (argvKey === 'disable-hardware-acceleration') {
+				app.disableHardwareAcceleration(); // needs to be called explicitly
+			} else {
+				app.commandLine.appendSwitch(argvKey);
+			}
 		}
 	});
 
@@ -137,9 +158,11 @@ function configureCommandlineSwitches(cliArgs) {
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
+
+	return argvConfig;
 }
 
-function readArgvConfig() {
+function readArgvConfigSync() {
 
 	// Read or create the argv.json config file sync before app('ready')
 	const argvConfigPath = getArgvConfigPath();
@@ -148,35 +171,7 @@ function readArgvConfig() {
 		argvConfig = JSON.parse(stripComments(fs.readFileSync(argvConfigPath).toString()));
 	} catch (error) {
 		if (error && error.code === 'ENOENT') {
-			try {
-				const argvConfigPathDirname = path.dirname(argvConfigPath);
-				if (!fs.existsSync(argvConfigPathDirname)) {
-					fs.mkdirSync(argvConfigPathDirname);
-				}
-
-				// Create initial argv.json if not existing
-				fs.writeFileSync(argvConfigPath, `// This configuration file allows to pass permanent command line arguments to VSCode.
-//
-// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT
-//
-// If the command line argument does not have any values, simply assign
-// it in the JSON below with a value of 'true'. Otherwise, put the value
-// directly.
-//
-// If you see rendering issues in VSCode and have a better experience
-// with software rendering, you can configure this by adding:
-//
-// 'disable-gpu': true
-//
-// NOTE: Changing this file requires a restart of VSCode.
-{
-	// Enabled by default by VSCode to resolve color issues in the renderer
-	// See https://github.com/Microsoft/vscode/issues/51791 for details
-	"disable-color-correct-rendering": true
-}`);
-			} catch (error) {
-				console.error(`Unable to create argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
-			}
+			createDefaultArgvConfigSync(argvConfigPath);
 		} else {
 			console.warn(`Unable to read argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
 		}
@@ -190,6 +185,65 @@ function readArgvConfig() {
 	}
 
 	return argvConfig;
+}
+
+/**
+ * @param {string} argvConfigPath
+ */
+function createDefaultArgvConfigSync(argvConfigPath) {
+	try {
+
+		// Ensure argv config parent exists
+		const argvConfigPathDirname = path.dirname(argvConfigPath);
+		if (!fs.existsSync(argvConfigPathDirname)) {
+			fs.mkdirSync(argvConfigPathDirname);
+		}
+
+		// Migrate over legacy locale
+		const localeConfigPath = path.join(userDataPath, 'User', 'locale.json');
+		const legacyLocale = getLegacyUserDefinedLocaleSync(localeConfigPath);
+		if (legacyLocale) {
+			try {
+				fs.unlinkSync(localeConfigPath);
+			} catch (error) {
+				//ignore
+			}
+		}
+
+		// Default argv content
+		const defaultArgvConfigContent = [
+			'// This configuration file allows you to pass permanent command line arguments to VS Code.',
+			'// Only a subset of arguments is currently supported to reduce the likelyhood of breaking',
+			'// the installation.',
+			'//',
+			'// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT',
+			'//',
+			'// NOTE: Changing this file requires a restart of VS Code.',
+			'{',
+			'	// Use software rendering instead of hardware accelerated rendering.',
+			'	// This can help in cases where you see rendering issues in VS Code.',
+			'	// "disable-hardware-acceleration": true,',
+			'',
+			'	// Enabled by default by VS Code to resolve color issues in the renderer',
+			'	// See https://github.com/Microsoft/vscode/issues/51791 for details',
+			'	"disable-color-correct-rendering": true'
+		];
+
+		if (legacyLocale) {
+			defaultArgvConfigContent[defaultArgvConfigContent.length - 1] = `${defaultArgvConfigContent[defaultArgvConfigContent.length - 1]},`; // append trailing ","
+
+			defaultArgvConfigContent.push('');
+			defaultArgvConfigContent.push('	// Display language of VS Code');
+			defaultArgvConfigContent.push(`	"locale": "${legacyLocale}"`);
+		}
+
+		defaultArgvConfigContent.push('}');
+
+		// Create initial argv.json with default content
+		fs.writeFileSync(argvConfigPath, defaultArgvConfigContent.join('\n'));
+	} catch (error) {
+		console.error(`Unable to create argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+	}
 }
 
 function getArgvConfigPath() {
@@ -350,22 +404,13 @@ function getNodeCachedDir() {
 /**
  * Resolve the NLS configuration
  *
- * @param {string | undefined} locale
  * @return {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>}
  */
-async function resolveNlsConfiguration(locale) {
+async function resolveNlsConfiguration() {
 
 	// First, we need to test a user defined locale. If it fails we try the app locale.
 	// If that fails we fall back to English.
-	if (locale && !nlsConfigurationPromise) {
-		nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
-	} else if (!nlsConfigurationPromise) {
-		nlsConfigurationPromise = Promise.resolve(undefined);
-	}
-
-	// First, we need to test a user defined locale. If it fails we try the app locale.
-	// If that fails we fall back to English.
-	let nlsConfiguration = await nlsConfigurationPromise;
+	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
 	if (!nlsConfiguration) {
 
 		// Try to use the app locale. Please note that the app locale is only
@@ -425,18 +470,25 @@ function stripComments(content) {
  * the language bundles have lower case language tags and we always lower case
  * the locale we receive from the user or OS.
  *
- * @returns {Promise<string>}
+ * @param {{ locale: string | undefined; }} argvConfig
+ * @returns {string | undefined}
  */
-async function getUserDefinedLocale() {
+function getUserDefinedLocale(argvConfig) {
 	const locale = args['locale'];
 	if (locale) {
-		return locale.toLowerCase();
+		return locale.toLowerCase(); // a directly provided --locale always wins
 	}
 
-	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
+	return argvConfig.locale && typeof argvConfig.locale === 'string' ? argvConfig.locale.toLowerCase() : undefined;
+}
 
+/**
+ * @param {string} localeConfigPath
+ * @returns {string | undefined}
+ */
+function getLegacyUserDefinedLocaleSync(localeConfigPath) {
 	try {
-		const content = stripComments(await bootstrap.readFile(localeConfig));
+		const content = stripComments(fs.readFileSync(localeConfigPath).toString());
 
 		const value = JSON.parse(content).locale;
 		return value && typeof value === 'string' ? value.toLowerCase() : undefined;

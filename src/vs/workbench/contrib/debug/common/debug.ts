@@ -467,6 +467,7 @@ export interface IDebugConfiguration {
 	};
 	focusWindowOnBreak: boolean;
 	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
+	showBreakpointsInOverviewRuler: boolean;
 }
 
 export interface IGlobalConfig {
@@ -504,6 +505,7 @@ export interface IConfig extends IEnvConfig {
 
 export interface ICompound {
 	name: string;
+	preLaunchTask?: string | TaskIdentifier;
 	configurations: (string | { name: string, folder: string })[];
 }
 
