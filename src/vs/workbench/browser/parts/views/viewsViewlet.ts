@@ -23,7 +23,7 @@ import { DefaultPanelDndController } from 'vs/base/browser/ui/splitview/panelvie
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { localize } from 'vs/nls';
@@ -330,10 +330,9 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 	private allViews: Map<string, Map<string, IViewDescriptor>> = new Map();
 	private filterValue: string | undefined;
 
-	protected onDidChangeFilterValue: Emitter<string> = new Emitter();
-
 	constructor(
 		viewletId: string,
+		onDidChangeFilterValue: Event<string>,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -345,7 +344,7 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(viewletId, `${viewletId}.state`, false, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-		this._register(this.onDidChangeFilterValue.event(newFilterValue => {
+		this._register(onDidChangeFilterValue(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);
 		}));
