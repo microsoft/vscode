@@ -19,11 +19,6 @@
 	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
-
-	/* Hack to get web rendering to align to pixel grid */
-	transform: rotate(0);
-	-webkit-transform: rotate(0.1deg);
-	-moz-transform: rotate(0);
 }
 
 
