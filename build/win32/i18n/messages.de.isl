@@ -1,9 +1,9 @@
 [CustomMessages]
-AddContextMenuFiles=Aktion "Mit %1 Ã¶ffnen" dem DateikontextmenÃ¼ von Windows-Explorer hinzufÃ¼gen
-AddContextMenuFolders=Aktion "Mit %1 Ã¶ffnen" dem VerzeichniskontextmenÃ¼ von Windows-Explorer hinzufÃ¼gen
-AssociateWithFiles=%1 als Editor fÃ¼r unterstÃ¼tzte Dateitypen registrieren
-AddToPath=Zu PATH hinzufÃ¼gen (nach dem Neustart verfÃ¼gbar)
-RunAfter=%1 nach der Installation ausfÃ¼hren
+AddContextMenuFiles=Aktion "Mit %1 öffnen" dem Dateikontextmenü von Windows-Explorer hinzufügen
+AddContextMenuFolders=Aktion "Mit %1 öffnen" dem Verzeichniskontextmenü von Windows-Explorer hinzufügen
+AssociateWithFiles=%1 als Editor für unterstützte Dateitypen registrieren
+AddToPath=Zu PATH hinzufügen (nach dem Neustart verfügbar)
+RunAfter=%1 nach der Installation ausführen
 Other=Andere:
 SourceFile=%1-Quelldatei
-OpenWithCodeContextMenu=Mit %1 Ã¶ffnen
+OpenWithCodeContextMenu=Mit %1 öffnen

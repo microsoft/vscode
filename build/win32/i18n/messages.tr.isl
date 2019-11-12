@@ -1,9 +1,9 @@
 [CustomMessages]
-AddContextMenuFiles=Windows Gezgini baÄŸlam menÃ¼sÃ¼ne "%1 Ä°le AÃ§" eylemini ekle
-AddContextMenuFolders=Windows Gezgini dizin baÄŸlam menÃ¼sÃ¼ne "%1 Ä°le AÃ§" eylemini ekle
-AssociateWithFiles=%1 uygulamasÄ±nÄ± desteklenen dosya tÃ¼rleri iÃ§in bir dÃ¼zenleyici olarak kayÄ±t et
-AddToPath=PATH'e ekle (yeniden baÅŸlattÄ±ktan sonra kullanÄ±labilir)
-RunAfter=Kurulumdan sonra %1 uygulamasÄ±nÄ± Ã§alÄ±ÅŸtÄ±r.
-Other=DiÄŸer:
-SourceFile=%1 Kaynak DosyasÄ±
-OpenWithCodeContextMenu=%1 Ä°le AÃ§
+AddContextMenuFiles=Windows Gezgini bağlam menüsüne "%1 İle Aç" eylemini ekle
+AddContextMenuFolders=Windows Gezgini dizin bağlam menüsüne "%1 İle Aç" eylemini ekle
+AssociateWithFiles=%1 uygulamasını desteklenen dosya türleri için bir düzenleyici olarak kayıt et
+AddToPath=PATH'e ekle (yeniden başlattıktan sonra kullanılabilir)
+RunAfter=Kurulumdan sonra %1 uygulamasını çalıştır.
+Other=Diğer:
+SourceFile=%1 Kaynak Dosyası
+OpenWithCodeContextMenu=%1 İle Aç

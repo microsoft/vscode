@@ -1,9 +1,9 @@
 [CustomMessages]
-AddContextMenuFiles=ã‚¨ã‚¯ã‚¹ãƒ—ãƒ­ãƒ¼ãƒ©ãƒ¼ã®ãƒ•ã‚¡ã‚¤ãƒ« ã‚³ãƒ³ãƒ†ã‚­ã‚¹ãƒˆ ãƒ¡ãƒ‹ãƒ¥ãƒ¼ã« [%1 ã§é–‹ã] ã‚¢ã‚¯ã‚·ãƒ§ãƒ³ã‚’è¿½åŠ ã™ã‚‹
-AddContextMenuFolders=ã‚¨ã‚¯ã‚¹ãƒ—ãƒ­ãƒ¼ãƒ©ãƒ¼ã®ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª ã‚³ãƒ³ãƒ†ã‚­ã‚¹ãƒˆ ãƒ¡ãƒ‹ãƒ¥ãƒ¼ã« [%1 ã§é–‹ã] ã‚¢ã‚¯ã‚·ãƒ§ãƒ³ã‚’è¿½åŠ ã™ã‚‹
-AssociateWithFiles=ã‚µãƒãƒ¼ãƒˆã•ã‚Œã¦ã„ã‚‹ãƒ•ã‚¡ã‚¤ãƒ«ã®ç¨®é¡žã®ã‚¨ãƒ‡ã‚£ã‚¿ãƒ¼ã¨ã—ã¦ã€%1 ã‚’ç™»éŒ²ã™ã‚‹
-AddToPath=PATH ã¸ã®è¿½åŠ ï¼ˆå†èµ·å‹•å¾Œã«ä½¿ç”¨å¯èƒ½ï¼‰
-RunAfter=ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«å¾Œã« %1 ã‚’å®Ÿè¡Œã™ã‚‹
-Other=ãã®ä»–:
-SourceFile=%1 ã‚½ãƒ¼ã‚¹ ãƒ•ã‚¡ã‚¤ãƒ«
-OpenWithCodeContextMenu=%1 ã§é–‹ã
+AddContextMenuFiles=ƒGƒNƒXƒvƒ[ƒ‰[‚Ìƒtƒ@ƒCƒ‹ ƒRƒ“ƒeƒLƒXƒg ƒƒjƒ…[‚É [%1 ‚ÅŠJ‚­] ƒAƒNƒVƒ‡ƒ“‚ð’Ç‰Á‚·‚é
+AddContextMenuFolders=ƒGƒNƒXƒvƒ[ƒ‰[‚ÌƒfƒBƒŒƒNƒgƒŠ ƒRƒ“ƒeƒLƒXƒg ƒƒjƒ…[‚É [%1 ‚ÅŠJ‚­] ƒAƒNƒVƒ‡ƒ“‚ð’Ç‰Á‚·‚é
+AssociateWithFiles=ƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚éƒtƒ@ƒCƒ‹‚ÌŽí—Þ‚ÌƒGƒfƒBƒ^[‚Æ‚µ‚ÄA%1 ‚ð“o˜^‚·‚é
+AddToPath=PATH ‚Ö‚Ì’Ç‰ÁiÄ‹N“®Œã‚ÉŽg—p‰Â”\j
+RunAfter=ƒCƒ“ƒXƒg[ƒ‹Œã‚É %1 ‚ðŽÀs‚·‚é
+Other=‚»‚Ì‘¼:
+SourceFile=%1 ƒ\[ƒX ƒtƒ@ƒCƒ‹
+OpenWithCodeContextMenu=%1 ‚ÅŠJ‚­
