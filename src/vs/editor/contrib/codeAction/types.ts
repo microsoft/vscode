@@ -46,19 +46,20 @@ export const enum CodeActionAutoApply {
 }
 
 export interface CodeActionFilter {
-	readonly kind?: CodeActionKind;
+	readonly include?: CodeActionKind;
+	readonly excludes?: readonly CodeActionKind[];
 	readonly includeSourceActions?: boolean;
 	readonly onlyIncludePreferredActions?: boolean;
 }
 
 export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: CodeActionKind): boolean {
 	// A provided kind may be a subset or superset of our filtered kind.
-	if (filter.kind && !filter.kind.intersects(providedKind)) {
+	if (filter.include && !filter.include.intersects(providedKind)) {
 		return false;
 	}
 
 	// Don't return source actions unless they are explicitly requested
-	if (CodeActionKind.Source.contains(providedKind) && !filter.includeSourceActions) {
+	if (!filter.includeSourceActions && CodeActionKind.Source.contains(providedKind)) {
 		return false;
 	}
 
@@ -69,8 +70,17 @@ export function filtersAction(filter: CodeActionFilter, action: CodeAction): boo
 	const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
 
 	// Filter out actions by kind
-	if (filter.kind) {
-		if (!actionKind || !filter.kind.contains(actionKind)) {
+	if (filter.include) {
+		if (!actionKind || !filter.include.contains(actionKind)) {
+			return false;
+		}
+	}
+
+	if (filter.excludes) {
+		if (actionKind && filter.excludes.some(exclude => {
+			// Excludes are overwritten by includes
+			return exclude.contains(actionKind) && (!filter.include || !filter.include.contains(actionKind));
+		})) {
 			return false;
 		}
 	}
