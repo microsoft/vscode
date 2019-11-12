@@ -198,7 +198,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _selectionEmpty(): boolean {
 		const selection = document.getSelection();
-		if (selection && selection && selection.toString().length > 0) {
+		if (selection && selection.toString().length > 0) {
 			return false;
 		}
 
