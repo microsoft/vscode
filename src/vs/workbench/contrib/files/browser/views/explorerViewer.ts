@@ -702,7 +702,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (targetStat.children) {
 				const ignoreCase = hasToIgnoreCase(target.resource);
 				targetStat.children.forEach(child => {
-					targetNames.add(ignoreCase ? child.name : child.name.toLowerCase());
+					targetNames.add(ignoreCase ? child.name.toLowerCase() : child.name);
 				});
 			}
 
