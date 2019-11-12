@@ -1082,9 +1082,14 @@ export class RenameActiveTerminalCommand extends Command {
 			newName: string;
 		}
 	): void {
+		const notificationService = accessor.get(INotificationService);
 		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
 
 		if (!terminalInstance) {
+			notificationService.warn(nls.localize(
+				RenameActiveTerminalCommand.LABEL + '.noActiveTerminal',
+				'No active terminal to rename'
+			));
 			return;
 		}
 
