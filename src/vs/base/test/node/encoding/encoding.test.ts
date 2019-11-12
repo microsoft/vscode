@@ -200,7 +200,7 @@ suite('Encoding', () => {
 		const file = getPathFromAmdModule(require, './fixtures/some_ansi.css');
 		const buffer = await readExactlyByFile(file, 512 * 8);
 		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
-		assert.equal(mimes.encoding, 'ascii');
+		assert.equal(mimes.encoding, null);
 	});
 
 	test('autoGuessEncoding (ShiftJIS)', async function () {
