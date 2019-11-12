@@ -344,7 +344,7 @@ function enableProblems(context: vscode.ExtensionContext): void {
 }
 
 function updateDiagnostics(document: vscode.TextDocument, collection: vscode.DiagnosticCollection): void {
-	if (document && document.fileName === '/large.ts') {
+	if (document && document.fileName === '/sample-folder/large.ts') {
 		collection.set(document.uri, [{
 			code: '',
 			message: 'cannot assign twice to immutable variable `storeHouses`',
