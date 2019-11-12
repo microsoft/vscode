@@ -16,24 +16,20 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { values } from 'vs/base/common/collections';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 
 class Navigator {
 
-	private static readonly _instances = new WeakMap<TreeElement, Navigator>();
-
-	static for(element: TreeElement): Navigator {
-		let res = this._instances.get(element);
-		if (!res) {
-			res = new Navigator(element);
-			this._instances.set(element, res);
-		}
-		return res;
-	}
-
 	private readonly _children: TreeElement[] = [];
 
-	private constructor(readonly element: TreeElement) {
-		this._children = values(element.children).sort(Navigator._compare);
+	constructor(
+		readonly element: TreeElement,
+		private readonly _filter: OutlineFilter
+	) {
+		this._children = values(element.children)
+			.filter(entry => !(entry instanceof OutlineElement) || _filter.filter(entry))
+			.sort(Navigator._compare);
 	}
 
 	navigate(up: boolean): TreeElement | undefined {
@@ -51,7 +47,7 @@ class Navigator {
 			if (!next) {
 				return nav.element;
 			}
-			nav = Navigator.for(next);
+			nav = new Navigator(next, this._filter);
 		}
 		return undefined;
 	}
@@ -67,7 +63,7 @@ class Navigator {
 			if (next) {
 				return next.element;
 			}
-			nav = nav.element.parent && Navigator.for(nav.element.parent);
+			nav = nav.element.parent && new Navigator(nav.element.parent, this._filter);
 		}
 		return undefined;
 	}
@@ -76,11 +72,11 @@ class Navigator {
 		if (!this.element.parent) {
 			return undefined;
 		}
-		const parent = Navigator.for(this.element.parent);
+		const parent = new Navigator(this.element.parent, this._filter);
 		const idx = parent._children.indexOf(this.element);
 		const nexIdx = idx + (up ? -1 : +1);
 		const element = parent._children[nexIdx];
-		return element && Navigator.for(element);
+		return element && new Navigator(element, this._filter);
 	}
 
 	private _child(last: boolean): TreeElement | undefined {
@@ -108,6 +104,7 @@ export class OutlineNavigation implements IEditorContribution {
 
 	constructor(
 		editor: ICodeEditor,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		this._editor = editor;
 	}
@@ -133,16 +130,33 @@ export class OutlineNavigation implements IEditorContribution {
 
 		this._cts = new EditorStateCancellationTokenSource(this._editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Scroll);
 
+		const filter = new OutlineFilter('outline', this._configService);
 		const outlineModel = await OutlineModel.create(textModel, this._cts.token);
-		const element = outlineModel.getItemEnclosingPosition(position);
 
-		if (!element || this._cts.token.isCancellationRequested) {
+		let element: TreeElement | undefined = outlineModel.getItemEnclosingPosition(position);
+		if (!(element instanceof OutlineElement) || this._cts.token.isCancellationRequested) {
 			return;
 		}
 
+		// don't start in a filtered element
+		let stack: OutlineElement[] = [element];
+		while (element instanceof OutlineElement) {
+			if (!filter.filter(element)) {
+				stack.length = 0;
+			} else {
+				stack.push(element);
+			}
+			element = element.parent;
+		}
+		element = stack[0];
+		if (!(element instanceof OutlineElement)) {
+			return;
+		}
+
+		// reveal container first (unless already at its range)
 		let nextElement: TreeElement | undefined = element;
-		if (Range.containsPosition(element.symbol.selectionRange, position)) {
-			nextElement = Navigator.for(element).navigate(up);
+		if (!up || Range.containsPosition(element.symbol.selectionRange, position)) {
+			nextElement = new Navigator(element, filter).navigate(up);
 		}
 
 		if (nextElement instanceof OutlineElement) {
@@ -151,7 +165,6 @@ export class OutlineNavigation implements IEditorContribution {
 			this._editor.revealPosition(pos, ScrollType.Smooth);
 		}
 	}
-
 }
 
 registerEditorContribution(OutlineNavigation.ID, OutlineNavigation);
