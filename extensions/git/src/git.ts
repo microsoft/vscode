@@ -1822,7 +1822,7 @@ export class Repository {
 		// TODO: Support core.commentChar
 		return message.replace(/^(\s*#)(.*)$(\n?)/gm, (_, prefix, content, suffix) => {
 			// https://github.com/microsoft/vscode/issues/84201#issuecomment-552834814
-			return /^\d+(\s|$)/.test(content) ? `${prefix}${content}${suffix}` : '';
+			return /^\d/.test(content) ? `${prefix}${content}${suffix}` : '';
 		}).trim();
 	}
 
