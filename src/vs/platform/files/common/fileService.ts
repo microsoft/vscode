@@ -217,6 +217,7 @@ export class FileService extends Disposable implements IFileService {
 		const fileStat: IFileStat = {
 			resource,
 			name: getBaseLabel(resource),
+			isFile: (stat.type & FileType.File) !== 0,
 			isDirectory: (stat.type & FileType.Directory) !== 0,
 			isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
 			isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),

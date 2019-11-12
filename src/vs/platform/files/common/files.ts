@@ -635,14 +635,19 @@ export interface IBaseStatWithMetadata extends IBaseStat {
 export interface IFileStat extends IBaseStat {
 
 	/**
-	 * The resource is a directory
+	 * The resource is a file.
+	 */
+	isFile: boolean;
+
+	/**
+	 * The resource is a directory.
 	 */
 	isDirectory: boolean;
 
 	/**
 	 * The resource is a symbolic link.
 	 */
-	isSymbolicLink?: boolean;
+	isSymbolicLink: boolean;
 
 	/**
 	 * The children of the file stat or undefined if none.

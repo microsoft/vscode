@@ -218,6 +218,9 @@ suite('Disk File Service', function () {
 		const resolved = await service.resolve(resource);
 
 		assert.equal(resolved.name, 'index.html');
+		assert.equal(resolved.isFile, true);
+		assert.equal(resolved.isDirectory, false);
+		assert.equal(resolved.isSymbolicLink, false);
 		assert.equal(resolved.resource.toString(), resource.toString());
 		assert.equal(resolved.children, undefined);
 		assert.ok(resolved.mtime! > 0);

@@ -403,6 +403,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			ctime: content.ctime,
 			size: content.size,
 			etag: content.etag,
+			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
 			isReadonly: content.isReadonly
