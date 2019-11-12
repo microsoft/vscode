@@ -352,6 +352,12 @@ export const ACTIVITY_BAR_ACTIVE_BORDER = registerColor('activityBar.activeBorde
 	hc: null
 }, nls.localize('activityBarActiveBorder', "Activity bar border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_ACTIVE_BORDER_FOCUS = registerColor('activityBar.activeBorderFocus', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('activityBarActiveBorderFocus', "Activity bar focus border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
 export const ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('activityBar.activeBackground', {
 	dark: null,
 	light: null,
