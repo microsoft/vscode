@@ -81,11 +81,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL,
 			'type': 'boolean',
 			'default': true
-		},
-		'problems.showCurrentInStatus': {
-			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS,
-			'type': 'boolean',
-			'default': false
 		}
 	}
 });

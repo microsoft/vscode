@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { Event } from 'vs/base/common/event';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -60,6 +61,8 @@ export interface IStatusbarEntry {
 export interface IStatusbarService {
 
 	_serviceBrand: undefined;
+
+	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
