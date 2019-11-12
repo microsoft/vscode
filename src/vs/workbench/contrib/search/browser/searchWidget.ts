@@ -15,7 +15,6 @@ import { Action } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as strings from 'vs/base/common/strings';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -148,6 +147,8 @@ export class SearchWidget extends Widget {
 
 	private _onDidHeightChange = this._register(new Emitter<void>());
 	readonly onDidHeightChange: Event<void> = this._onDidHeightChange.event;
+
+	private temporarilySkipSearchOnChange = false;
 
 	constructor(
 		container: HTMLElement,
@@ -404,6 +405,11 @@ export class SearchWidget extends Widget {
 		this._onReplaceToggled.fire();
 	}
 
+	setValue(value: string, skipSearchOnChange: boolean) {
+		this.searchInput.setValue(value);
+		this.temporarilySkipSearchOnChange = skipSearchOnChange || this.temporarilySkipSearchOnChange;
+	}
+
 	setReplaceAllActionState(enabled: boolean): void {
 		if (this.replaceAllAction.enabled !== enabled) {
 			this.replaceAllAction.enabled = enabled;
@@ -436,18 +442,21 @@ export class SearchWidget extends Widget {
 			return { content: e.message };
 		}
 
-		if (strings.regExpContainsBackreference(value)) {
-			if (!this.searchConfiguration.usePCRE2) {
-				return { content: nls.localize('regexp.backreferenceValidationFailure', "Backreferences are not supported") };
-			}
-		}
-
 		return null;
 	}
 
 	private onSearchInputChanged(): void {
 		this.searchInput.clearMessage();
 		this.setReplaceAllActionState(false);
+
+		if (this.searchConfiguration.searchOnType) {
+			if (this.temporarilySkipSearchOnChange) {
+				this.temporarilySkipSearchOnChange = false;
+			} else {
+				this._onSearchCancel.fire({ focus: false });
+				this._searchDelayer.trigger((() => this.submitSearch()), this.searchConfiguration.searchOnTypeDebouncePeriod);
+			}
+		}
 	}
 
 	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
@@ -481,18 +490,6 @@ export class SearchWidget extends Widget {
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
 			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
-		}
-
-		if ((keyboardEvent.browserEvent.key.length === 1 && !(keyboardEvent.ctrlKey || keyboardEvent.metaKey) ||
-			keyboardEvent.equals(KeyCode.Backspace) ||
-			keyboardEvent.equals(KeyCode.UpArrow) ||
-			keyboardEvent.equals(KeyCode.DownArrow))
-			&& this.searchConfiguration.searchOnType) {
-
-			// Check to see if this input changes the query, being either a printable key (`key` is length 1, and not modified), or backspace, or history scroll
-			// If so, trigger a new search eventually, and preemptively cancel the old one as it's results will soon be discarded anyways.
-			this._onSearchCancel.fire({ focus: false });
-			this._searchDelayer.trigger((() => this.submitSearch()));
 		}
 	}
 
@@ -574,13 +571,10 @@ export class SearchWidget extends Widget {
 
 		const value = this.searchInput.getValue();
 		const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
-		if (value) {
-			if (useGlobalFindBuffer) {
-				this.clipboardServce.writeFindText(value);
-			}
-
-			this._onSearchSubmit.fire();
+		if (value && useGlobalFindBuffer) {
+			this.clipboardServce.writeFindText(value);
 		}
+		this._onSearchSubmit.fire();
 	}
 
 	dispose(): void {

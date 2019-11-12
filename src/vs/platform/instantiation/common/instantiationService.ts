@@ -157,7 +157,7 @@ export class InstantiationService implements IInstantiationService {
 			graph.lookupOrInsertNode(item);
 
 			// a weak but working heuristic for cycle checks
-			if (cycleCount++ > 100) {
+			if (cycleCount++ > 150) {
 				throw new CyclicDependencyError(graph);
 			}
 

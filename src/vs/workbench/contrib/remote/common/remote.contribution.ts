@@ -34,7 +34,7 @@ export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry
 				return -1000;
 			}
 
-			matches = /^details@(\d+)$/.exec(group);
+			matches = /^details(@(\d+))?$/.exec(group);
 
 			if (matches) {
 				return -500;

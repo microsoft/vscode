@@ -87,3 +87,22 @@
 .hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issueReporter {
 	background-image: url('help-report-issue-hc.svg')
 }
+
+.monaco-workbench .part > .title > .title-actions .switch-remote {
+	display: flex;
+	align-items: center;
+	font-size: 11px;
+	margin-right: 0.3em;
+	height: 20px;
+	flex-shrink: 1;
+	margin-top: 7px;
+}
+
+.switch-remote > .monaco-select-box {
+	border: none;
+	display: block;
+}
+
+.monaco-workbench .part > .title > .title-actions .switch-remote > .monaco-select-box {
+	padding-left: 3px;
+}

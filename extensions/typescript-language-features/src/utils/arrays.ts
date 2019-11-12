@@ -23,6 +23,6 @@ export function flatten<T>(array: ReadonlyArray<T>[]): T[] {
 	return Array.prototype.concat.apply([], array);
 }
 
-export function coalease<T>(array: ReadonlyArray<T | undefined>): T[] {
+export function coalesce<T>(array: ReadonlyArray<T | undefined>): T[] {
 	return <T[]>array.filter(e => !!e);
 }

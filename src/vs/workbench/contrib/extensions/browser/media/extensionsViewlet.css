@@ -25,7 +25,7 @@
 }
 
 .extensions-viewlet > .extensions {
-	height: calc(100% - 38px);
+	height: calc(100% - 41px);
 }
 
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar {
@@ -90,7 +90,7 @@
 	top: 1px;
 	left: 1px;
 	color: inherit;
-	font-size: 90%;
+	font-size: 80%;
 }
 
 .extensions-viewlet > .extensions .extension {
@@ -198,12 +198,18 @@
 	flex: 1;
 }
 
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count,
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .ratings {
+	display: flex;
+	align-items: center;
+}
+
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count:not(:empty) {
 	font-size: 80%;
 	margin: 0 6px;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count > .codicon {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header .codicon {
 	font-size: 120%;
 	margin-right: 2px;
 }

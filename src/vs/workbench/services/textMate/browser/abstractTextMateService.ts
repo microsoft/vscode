@@ -22,7 +22,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { ITokenColorizationRule, IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ITextMateThemingRule, IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IGrammar, StackElement, IOnigLib, IRawTheme } from 'vscode-textmate';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -257,7 +257,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		TokenizationRegistry.setColorMap(colorMap);
 	}
 
-	private static equalsTokenRules(a: ITokenColorizationRule[] | null, b: ITokenColorizationRule[] | null): boolean {
+	private static equalsTokenRules(a: ITextMateThemingRule[] | null, b: ITextMateThemingRule[] | null): boolean {
 		if (!b || !a || b.length !== a.length) {
 			return false;
 		}

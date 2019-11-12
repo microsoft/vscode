@@ -128,7 +128,7 @@ declare module 'vscode' {
 		readonly isDirty: boolean;
 
 		/**
-		 * `true` if the document have been closed. A closed document isn't synchronized anymore
+		 * `true` if the document has been closed. A closed document isn't synchronized anymore
 		 * and won't be re-used when the same resource is opened again.
 		 */
 		readonly isClosed: boolean;
@@ -5985,6 +5985,9 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new directory (Note, that new files are created via `write`-calls).
+		 *
+		 * *Note* that missing directories are created automatically, e.g this call has
+		 * `mkdirp` semantics.
 		 *
 		 * @param uri The uri of the new folder.
 		 */

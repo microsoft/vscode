@@ -64,7 +64,7 @@ import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
 import { IAuthTokenService } from 'vs/platform/auth/common/auth';
-import { AuthTokenService } from 'vs/platform/auth/common/authTokenService';
+import { AuthTokenService } from 'vs/workbench/services/authToken/browser/authTokenService';
 import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';

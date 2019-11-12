@@ -5,6 +5,7 @@
 
 import { getSettings } from './settings';
 
+const codeLineClass = 'code-line';
 
 function clamp(min: number, max: number, value: number) {
 	return Math.min(max, Math.max(min, value));
@@ -25,7 +26,7 @@ const getCodeLineElements = (() => {
 	return () => {
 		if (!elements) {
 			elements = [{ element: document.body, line: 0 }];
-			for (const element of document.getElementsByClassName('code-line')) {
+			for (const element of document.getElementsByClassName(codeLineClass)) {
 				const line = +element.getAttribute('data-line')!;
 				if (isNaN(line)) {
 					continue;
@@ -75,7 +76,7 @@ export function getLineElementsAtPageOffset(offset: number): { previous: CodeLin
 	let hi = lines.length - 1;
 	while (lo + 1 < hi) {
 		const mid = Math.floor((lo + hi) / 2);
-		const bounds = lines[mid].element.getBoundingClientRect();
+		const bounds = getElementBounds(lines[mid]);
 		if (bounds.top + bounds.height >= position) {
 			hi = mid;
 		}
@@ -84,7 +85,7 @@ export function getLineElementsAtPageOffset(offset: number): { previous: CodeLin
 		}
 	}
 	const hiElement = lines[hi];
-	const hiBounds = hiElement.element.getBoundingClientRect();
+	const hiBounds = getElementBounds(hiElement);
 	if (hi >= 1 && hiBounds.top > position) {
 		const loElement = lines[lo];
 		return { previous: loElement, next: hiElement };
@@ -93,6 +94,24 @@ export function getLineElementsAtPageOffset(offset: number): { previous: CodeLin
 		return { previous: hiElement, next: lines[hi + 1] };
 	}
 	return { previous: hiElement };
+}
+
+function getElementBounds({ element }: CodeLineElement): { top: number, height: number } {
+	const myBounds = element.getBoundingClientRect();
+
+	// Some code line elements may contain other code line elements.
+	// In those cases, only take the height up to that child.
+	const codeLineChild = element.querySelector(`.${codeLineClass}`);
+	if (codeLineChild) {
+		const childBounds = codeLineChild.getBoundingClientRect();
+		const height = Math.max(1, (childBounds.top - myBounds.top));
+		return {
+			top: myBounds.top,
+			height: height
+		};
+	}
+
+	return myBounds;
 }
 
 /**
@@ -113,7 +132,7 @@ export function scrollToRevealSourceLine(line: number) {
 		return;
 	}
 	let scrollTo = 0;
-	const rect = previous.element.getBoundingClientRect();
+	const rect = getElementBounds(previous);
 	const previousTop = rect.top;
 	if (next && next.line !== previous.line) {
 		// Between two elements. Go to percentage offset between them.
@@ -130,10 +149,10 @@ export function scrollToRevealSourceLine(line: number) {
 export function getEditorLineNumberForPageOffset(offset: number) {
 	const { previous, next } = getLineElementsAtPageOffset(offset);
 	if (previous) {
-		const previousBounds = previous.element.getBoundingClientRect();
+		const previousBounds = getElementBounds(previous);
 		const offsetFromPrevious = (offset - window.scrollY - previousBounds.top);
 		if (next) {
-			const progressBetweenElements = offsetFromPrevious / (next.element.getBoundingClientRect().top - previousBounds.top);
+			const progressBetweenElements = offsetFromPrevious / (getElementBounds(next).top - previousBounds.top);
 			const line = previous.line + progressBetweenElements * (next.line - previous.line);
 			return clampLine(line);
 		} else {

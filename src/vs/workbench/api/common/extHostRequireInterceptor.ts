@@ -18,6 +18,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { platform } from 'vs/base/common/process';
+import { ILogService } from 'vs/platform/log/common/log';
 
 
 interface LoadFunction {
@@ -41,7 +42,8 @@ export abstract class RequireInterceptor {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IExtHostConfiguration private readonly _extHostConfiguration: IExtHostConfiguration,
 		@IExtHostExtensionService private readonly _extHostExtensionService: IExtHostExtensionService,
-		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService
+		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._factories = new Map<string, INodeModuleFactory>();
 		this._alternatives = [];
@@ -54,7 +56,7 @@ export abstract class RequireInterceptor {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
 
-		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider));
+		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
 		this.register(this._instaService.createInstance(KeytarNodeModuleFactory));
 		if (this._initData.remote.isRemote) {
 			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));
@@ -91,7 +93,8 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 		private readonly _apiFactory: IExtensionApiFactory,
 		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
 		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
-		private readonly _configProvider: ExtHostConfigProvider
+		private readonly _configProvider: ExtHostConfigProvider,
+		private readonly _logService: ILogService,
 	) {
 	}
 
@@ -112,7 +115,7 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 		if (!this._defaultApiImpl) {
 			let extensionPathsPretty = '';
 			this._extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
-			console.warn(`Could not identify extension for 'vscode' require call from ${parent.fsPath}. These are the extension path mappings: \n${extensionPathsPretty}`);
+			this._logService.warn(`Could not identify extension for 'vscode' require call from ${parent.fsPath}. These are the extension path mappings: \n${extensionPathsPretty}`);
 			this._defaultApiImpl = this._apiFactory(nullExtensionDescription, this._extensionRegistry, this._configProvider);
 		}
 		return this._defaultApiImpl;
