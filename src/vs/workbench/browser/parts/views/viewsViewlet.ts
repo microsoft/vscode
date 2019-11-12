@@ -328,7 +328,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 	private constantViewDescriptors: Map<string, IViewDescriptor> = new Map();
 	private allViews: Map<string, Map<string, IViewDescriptor>> = new Map();
-	private filterValue: string;
+	private filterValue: string | undefined;
 
 	protected onDidChangeFilterValue: Emitter<string> = new Emitter();
 
