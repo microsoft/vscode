@@ -204,6 +204,11 @@
     "@types/uglify-js" "*"
     source-map "^0.6.0"
 
+"@types/windows-foreground-love@^0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@types/windows-foreground-love/-/windows-foreground-love-0.3.0.tgz#26bc230b2568aa7ab7c56d35bb5653c0a6965a42"
+  integrity sha512-tFUVA/fiofNqOh6lZlymvQiQYPY+cZXZPR9mn9wN6/KS8uwx0zgH4Ij/jmFyRYr+x+DGZWEIeknS2BMi7FZJAQ==
+
 "@types/winreg@^1.2.30":
   version "1.2.30"
   resolved "https://registry.yarnpkg.com/@types/winreg/-/winreg-1.2.30.tgz#91d6710e536d345b9c9b017c574cf6a8da64c518"
