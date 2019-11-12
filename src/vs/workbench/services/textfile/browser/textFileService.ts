@@ -467,7 +467,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		const sourceModels: ITextFileEditorModel[] = [];
 		const conflictingModels: ITextFileEditorModel[] = [];
 		for (const model of this.getFileModels()) {
-			const resource = model.getResource();
+			const resource = model.resource;
 
 			if (isEqualOrParent(resource, target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */)) {
 				conflictingModels.push(model);
@@ -483,7 +483,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		type ModelToRestore = { resource: URI; snapshot?: ITextSnapshot };
 		const modelsToRestore: ModelToRestore[] = [];
 		for (const sourceModel of sourceModels) {
-			const sourceModelResource = sourceModel.getResource();
+			const sourceModelResource = sourceModel.resource;
 
 			// If the source is the actual model, just use target as new resource
 			let modelToRestoreResource: URI;
@@ -508,7 +508,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// in order to move, we need to soft revert all dirty models,
 		// both from the source as well as the target if any
 		const dirtyModels = [...sourceModels, ...conflictingModels].filter(model => model.isDirty());
-		await this.revertAll(dirtyModels.map(dirtyModel => dirtyModel.getResource()), { soft: true });
+		await this.revertAll(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
 
 		// now we can rename the source to target via file operation
 		let stat: IFileStatWithMetadata;
@@ -735,9 +735,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			});
 
 		const mapResourceToResult = new ResourceMap<IResult>();
-		dirtyFileModels.forEach(m => {
-			mapResourceToResult.set(m.getResource(), {
-				source: m.getResource()
+		dirtyFileModels.forEach(dirtyModel => {
+			mapResourceToResult.set(dirtyModel.resource, {
+				source: dirtyModel.resource
 			});
 		});
 
@@ -745,7 +745,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			await model.save(options);
 
 			if (!model.isDirty()) {
-				const result = mapResourceToResult.get(model.getResource());
+				const result = mapResourceToResult.get(model.resource);
 				if (result) {
 					result.success = true;
 				}
@@ -861,7 +861,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			// path. This can happen if the file was created after the untitled file was opened.
 			// See https://github.com/Microsoft/vscode/issues/67946
 			let write: boolean;
-			if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && isEqual(target, toLocalResource(sourceModel.getResource(), this.environmentService.configuration.remoteAuthority))) {
+			if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.configuration.remoteAuthority))) {
 				write = await this.confirmOverwrite(target);
 			} else {
 				write = true;
@@ -944,9 +944,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		const fileModels = options?.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();
-		fileModels.forEach(m => {
-			mapResourceToResult.set(m.getResource(), {
-				source: m.getResource()
+		fileModels.forEach(fileModel => {
+			mapResourceToResult.set(fileModel.resource, {
+				source: fileModel.resource
 			});
 		});
 
@@ -955,7 +955,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				await model.revert(options?.soft);
 
 				if (!model.isDirty()) {
-					const result = mapResourceToResult.get(model.getResource());
+					const result = mapResourceToResult.get(model.resource);
 					if (result) {
 						result.success = true;
 					}
@@ -964,7 +964,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// FileNotFound means the file got deleted meanwhile, so still record as successful revert
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-					const result = mapResourceToResult.get(model.getResource());
+					const result = mapResourceToResult.get(model.resource);
 					if (result) {
 						result.success = true;
 					}
@@ -983,7 +983,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	getDirty(resources?: URI[]): URI[] {
 
 		// Collect files
-		const dirty = this.getDirtyFileModels(resources).map(m => m.getResource());
+		const dirty = this.getDirtyFileModels(resources).map(dirtyFileModel => dirtyFileModel.resource);
 
 		// Add untitled ones
 		dirty.push(...this.untitledTextEditorService.getDirty(resources));

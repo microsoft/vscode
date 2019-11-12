@@ -95,7 +95,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), false);
 
 		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.getResource()));
+		assert.ok(!accessor.modelService.getModel(model.resource));
 	});
 
 	test('save - touching also emits saved event', async function () {
@@ -123,7 +123,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(!workingCopyEvent);
 
 		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.getResource()));
+		assert.ok(!accessor.modelService.getModel(model.resource));
 	});
 
 	test('setEncoding - encode', function () {
@@ -162,7 +162,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(model.textEditorModel!.getModeId(), mode);
 
 		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.getResource()));
+		assert.ok(!accessor.modelService.getModel(model.resource));
 	});
 
 	test('disposes when underlying model is destroyed', async function () {
@@ -185,7 +185,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.load();
 		assert.ok(model.isResolved());
 		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.getResource()));
+		assert.ok(!accessor.modelService.getModel(model.resource));
 	});
 
 	test('Load returns dirty model as long as model is dirty', async function () {

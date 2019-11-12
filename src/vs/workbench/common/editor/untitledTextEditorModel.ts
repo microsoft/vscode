@@ -115,10 +115,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 		this._onDidChangeDirty.fire();
 	}
 
-	getResource(): URI {
-		return this.resource;
-	}
-
 	revert(): void {
 		this.setDirty(false);
 

@@ -98,7 +98,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 						return resource ? this.textFileService.models.get(resource) : undefined;
 					}))
 					.filter(model => !model.isDirty()),
-				m => m.getResource().toString()
+				m => m.resource.toString()
 			).forEach(model => this.queueModelLoad(model));
 		}
 	}
@@ -299,7 +299,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// and updated right after.
 		distinct(coalesce([...e.getUpdated(), ...e.getAdded()]
 			.map(u => this.textFileService.models.get(u.resource)))
-			.filter(model => model && !model.isDirty()), m => m.getResource().toString())
+			.filter(model => model && !model.isDirty()), m => m.resource.toString())
 			.forEach(model => this.queueModelLoad(model));
 	}
 
@@ -308,7 +308,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// Load model to update (use a queue to prevent accumulation of loads
 		// when the load actually takes long. At most we only want the queue
 		// to have a size of 2 (1 running load and 1 queued load).
-		const queue = this.modelLoadQueue.queueFor(model.getResource());
+		const queue = this.modelLoadQueue.queueFor(model.resource);
 		if (queue.size <= 1) {
 			queue.queue(() => model.load().then(undefined, onUnexpectedError));
 		}

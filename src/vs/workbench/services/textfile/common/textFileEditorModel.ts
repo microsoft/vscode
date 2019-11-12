@@ -29,7 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
-import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export interface IBackupMetaData {
 	mtime: number;
@@ -58,7 +58,7 @@ type TelemetryData = {
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
-export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel, IWorkingCopy {
+export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
 
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 	static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
@@ -1030,10 +1030,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.disposed;
 	}
 
-	getResource(): URI {
-		return this.resource;
-	}
-
 	getStat(): IFileStatWithMetadata | undefined {
 		return this.lastResolvedFileStat;
 	}
@@ -1144,6 +1140,6 @@ class DefaultSaveErrorHandler implements ISaveErrorHandler {
 	constructor(@INotificationService private readonly notificationService: INotificationService) { }
 
 	onSaveError(error: Error, model: TextFileEditorModel): void {
-		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(model.getResource()), toErrorMessage(error, false)));
+		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(model.resource), toErrorMessage(error, false)));
 	}
 }

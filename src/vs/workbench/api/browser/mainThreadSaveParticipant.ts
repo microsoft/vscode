@@ -51,7 +51,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 	}
 
 	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
+		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -113,7 +113,7 @@ export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 	}
 
 	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
+		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
@@ -147,7 +147,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 	}
 
 	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
+		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
 			this.doTrimFinalNewLines(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -257,7 +257,7 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 
 		const model = editorModel.textEditorModel;
 
-		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() };
+		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.resource };
 		const setting = this._configurationService.getValue<ICodeActionsOnSaveOptions>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
@@ -343,7 +343,7 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 
 		return new Promise<any>((resolve, reject) => {
 			setTimeout(() => reject(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms")), 1750);
-			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
+			this._proxy.$participateInSave(editorModel.resource, env.reason).then(values => {
 				if (!values.every(success => success)) {
 					return Promise.reject(new Error('listener failed'));
 				}

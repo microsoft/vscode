@@ -15,6 +15,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isNative } from 'vs/base/common/platform';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
@@ -328,7 +329,7 @@ export class TextFileModelChangeEvent {
 	private _resource: URI;
 
 	constructor(model: ITextFileEditorModel, private _kind: StateChange) {
-		this._resource = model.getResource();
+		this._resource = model.resource;
 	}
 
 	get resource(): URI {
@@ -492,12 +493,10 @@ export interface ILoadOptions {
 	reason?: LoadReason;
 }
 
-export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport {
+export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
 
 	readonly onDidContentChange: Event<StateChange>;
 	readonly onDidStateChange: Event<StateChange>;
-
-	getResource(): URI;
 
 	hasState(state: ModelState): boolean;
 

@@ -151,11 +151,11 @@ suite('Workbench untitled text editors', () => {
 
 		const model3 = await service.loadOrCreate({ resource: input.getResource() });
 
-		assert.equal(model3.getResource().toString(), input.getResource().toString());
+		assert.equal(model3.resource.toString(), input.getResource().toString());
 
 		const file = URI.file(join('C:\\', '/foo/file44.txt'));
 		const model4 = await service.loadOrCreate({ resource: file });
-		assert.ok(service.hasAssociatedFilePath(model4.getResource()));
+		assert.ok(service.hasAssociatedFilePath(model4.resource));
 		assert.ok(model4.isDirty());
 
 		model1.dispose();
