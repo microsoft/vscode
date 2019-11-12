@@ -301,7 +301,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						break;
 					case 'inspect-brk-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
-						extensionHostDebugEnvironment.params.break = false;
+						extensionHostDebugEnvironment.params.break = true;
 						break;
 				}
 			}

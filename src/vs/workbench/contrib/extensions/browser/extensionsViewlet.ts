@@ -442,7 +442,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		if (this.searchBox) {
 			this.searchBox.layout({ height: 20, width: dimension.width - 34 });
 		}
-		super.layout(new Dimension(dimension.width, dimension.height - 38));
+		super.layout(new Dimension(dimension.width, dimension.height - 41));
 	}
 
 	getOptimalWidth(): number {

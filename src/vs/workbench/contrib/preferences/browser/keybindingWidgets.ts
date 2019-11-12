@@ -82,7 +82,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 	stopRecordingKeys(): void {
 		this._reset();
-		this.recordDisposables.dispose();
+		this.recordDisposables.clear();
 	}
 
 	setInputValue(value: string): void {

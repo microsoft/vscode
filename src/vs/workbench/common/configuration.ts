@@ -3,18 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'http-proxy-agent' {
+import { localize } from 'vs/nls';
+import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 
-	interface IHttpProxyAgentOptions {
-		host: string;
-		port: number;
-		auth?: string;
-	}
-
-	class HttpProxyAgent {
-		constructor(proxy: string);
-		constructor(opts: IHttpProxyAgentOptions);
-	}
-
-	export = HttpProxyAgent;
-}
+export const workbenchConfigurationNodeBase = Object.freeze<IConfigurationNode>({
+	'id': 'workbench',
+	'order': 7,
+	'title': localize('workbenchConfigurationTitle', "Workbench"),
+	'type': 'object',
+});

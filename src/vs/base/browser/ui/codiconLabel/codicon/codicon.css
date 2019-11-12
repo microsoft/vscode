@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?7197ad7e38e9644da47ec42494d56501") format("truetype");
+	src: url("./codicon.ttf?3443fb4013ab5a04c23a30f912dd6627") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -19,11 +19,6 @@
 	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
-
-	/* Hack to get web rendering to align to pixel grid */
-	transform: rotate(0);
-	-webkit-transform: rotate(0.1deg);
-	-moz-transform: rotate(0);
 }
 
 

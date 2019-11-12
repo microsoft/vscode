@@ -240,6 +240,9 @@ export class ContributableViewsModel extends Disposable {
 	private _onDidChangeViewState = this._register(new Emitter<IViewDescriptorRef>());
 	protected readonly onDidChangeViewState: Event<IViewDescriptorRef> = this._onDidChangeViewState.event;
 
+	private _onDidChangeActiveViews = this._register(new Emitter<IViewDescriptor[]>());
+	readonly onDidChangeActiveViews: Event<IViewDescriptor[]> = this._onDidChangeActiveViews.event;
+
 	constructor(
 		container: ViewContainer,
 		viewsService: IViewsService,
@@ -469,6 +472,8 @@ export class ContributableViewsModel extends Disposable {
 		if (toAdd.length) {
 			this._onDidAdd.fire(toAdd);
 		}
+
+		this._onDidChangeActiveViews.fire(this.viewDescriptors);
 	}
 }
 

@@ -19,7 +19,7 @@ export class BinaryEditorModel extends EditorModel {
 	private readonly mime: string;
 
 	constructor(
-		private readonly resource: URI,
+		public readonly resource: URI,
 		private readonly name: string | undefined,
 		@IFileService private readonly fileService: IFileService
 	) {
@@ -47,13 +47,6 @@ export class BinaryEditorModel extends EditorModel {
 	 */
 	getName(): string {
 		return this.name || basename(this.resource);
-	}
-
-	/**
-	 * The resource of the binary resource.
-	 */
-	getResource(): URI {
-		return this.resource;
 	}
 
 	/**

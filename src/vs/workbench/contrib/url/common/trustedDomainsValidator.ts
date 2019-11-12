@@ -72,8 +72,8 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					this._productService.nameShort
 				),
 				[
-					localize('openLink', 'Open Link'),
-					localize('copyLink', 'Copy Link'),
+					localize('open', 'Open'),
+					localize('copy', 'Copy'),
 					localize('cancel', 'Cancel'),
 					localize('configureTrustedDomains', 'Configure Trusted Domains')
 				],
@@ -158,7 +158,11 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 		}
 
 		if (url.authority === parsedTrustedDomain.authority) {
-			return pathMatches(url.path, parsedTrustedDomain.path);
+			if (pathMatches(url.path, parsedTrustedDomain.path)) {
+				return true;
+			} else {
+				continue;
+			}
 		}
 
 		if (trustedDomains[i].indexOf('*') !== -1) {

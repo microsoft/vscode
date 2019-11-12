@@ -25,7 +25,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { isEqual } from 'vs/base/common/resources';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { timeout } from 'vs/base/common/async';
 
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.Inactive);
@@ -51,7 +50,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
@@ -138,14 +136,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async signIn(): Promise<void> {
-		const token = await this.quickInputService.input({ placeHolder: localize('enter token', "Please provide the auth bearer token"), ignoreFocusLost: true, });
-		if (token) {
-			await this.authTokenService.updateToken(token);
-		}
+		return this.authTokenService.login();
 	}
 
 	private async signOut(): Promise<void> {
-		await this.authTokenService.deleteToken();
+		await this.authTokenService.logout();
 	}
 
 	private async continueSync(): Promise<void> {
@@ -212,6 +207,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signInMenuItem);
 
 		const signOutMenuItem: IMenuItem = {
+			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.logout',
 				title: localize('sign out', "Sign Out")
@@ -219,6 +215,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			when: ContextKeyExpr.and(CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Active)),
 		};
 		CommandsRegistry.registerCommand(signOutMenuItem.command.id, () => this.signOut());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, signOutMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signOutMenuItem);
 
 		const startSyncMenuItem: IMenuItem = {

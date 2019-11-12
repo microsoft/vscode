@@ -167,18 +167,22 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 	}
 
-	protected getExperiments(): Promise<IRawExperiment[] | null> {
+	protected async getExperiments(): Promise<IRawExperiment[] | null> {
 		if (!this.productService.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
-			return Promise.resolve([]);
+			return [];
 		}
-		return this.requestService.request({ type: 'GET', url: this.productService.experimentsUrl }, CancellationToken.None).then(context => {
+
+		try {
+			const context = await this.requestService.request({ type: 'GET', url: this.productService.experimentsUrl }, CancellationToken.None);
 			if (context.res.statusCode !== 200) {
-				return Promise.resolve(null);
+				return null;
 			}
-			return asJson(context).then((result: any) => {
-				return result && Array.isArray(result['experiments']) ? result['experiments'] : [];
-			});
-		}, () => Promise.resolve(null));
+			const result: any = await asJson(context);
+			return result && Array.isArray(result['experiments']) ? result['experiments'] : [];
+		} catch (_e) {
+			// Bad request or invalid JSON
+			return null;
+		}
 	}
 
 	private loadExperiments(): Promise<any> {

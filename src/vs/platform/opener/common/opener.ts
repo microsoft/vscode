@@ -28,9 +28,19 @@ type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunn
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
 
+export type ResolveExternalUriOptions = { readonly allowTunneling?: boolean };
+
+export interface IResolvedExternalUri extends IDisposable {
+	resolved: URI;
+}
+
 export interface IOpener {
 	open(resource: URI, options?: OpenInternalOptions): Promise<boolean>;
 	open(resource: URI, options?: OpenExternalOptions): Promise<boolean>;
+}
+
+export interface IExternalOpener {
+	openExternal(href: string): Promise<boolean>;
 }
 
 export interface IValidator {
@@ -62,6 +72,12 @@ export interface IOpenerService {
 	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable;
 
 	/**
+	 * Sets the handler for opening externally. If not provided,
+	 * a default handler will be used.
+	 */
+	setExternalOpener(opener: IExternalOpener): void;
+
+	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.
 	 *
 	 * @param resource A resource
@@ -70,7 +86,10 @@ export interface IOpenerService {
 	open(resource: URI, options?: OpenInternalOptions): Promise<boolean>;
 	open(resource: URI, options?: OpenExternalOptions): Promise<boolean>;
 
-	resolveExternalUri(resource: URI, options?: { readonly allowTunneling?: boolean }): Promise<{ resolved: URI, dispose(): void }>;
+	/**
+	 * Resolve a resource to its external form.
+	 */
+	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
 }
 
 export const NullOpenerService: IOpenerService = Object.freeze({
@@ -78,6 +97,7 @@ export const NullOpenerService: IOpenerService = Object.freeze({
 	registerOpener() { return Disposable.None; },
 	registerValidator() { return Disposable.None; },
 	registerExternalUriResolver() { return Disposable.None; },
-	open() { return Promise.resolve(false); },
+	setExternalOpener() { },
+	async open() { return false; },
 	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
 });
