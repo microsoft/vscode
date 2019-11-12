@@ -6,11 +6,11 @@
 import * as nls from 'vs/nls';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
-import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IAutoSaveConfigurationService, AutoSaveMode } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
 
 export class DirtyFilesIndicator extends Disposable implements IWorkbenchContribution {
 	private readonly badgeHandle = this._register(new MutableDisposable());
@@ -22,10 +22,10 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 	}
 
 	constructor(
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
 	) {
 		super();
 
@@ -42,11 +42,11 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 	}
 
 	private onWorkingCopyDidChangeDirty(copy: IWorkingCopy): void {
-		if (!!(copy.capabilities & WorkingCopyCapabilities.AutoSave) && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return; // do not indicate changes to working copies that are auto saved after short delay
+		const gotDirty = copy.isDirty();
+		if (gotDirty && !!(copy.capabilities & WorkingCopyCapabilities.AutoSave) && this.autoSaveConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return; // do not indicate dirty of working copies that are auto saved after short delay
 		}
 
-		const gotDirty = copy.isDirty();
 		if (gotDirty || this.hasDirtyCount) {
 			this.updateActivityBadge();
 		}

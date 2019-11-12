@@ -22,8 +22,10 @@ const autoFixableDiagnosticCodes = new Set<number>([
 
 class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 
+	private static readonly kind = vscode.CodeActionKind.SourceFixAll.append('ts');
+
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
-		providedCodeActionKinds: [vscode.CodeActionKind.SourceFixAll]
+		providedCodeActionKinds: [TypeScriptAutoFixProvider.kind]
 	};
 
 	constructor(
@@ -82,7 +84,7 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 		const { edit, fixedDiagnostics } = autoFixResponse;
 		const codeAction = new vscode.CodeAction(
 			localize('autoFix.label', 'Auto fix'),
-			vscode.CodeActionKind.SourceFixAll);
+			TypeScriptAutoFixProvider.kind);
 		codeAction.edit = edit;
 		codeAction.diagnostics = fixedDiagnostics;
 

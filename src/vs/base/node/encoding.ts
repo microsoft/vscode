@@ -210,6 +210,17 @@ async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
 		return null;
 	}
 
+	// Ignore 'ascii' as guessed encoding because that
+	// is almost never what we want, rather fallback
+	// to the configured encoding then. Otherwise,
+	// opening a ascii-only file with auto guessing
+	// enabled will put the file into 'ascii' mode
+	// and thus typing any special characters is
+	// not possible anymore.
+	if (guessed.encoding.toLowerCase() === 'ascii') {
+		return null;
+	}
+
 	return toIconvLiteEncoding(guessed.encoding);
 }
 

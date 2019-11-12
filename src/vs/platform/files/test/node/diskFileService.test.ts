@@ -134,7 +134,7 @@ suite('Disk File Service', function () {
 	// we see random test failures when accessing the native file system. To
 	// diagnose further, we retry node.js file access tests up to 3 times to
 	// rule out any random disk issue.
-	this.retries(3);
+	// this.retries(3);
 
 	setup(async () => {
 		const logService = new NullLogService();
@@ -1493,15 +1493,15 @@ suite('Disk File Service', function () {
 	}
 
 	test('createFile', async () => {
-		assertCreateFile(contents => VSBuffer.fromString(contents));
+		return assertCreateFile(contents => VSBuffer.fromString(contents));
 	});
 
 	test('createFile (readable)', async () => {
-		assertCreateFile(contents => bufferToReadable(VSBuffer.fromString(contents)));
+		return assertCreateFile(contents => bufferToReadable(VSBuffer.fromString(contents)));
 	});
 
 	test('createFile (stream)', async () => {
-		assertCreateFile(contents => bufferToStream(VSBuffer.fromString(contents)));
+		return assertCreateFile(contents => bufferToStream(VSBuffer.fromString(contents)));
 	});
 
 	async function assertCreateFile(converter: (content: string) => VSBuffer | VSBufferReadable | VSBufferReadableStream): Promise<void> {

@@ -586,7 +586,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			return getCodeActions(
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
-				{ type: 'manual', filter: { kind: CodeActionKind.QuickFix } },
+				{ type: 'manual', filter: { include: CodeActionKind.QuickFix } },
 				cancellationToken);
 		});
 	}

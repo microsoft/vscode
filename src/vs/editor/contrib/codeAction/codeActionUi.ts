@@ -75,7 +75,7 @@ export class CodeActionUi extends Disposable {
 		}
 
 		if (newState.trigger.type === 'manual') {
-			if (newState.trigger.filter && newState.trigger.filter.kind) {
+			if (newState.trigger.filter && newState.trigger.filter.include) {
 				// Triggered for specific scope
 				if (actions.actions.length > 0) {
 					// Apply if we only have one action or requested autoApply
