@@ -13,12 +13,13 @@ import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/c
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, REMOTE_EXPLORER_TYPE_KEY } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IViewDescriptor } from 'vs/workbench/common/views';
 import { startsWith } from 'vs/base/common/strings';
 import { isStringArray } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export interface IRemoteSelectItem extends ISelectOptionItem {
 	authority: string[];
@@ -34,7 +35,8 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(null, action, optionsItems, 0, contextViewService, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
 		this._register(attachSelectBoxStyler(this.selectBox, themeService, {
@@ -45,24 +47,30 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	}
 
 	private setSelectionForConnection(optionsItems: IRemoteSelectItem[], environmentService: IWorkbenchEnvironmentService, remoteExplorerService: IRemoteExplorerService) {
-		// TODO: set from saved state
 		if (this.optionsItems.length > 0) {
-			const remoteAuthority = environmentService.configuration.remoteAuthority;
 			let index = 0;
-			if (remoteAuthority) {
-				const actualRemoteAuthority = remoteAuthority.split('+')[0];
-				for (let optionIterator = 0; (optionIterator < this.optionsItems.length) && (index === 0); optionIterator++) {
-					for (let authorityIterator = 0; authorityIterator < optionsItems[optionIterator].authority.length; authorityIterator++) {
-						if (optionsItems[optionIterator].authority[authorityIterator] === actualRemoteAuthority) {
-							index = optionIterator;
-							break;
-						}
-					}
-				}
+			const remoteAuthority = environmentService.configuration.remoteAuthority;
+			const explorerType: string | undefined = remoteAuthority ? remoteAuthority.split('+')[0] :
+				this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE) ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.GLOBAL);
+			if (explorerType) {
+				index = this.getOptionIndexForExplorerType(optionsItems, explorerType);
 			}
 			this.select(index);
 			remoteExplorerService.targetType = optionsItems[index].authority[0];
 		}
+	}
+
+	private getOptionIndexForExplorerType(optionsItems: IRemoteSelectItem[], explorerType: string): number {
+		let index = 0;
+		for (let optionIterator = 0; (optionIterator < this.optionsItems.length) && (index === 0); optionIterator++) {
+			for (let authorityIterator = 0; authorityIterator < optionsItems[optionIterator].authority.length; authorityIterator++) {
+				if (optionsItems[optionIterator].authority[authorityIterator] === explorerType) {
+					index = optionIterator;
+					break;
+				}
+			}
+		}
+		return index;
 	}
 
 	render(container: HTMLElement) {
