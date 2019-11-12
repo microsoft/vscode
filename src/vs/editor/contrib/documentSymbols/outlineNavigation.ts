@@ -143,8 +143,10 @@ export class OutlineNavigation implements IEditorContribution {
 			return;
 		}
 
-		let nav = Navigator.for(element);
-		let nextElement = nav.navigate(up);
+		let nextElement: TreeElement | undefined = element;
+		if (Range.containsPosition(element.symbol.selectionRange, position)) {
+			nextElement = Navigator.for(element).navigate(up);
+		}
 
 		if (nextElement instanceof OutlineElement) {
 			const pos = Range.lift(nextElement.symbol.selectionRange).getStartPosition();
