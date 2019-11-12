@@ -61,8 +61,8 @@ class StatusbarViewModel extends Disposable {
 
 	private hidden!: Set<string>;
 
-	private readonly _onDidChangeEntryVisibility: Emitter<{ id: string, visible: boolean }> = this._register(new Emitter<{ id: string, visible: boolean }>());
-	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }> = this._onDidChangeEntryVisibility.event;
+	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
+	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
 
 	constructor(private storageService: IStorageService) {
 		super();
