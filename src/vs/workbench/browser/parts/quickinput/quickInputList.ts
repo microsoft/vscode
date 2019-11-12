@@ -22,7 +22,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { memoize } from 'vs/base/common/decorators';
 import { range } from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
-import { listFocusBackground, pickerGroupBorder, pickerGroupForeground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { listFocusBackground, pickerGroupBorder, pickerGroupForeground, activeContrastBorder, listFocusForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
@@ -590,12 +590,18 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 }
 
 registerThemingParticipant((theme, collector) => {
+	// Override inactive focus foreground with active focus foreground for single-pick case.
+	const listInactiveFocusForeground = theme.getColor(listFocusForeground);
+	if (listInactiveFocusForeground) {
+		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { color:  ${listInactiveFocusForeground}; }`);
+	}
 	// Override inactive focus background with active focus background for single-pick case.
 	const listInactiveFocusBackground = theme.getColor(listFocusBackground);
 	if (listInactiveFocusBackground) {
 		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { background-color:  ${listInactiveFocusBackground}; }`);
 		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused:hover { background-color:  ${listInactiveFocusBackground}; }`);
 	}
+	// dotted instead of solid (as in listWidget.ts) to match QuickOpen
 	const activeContrast = theme.getColor(activeContrastBorder);
 	if (activeContrast) {
 		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { outline: 1px dotted ${activeContrast}; outline-offset: -1px; }`);
