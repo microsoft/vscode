@@ -275,7 +275,7 @@ export class RefreshAction extends Action {
 	run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
-			searchView.onQueryChanged();
+			searchView.onQueryChanged(false);
 		}
 
 		return Promise.resolve();
