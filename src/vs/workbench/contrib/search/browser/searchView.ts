@@ -178,7 +178,7 @@ export class SearchView extends ViewletPanel {
 		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE);
 
 		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
-		this._register(this.untitledTextEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
+		this._register(this.untitledTextEditorService.onDidDisposeModel(e => this.onUntitledDidDispose(e)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
@@ -1581,18 +1581,16 @@ export class SearchView extends ViewletPanel {
 		return undefined;
 	}
 
-	private onUntitledDidChangeDirty(resource: URI): void {
+	private onUntitledDidDispose(resource: URI): void {
 		if (!this.viewModel) {
 			return;
 		}
 
 		// remove search results from this resource as it got disposed
-		if (!this.untitledTextEditorService.isDirty(resource)) {
-			const matches = this.viewModel.searchResult.matches();
-			for (let i = 0, len = matches.length; i < len; i++) {
-				if (resource.toString() === matches[i].resource.toString()) {
-					this.viewModel.searchResult.remove(matches[i]);
-				}
+		const matches = this.viewModel.searchResult.matches();
+		for (let i = 0, len = matches.length; i < len; i++) {
+			if (resource.toString() === matches[i].resource.toString()) {
+				this.viewModel.searchResult.remove(matches[i]);
 			}
 		}
 	}

@@ -1274,8 +1274,6 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 	run(): Promise<any> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
-
-
 		this.quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });
 
 		return Promise.resolve(true);
