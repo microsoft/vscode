@@ -125,5 +125,5 @@ jobs:
       name: Install Dependencies
     - run: yarn monaco-compile-check
       name: Run Monaco Editor Checks
-    - run: yarn editor-esm-bundle
+    - run: yarn gulp editor-esm-bundle
       name: Editor Distro & ESM Bundle
