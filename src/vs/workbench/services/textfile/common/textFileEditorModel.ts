@@ -30,7 +30,7 @@ import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/c
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IAutoSaveConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export interface IBackupMetaData {
 	mtime: number;
@@ -123,11 +123,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(modelService, modeService);
 
-		this.updateAutoSaveConfiguration(autoSaveConfigurationService.getAutoSaveConfiguration());
+		this.updateAutoSaveConfiguration(filesConfigurationService.getAutoSaveConfiguration());
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -137,8 +137,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private registerListeners(): void {
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this._register(this.autoSaveConfigurationService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
-		this._register(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
+		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
+		this._register(this.filesConfigurationService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
 		this._register(this.onDidStateChange(e => this.onStateChange(e)));
 	}
 

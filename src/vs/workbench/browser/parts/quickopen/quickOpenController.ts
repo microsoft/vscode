@@ -51,7 +51,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IAutoSaveConfigurationService, AutoSaveMode } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const HELP_PREFIX = '?';
 
@@ -737,7 +737,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(editorService);
 
@@ -755,7 +755,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			this.description = labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
-			if (this.dirty && this.autoSaveConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			if (this.dirty && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 				this.dirty = false; // no dirty decoration if auto save is on with a short timeout
 			}
 		}

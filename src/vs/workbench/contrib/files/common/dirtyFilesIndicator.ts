@@ -10,7 +10,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IAutoSaveConfigurationService, AutoSaveMode } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class DirtyFilesIndicator extends Disposable implements IWorkbenchContribution {
 	private readonly badgeHandle = this._register(new MutableDisposable());
@@ -25,7 +25,7 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -41,9 +41,9 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private onWorkingCopyDidChangeDirty(copy: IWorkingCopy): void {
-		const gotDirty = copy.isDirty();
-		if (gotDirty && !!(copy.capabilities & WorkingCopyCapabilities.AutoSave) && this.autoSaveConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {
+		const gotDirty = workingCopy.isDirty();
+		if (gotDirty && !!(workingCopy.capabilities & WorkingCopyCapabilities.AutoSave) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 			return; // do not indicate dirty of working copies that are auto saved after short delay
 		}
 

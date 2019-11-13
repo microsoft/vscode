@@ -141,7 +141,6 @@ export interface IOpenDialogOptions {
 	availableFileSystems?: readonly string[];
 }
 
-
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
 export interface IDialogOptions {
