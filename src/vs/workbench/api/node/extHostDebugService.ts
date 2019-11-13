@@ -155,10 +155,10 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 
 			debug += `${sep}ref=${source.sourceReference}`;
 
-			return vscode.Uri.parse(debug);
+			return URI.parse(debug);
 		} else if (source.path) {
 			// src is just a local file path
-			return vscode.Uri.file(source.path);
+			return URI.file(source.path);
 		} else {
 			throw new Error(`cannot create uri from DAP 'source' object; properties 'path' and 'sourceReference' are both missing.`);
 		}
