@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as fs from 'fs';
 import { Disposable } from './dispose';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
 import { Scale, ZoomStatusBarEntry } from './zoomStatusBarEntry';
@@ -133,9 +132,11 @@ class Preview extends Disposable {
 			switch (message.type) {
 				case 'size':
 					{
-						const { size } = fs.statSync(resource.path);
-						this._imageSize = `${message.value} ${BinarySize.formatSize(size)}`;
-						this.update();
+						vscode.workspace.fs.stat(resource).then(stat => {
+							const { size } = stat;
+							this._imageSize = `${message.value} ${BinarySize.formatSize(size)}`;
+							this.update();
+						});
 						break;
 					}
 				case 'zoom':
