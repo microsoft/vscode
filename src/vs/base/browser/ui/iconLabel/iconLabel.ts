@@ -189,7 +189,7 @@ class Label {
 			for (let i = 0; i < label.length; i++) {
 				const l = label[i];
 
-				dom.append(this.container, dom.$('a.label-name', undefined, l));
+				dom.append(this.container, dom.$('a.label-name', { 'data-icon-label-index': label.length - i - 1 }, l));
 
 				if (i < label.length - 1) {
 					dom.append(this.container, dom.$('span.label-separator', undefined, options?.separator || '/'));
@@ -230,7 +230,7 @@ class LabelWithHighlights {
 			for (let i = 0; i < label.length; i++) {
 				const l = label[i];
 
-				const highlightedLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name')), this.supportCodicons);
+				const highlightedLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { 'data-icon-label-index': label.length - i - 1 })), this.supportCodicons);
 				highlightedLabel.set(l, options?.matches, options?.title, options?.labelEscapeNewLines);
 
 				if (i < label.length - 1) {

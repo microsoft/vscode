@@ -133,7 +133,9 @@
 	border-radius: 3px;
 }
 
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.active,
 .explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover {
+	/* TODO@Joao: theme this */
 	background: rgb(210, 219, 228);
 }
 

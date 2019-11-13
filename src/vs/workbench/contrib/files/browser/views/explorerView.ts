@@ -47,10 +47,28 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/arrays';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, isNumber } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+
+function getLabelNameFromEventTarget(target: EventTarget | null): { element: HTMLElement, index: number } | null {
+	while (target instanceof HTMLElement && !DOM.hasClass(target, 'monaco-list-row')) {
+		// const rawIndex = element.getAttribute('data-index');
+
+		if (DOM.hasClass(target, 'label-name')) {
+			const index = Number(target.getAttribute('data-icon-label-index'));
+
+			if (isNumber(index)) {
+				return { element: target, index };
+			}
+		}
+
+		target = target.parentElement;
+	}
+
+	return null;
+}
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -401,7 +419,30 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
-		const stat = e.element;
+		const disposables = new DisposableStore();
+		let stat = e.element;
+
+		// compressed node context menu
+		if (stat) {
+			const result = getLabelNameFromEventTarget(e.browserEvent.target);
+
+			if (result) {
+				let { element: labelName, index } = result;
+
+				while (index > 0 && stat.parent) {
+					stat = stat.parent;
+					index--;
+				}
+
+				if (index === 0) {
+					DOM.addClass(labelName, 'active');
+
+					disposables.add(toDisposable(() => {
+						DOM.removeClass(labelName, 'active');
+					}));
+				}
+			}
+		}
 
 		// update dynamic contexts
 		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
@@ -412,7 +453,7 @@ export class ExplorerView extends ViewletPanel {
 		const actions: IAction[] = [];
 		const roots = this.explorerService.roots; // If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
 		const arg = stat instanceof ExplorerItem ? stat.resource : roots.length === 1 ? roots[0].resource : {};
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService);
+		disposables.add(createAndFillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -422,7 +463,7 @@ export class ExplorerView extends ViewletPanel {
 					this.tree.domFocus();
 				}
 
-				dispose(actionsDisposable);
+				disposables.dispose();
 			},
 			getActionsContext: () => stat && selection && selection.indexOf(stat) >= 0
 				? selection.map((fs: ExplorerItem) => fs.resource)
