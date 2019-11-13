@@ -135,7 +135,6 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 	private styles: IQuickOpenStyles;
 	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private renderer: Renderer;
-	private keyDownSeenSinceShown = false;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions) {
 		super();
@@ -172,7 +171,6 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.FOCUS, e => this.gainingFocus(), true));
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.BLUR, e => this.loosingFocus(e), true));
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.KEY_DOWN, e => {
-			this.keyDownSeenSinceShown = true;
 			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 			if (keyboardEvent.keyCode === KeyCode.Escape) {
 				DOM.EventHelper.stop(e, true);
@@ -223,7 +221,6 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 
 		this._register(DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.INPUT, (e: Event) => this.onType()));
 		this._register(DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			this.keyDownSeenSinceShown = true;
 			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 			const shouldOpenInBackground = this.shouldOpenInBackground(keyboardEvent);
 
@@ -304,7 +301,6 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 		}));
 
 		this._register(DOM.addDisposableListener(this.treeContainer, DOM.EventType.KEY_DOWN, e => {
-			this.keyDownSeenSinceShown = true;
 			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
 			// Only handle when in quick navigation mode
@@ -325,7 +321,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 			const keyCode = keyboardEvent.keyCode;
 
 			// Only handle when in quick navigation mode
-			if (!this.quickNavigateConfiguration || !this.keyDownSeenSinceShown) {
+			if (!this.quickNavigateConfiguration) {
 				return;
 			}
 
@@ -600,7 +596,6 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 		this.visible = true;
 		this.isLoosingFocus = false;
 		this.quickNavigateConfiguration = options ? options.quickNavigateConfiguration : undefined;
-		this.keyDownSeenSinceShown = false;
 
 		// Adjust UI for quick navigate mode
 		if (this.quickNavigateConfiguration) {
