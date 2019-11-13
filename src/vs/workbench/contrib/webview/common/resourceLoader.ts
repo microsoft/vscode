@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { getWebviewContentMimeType } from 'vs/workbench/contrib/webview/common/mimeTypes';
-import { isWindows } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 export const WebviewResourceScheme = 'vscode-resource';
 
@@ -55,7 +55,7 @@ export async function loadLocalResource(
 	const normalizedPath = normalizeRequestPath(requestUri);
 
 	for (const root of getRoots()) {
-		if (!containsResource(root, normalizedPath)) {
+		if (!containsResource(root, normalizedPath, extensionLocation)) {
 			continue;
 		}
 
@@ -95,13 +95,15 @@ function normalizeRequestPath(requestUri: URI) {
 	return requestUri.with({ scheme: 'file' });
 }
 
-function containsResource(root: URI, resource: URI): boolean {
+function containsResource(root: URI, resource: URI, extensionLocation: URI | undefined): boolean {
 	let rootPath = root.fsPath + (endsWith(root.fsPath, sep) ? '' : sep);
 	let resourceFsPath = resource.fsPath;
 
 	// windows paths are case insensitive
 	// when checking remote host, the host name is uppercase
-	if (isWindows) {
+	if (extensionLocation && (
+		extensionLocation.scheme === REMOTE_HOST_SCHEME ||
+		extensionLocation.scheme === Schemas.vscodeRemoteResource)) {
 		rootPath = rootPath.toLowerCase();
 		resourceFsPath = resourceFsPath.toLowerCase();
 	}
