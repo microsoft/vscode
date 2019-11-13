@@ -25,13 +25,15 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { isEqual } from 'vs/base/common/resources';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
-import { timeout } from 'vs/base/common/async';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.Inactive);
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-light.svg`));
 const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-dark.svg`));
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+
+	private static readonly ENABLEMENT_SETTING = 'configurationSync.enable';
 
 	private readonly syncStatusContext: IContextKey<string>;
 	private readonly authTokenContext: IContextKey<string>;
@@ -50,6 +52,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
@@ -59,14 +62,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.onDidChangeSyncStatus(this.userDataSyncService.status);
 		this._register(Event.debounce(authTokenService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeAuthTokenStatus(this.authTokenService.status)));
 		this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeSyncStatus(this.userDataSyncService.status)));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => this.updateBadge()));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING))(() => this.onDidChangeEnablement()));
 		this.registerActions();
-
-		timeout(2000).then(() => {
-			if (this.authTokenService.status === AuthTokenStatus.Inactive && this.userDataSyncService.status !== SyncStatus.Uninitialized && configurationService.getValue<boolean>('configurationSync.enable')) {
-				this.showSignInNotification();
-			}
-		});
 	}
 
 	private onDidChangeAuthTokenStatus(status: AuthTokenStatus) {
@@ -103,14 +100,34 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
+	private onDidChangeEnablement() {
+		this.updateBadge();
+		const enabled = this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING);
+		if (enabled) {
+			if (this.authTokenService.status === AuthTokenStatus.Inactive) {
+				const handle = this.notificationService.prompt(Severity.Info, localize('ask to sign in', "Please sign in to '{0}' to turn on configuration sync", "{ACCOUNT_NAME}"),
+					[
+						{
+							label: localize('Sign in', "Sign in"),
+							run: () => this.signIn()
+						}
+					]);
+				this.signInNotificationDisposable.value = toDisposable(() => handle.close());
+				handle.onDidClose(() => this.signInNotificationDisposable.clear());
+			}
+		} else {
+			this.signInNotificationDisposable.clear();
+		}
+	}
+
 	private updateBadge(): void {
 		this.badgeDisposable.clear();
 
 		let badge: IBadge | undefined = undefined;
 		let clazz: string | undefined;
 
-		if (this.authTokenService.status === AuthTokenStatus.Inactive && this.userDataSyncService.status !== SyncStatus.Uninitialized && this.configurationService.getValue<boolean>('configurationSync.enable')) {
-			badge = new NumberBadge(1, () => localize('sign in', "Sign in..."));
+		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING) && this.authTokenService.status === AuthTokenStatus.Inactive) {
+			badge = new NumberBadge(1, () => localize('sign in', "Configuration Sync: Sign in..."));
 		} else if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
 			badge = new NumberBadge(1, () => localize('resolve conflicts', "Resolve Conflicts"));
 		} else if (this.userDataSyncService.status === SyncStatus.Syncing) {
@@ -123,16 +140,24 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private showSignInNotification(): void {
-		const handle = this.notificationService.prompt(Severity.Info, localize('show sign in', "Please sign in to Settings Sync service to start syncing configuration."),
-			[
-				{
-					label: localize('sign in', "Sign in..."),
-					run: () => this.signIn()
-				}
-			]);
-		this.signInNotificationDisposable.value = toDisposable(() => handle.close());
-		handle.onDidClose(() => this.signInNotificationDisposable.clear());
+	private async turnOn(): Promise<void> {
+		if (this.authTokenService.status === AuthTokenStatus.Inactive) {
+			const result = await this.dialogService.confirm({
+				type: 'info',
+				message: localize('turn on', "Turn on Configuration Sync"),
+				detail: localize('ask to sign in', "Please sign in to '{0}' to turn on configuration sync", "{ACCOUNT_NAME}"),
+				primaryButton: localize('Sign in', "Sign in")
+			});
+			if (!result.confirmed) {
+				return;
+			}
+			await this.signIn();
+		}
+		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
+	}
+
+	private async turnOff(): Promise<void> {
+		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, false);
 	}
 
 	private async signIn(): Promise<void> {
@@ -194,53 +219,29 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private registerActions(): void {
 
-		const signInMenuItem: IMenuItem = {
-			group: '5_sync',
-			command: {
-				id: 'workbench.userData.actions.login',
-				title: localize('sign in', "Sign in...")
-			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Inactive), ContextKeyExpr.has('config.configurationSync.enable')),
-		};
-		CommandsRegistry.registerCommand(signInMenuItem.command.id, () => this.signIn());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, signInMenuItem);
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signInMenuItem);
-
-		const signOutMenuItem: IMenuItem = {
-			group: '5_sync',
-			command: {
-				id: 'workbench.userData.actions.logout',
-				title: localize('sign out', "Sign Out")
-			},
-			when: ContextKeyExpr.and(CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Active)),
-		};
-		CommandsRegistry.registerCommand(signOutMenuItem.command.id, () => this.signOut());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, signOutMenuItem);
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signOutMenuItem);
-
 		const startSyncMenuItem: IMenuItem = {
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.syncStart',
 				title: localize('start sync', "Configuration Sync: Turn On")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.configurationSync.enable')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
 		};
-		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.configurationService.updateValue('configurationSync.enable', true));
+		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.turnOn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, startSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, startSyncMenuItem);
 
-		const stopSyncMenuItem: IMenuItem = {
+		const signInMenuItem: IMenuItem = {
 			group: '5_sync',
 			command: {
-				id: 'workbench.userData.actions.stopSync',
-				title: localize('stop sync', "Configuration Sync: Turn Off")
+				id: 'workbench.userData.actions.login',
+				title: localize('sign in', "Configuration Sync: Sign in...")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.configurationSync.enable')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Inactive)),
 		};
-		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.configurationService.updateValue('configurationSync.enable', false));
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, stopSyncMenuItem);
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, stopSyncMenuItem);
+		CommandsRegistry.registerCommand(signInMenuItem.command.id, () => this.signIn());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, signInMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signInMenuItem);
 
 		const resolveConflictsMenuItem: IMenuItem = {
 			group: '5_sync',
@@ -276,5 +277,27 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			order: 1,
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Resource.isEqualTo(this.workbenchEnvironmentService.settingsSyncPreviewResource.toString())),
 		});
+
+		const stopSyncMenuItem: IMenuItem = {
+			group: '5_sync',
+			command: {
+				id: 'workbench.userData.actions.stopSync',
+				title: localize('stop sync', "Configuration Sync: Turn Off")
+			},
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
+		};
+		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.turnOff());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, stopSyncMenuItem);
+
+		const signOutMenuItem: IMenuItem = {
+			group: '5_sync',
+			command: {
+				id: 'workbench.userData.actions.logout',
+				title: localize('sign out', "Sign Out")
+			},
+			when: ContextKeyExpr.and(CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Active)),
+		};
+		CommandsRegistry.registerCommand(signOutMenuItem.command.id, () => this.signOut());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signOutMenuItem);
 	}
 }
