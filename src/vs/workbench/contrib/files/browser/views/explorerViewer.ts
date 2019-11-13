@@ -246,6 +246,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		label.setFile(joinPath(parent, value || ' '), labelOptions); // Use icon for ' ' if name is empty.
 
+		// hack: hide label
+		(label.element.firstElementChild as HTMLElement).style.display = 'none';
+
 		// Input field for name
 		const inputBox = new InputBox(label.element, this.contextViewService, {
 			validationOptions: {
