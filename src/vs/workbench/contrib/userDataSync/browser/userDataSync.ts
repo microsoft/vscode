@@ -63,7 +63,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.registerActions();
 
 		timeout(2000).then(() => {
-			if (this.authTokenService.status === AuthTokenStatus.Inactive && configurationService.getValue<boolean>('configurationSync.enable')) {
+			if (this.authTokenService.status === AuthTokenStatus.Inactive && this.userDataSyncService.status !== SyncStatus.Uninitialized && configurationService.getValue<boolean>('configurationSync.enable')) {
 				this.showSignInNotification();
 			}
 		});
@@ -109,7 +109,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		let badge: IBadge | undefined = undefined;
 		let clazz: string | undefined;
 
-		if (this.authTokenService.status === AuthTokenStatus.Inactive && this.configurationService.getValue<boolean>('configurationSync.enable')) {
+		if (this.authTokenService.status === AuthTokenStatus.Inactive && this.userDataSyncService.status !== SyncStatus.Uninitialized && this.configurationService.getValue<boolean>('configurationSync.enable')) {
 			badge = new NumberBadge(1, () => localize('sign in', "Sign in..."));
 		} else if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
 			badge = new NumberBadge(1, () => localize('resolve conflicts', "Resolve Conflicts"));
@@ -200,7 +200,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				id: 'workbench.userData.actions.login',
 				title: localize('sign in', "Sign in...")
 			},
-			when: ContextKeyExpr.and(CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Inactive), ContextKeyExpr.has('config.configurationSync.enable')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Inactive), ContextKeyExpr.has('config.configurationSync.enable')),
 		};
 		CommandsRegistry.registerCommand(signInMenuItem.command.id, () => this.signIn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, signInMenuItem);
