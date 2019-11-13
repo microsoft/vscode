@@ -1468,7 +1468,7 @@ export class SearchView extends ViewletPanel {
 
 			dom.append(messageEl, $('p', undefined, resultMsg));
 			this.reLayout();
-		} else if (msgWasHidden) {
+		} else if (!msgWasHidden) {
 			dom.hide(this.messagesElement);
 		}
 	}
