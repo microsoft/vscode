@@ -463,6 +463,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onZenModeChange: Event<boolean> = Event.None;
 	onCenteredLayoutChange: Event<boolean> = Event.None;
 	onFullscreenChange: Event<boolean> = Event.None;
+	onMaximizeChange: Event<boolean> = Event.None;
 	onPanelPositionChange: Event<string> = Event.None;
 	onPartVisibilityChange: Event<void> = Event.None;
 	onLayout = Event.None;
@@ -572,6 +573,12 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	public resizePart(_part: Parts, _sizeChange: number): void { }
 
 	public registerPart(part: Part): void { }
+
+	isWindowMaximized() {
+		return false;
+	}
+
+	public updateWindowMaximizedState(maximized: boolean): void { }
 }
 
 let activeViewlet: Viewlet = {} as any;

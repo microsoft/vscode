@@ -56,7 +56,7 @@ body.web {
 	width: 100vw;
 }
 
-.monaco-workbench.border {
+.monaco-workbench.border:not(.fullscreen) {
 	box-sizing: border-box;
 	border: 1px solid var(--window-border-color);
 }
