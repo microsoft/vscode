@@ -30,5 +30,6 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable;
 	registerDebugAdapterDescriptorFactory(extension: IExtensionDescription, type: string, factory: vscode.DebugAdapterDescriptorFactory): vscode.Disposable;
 	registerDebugAdapterTrackerFactory(type: string, factory: vscode.DebugAdapterTrackerFactory): vscode.Disposable;
+	asDebugSourceUri(source: vscode.DebugSource, session?: vscode.DebugSession): vscode.Uri;
 }
 
