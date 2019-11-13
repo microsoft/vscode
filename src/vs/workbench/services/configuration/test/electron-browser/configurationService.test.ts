@@ -717,7 +717,7 @@ suite('WorkspaceService - Initialization', () => {
 
 suite('WorkspaceConfigurationService - Folder', () => {
 
-	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string;
+	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string, globalTasksFile: string;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
@@ -756,6 +756,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				parentResource = parentDir;
 				workspaceDir = folderDir;
 				globalSettingsFile = path.join(parentDir, 'settings.json');
+				globalTasksFile = path.join(parentDir, 'tasks.json');
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new TestEnvironmentService(URI.file(parentDir));
@@ -1074,6 +1075,18 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.ok(target.called));
 	});
 
+	test('no change event when there are no global tasks', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeConfiguration(target);
+		return setTimeout(() => assert.ok(target.notCalled), 500);
+	});
+
+	test('change event when there are global tasks', () => {
+		fs.writeFileSync(globalTasksFile, '{ "version": "1.0.0", "tasks": [{ "taskName": "myTask" }');
+		const target = sinon.spy();
+		testObject.onDidChangeConfiguration(target);
+		return setTimeout(() => assert.ok(target.called), 500);
+	});
 });
 
 suite('WorkspaceConfigurationService-Multiroot', () => {
