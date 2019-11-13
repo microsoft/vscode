@@ -723,7 +723,7 @@ export class SearchResult extends Disposable {
 			}
 		});
 
-		this._otherFilesMatch!.add(other, silent);
+		this._otherFilesMatch?.add(other, silent);
 		this.disposePastResults();
 	}
 
