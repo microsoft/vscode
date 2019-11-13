@@ -25,9 +25,10 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkingCopy, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { env } from 'vs/base/common/process';
 
 const CUSTOM_SCHEME = 'testCustomEditor';
-const ENABLE = false;
+const ENABLE = !!env['VSCODE_DEV'];
 
 class TestCustomEditorsAction extends Action {
 
