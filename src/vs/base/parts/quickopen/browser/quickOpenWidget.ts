@@ -23,6 +23,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { StandardMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IThemable } from 'vs/base/common/styler';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -92,7 +93,7 @@ const defaultStyles = {
 
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
 
-export class QuickOpenWidget extends Disposable implements IModelProvider {
+export class QuickOpenWidget extends Disposable implements IModelProvider, IThemable {
 
 	private static readonly MAX_WIDTH = 600;			// Max total width of quick open widget
 	private static readonly MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field

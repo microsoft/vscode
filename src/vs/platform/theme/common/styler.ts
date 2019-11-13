@@ -8,15 +8,10 @@ import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectF
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
-
-export type styleFn = (colors: { [name: string]: Color | undefined }) => void;
+import { IThemable, styleFn } from 'vs/base/common/styler';
 
 export interface IStyleOverrides {
 	[color: string]: ColorIdentifier | undefined;
-}
-
-export interface IThemable {
-	style: styleFn;
 }
 
 export interface IColorMapping {
