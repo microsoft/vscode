@@ -41,9 +41,9 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private onWorkingCopyDidChangeDirty(copy: IWorkingCopy): void {
-		const gotDirty = copy.isDirty();
-		if (gotDirty && !!(copy.capabilities & WorkingCopyCapabilities.AutoSave) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {
+		const gotDirty = workingCopy.isDirty();
+		if (gotDirty && !!(workingCopy.capabilities & WorkingCopyCapabilities.AutoSave) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 			return; // do not indicate dirty of working copies that are auto saved after short delay
 		}
 

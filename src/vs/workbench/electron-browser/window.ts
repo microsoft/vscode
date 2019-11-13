@@ -60,7 +60,8 @@ import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/pl
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class ElectronWindow extends Disposable {
 
@@ -103,7 +104,8 @@ export class ElectronWindow extends Disposable {
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -267,6 +269,10 @@ export class ElectronWindow extends Disposable {
 		if (isMacintosh) {
 			this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
 				const gotDirty = workingCopy.isDirty();
+				if (gotDirty && !!(workingCopy.capabilities & WorkingCopyCapabilities.AutoSave) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+					return; // do not indicate dirty of working copies that are auto saved after short delay
+				}
+
 				if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
 					const hasDirtyFiles = this.workingCopyService.hasDirty;
 					this.isDocumentedEdited = hasDirtyFiles;
