@@ -84,6 +84,7 @@ export interface ParsedArgs {
 	'js-flags'?: string;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
+	'force-device-scale-factor'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
