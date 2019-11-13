@@ -62,7 +62,6 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 			case PConst.Kind.const:
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
-			case PConst.Kind.function:
 				// Only show references for exported variables
 				if (!item.kindModifiers.match(/\bexport\b/)) {
 					break;
@@ -75,6 +74,7 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 				}
 			// fallthrough
 
+			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
