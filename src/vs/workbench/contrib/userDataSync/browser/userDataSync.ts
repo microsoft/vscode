@@ -243,17 +243,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, signInMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signInMenuItem);
 
-		const stopSyncMenuItem: IMenuItem = {
-			group: '5_sync',
-			command: {
-				id: 'workbench.userData.actions.stopSync',
-				title: localize('stop sync', "Configuration Sync: Turn Off")
-			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
+		const stopSycCommand = {
+			id: 'workbench.userData.actions.stopSync',
+			title: localize('stop sync', "Configuration Sync: Turn Off")
 		};
-		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.turnOff());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, stopSyncMenuItem);
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, stopSyncMenuItem);
+		CommandsRegistry.registerCommand(stopSycCommand.id, () => this.turnOff());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '5_sync',
+			command: stopSycCommand,
+			when: ContextKeyExpr.and(ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Active), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.HasConflicts))
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: stopSycCommand,
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
+		});
 
 		const resolveConflictsMenuItem: IMenuItem = {
 			group: '5_sync',
