@@ -57,8 +57,7 @@ body.web {
 }
 
 .monaco-workbench.border {
-	height: calc(100vh - 2px);
-	width: calc(100vw - 2px);
+	box-sizing: border-box;
 	border: 1px solid var(--window-border-color);
 }
 
