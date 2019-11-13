@@ -112,13 +112,17 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		}));
 
 		result.push(...viewToggleActions);
-		const parentActions = super.getContextMenuActions();
+		const parentActions = this.getViewletContextMenuActions();
 		if (viewToggleActions.length && parentActions.length) {
 			result.push(new Separator());
 		}
 
 		result.push(...parentActions);
 		return result;
+	}
+
+	protected getViewletContextMenuActions() {
+		return super.getContextMenuActions();
 	}
 
 	setVisible(visible: boolean): void {
@@ -264,7 +268,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		});
 	}
 
-	private toggleViewVisibility(viewId: string): void {
+	protected toggleViewVisibility(viewId: string): void {
 		const visible = !this.viewsModel.isVisible(viewId);
 		type ViewsToggleVisibilityClassification = {
 			viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -319,6 +323,108 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 		super.saveState();
 	}
+}
+
+export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
+	private constantViewDescriptors: Map<string, IViewDescriptor> = new Map();
+	private allViews: Map<string, Map<string, IViewDescriptor>> = new Map();
+	private filterValue: string | undefined;
+
+	constructor(
+		viewletId: string,
+		onDidChangeFilterValue: Event<string>,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
+		super(viewletId, `${viewletId}.state`, false, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		this._register(onDidChangeFilterValue(newFilterValue => {
+			this.filterValue = newFilterValue;
+			this.onFilterChanged(newFilterValue);
+		}));
+
+		this._register(this.viewsModel.onDidChangeActiveViews((viewDescriptors) => {
+			viewDescriptors.forEach(descriptor => {
+				let filterOnValue = this.getFilterOn(descriptor);
+				if (!filterOnValue) {
+					return;
+				}
+				if (!this.allViews.has(filterOnValue)) {
+					this.allViews.set(filterOnValue, new Map());
+				}
+				this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
+				if (filterOnValue !== this.filterValue) {
+					this.viewsModel.setVisible(descriptor.id, false);
+				}
+			});
+		}));
+	}
+
+	protected addConstantViewDescriptors(constantViewDescriptors: IViewDescriptor[]) {
+		constantViewDescriptors.forEach(viewDescriptor => this.constantViewDescriptors.set(viewDescriptor.id, viewDescriptor));
+	}
+
+	protected abstract getFilterOn(viewDescriptor: IViewDescriptor): string | undefined;
+
+	private onFilterChanged(newFilterValue: string) {
+		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, false));
+		this.getViewsForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, true));
+	}
+
+	getContextMenuActions(): IAction[] {
+		const result: IAction[] = [];
+		let viewToggleActions: IAction[] = Array.from(this.constantViewDescriptors.values()).map(viewDescriptor => (<IAction>{
+			id: `${viewDescriptor.id}.toggleVisibility`,
+			label: viewDescriptor.name,
+			checked: this.viewsModel.isVisible(viewDescriptor.id),
+			enabled: viewDescriptor.canToggleVisibility,
+			run: () => this.toggleViewVisibility(viewDescriptor.id)
+		}));
+
+		result.push(...viewToggleActions);
+		const parentActions = this.getViewletContextMenuActions();
+		if (viewToggleActions.length && parentActions.length) {
+			result.push(new Separator());
+		}
+
+		result.push(...parentActions);
+		return result;
+	}
+
+	private getViewsForTarget(target: string): IViewDescriptor[] {
+		return this.allViews.has(target) ? Array.from(this.allViews.get(target)!.values()) : [];
+	}
+
+	private getViewsNotForTarget(target: string): IViewDescriptor[] {
+		const iterable = this.allViews.keys();
+		let key = iterable.next();
+		let views: IViewDescriptor[] = [];
+		while (!key.done) {
+			if (key.value !== target) {
+				views = views.concat(this.getViewsForTarget(key.value));
+			}
+			key = iterable.next();
+		}
+		return views;
+	}
+
+	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
+		const panels: ViewletPanel[] = super.onDidAddViews(added);
+		for (let i = 0; i < added.length; i++) {
+			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {
+				panels[i].setExpanded(false);
+			}
+		}
+		return panels;
+	}
+
+	abstract getTitle(): string;
 }
 
 export class FileIconThemableWorkbenchTree extends WorkbenchTree {

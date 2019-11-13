@@ -703,10 +703,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private fatalError(command: string): void {
 		/* __GDPR__
 			"fatalError" : {
-				"${include}": [
-					"${TypeScriptCommonProperties}",
-					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				]
+				"${include}": [ "${TypeScriptCommonProperties}" ],
+				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.logTelemetry('fatalError', { command });

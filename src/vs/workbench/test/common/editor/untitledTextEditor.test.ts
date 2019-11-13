@@ -17,6 +17,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledText
 import { timeout } from 'vs/base/common/async';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class TestUntitledTextEditorService extends UntitledTextEditorService {
 	get(resource: URI) { return super.get(resource); }
@@ -25,9 +26,10 @@ export class TestUntitledTextEditorService extends UntitledTextEditorService {
 
 class ServiceAccessor {
 	constructor(
-		@IUntitledTextEditorService public untitledTextEditorService: TestUntitledTextEditorService,
-		@IModeService public modeService: ModeServiceImpl,
-		@IConfigurationService public testConfigurationService: TestConfigurationService) {
+		@IUntitledTextEditorService public readonly untitledTextEditorService: TestUntitledTextEditorService,
+		@IWorkingCopyService public readonly workingCopyService: IWorkingCopyService,
+		@IModeService public readonly modeService: ModeServiceImpl,
+		@IConfigurationService public readonly testConfigurationService: TestConfigurationService) {
 	}
 }
 
@@ -48,6 +50,8 @@ suite('Workbench untitled text editors', () => {
 
 	test('Untitled Text Editor Service', async (done) => {
 		const service = accessor.untitledTextEditorService;
+		const workingCopyService = accessor.workingCopyService;
+
 		assert.equal(service.getAll().length, 0);
 
 		const input1 = service.createOrGet();
@@ -83,10 +87,16 @@ suite('Workbench untitled text editors', () => {
 			assert.equal(service.getDirty([input2.getResource()])[0].toString(), input2.getResource().toString());
 			assert.equal(service.getDirty([input1.getResource()]).length, 0);
 
+			assert.ok(workingCopyService.isDirty(input2.getResource()));
+			assert.equal(workingCopyService.dirtyCount, 1);
+
 			service.revertAll();
 			assert.equal(service.getAll().length, 0);
 			assert.ok(!input2.isDirty());
 			assert.ok(!model.isDirty());
+
+			assert.ok(!workingCopyService.isDirty(input2.getResource()));
+			assert.equal(workingCopyService.dirtyCount, 0);
 
 			input2.dispose();
 
@@ -109,14 +119,17 @@ suite('Workbench untitled text editors', () => {
 
 	test('Untitled no longer dirty when content gets empty', async () => {
 		const service = accessor.untitledTextEditorService;
+		const workingCopyService = accessor.workingCopyService;
 		const input = service.createOrGet();
 
 		// dirty
 		const model = await input.resolve();
 		model.textEditorModel.setValue('foo bar');
 		assert.ok(model.isDirty());
+		assert.ok(workingCopyService.isDirty(model.resource));
 		model.textEditorModel.setValue('');
 		assert.ok(!model.isDirty());
+		assert.ok(!workingCopyService.isDirty(model.resource));
 		input.dispose();
 	});
 
@@ -138,11 +151,11 @@ suite('Workbench untitled text editors', () => {
 
 		const model3 = await service.loadOrCreate({ resource: input.getResource() });
 
-		assert.equal(model3.getResource().toString(), input.getResource().toString());
+		assert.equal(model3.resource.toString(), input.getResource().toString());
 
 		const file = URI.file(join('C:\\', '/foo/file44.txt'));
 		const model4 = await service.loadOrCreate({ resource: file });
-		assert.ok(service.hasAssociatedFilePath(model4.getResource()));
+		assert.ok(service.hasAssociatedFilePath(model4.resource));
 		assert.ok(model4.isDirty());
 
 		model1.dispose();
@@ -176,11 +189,21 @@ suite('Workbench untitled text editors', () => {
 	test('Untitled with initial content is dirty', async () => {
 		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet(undefined, undefined, 'Hello World');
+		const workingCopyService = accessor.workingCopyService;
+
+		let onDidChangeDirty: IWorkingCopy | undefined = undefined;
+		const listener = workingCopyService.onDidChangeDirty(copy => {
+			onDidChangeDirty = copy;
+		});
 
 		// dirty
 		const model = await input.resolve();
 		assert.ok(model.isDirty());
+		assert.equal(workingCopyService.dirtyCount, 1);
+		assert.equal(onDidChangeDirty, model);
+
 		input.dispose();
+		listener.dispose();
 	});
 
 	test('Untitled created with files.defaultLanguage setting', () => {

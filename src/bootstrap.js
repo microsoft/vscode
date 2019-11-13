@@ -263,7 +263,12 @@ exports.configurePortable = function () {
 	}
 
 	if (isTempPortable) {
-		process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = portableTempPath;
+		if (process.platform === 'win32') {
+			process.env['TMP'] = portableTempPath;
+			process.env['TEMP'] = portableTempPath;
+		} else {
+			process.env['TMPDIR'] = portableTempPath;
+		}
 	}
 
 	return {

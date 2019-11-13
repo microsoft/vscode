@@ -474,11 +474,11 @@ class NavigateTypeAdapter {
 
 	private readonly _symbolCache = new Map<number, vscode.SymbolInformation>();
 	private readonly _resultCache = new Map<number, [number, number]>();
-	private readonly _provider: vscode.WorkspaceSymbolProvider;
 
-	constructor(provider: vscode.WorkspaceSymbolProvider) {
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _provider: vscode.WorkspaceSymbolProvider,
+		private readonly _logService: ILogService
+	) { }
 
 	provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolsDto> {
 		const result: extHostProtocol.IWorkspaceSymbolsDto = extHostProtocol.IdObject.mixin({ symbols: [] });
@@ -490,7 +490,7 @@ class NavigateTypeAdapter {
 						continue;
 					}
 					if (!item.name) {
-						console.warn('INVALID SymbolInformation, lacks name', item);
+						this._logService.warn('INVALID SymbolInformation, lacks name', item);
 						continue;
 					}
 					const symbol = extHostProtocol.IdObject.mixin(typeConvert.WorkspaceSymbol.from(item));
@@ -538,7 +538,8 @@ class RenameAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.RenameProvider
+		private readonly _provider: vscode.RenameProvider,
+		private readonly _logService: ILogService
 	) { }
 
 	provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
@@ -587,7 +588,7 @@ class RenameAdapter {
 				return undefined;
 			}
 			if (range.start.line > pos.line || range.end.line < pos.line) {
-				console.warn('INVALID rename location: position line must be within range start/end lines');
+				this._logService.warn('INVALID rename location: position line must be within range start/end lines');
 				return undefined;
 			}
 			return { range: typeConvert.Range.from(range), text };
@@ -618,18 +619,15 @@ class SuggestAdapter {
 		return typeof provider.resolveCompletionItem === 'function';
 	}
 
-	private _documents: ExtHostDocuments;
-	private _commands: CommandsConverter;
-	private _provider: vscode.CompletionItemProvider;
-
 	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
 	private _disposables = new Map<number, DisposableStore>();
 
-	constructor(documents: ExtHostDocuments, commands: CommandsConverter, provider: vscode.CompletionItemProvider) {
-		this._documents = documents;
-		this._commands = commands;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _commands: CommandsConverter,
+		private readonly _provider: vscode.CompletionItemProvider,
+		private readonly _logService: ILogService
+	) { }
 
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
 
@@ -712,7 +710,7 @@ class SuggestAdapter {
 
 	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: extHostProtocol.ChainedCacheId): extHostProtocol.ISuggestDataDto | undefined {
 		if (typeof item.label !== 'string' || item.label.length === 0) {
-			console.warn('INVALID text edit -> must have at least a label');
+			this._logService.warn('INVALID text edit -> must have at least a label');
 			return undefined;
 		}
 
@@ -764,7 +762,7 @@ class SuggestAdapter {
 		if (range) {
 			if (Range.isRange(range)) {
 				if (!SuggestAdapter._isValidRangeForCompletion(range, position)) {
-					console.trace('INVALID range -> must be single line and on the same line');
+					this._logService.trace('INVALID range -> must be single line and on the same line');
 					return undefined;
 				}
 				result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
@@ -776,7 +774,7 @@ class SuggestAdapter {
 					|| !range.inserting.start.isEqual(range.replacing.start)
 					|| !range.replacing.contains(range.inserting)
 				) {
-					console.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
+					this._logService.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
 					return undefined;
 				}
 				result[extHostProtocol.ISuggestDataDtoField.range] = {
@@ -992,7 +990,8 @@ class SelectionRangeAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SelectionRangeProvider
+		private readonly _provider: vscode.SelectionRangeProvider,
+		private readonly _logService: ILogService
 	) { }
 
 	provideSelectionRanges(resource: URI, pos: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]> {
@@ -1004,7 +1003,7 @@ class SelectionRangeAdapter {
 				return [];
 			}
 			if (allProviderRanges.length !== positions.length) {
-				console.warn('BAD selection ranges, provider must return ranges for each position');
+				this._logService.warn('BAD selection ranges, provider must return ranges for each position');
 				return [];
 			}
 
@@ -1413,7 +1412,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- navigate types
 
 	registerWorkspaceSymbolProvider(extension: IExtensionDescription, provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new NavigateTypeAdapter(provider), extension);
+		const handle = this._addNewAdapter(new NavigateTypeAdapter(provider, this._logService), extension);
 		this._proxy.$registerNavigateTypeSupport(handle);
 		return this._createDisposable(handle);
 	}
@@ -1433,7 +1432,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- rename
 
 	registerRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider, this._logService), extension);
 		this._proxy.$registerRenameSupport(handle, this._transformDocumentSelector(selector), RenameAdapter.supportsResolving(provider));
 		return this._createDisposable(handle);
 	}
@@ -1449,7 +1448,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- suggestion
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
-		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider), extension);
+		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService), extension);
 		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}
@@ -1533,7 +1532,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- smart select
 
 	registerSelectionRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new SelectionRangeAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new SelectionRangeAdapter(this._documents, provider, this._logService), extension);
 		this._proxy.$registerSelectionRangeProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}

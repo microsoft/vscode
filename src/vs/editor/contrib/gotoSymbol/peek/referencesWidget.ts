@@ -23,7 +23,6 @@ import { Location } from 'vs/editor/common/modes';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement, StringRepresentationProvider, IdentityProvider } from 'vs/editor/contrib/gotoSymbol/peek/referencesTree';
 import * as nls from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -182,8 +181,6 @@ export interface SelectionEvent {
 	readonly element?: Location;
 }
 
-export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('referenceSearchTreeFocused', true);
-
 /**
  * ZoneWidget that is shown inside the editor
  */
@@ -319,7 +316,6 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			this._instantiationService.createInstance(DataSource),
 			treeOptions
 		);
-		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 
 		// split stuff
 		this._splitView.addView({

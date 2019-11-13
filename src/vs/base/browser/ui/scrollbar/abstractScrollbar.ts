@@ -99,6 +99,7 @@ export abstract class AbstractScrollbar extends Widget {
 			this.slider.setHeight(height);
 		}
 		this.slider.setLayerHinting(true);
+		this.slider.setContain('strict');
 
 		this.domNode.domNode.appendChild(this.slider.domNode);
 

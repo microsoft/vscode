@@ -344,7 +344,7 @@ function enableProblems(context: vscode.ExtensionContext): void {
 }
 
 function updateDiagnostics(document: vscode.TextDocument, collection: vscode.DiagnosticCollection): void {
-	if (document && document.fileName === '/large.ts') {
+	if (document && document.fileName === '/sample-folder/large.ts') {
 		collection.set(document.uri, [{
 			code: '',
 			message: 'cannot assign twice to immutable variable `storeHouses`',
@@ -366,9 +366,9 @@ function updateDiagnostics(document: vscode.TextDocument, collection: vscode.Dia
 	}
 }
 
-function enableSearch(_context: vscode.ExtensionContext, _memFs: MemFS): void {
-	// NOT YET SUPPORTED
-	//context.subscriptions.push(vscode.workspace.registerFileSearchProvider(SCHEME, memFs));
+function enableSearch(context: vscode.ExtensionContext, memFs: MemFS): void {
+	context.subscriptions.push(vscode.workspace.registerFileSearchProvider(SCHEME, memFs));
+	context.subscriptions.push(vscode.workspace.registerTextSearchProvider(SCHEME, memFs));
 }
 
 function enableTasks(): void {
@@ -546,7 +546,7 @@ export class Directory implements vscode.FileStat {
 
 export type Entry = File | Directory;
 
-export class MemFS implements vscode.FileSystemProvider, vscode.FileSearchProvider {
+export class MemFS implements vscode.FileSystemProvider, vscode.FileSearchProvider, vscode.TextSearchProvider {
 
 	root = new Directory(vscode.Uri.parse('memfs:/'), '');
 
@@ -796,13 +796,49 @@ export class MemFS implements vscode.FileSystemProvider, vscode.FileSearchProvid
 	// --- search provider
 
 	provideFileSearchResults(query: vscode.FileSearchQuery, _options: vscode.FileSearchOptions, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.Uri[]> {
+		return this._findFiles(query.pattern);
+	}
+
+	private _findFiles(query: string | undefined): vscode.Uri[] {
 		const files = this._getFiles();
 		const result: vscode.Uri[] = [];
-		const pattern = new RegExp(this._convertSimple2RegExpPattern(query.pattern));
+
+		const pattern = query ? new RegExp(this._convertSimple2RegExpPattern(query)) : null;
 
 		for (const file of files) {
-			if (pattern.exec(file.name)) {
+			if (!pattern || pattern.exec(file.name)) {
 				result.push(file.uri);
+			}
+		}
+
+		return result;
+	}
+
+	private _textDecoder = new TextDecoder();
+
+	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, _token: vscode.CancellationToken) {
+		const result: vscode.TextSearchComplete = { limitHit: false };
+
+		const files = this._findFiles(options.includes[0]);
+		if (files) {
+			for (const file of files) {
+				const content = this._textDecoder.decode(this.readFile(file));
+
+				const lines = content.split('\n');
+				for (let i = 0; i < lines.length; i++) {
+					const line = lines[i];
+					const index = line.indexOf(query.pattern);
+					if (index !== -1) {
+						progress.report({
+							uri: file,
+							ranges: new vscode.Range(new vscode.Position(i, index), new vscode.Position(i, index + query.pattern.length)),
+							preview: {
+								text: line,
+								matches: new vscode.Range(new vscode.Position(0, index), new vscode.Position(0, index + query.pattern.length))
+							}
+						});
+					}
+				}
 			}
 		}
 

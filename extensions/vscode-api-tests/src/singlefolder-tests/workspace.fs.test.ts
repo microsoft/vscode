@@ -23,6 +23,8 @@ suite('workspace-fs', () => {
 		assert.equal(typeof stat.mtime, 'number');
 		assert.equal(typeof stat.ctime, 'number');
 
+		assert.ok(stat.mtime > 0);
+		assert.ok(stat.ctime > 0);
 
 		const entries = await vscode.workspace.fs.readDirectory(root);
 		assert.ok(entries.length > 0);

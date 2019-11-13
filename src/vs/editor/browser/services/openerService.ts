@@ -13,7 +13,7 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions } from 'vs/platform/opener/common/opener';
+import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions, ResolveExternalUriOptions, IResolvedExternalUri, IExternalOpener } from 'vs/platform/opener/common/opener';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
 
 export class OpenerService extends Disposable implements IOpenerService {
@@ -23,12 +23,22 @@ export class OpenerService extends Disposable implements IOpenerService {
 	private readonly _openers = new LinkedList<IOpener>();
 	private readonly _validators = new LinkedList<IValidator>();
 	private readonly _resolvers = new LinkedList<IExternalUriResolver>();
+	private _externalOpener: IExternalOpener;
 
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
+
+		// Default external opener is going through window.open()
+		this._externalOpener = {
+			openExternal: href => {
+				dom.windowOpenNoOpener(href);
+
+				return Promise.resolve(true);
+			}
+		};
 	}
 
 	registerOpener(opener: IOpener): IDisposable {
@@ -47,6 +57,10 @@ export class OpenerService extends Disposable implements IOpenerService {
 		const remove = this._resolvers.push(resolver);
 
 		return { dispose: remove };
+	}
+
+	setExternalOpener(externalOpener: IExternalOpener): void {
+		this._externalOpener = externalOpener;
 	}
 
 	async open(resource: URI, options?: OpenOptions): Promise<boolean> {
@@ -75,7 +89,7 @@ export class OpenerService extends Disposable implements IOpenerService {
 		return this._doOpen(resource, options);
 	}
 
-	async resolveExternalUri(resource: URI, options?: { readonly allowTunneling?: boolean }): Promise<{ resolved: URI, dispose(): void }> {
+	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
 		for (const resolver of this._resolvers.toArray()) {
 			const result = await resolver.resolveExternalUri(resource, options);
 			if (result) {
@@ -89,13 +103,8 @@ export class OpenerService extends Disposable implements IOpenerService {
 	private async _doOpen(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
 		const { scheme, path, query, fragment } = resource;
 
-		if (equalsIgnoreCase(scheme, Schemas.mailto) || options?.openExternal) {
-			// open default mail application
-			return this._doOpenExternal(resource, options);
-		}
-
-		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
-			// open link in default browser
+		if (options?.openExternal || equalsIgnoreCase(scheme, Schemas.mailto) || equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
+			// open externally 
 			return this._doOpenExternal(resource, options);
 		}
 
@@ -149,9 +158,10 @@ export class OpenerService extends Disposable implements IOpenerService {
 
 	private async _doOpenExternal(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
 		const { resolved } = await this.resolveExternalUri(resource, options);
-		dom.windowOpenNoOpener(encodeURI(resolved.toString(true)));
 
-		return true;
+		// TODO@Jo neither encodeURI nor toString(true) should be needed
+		// once we go with URL and not URI
+		return this._externalOpener.openExternal(encodeURI(resolved.toString(true)));
 	}
 
 	dispose() {
