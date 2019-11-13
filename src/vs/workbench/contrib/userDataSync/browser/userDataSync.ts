@@ -105,7 +105,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const enabled = this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING);
 		if (enabled) {
 			if (this.authTokenService.status === AuthTokenStatus.Inactive) {
-				const handle = this.notificationService.prompt(Severity.Info, localize('ask to sign in', "Please sign in to '{0}' to turn on configuration sync", "{ACCOUNT_NAME}"),
+				const handle = this.notificationService.prompt(Severity.Info, localize('ask to sign in', "Please sign in with your '{0}' account to sync configuration", "{ACCOUNT_NAME}"),
 					[
 						{
 							label: localize('Sign in', "Sign in"),
@@ -144,8 +144,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (this.authTokenService.status === AuthTokenStatus.Inactive) {
 			const result = await this.dialogService.confirm({
 				type: 'info',
-				message: localize('turn on', "Turn on Configuration Sync"),
-				detail: localize('ask to sign in', "Please sign in to '{0}' to turn on configuration sync", "{ACCOUNT_NAME}"),
+				message: localize('sign in to account', "Sign in to {0}", "{ACCOUNT_NAME}"),
+				detail: localize('ask to sign in', "Please sign in with your '{0}' account to sync configuration", "{ACCOUNT_NAME}"),
 				primaryButton: localize('Sign in', "Sign in")
 			});
 			if (!result.confirmed) {
