@@ -43,15 +43,8 @@ export class PreviewManager {
 			}
 		});
 
-		const onEdit = new vscode.EventEmitter<{ now: number }>();
 		return {
-			editingCapability: {
-				onEdit: onEdit.event,
-				save: async () => { },
-				hotExit: async () => { },
-				applyEdits: async () => { },
-				undoEdits: async (edits) => { console.log('undo', edits); },
-			}
+			editingCapability: preview
 		};
 	}
 
@@ -73,7 +66,7 @@ const enum PreviewState {
 	Active,
 }
 
-class Preview extends Disposable {
+class Preview extends Disposable implements vscode.WebviewEditorEditingCapability {
 
 	private readonly id: string = `${Date.now()}-${Math.random().toString()}`;
 
@@ -245,6 +238,24 @@ class Preview extends Disposable {
 		return this.webviewEditor.webview.asWebviewUri(this.extensionRoot.with({
 			path: this.extensionRoot.path + path
 		}));
+	}
+
+	//#region WebviewEditorCapabilities
+	private readonly _onEdit = this._register(new vscode.EventEmitter<{ now: number }>());
+	public readonly onEdit = this._onEdit.event;
+
+	async save() { }
+
+	async hotExit() { }
+
+	async applyEdits(_edits: any[]) { }
+
+	async undoEdits(edits: any[]) { console.log('undo', edits); }
+
+	//#endregion
+
+	public test_makeEdit() {
+		this._onEdit.fire({ now: Date.now() });
 	}
 }
 
