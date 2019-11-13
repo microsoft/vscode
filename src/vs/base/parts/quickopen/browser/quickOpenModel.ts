@@ -19,13 +19,14 @@ import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IItemAccessor } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { coalesce } from 'vs/base/common/arrays';
+import { IMatch } from 'vs/base/common/filters';
 
 export interface IContext {
 	event: any;
 	quickNavigateConfiguration: IQuickNavigateConfiguration;
 }
 
-export interface IHighlight {
+export interface IHighlight extends IMatch {
 	start: number;
 	end: number;
 }
