@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as objects from 'vs/base/common/objects';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -13,8 +12,7 @@ import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamCon
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IFileService, IFilesConfiguration, FileOperationError, FileOperationResult, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileService, FileOperationError, FileOperationResult, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
@@ -37,7 +35,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IAutoSaveConfigurationService, AutoSaveMode } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -47,9 +45,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	_serviceBrand: undefined;
 
 	//#region events
-
-	private readonly _onFilesAssociationChange = this._register(new Emitter<void>());
-	readonly onFilesAssociationChange = this._onFilesAssociationChange.event;
 
 	private _onWillRunOperation = this._register(new AsyncEmitter<FileOperationWillRunEvent>());
 	readonly onWillRunOperation = this._onWillRunOperation.event;
@@ -64,17 +59,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	abstract get encoding(): IResourceEncodings;
 
-	private currentFilesAssociationConfig: { [key: string]: string; };
-
-	private configuredHotExit: string | undefined;
-
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IFileService protected readonly fileService: IFileService,
 		@IUntitledTextEditorService protected readonly untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
@@ -85,14 +75,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
 		this._models = this._register(instantiationService.createInstance(TextFileEditorModelManager));
-
-		const configuration = configurationService.getValue<IFilesConfiguration>();
-		this.currentFilesAssociationConfig = configuration?.files?.associations;
 
 		this.registerListeners();
 	}
@@ -105,21 +92,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
-		// Files configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('files')) {
-				this.onFilesConfigurationChange(this.configurationService.getValue<IFilesConfiguration>());
-			}
-		}));
-
 		// Auto save changes
-		this._register(this.autoSaveConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange()));
+		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange()));
 	}
 
 	private onAutoSaveConfigurationChange(): void {
 
 		// save all dirty when enabling auto save
-		if (this.autoSaveConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
+		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
 			this.saveAll();
 		}
 	}
@@ -132,7 +112,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 			// If auto save is enabled, save all files and then check again for dirty files
 			// We DO NOT run any save participant if we are in the shutdown phase for performance reasons
-			if (this.autoSaveConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
+			if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
 				return this.saveAll(false /* files only */, { skipSaveParticipants: true }).then(() => {
 
 					// If we still have dirty files, we either have untitled ones or files that cannot be saved
@@ -156,7 +136,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private handleDirtyBeforeShutdown(dirty: URI[], reason: ShutdownReason): boolean | Promise<boolean> {
 
 		// If hot exit is enabled, backup dirty files and allow to exit without confirmation
-		if (this.isHotExitEnabled) {
+		if (this.filesConfigurationService.isHotExitEnabled) {
 			return this.backupBeforeShutdown(dirty, reason).then(didBackup => {
 				if (didBackup) {
 					return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
@@ -184,7 +164,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		let doBackup: boolean | undefined;
 		switch (reason) {
 			case ShutdownReason.CLOSE:
-				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 					doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
 				} else if (await this.getWindowCount() > 1 || platform.isMacintosh) {
 					doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
@@ -202,7 +182,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				break;
 
 			case ShutdownReason.LOAD:
-				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 					doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
 				} else {
 					doBackup = false; // do not backup because we are switching contexts
@@ -301,24 +281,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		await this.backupFileService.discardAllWorkspaceBackups();
-	}
-
-	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
-
-		// Check for change in files associations
-		const filesAssociation = configuration?.files?.associations;
-		if (!objects.equals(this.currentFilesAssociationConfig, filesAssociation)) {
-			this.currentFilesAssociationConfig = filesAssociation;
-			this._onFilesAssociationChange.fire();
-		}
-
-		// Hot exit
-		const hotExitMode = configuration?.files?.hotExit;
-		if (hotExitMode === HotExitConfiguration.OFF || hotExitMode === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-			this.configuredHotExit = hotExitMode;
-		} else {
-			this.configuredHotExit = HotExitConfiguration.ON_EXIT;
-		}
 	}
 
 	//#endregion
@@ -965,14 +927,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Check for dirty untitled
 		return this.untitledTextEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
-	}
-
-	//#endregion
-
-	//#region config
-
-	get isHotExitEnabled(): boolean {
-		return !this.environmentService.isExtensionDevelopment && this.configuredHotExit !== HotExitConfiguration.OFF;
 	}
 
 	//#endregion

@@ -22,10 +22,6 @@ export interface ITextFileService extends IDisposable {
 
 	_serviceBrand: undefined;
 
-	readonly onFilesAssociationChange: Event<void>;
-
-	readonly isHotExitEnabled: boolean;
-
 	/**
 	 * An event that is fired before attempting a certain file operation.
 	 */

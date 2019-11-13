@@ -93,7 +93,7 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { find } from 'vs/base/common/arrays';
 import { WorkingCopyService, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IAutoSaveConfigurationService, AutoSaveConfigurationService } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -201,7 +201,6 @@ export class TestTextFileService extends NativeTextFileService {
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -214,7 +213,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IElectronService electronService: IElectronService,
 		@IProductService productService: IProductService,
-		@IAutoSaveConfigurationService autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(
 			contextService,
@@ -222,7 +221,6 @@ export class TestTextFileService extends NativeTextFileService {
 			untitledTextEditorService,
 			lifecycleService,
 			instantiationService,
-			configurationService,
 			modeService,
 			modelService,
 			environmentService,
@@ -235,7 +233,7 @@ export class TestTextFileService extends NativeTextFileService {
 			textResourceConfigurationService,
 			electronService,
 			productService,
-			autoSaveConfigurationService
+			filesConfigurationService
 		);
 	}
 
@@ -285,10 +283,6 @@ export class TestTextFileService extends NativeTextFileService {
 		return Promise.resolve(true);
 	}
 
-	public onFilesConfigurationChange(configuration: any): void {
-		super.onFilesConfigurationChange(configuration);
-	}
-
 	protected cleanupBackupsBeforeShutdown(): Promise<void> {
 		this.cleanupBackupsBeforeShutdownCalled = true;
 		return Promise.resolve();
@@ -304,7 +298,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 	const configService = new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(IAutoSaveConfigurationService, new AutoSaveConfigurationService(contextKeyService, configService));
+	instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(contextKeyService, configService, TestEnvironmentService));
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledTextEditorService, instantiationService.createInstance(UntitledTextEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
@@ -1471,3 +1465,10 @@ export class TestDialogMainService implements IDialogMainService {
 }
 
 export class TestWorkingCopyService extends WorkingCopyService { }
+
+export class TestFilesConfigurationService extends FilesConfigurationService {
+
+	onFilesConfigurationChange(configuration: any): void {
+		super.onFilesConfigurationChange(configuration);
+	}
+}
