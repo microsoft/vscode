@@ -251,6 +251,30 @@ export class CloseReplaceAction extends Action {
 	}
 }
 
+// --- Toggle Search On Type
+
+export class ToggleSearchOnTypeAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleSearchOnType';
+	static readonly LABEL = nls.localize('toggleTabs', "Toggle Search on Type");
+
+	private static readonly searchOnTypeKey = 'search.searchOnType';
+
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<any> {
+		const searchOnType = this.configurationService.getValue<boolean>(ToggleSearchOnTypeAction.searchOnTypeKey);
+		return this.configurationService.updateValue(ToggleSearchOnTypeAction.searchOnTypeKey, !searchOnType);
+	}
+}
+
+
 export class RefreshAction extends Action {
 
 	static readonly ID: string = 'search.action.refreshSearchResults';
