@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { getWebviewContentMimeType } from 'vs/workbench/contrib/webview/common/mimeTypes';
+import { isWindows } from 'vs/base/common/platform';
 
 export const WebviewResourceScheme = 'vscode-resource';
 
@@ -95,6 +96,15 @@ function normalizeRequestPath(requestUri: URI) {
 }
 
 function containsResource(root: URI, resource: URI): boolean {
-	const rootPath = root.fsPath + (endsWith(root.fsPath, sep) ? '' : sep);
+	let rootPath = root.fsPath + (endsWith(root.fsPath, sep) ? '' : sep);
+	let resourceFsPath = resource.fsPath;
+
+	// windows paths are case insensitive
+	// when checking remote host, the host name is uppercase
+	if (isWindows) {
+		rootPath = rootPath.toLowerCase();
+		resourceFsPath = resourceFsPath.toLowerCase();
+	}
+
 	return startsWith(resource.fsPath, rootPath);
 }
