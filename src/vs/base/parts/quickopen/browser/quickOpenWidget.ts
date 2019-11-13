@@ -314,6 +314,16 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 
 				this.navigateInTree(keyboardEvent.keyCode);
 			}
+
+			// Support to open item with Enter still even in quick nav mode
+			else if (keyboardEvent.keyCode === KeyCode.Enter) {
+				DOM.EventHelper.stop(e, true);
+
+				const focus = this.tree.getFocus();
+				if (focus) {
+					this.elementSelected(focus, e);
+				}
+			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.treeContainer, DOM.EventType.KEY_UP, e => {
@@ -327,7 +337,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider, IThem
 
 			// Select element when keys are pressed that signal it
 			const quickNavKeys = this.quickNavigateConfiguration.keybindings;
-			const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some(k => {
+			const wasTriggerKeyPressed = quickNavKeys.some(k => {
 				const [firstPart, chordPart] = k.getParts();
 				if (chordPart) {
 					return false;
