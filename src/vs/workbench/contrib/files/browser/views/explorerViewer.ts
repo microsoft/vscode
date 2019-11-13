@@ -176,8 +176,19 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		const stat = node.element.elements[node.element.elements.length - 1];
 		const label = node.element.elements.map(e => e.name).join('/');
+		const editableData = this.explorerService.getEditableData(stat);
 
-		templateData.elementDisposable = this.renderStat(stat, label, node.filterData, templateData);
+		// File Label
+		if (!editableData) {
+			templateData.label.element.style.display = 'flex';
+			templateData.elementDisposable = this.renderStat(stat, label, node.filterData, templateData);
+		}
+
+		// Input Box
+		else {
+			templateData.label.element.style.display = 'none';
+			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
+		}
 	}
 
 	private renderStat(stat: ExplorerItem, label: string, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
