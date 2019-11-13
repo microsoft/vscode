@@ -243,6 +243,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, signInMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signInMenuItem);
 
+		const stopSyncMenuItem: IMenuItem = {
+			group: '5_sync',
+			command: {
+				id: 'workbench.userData.actions.stopSync',
+				title: localize('stop sync', "Configuration Sync: Turn Off")
+			},
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
+		};
+		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.turnOff());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, stopSyncMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, stopSyncMenuItem);
+
 		const resolveConflictsMenuItem: IMenuItem = {
 			group: '5_sync',
 			command: {
@@ -277,17 +289,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			order: 1,
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Resource.isEqualTo(this.workbenchEnvironmentService.settingsSyncPreviewResource.toString())),
 		});
-
-		const stopSyncMenuItem: IMenuItem = {
-			group: '5_sync',
-			command: {
-				id: 'workbench.userData.actions.stopSync',
-				title: localize('stop sync', "Configuration Sync: Turn Off")
-			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
-		};
-		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.turnOff());
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, stopSyncMenuItem);
 
 		const signOutMenuItem: IMenuItem = {
 			group: '5_sync',
