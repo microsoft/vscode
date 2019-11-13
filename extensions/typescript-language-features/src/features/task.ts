@@ -8,7 +8,7 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { isTsConfigFileName } from '../utils/languageDescription';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
@@ -36,6 +36,8 @@ interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
  * Provides tasks for building `tsconfig.json` files in a project.
  */
 export default class TscTaskProvider implements vscode.TaskProvider {
+
+	private readonly projectInfoRequestTimeout = 2000;
 	private autoDetect: AutoDetect = 'on';
 	private readonly tsconfigProvider: TsConfigProvider;
 	private readonly disposables: vscode.Disposable[] = [];
@@ -129,10 +131,13 @@ export default class TscTaskProvider implements vscode.TaskProvider {
 			return [];
 		}
 
-		const response = await this.client.value.execute(
-			'projectInfo',
-			{ file, needFileNameList: false },
-			token);
+		const response = await Promise.race([
+			this.client.value.execute(
+				'projectInfo',
+				{ file, needFileNameList: false },
+				token),
+			new Promise<typeof ServerResponse.NoContent>(resolve => setTimeout(() => resolve(ServerResponse.NoContent), this.projectInfoRequestTimeout))
+		]);
 		if (response.type !== 'response' || !response.body) {
 			return [];
 		}
