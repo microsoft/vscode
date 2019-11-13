@@ -358,7 +358,7 @@ function markNodes(languageService, options) {
         ++step;
         let node;
         if (step % 100 === 0) {
-            console.log(`${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
+            console.log(`Treeshaking - ${Math.floor(100 * step / (step + black_queue.length + gray_queue.length))}% - ${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
         }
         if (black_queue.length === 0) {
             for (let i = 0; i < gray_queue.length; i++) {
