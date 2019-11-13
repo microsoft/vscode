@@ -13,7 +13,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
 import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
+import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { isWindows } from 'vs/base/common/platform';
@@ -137,7 +137,7 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 	});
 }
 
-export class WorkspaceStats implements IWorkbenchContribution {
+export class WorkspaceTags implements IWorkbenchContribution {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -146,7 +146,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@IRequestService private readonly requestService: IRequestService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
-		@IWorkspaceStatsService private readonly workspaceStatsService: IWorkspaceStatsService
+		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService
 	) {
 		if (this.telemetryService.isOptedIn) {
 			this.report();
@@ -157,8 +157,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		// Windows-only Edition Event
 		this.reportWindowsEdition();
 
-		// Workspace Stats
-		this.workspaceStatsService.getTags()
+		// Workspace Tags
+		this.workspaceTagsService.getTags()
 			.then(tags => this.reportWorkspaceTags(tags), error => onUnexpectedError(error));
 
 		// Cloud Stats
@@ -192,7 +192,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {
 		const workspace = this.contextService.getWorkspace();
 		const state = this.contextService.getWorkbenchState();
-		const telemetryId = this.workspaceStatsService.getTelemetryWorkspaceId(workspace, state);
+		const telemetryId = this.workspaceTagsService.getTelemetryWorkspaceId(workspace, state);
 		return this.telemetryService.getTelemetryInfo().then(info => {
 			return {
 				id: workspace.id,
@@ -243,7 +243,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private reportRemotes(workspaceUris: URI[]): void {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
-			return this.workspaceStatsService.getHashedRemotesFromUri(workspaceUri, true);
+			return this.workspaceTagsService.getHashedRemotesFromUri(workspaceUri, true);
 		})).then(hashedRemotes => {
 			/* __GDPR__
 					"workspace.hashedRemotes" : {
@@ -268,7 +268,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return this.fileService.resolveAll(uris.map(resource => ({ resource }))).then(
 			results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
-				const referencesAzure = WorkspaceStats.searchArray(names, /azure/i);
+				const referencesAzure = WorkspaceTags.searchArray(names, /azure/i);
 				if (referencesAzure) {
 					tags['node'] = true;
 				}

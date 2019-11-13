@@ -19,8 +19,8 @@ import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { joinPath } from 'vs/base/common/resources';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
-import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
+import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 const ModulesToLookFor = [
@@ -91,7 +91,7 @@ const PyModulesToLookFor = [
 	'botframework-connector'
 ];
 
-export class WorkspaceStatsService implements IWorkspaceStatsService {
+export class WorkspaceTagsService implements IWorkspaceTagsService {
 	_serviceBrand: undefined;
 	private _tags: Tags | undefined;
 
@@ -106,7 +106,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
-	public async getTags(): Promise<Tags> {
+	async getTags(): Promise<Tags> {
 		if (!this._tags) {
 			this._tags = await this.resolveWorkspaceTags(this.environmentService.configuration, rootFiles => this.handleWorkspaceFiles(rootFiles));
 		}
@@ -114,7 +114,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		return this._tags;
 	}
 
-	public getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
+	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
 		function createHash(uri: URI): string {
 			return crypto.createHash('sha1').update(uri.scheme === Schemas.file ? uri.fsPath : uri.toString()).digest('hex');
 		}
@@ -505,4 +505,4 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 	}
 }
 
-registerSingleton(IWorkspaceStatsService, WorkspaceStatsService, true);
+registerSingleton(IWorkspaceTagsService, WorkspaceTagsService, true);
