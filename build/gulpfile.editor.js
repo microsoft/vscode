@@ -71,14 +71,6 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			apiusages,
 			extrausages
 		],
-		typings: [
-			'typings/lib.ie11_safe_es6.d.ts',
-			'typings/thenable.d.ts',
-			'typings/es6-promise.d.ts',
-			'typings/require-monaco.d.ts',
-			"typings/lib.es2018.promise.d.ts",
-			'vs/monaco.d.ts'
-		],
 		libs: [
 			`lib.es5.d.ts`,
 			`lib.dom.d.ts`,

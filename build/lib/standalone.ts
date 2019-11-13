@@ -52,6 +52,9 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 
 	console.log(`Running with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
 
+	// Take the extra included .d.ts files from `tsconfig.monaco.json`
+	options.typings = (<string[]>tsConfig.include).filter(includedFile => /\.d\.ts$/.test(includedFile));
+
 	let result = tss.shake(options);
 	for (let fileName in result) {
 		if (result.hasOwnProperty(fileName)) {
