@@ -477,6 +477,11 @@ export function getClientArea(element: HTMLElement): Dimension {
 		return new Dimension(element.clientWidth, element.clientHeight);
 	}
 
+	// If visual view port exits, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
+	if ((<any>window).visualViewport) {
+		return new Dimension((<any>window).visualViewport.width, (<any>window).visualViewport.height);
+	}
+
 	// Try innerWidth / innerHeight
 	if (window.innerWidth && window.innerHeight) {
 		return new Dimension(window.innerWidth, window.innerHeight);

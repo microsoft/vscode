@@ -92,6 +92,10 @@ class BrowserMain extends Disposable {
 		// Layout
 		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
 
+		if ((<any>window).visualViewport) {
+			this._register(addDisposableListener((<any>window).visualViewport, EventType.RESIZE, () => workbench.layout()));
+		}
+
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
 			e.preventDefault();
