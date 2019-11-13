@@ -9,9 +9,9 @@ import { URI } from 'vs/base/common/uri';
 
 export type Tags = { [index: string]: boolean | number | string | undefined };
 
-export const IWorkspaceStatsService = createDecorator<IWorkspaceStatsService>('workspaceStatsService');
+export const IWorkspaceTagsService = createDecorator<IWorkspaceTagsService>('workspaceTagsService');
 
-export interface IWorkspaceStatsService {
+export interface IWorkspaceTagsService {
 	_serviceBrand: undefined;
 
 	getTags(): Promise<Tags>;
