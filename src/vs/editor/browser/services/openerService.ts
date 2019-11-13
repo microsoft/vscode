@@ -16,69 +16,6 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions, ResolveExternalUriOptions, IResolvedExternalUri, IExternalOpener } from 'vs/platform/opener/common/opener';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
 
-class CommandOpener implements IOpener {
-
-	constructor(@ICommandService private readonly _commandService: ICommandService) { }
-
-	async open(uri: URI, ) {
-		// run command or bail out if command isn't known
-		if (!equalsIgnoreCase(uri.scheme, Schemas.command)) {
-			return false;
-		}
-
-		if (!CommandsRegistry.getCommand(uri.path)) {
-			throw new Error(`command '${uri.path}' NOT known`);
-		}
-
-		// execute as command
-		let args: any = [];
-		try {
-			args = parse(uri.query);
-			if (!Array.isArray(args)) {
-				args = [args];
-			}
-		} catch (e) {
-			// ignore error
-		}
-		await this._commandService.executeCommand(uri.path, ...args);
-		return true;
-	}
-}
-
-class EditorOpener implements IOpener {
-
-	constructor(@ICodeEditorService private readonly _editorService: ICodeEditorService) { }
-
-	async open(uri: URI, options?: OpenOptions): Promise<boolean> {
-
-		// finally open in editor
-		let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
-		const match = /^L?(\d+)(?:,(\d+))?/.exec(uri.fragment);
-		if (match) {
-			// support file:///some/file.js#73,84
-			// support file:///some/file.js#L73
-			selection = {
-				startLineNumber: parseInt(match[1]),
-				startColumn: match[2] ? parseInt(match[2]) : 1
-			};
-			// remove fragment
-			uri = uri.with({ fragment: '' });
-		}
-
-		if (uri.scheme === Schemas.file) {
-			uri = resources.normalizePath(uri); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
-		}
-
-		await this._editorService.openCodeEditor(
-			{ resource: uri, options: { selection, context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API } },
-			this._editorService.getFocusedCodeEditor(),
-			options?.openToSide
-		);
-
-		return true;
-	}
-}
-
 export class OpenerService extends Disposable implements IOpenerService {
 
 	_serviceBrand: undefined;
@@ -89,8 +26,8 @@ export class OpenerService extends Disposable implements IOpenerService {
 	private _externalOpener: IExternalOpener;
 
 	constructor(
-		@ICodeEditorService editorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -98,26 +35,14 @@ export class OpenerService extends Disposable implements IOpenerService {
 		this._externalOpener = {
 			openExternal: href => {
 				dom.windowOpenNoOpener(href);
+
 				return Promise.resolve(true);
 			}
 		};
-
-		//
-		this._openers.push({ // default: open externally
-			open: async (uri: URI, options: OpenOptions | undefined): Promise<boolean> => {
-				const { scheme } = uri;
-				if (options?.openExternal || equalsIgnoreCase(scheme, Schemas.mailto) || equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
-					return this._doOpenExternal(uri, options);
-				}
-				return false;
-			}
-		});
-		this._openers.push(new CommandOpener(commandService)); // default: run command
-		this._openers.push(new EditorOpener(editorService)); // default: open editor
 	}
 
 	registerOpener(opener: IOpener): IDisposable {
-		const remove = this._openers.unshift(opener);
+		const remove = this._openers.push(opener);
 
 		return { dispose: remove };
 	}
@@ -160,7 +85,8 @@ export class OpenerService extends Disposable implements IOpenerService {
 			}
 		}
 
-		return false;
+		// use default openers
+		return this._doOpen(resource, options);
 	}
 
 	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
@@ -172,6 +98,62 @@ export class OpenerService extends Disposable implements IOpenerService {
 		}
 
 		return { resolved: resource, dispose: () => { } };
+	}
+
+	private async _doOpen(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
+		const { scheme, path, query, fragment } = resource;
+
+		if (options?.openExternal || equalsIgnoreCase(scheme, Schemas.mailto) || equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
+			// open externally 
+			return this._doOpenExternal(resource, options);
+		}
+
+		if (equalsIgnoreCase(scheme, Schemas.command)) {
+			// run command or bail out if command isn't known
+			if (!CommandsRegistry.getCommand(path)) {
+				throw new Error(`command '${path}' NOT known`);
+			}
+			// execute as command
+			let args: any = [];
+			try {
+				args = parse(query);
+				if (!Array.isArray(args)) {
+					args = [args];
+				}
+			} catch (e) {
+				// ignore error
+			}
+
+			await this._commandService.executeCommand(path, ...args);
+
+			return true;
+		}
+
+		// finally open in editor
+		let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
+		const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
+		if (match) {
+			// support file:///some/file.js#73,84
+			// support file:///some/file.js#L73
+			selection = {
+				startLineNumber: parseInt(match[1]),
+				startColumn: match[2] ? parseInt(match[2]) : 1
+			};
+			// remove fragment
+			resource = resource.with({ fragment: '' });
+		}
+
+		if (resource.scheme === Schemas.file) {
+			resource = resources.normalizePath(resource); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
+		}
+
+		await this._editorService.openCodeEditor(
+			{ resource, options: { selection, context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API } },
+			this._editorService.getFocusedCodeEditor(),
+			options?.openToSide
+		);
+
+		return true;
 	}
 
 	private async _doOpenExternal(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
