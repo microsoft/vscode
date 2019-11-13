@@ -139,7 +139,6 @@ export interface ITextFileService extends IDisposable {
 	confirmSave(resources?: URI[]): Promise<ConfirmResult>;
 }
 
-
 export class FileOperationWillRunEvent implements IWaitUntil {
 
 	constructor(
@@ -157,7 +156,6 @@ export class FileOperationWillRunEvent implements IWaitUntil {
 	}
 }
 
-
 export class FileOperationDidRunEvent {
 
 	constructor(
@@ -166,7 +164,6 @@ export class FileOperationDidRunEvent {
 		readonly source?: URI | undefined
 	) { }
 }
-
 
 export interface IReadTextFileOptions extends IReadFileOptions {
 
