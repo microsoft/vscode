@@ -203,7 +203,7 @@ export class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._layerHint = layerHint;
-		(<any>this.domNode.style).willChange = this._layerHint ? 'transform' : 'auto';
+		this.domNode.style.transform = this._layerHint ? 'translate3d(0px, 0px, 0px)' : '';
 	}
 
 	public setAttribute(name: string, value: string): void {
