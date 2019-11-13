@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from 'vs/editor/common/core/range';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
@@ -13,80 +14,53 @@ import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/edit
 import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { values } from 'vs/base/common/collections';
+import { forEach } from 'vs/base/common/collections';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { binarySearch } from 'vs/base/common/arrays';
 
-class Navigator {
+class FlatOutline {
 
-	private readonly _children: TreeElement[] = [];
+	readonly elements: OutlineElement[] = [];
+	readonly _positions: IPosition[];
 
-	constructor(
-		readonly element: TreeElement,
-		private readonly _filter: OutlineFilter
-	) {
-		this._children = values(element.children)
-			.filter(entry => !(entry instanceof OutlineElement) || _filter.filter(entry))
-			.sort(Navigator._compare);
-	}
+	constructor(model: OutlineModel, filter: OutlineFilter) {
 
-	navigate(up: boolean): TreeElement | undefined {
-		return up ? this._up() : this._down();
-	}
-
-	private _up(): TreeElement | undefined {
-		const sibling = this._sibling(true);
-		if (!sibling) {
-			return this.element.parent;
-		}
-		let nav: Navigator = sibling;
-		while (nav) {
-			let next = nav._child(true);
-			if (!next) {
-				return nav.element;
+		const walk = (element: TreeElement) => {
+			if (element instanceof OutlineElement && !filter.filter(element)) {
+				return;
 			}
-			nav = new Navigator(next, this._filter);
-		}
-		return undefined;
-	}
-
-	private _down(): TreeElement | undefined {
-		const firstChild = this._child(false);
-		if (firstChild) {
-			return firstChild;
-		}
-		let nav: Navigator | undefined = this;
-		while (nav) {
-			const next = nav._sibling(false);
-			if (next) {
-				return next.element;
+			if (element instanceof OutlineElement) {
+				this.elements.push(element);
 			}
-			nav = nav.element.parent && new Navigator(nav.element.parent, this._filter);
-		}
-		return undefined;
-	}
+			forEach(element.children, entry => walk(entry.value));
+		};
 
-	private _sibling(up: boolean): Navigator | undefined {
-		if (!this.element.parent) {
-			return undefined;
-		}
-		const parent = new Navigator(this.element.parent, this._filter);
-		const idx = parent._children.indexOf(this.element);
-		const nexIdx = idx + (up ? -1 : +1);
-		const element = parent._children[nexIdx];
-		return element && new Navigator(element, this._filter);
-	}
-
-	private _child(last: boolean): TreeElement | undefined {
-		return this._children[last ? this._children.length - 1 : 0];
+		walk(model);
+		this.elements.sort(FlatOutline._compare);
+		this._positions = this.elements.map(element => ({
+			lineNumber: element.symbol.range.startLineNumber,
+			column: element.symbol.range.startColumn
+		}));
 	}
 
 	private static _compare(a: TreeElement, b: TreeElement): number {
 		return (a instanceof OutlineElement && b instanceof OutlineElement)
 			? Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range)
 			: 0;
+	}
+
+	find(position: IPosition, preferAfter: boolean): number {
+		const idx = binarySearch(this._positions, position, Position.compare);
+		if (idx >= 0) {
+			return idx;
+		} else if (preferAfter) {
+			return ~idx;
+		} else {
+			return ~idx - 1;
+		}
 	}
 }
 
@@ -133,34 +107,30 @@ export class OutlineNavigation implements IEditorContribution {
 		const filter = new OutlineFilter('outline', this._configService);
 		const outlineModel = await OutlineModel.create(textModel, this._cts.token);
 
-		let element: TreeElement | undefined = outlineModel.getItemEnclosingPosition(position);
-		if (!(element instanceof OutlineElement) || this._cts.token.isCancellationRequested) {
+		if (this._cts.token.isCancellationRequested) {
 			return;
 		}
 
-		// don't start in a filtered element
-		let stack: OutlineElement[] = [element];
-		while (element instanceof OutlineElement) {
-			if (!filter.filter(element)) {
-				stack.length = 0;
+		const symbols = new FlatOutline(outlineModel, filter);
+		const idx = symbols.find(position, !up);
+		const element = symbols.elements[idx];
+
+		if (element) {
+			if (Range.containsPosition(element.symbol.selectionRange, position)) {
+				// at the "name" of a symbol -> move
+				const nextElement = symbols.elements[idx + (up ? -1 : +1)];
+				this._revealElement(nextElement);
+
 			} else {
-				stack.push(element);
+				// enclosing, lastBefore, or firstAfter element
+				this._revealElement(element);
 			}
-			element = element.parent;
 		}
-		element = stack[0];
-		if (!(element instanceof OutlineElement)) {
-			return;
-		}
+	}
 
-		// reveal container first (unless already at its range)
-		let nextElement: TreeElement | undefined = element;
-		if (!up || Range.containsPosition(element.symbol.selectionRange, position)) {
-			nextElement = new Navigator(element, filter).navigate(up);
-		}
-
-		if (nextElement instanceof OutlineElement) {
-			const pos = Range.lift(nextElement.symbol.selectionRange).getStartPosition();
+	private _revealElement(element: OutlineElement | undefined): void {
+		if (element) {
+			const pos = Range.lift(element.symbol.selectionRange).getStartPosition();
 			this._editor.setPosition(pos);
 			this._editor.revealPosition(pos, ScrollType.Smooth);
 		}
