@@ -381,9 +381,9 @@ export class RemoteViewlet extends FilterViewContainerViewlet implements IViewMo
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
+		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService
 	) {
-		super(VIEWLET_ID, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		remoteHelpExtPoint.setHandler((extensions) => {
 			let helpInformation: HelpInformation[] = [];
@@ -400,10 +400,6 @@ export class RemoteViewlet extends FilterViewContainerViewlet implements IViewMo
 				viewsRegistry.deregisterViews([this.helpPanelDescriptor], VIEW_CONTAINER);
 			}
 		});
-
-		this._register(this.remoteExplorerService.onDidChangeTargetType(() => {
-			this.onDidChangeFilterValue.fire(this.remoteExplorerService.targetType);
-		}));
 	}
 
 	protected getFilterOn(viewDescriptor: IViewDescriptor): string | undefined {

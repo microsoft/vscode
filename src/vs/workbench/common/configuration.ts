@@ -3,8 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'windows-foreground-love' {
+import { localize } from 'vs/nls';
+import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 
-	export function allowSetForegroundWindow(pid?: number): boolean;
-
-}
+export const workbenchConfigurationNodeBase = Object.freeze<IConfigurationNode>({
+	'id': 'workbench',
+	'order': 7,
+	'title': localize('workbenchConfigurationTitle', "Workbench"),
+	'type': 'object',
+});

@@ -800,7 +800,7 @@ class DisconnectAction extends Action {
 		private readonly session: IDebugSession,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${DISCONNECT_ID}`, DISCONNECT_LABEL, 'debug-action disconnect');
+		super(`action.${DISCONNECT_ID}`, DISCONNECT_LABEL, 'debug-action codicon-debug-disconnect');
 	}
 
 	public run(): Promise<any> {

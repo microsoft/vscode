@@ -118,7 +118,11 @@ class BufferSynchronizer {
 		}
 	}
 
-	public beforeCommand(command: string) {
+	public reset(): void {
+		this._pending.clear();
+	}
+
+	public beforeCommand(command: string): void {
 		if (command === 'updateOpen') {
 			return;
 		}
@@ -150,7 +154,7 @@ class BufferSynchronizer {
 	}
 
 	private get supportsBatching(): boolean {
-		return this.client.apiVersion.gte(API.v340) && vscode.workspace.getConfiguration('typescript', null).get<boolean>('useBatchedBufferSync', true);
+		return this.client.apiVersion.gte(API.v340);
 	}
 
 	private updatePending(resource: vscode.Uri, f: (pending: ResourceMap<CloseOperation | OpenOperation | ChangeOperation>) => void): void {
@@ -265,16 +269,15 @@ class GetErrRequest {
 		files: ResourceMap<void>,
 		onDone: () => void
 	) {
-		const token = new vscode.CancellationTokenSource();
-		return new GetErrRequest(client, files, token, onDone);
+		return new GetErrRequest(client, files, onDone);
 	}
 
 	private _done: boolean = false;
+	private readonly _token: vscode.CancellationTokenSource = new vscode.CancellationTokenSource();
 
 	private constructor(
 		client: ITypeScriptServiceClient,
 		public readonly files: ResourceMap<void>,
-		private readonly _token: vscode.CancellationTokenSource,
 		onDone: () => void
 	) {
 		const args: Proto.GeterrRequestArgs = {
@@ -282,7 +285,7 @@ class GetErrRequest {
 			files: coalesce(Array.from(files.entries).map(entry => client.normalizedPath(entry.resource)))
 		};
 
-		client.executeAsync('geterr', args, _token.token)
+		client.executeAsync('geterr', args, this._token.token)
 			.finally(() => {
 				if (this._done) {
 					return;
@@ -397,6 +400,7 @@ export default class BufferSyncSupport extends Disposable {
 	public reset(): void {
 		this.pendingGetErr?.cancel();
 		this.pendingDiagnostics.clear();
+		this.synchronizer.reset();
 
 		for (const buffer of this.syncedBuffers.allBuffers) {
 			buffer.open();

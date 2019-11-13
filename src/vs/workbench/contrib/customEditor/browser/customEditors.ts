@@ -342,7 +342,7 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 			const editors = mergeSort(
 				distinct([
 					...this.customEditorService.getUserConfiguredCustomEditors(resource),
-					...this.customEditorService.getContributedCustomEditors(resource),
+					...this.customEditorService.getContributedCustomEditors(resource).filter(x => x.priority !== CustomEditorPriority.option),
 				], editor => editor.id),
 				(a, b) => {
 					return priorityToRank(a.priority) - priorityToRank(b.priority);

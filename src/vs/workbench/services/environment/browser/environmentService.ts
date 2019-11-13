@@ -187,7 +187,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get webviewExternalEndpoint(): string {
 		// TODO: get fallback from product.json
-		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}').replace('{{commit}}', product.commit || 'b53811e67e65c6a564a80e1c412ca2b13de02907');
+		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}').replace('{{commit}}', product.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
 	}
 
 	@memoize
@@ -301,7 +301,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						break;
 					case 'inspect-brk-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
-						extensionHostDebugEnvironment.params.break = false;
+						extensionHostDebugEnvironment.params.break = true;
 						break;
 				}
 			}

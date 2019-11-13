@@ -38,11 +38,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { assign } from 'vs/base/common/objects';
+import { IAutoSaveConfigurationService } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -59,15 +59,15 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IHistoryService historyService: IHistoryService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IElectronService private readonly electronService: IElectronService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IAutoSaveConfigurationService autoSaveConfigurationService: IAutoSaveConfigurationService
 	) {
-		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, configurationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, contextKeyService, dialogService, fileDialogService, editorService, textResourceConfigurationService);
+		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, configurationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, autoSaveConfigurationService);
 	}
 
 	private _encoding: EncodingOracle | undefined;

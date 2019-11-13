@@ -29,6 +29,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { assertIsDefined } from 'vs/base/common/types';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 const $ = dom.$;
 
@@ -188,9 +189,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		'id': 'workbench',
-		'order': 7,
-		'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
+		...workbenchConfigurationNodeBase,
 		'properties': {
 			'workbench.tips.enabled': {
 				'type': 'boolean',

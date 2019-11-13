@@ -207,6 +207,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signInMenuItem);
 
 		const signOutMenuItem: IMenuItem = {
+			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.logout',
 				title: localize('sign out', "Sign Out")
@@ -214,6 +215,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			when: ContextKeyExpr.and(CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Active)),
 		};
 		CommandsRegistry.registerCommand(signOutMenuItem.command.id, () => this.signOut());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, signOutMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signOutMenuItem);
 
 		const startSyncMenuItem: IMenuItem = {

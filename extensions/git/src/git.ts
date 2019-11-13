@@ -1819,8 +1819,11 @@ export class Repository {
 		}
 
 		// Else, remove all lines starting with whitespace followed by `#`.
-		//TODO: Support core.commentChar
-		return message.replace(/^\s*#.*$\n?/gm, '').trim();
+		// TODO: Support core.commentChar
+		return message.replace(/^(\s*#)(.*)$(\n?)/gm, (_, prefix, content, suffix) => {
+			// https://github.com/microsoft/vscode/issues/84201#issuecomment-552834814
+			return /^\d/.test(content) ? `${prefix}${content}${suffix}` : '';
+		}).trim();
 	}
 
 	async getMergeMessage(): Promise<string | undefined> {

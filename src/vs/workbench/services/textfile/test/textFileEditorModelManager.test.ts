@@ -273,7 +273,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model = await manager.loadOrCreate(resource, { encoding: 'utf8' });
 		model.dispose();
 		assert.ok(!manager.get(resource));
-		assert.ok(!accessor.modelService.getModel(model.getResource()));
+		assert.ok(!accessor.modelService.getModel(model.resource));
 		manager.dispose();
 	});
 

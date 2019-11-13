@@ -51,7 +51,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 	}
 
 	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
+		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -113,7 +113,7 @@ export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 	}
 
 	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
+		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
@@ -147,7 +147,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 	}
 
 	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
+		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
 			this.doTrimFinalNewLines(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -257,7 +257,7 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 
 		const model = editorModel.textEditorModel;
 
-		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() };
+		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.resource };
 		const setting = this._configurationService.getValue<ICodeActionsOnSaveOptions>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
@@ -282,6 +282,10 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 			return undefined;
 		}
 
+		const excludedActions = Object.keys(setting)
+			.filter(x => setting[x] === false)
+			.map(x => new CodeActionKind(x));
+
 		const tokenSource = new CancellationTokenSource();
 
 		const timeout = this._configurationService.getValue<number>('editor.codeActionsOnSaveTimeout', settingsOverrides);
@@ -292,15 +296,15 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 					tokenSource.cancel();
 					reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout));
 				}, timeout)),
-			this.applyOnSaveActions(model, codeActionsOnSave, tokenSource.token)
+			this.applyOnSaveActions(model, codeActionsOnSave, excludedActions, tokenSource.token)
 		]).finally(() => {
 			tokenSource.cancel();
 		});
 	}
 
-	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: CodeActionKind[], token: CancellationToken): Promise<void> {
+	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], token: CancellationToken): Promise<void> {
 		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await this.getActionsToRun(model, codeActionKind, token);
+			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, token);
 			try {
 				await this.applyCodeActions(actionsToRun.actions);
 			} catch {
@@ -317,10 +321,10 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 		}
 	}
 
-	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, token: CancellationToken) {
+	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], token: CancellationToken) {
 		return getCodeActions(model, model.getFullModelRange(), {
 			type: 'auto',
-			filter: { kind: codeActionKind, includeSourceActions: true },
+			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
 		}, token);
 	}
 }
@@ -343,7 +347,7 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 
 		return new Promise<any>((resolve, reject) => {
 			setTimeout(() => reject(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms")), 1750);
-			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
+			this._proxy.$participateInSave(editorModel.resource, env.reason).then(values => {
 				if (!values.every(success => success)) {
 					return Promise.reject(new Error('listener failed'));
 				}

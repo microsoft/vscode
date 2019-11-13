@@ -5986,6 +5986,9 @@ declare module 'vscode' {
 		/**
 		 * Create a new directory (Note, that new files are created via `write`-calls).
 		 *
+		 * *Note* that missing directories are created automatically, e.g this call has
+		 * `mkdirp` semantics.
+		 *
 		 * @param uri The uri of the new folder.
 		 */
 		createDirectory(uri: Uri): Thenable<void>;

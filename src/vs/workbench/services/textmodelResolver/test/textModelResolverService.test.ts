@@ -88,11 +88,11 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve file', async function () {
 		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(textModel.getResource(), textModel);
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(textModel.resource, textModel);
 
 		await textModel.load();
 
-		const ref = await accessor.textModelResolverService.createModelReference(textModel.getResource());
+		const ref = await accessor.textModelResolverService.createModelReference(textModel.resource);
 
 		const model = ref.object;
 		const editorModel = model.textEditorModel;

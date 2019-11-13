@@ -52,10 +52,10 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$stat(uri: UriComponents): Promise<IStat> {
 		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: true }).then(stat => {
 			return {
-				ctime: 0,
+				ctime: stat.ctime,
 				mtime: stat.mtime,
 				size: stat.size,
-				type: MainThreadFileSystem._getFileType(stat)
+				type: MainThreadFileSystem._asFileType(stat)
 			};
 		}).catch(MainThreadFileSystem._handleError);
 	}
@@ -67,12 +67,22 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 				err.name = FileSystemProviderErrorCode.FileNotADirectory;
 				throw err;
 			}
-			return !stat.children ? [] : stat.children.map(child => [child.name, MainThreadFileSystem._getFileType(child)] as [string, FileType]);
+			return !stat.children ? [] : stat.children.map(child => [child.name, MainThreadFileSystem._asFileType(child)] as [string, FileType]);
 		}).catch(MainThreadFileSystem._handleError);
 	}
 
-	private static _getFileType(stat: IFileStat): FileType {
-		return (stat.isDirectory ? FileType.Directory : FileType.File) + (stat.isSymbolicLink ? FileType.SymbolicLink : 0);
+	private static _asFileType(stat: IFileStat): FileType {
+		let res = 0;
+		if (stat.isFile) {
+			res += FileType.File;
+
+		} else if (stat.isDirectory) {
+			res += FileType.Directory;
+		}
+		if (stat.isSymbolicLink) {
+			res += FileType.SymbolicLink;
+		}
+		return res;
 	}
 
 	$readFile(uri: UriComponents): Promise<VSBuffer> {
