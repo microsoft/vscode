@@ -25,17 +25,17 @@ function toStringShakeLevel(shakeLevel) {
     }
 }
 exports.toStringShakeLevel = toStringShakeLevel;
-function printDiagnostics(diagnostics) {
+function printDiagnostics(options, diagnostics) {
     for (const diag of diagnostics) {
         let result = '';
         if (diag.file) {
-            result += `${diag.file.fileName}: `;
+            result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
         }
         if (diag.file && diag.start) {
             let location = diag.file.getLineAndCharacterOfPosition(diag.start);
-            result += `- ${location.line + 1},${location.character} - `;
+            result += `:${location.line + 1}:${location.character}`;
         }
-        result += JSON.stringify(diag.messageText);
+        result += ` - ` + JSON.stringify(diag.messageText);
         console.log(result);
     }
 }
@@ -44,17 +44,17 @@ function shake(options) {
     const program = languageService.getProgram();
     const globalDiagnostics = program.getGlobalDiagnostics();
     if (globalDiagnostics.length > 0) {
-        printDiagnostics(globalDiagnostics);
+        printDiagnostics(options, globalDiagnostics);
         throw new Error(`Compilation Errors encountered.`);
     }
     const syntacticDiagnostics = program.getSyntacticDiagnostics();
     if (syntacticDiagnostics.length > 0) {
-        printDiagnostics(syntacticDiagnostics);
+        printDiagnostics(options, syntacticDiagnostics);
         throw new Error(`Compilation Errors encountered.`);
     }
     const semanticDiagnostics = program.getSemanticDiagnostics();
     if (semanticDiagnostics.length > 0) {
-        printDiagnostics(semanticDiagnostics);
+        printDiagnostics(options, semanticDiagnostics);
         throw new Error(`Compilation Errors encountered.`);
     }
     markNodes(languageService, options);
