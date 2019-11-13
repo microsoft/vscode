@@ -12,7 +12,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, Disposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
@@ -160,6 +160,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const stat = node.element;
 		const editableData = this.explorerService.getEditableData(stat);
 
+		DOM.removeClass(templateData.label.element, 'compressed');
+
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
@@ -182,12 +184,26 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		// File Label
 		if (!editableData) {
+			DOM.addClass(templateData.label.element, 'compressed');
 			templateData.label.element.style.display = 'flex';
-			templateData.elementDisposable = this.renderStat(stat, label, node.filterData, templateData);
+
+			const disposables = new DisposableStore();
+			disposables.add(this.renderStat(stat, label, node.filterData, templateData));
+
+
+			// HACK IT IN
+			// const nodes = templateData.label.element.querySelectorAll('.label-name');
+			// nodes.forEach(labelName => {
+			// 	addClass(labelName
+			// });
+
+
+			templateData.elementDisposable = disposables;
 		}
 
 		// Input Box
 		else {
+			DOM.removeClass(templateData.label.element, 'compressed');
 			templateData.label.element.style.display = 'none';
 			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
 		}

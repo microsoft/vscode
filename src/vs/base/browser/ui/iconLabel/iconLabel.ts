@@ -176,12 +176,14 @@ class Label {
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.innerHTML = '';
+				dom.removeClass(this.container, 'multiple');
 				this.singleLabel = dom.append(this.container, dom.$('a.label-name'));
 			}
 
 			this.singleLabel.textContent = label;
 		} else {
 			this.container.innerHTML = '';
+			dom.addClass(this.container, 'multiple');
 			this.singleLabel = undefined;
 
 			for (let i = 0; i < label.length; i++) {
@@ -214,12 +216,15 @@ class LabelWithHighlights {
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.innerHTML = '';
+				dom.removeClass(this.container, 'multiple');
 				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name')), this.supportCodicons);
 			}
 
 			this.singleLabel.set(label, options?.matches, options?.title, options?.labelEscapeNewLines);
 		} else {
+
 			this.container.innerHTML = '';
+			dom.addClass(this.container, 'multiple');
 			this.singleLabel = undefined;
 
 			for (let i = 0; i < label.length; i++) {
