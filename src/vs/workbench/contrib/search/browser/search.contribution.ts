@@ -513,20 +513,30 @@ Registry.as<PaneRegistry>(PaneExtensions.Panes).registerPane(new PaneDescriptor(
 class RegisterSearchViewContribution implements IWorkbenchContribution {
 
 	constructor(
+		@IViewletService viewletService: IViewletService,
+		@IPanelService panelService: IPanelService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const paneRegistry = Registry.as<PaneRegistry>(PaneExtensions.Panes);
-		const updateSearchViewLocation = () => {
+		const updateSearchViewLocation = (open: boolean) => {
 			const config = configurationService.getValue<ISearchConfiguration>();
 			paneRegistry.movePane(PANE_ID, config.search.location);
+
+			if (open) {
+				if (config.search.location === 'panel') {
+					panelService.openPanel(PANE_ID);
+				} else {
+					viewletService.openViewlet(PANE_ID);
+				}
+			}
 		};
 		configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.location')) {
-				updateSearchViewLocation();
+				updateSearchViewLocation(true);
 			}
 		});
 
-		updateSearchViewLocation();
+		updateSearchViewLocation(false);
 	}
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
