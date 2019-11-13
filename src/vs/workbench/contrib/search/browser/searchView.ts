@@ -70,6 +70,7 @@ enum SearchUIState {
 	SlowSearch
 }
 
+const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
 export class SearchView extends ViewletPanel {
 
 	private static readonly MAX_TEXT_RESULTS = 10000;
@@ -1313,7 +1314,7 @@ export class SearchView extends ViewletPanel {
 				let message: string;
 
 				if (!completed) {
-					message = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
+					message = SEARCH_CANCELLED_MESSAGE;
 				} else if (hasIncludes && hasExcludes) {
 					message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
 				} else if (hasIncludes) {
@@ -1513,9 +1514,11 @@ export class SearchView extends ViewletPanel {
 		// disable 'result'-actions
 		this.updateActions();
 
+		const showingCancelled = (this.messagesElement.firstChild?.textContent?.indexOf(SEARCH_CANCELLED_MESSAGE) ?? -1) > -1;
+
 		// clean up ui
 		// this.replaceService.disposeAllReplacePreviews();
-		if (forceHideMessages || !this.configurationService.getValue<ISearchConfiguration>().search.searchOnType) {
+		if (showingCancelled || forceHideMessages || !this.configurationService.getValue<ISearchConfiguration>().search.searchOnType) {
 			// when in search to type, don't preemptively hide, as it causes flickering and shifting of the live results
 			dom.hide(this.messagesElement);
 		}
