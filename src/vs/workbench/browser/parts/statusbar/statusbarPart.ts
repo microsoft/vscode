@@ -433,6 +433,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		};
 	}
 
+	isEntryVisible(id: string): boolean {
+		return !this.viewModel.isHidden(id);
+	}
+
 	updateEntryVisibility(id: string, visible: boolean): void {
 		if (visible) {
 			this.viewModel.show(id);
