@@ -51,6 +51,7 @@ import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree'
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -132,7 +133,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExplorerService private readonly explorerService: IExplorerService
+		@IExplorerService private readonly explorerService: IExplorerService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
@@ -175,7 +177,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		templateData.elementDisposable.dispose();
 
 		const stat = node.element.elements[node.element.elements.length - 1];
-		const label = node.element.elements.map(e => e.name).join('/');
+		const label = node.element.elements.map(e => e.name);
 		const editableData = this.explorerService.getEditableData(stat);
 
 		// File Label
@@ -191,7 +193,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		}
 	}
 
-	private renderStat(stat: ExplorerItem, label: string, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
+	private renderStat(stat: ExplorerItem, label: string | string[], filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
 		templateData.label.element.style.display = 'flex';
 		const extraClasses = ['explorer-item'];
 		if (this.explorerService.isCut(stat)) {
@@ -202,7 +204,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses,
 			fileDecorations: this.config.explorer.decorations,
-			matches: createMatches(filterData)
+			matches: createMatches(filterData),
+			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority)
 		});
 
 		return templateData.label.onDidRender(() => {
