@@ -235,7 +235,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.login',
-				title: localize('sign in', "Configuration Sync: Sign in...")
+				title: localize('global activity sign in', "Configuration Sync: Sign in... (1)")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Inactive)),
 		};
@@ -259,7 +259,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: 'sync.resolveConflicts',
-				title: localize('resolveConflicts', "Configuration Sync: Resolve Conflicts"),
+				title: localize('resolveConflicts', "Configuration Sync: Resolve Conflicts (1)"),
 			},
 			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts),
 		};
