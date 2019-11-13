@@ -24,7 +24,7 @@ import { binarySearch } from 'vs/base/common/arrays';
 class FlatOutline {
 
 	readonly elements: OutlineElement[] = [];
-	readonly _positions: IPosition[];
+	readonly _elementPositions: IPosition[];
 
 	constructor(model: OutlineModel, filter: OutlineFilter) {
 
@@ -40,7 +40,7 @@ class FlatOutline {
 
 		walk(model);
 		this.elements.sort(FlatOutline._compare);
-		this._positions = this.elements.map(element => ({
+		this._elementPositions = this.elements.map(element => ({
 			lineNumber: element.symbol.range.startLineNumber,
 			column: element.symbol.range.startColumn
 		}));
@@ -53,7 +53,7 @@ class FlatOutline {
 	}
 
 	find(position: IPosition, preferAfter: boolean): number {
-		const idx = binarySearch(this._positions, position, Position.compare);
+		const idx = binarySearch(this._elementPositions, position, Position.compare);
 		if (idx >= 0) {
 			return idx;
 		} else if (preferAfter) {
@@ -129,11 +129,25 @@ export class OutlineNavigation implements IEditorContribution {
 	}
 
 	private _revealElement(element: OutlineElement | undefined): void {
-		if (element) {
-			const pos = Range.lift(element.symbol.selectionRange).getStartPosition();
-			this._editor.setPosition(pos);
-			this._editor.revealPosition(pos, ScrollType.Smooth);
+		if (!element) {
+			return;
 		}
+		const pos = Range.lift(element.symbol.selectionRange).getStartPosition();
+		this._editor.setPosition(pos);
+		this._editor.revealPosition(pos, ScrollType.Smooth);
+
+		const modelNow = this._editor.getModel();
+		const ids = this._editor.deltaDecorations([], [{
+			range: element.symbol.selectionRange,
+			options: {
+				className: 'rangeHighlight',
+			}
+		}]);
+		setTimeout(() => {
+			if (modelNow === this._editor.getModel()) {
+				this._editor.deltaDecorations(ids, []);
+			}
+		}, 250);
 	}
 }
 
