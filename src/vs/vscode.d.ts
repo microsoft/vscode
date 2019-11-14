@@ -5743,6 +5743,10 @@ declare module 'vscode' {
 		ctime: number;
 		/**
 		 * The modification timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+		 *
+		 * *Note:* If the file changed, it is important to provide an updated `mtime` that advanced
+		 * from the previous value. Otherwise there may be optimizations in place that will not show
+		 * the updated file contents in an editor for example.
 		 */
 		mtime: number;
 		/**
@@ -5860,6 +5864,11 @@ declare module 'vscode' {
 		 * An event to signal that a resource has been created, changed, or deleted. This
 		 * event should fire for resources that are being [watched](#FileSystemProvider.watch)
 		 * by clients of this provider.
+		 *
+		 * *Note:* It is important that the metadata of the file that changed provides an
+		 * updated `mtime` that advanced from the previous value in the [stat](#FileStat).
+		 * Otherwise there may be optimizations in place that will not show the change in an editor
+		 * for example.
 		 */
 		readonly onDidChangeFile: Event<FileChangeEvent[]>;
 
