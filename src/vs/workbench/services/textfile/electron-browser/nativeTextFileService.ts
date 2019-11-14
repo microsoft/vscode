@@ -39,7 +39,6 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ConfirmResult } from 'vs/workbench/common/editor';
 import { assign } from 'vs/base/common/objects';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
@@ -314,16 +313,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 	protected getWindowCount(): Promise<number> {
 		return this.electronService.getWindowCount();
-	}
-
-	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment) {
-			if (!this.environmentService.args['extension-development-confirm-save']) {
-				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
-			}
-		}
-
-		return super.confirmSave(resources);
 	}
 }
 

@@ -416,13 +416,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	/**
-	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
-	 */
-	confirmSave(): Promise<ConfirmResult> {
-		return Promise.resolve(ConfirmResult.DONT_SAVE);
-	}
-
-	/**
 	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
 	save(): Promise<boolean> {
@@ -474,12 +467,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 		super.dispose();
 	}
-}
-
-export const enum ConfirmResult {
-	SAVE,
-	DONT_SAVE,
-	CANCEL
 }
 
 export const enum EncodingMode {
@@ -571,10 +558,6 @@ export class SideBySideEditorInput extends EditorInput {
 
 	isDirty(): boolean {
 		return this.master.isDirty();
-	}
-
-	confirmSave(): Promise<ConfirmResult> {
-		return this.master.confirmSave();
 	}
 
 	save(): Promise<boolean> {

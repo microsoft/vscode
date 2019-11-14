@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorgroupview';
 
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -50,7 +50,7 @@ import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -131,7 +131,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService
 	) {
 		super(themeService);
 
@@ -1260,7 +1261,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Switch to editor that we want to handle and confirm to save/revert
 		await this.openEditor(editor);
 
-		const res = await editor.confirmSave();
+		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+		const res = await this.fileDialogService.showSaveConfirm(editorResource ? [editorResource] : editor.getName()!);
 
 		// It could be that the editor saved meanwhile, so we check again
 		// to see if anything needs to happen before closing for good.

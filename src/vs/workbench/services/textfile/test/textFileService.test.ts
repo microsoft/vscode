@@ -7,12 +7,11 @@ import * as sinon from 'sinon';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestContextService, TestFileService, TestElectronService, TestFilesConfigurationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestContextService, TestFileService, TestElectronService, TestFilesConfigurationService, TestFileDialogService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ConfirmResult } from 'vs/workbench/common/editor';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { HotExitConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -22,6 +21,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { Schemas } from 'vs/base/common/network';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 
 class ServiceAccessor {
 	constructor(
@@ -32,7 +32,8 @@ class ServiceAccessor {
 		@IWorkspaceContextService public contextService: TestContextService,
 		@IModelService public modelService: ModelServiceImpl,
 		@IFileService public fileService: TestFileService,
-		@IElectronService public electronService: TestElectronService
+		@IElectronService public electronService: TestElectronService,
+		@IFileDialogService public fileDialogService: TestFileDialogService
 	) {
 	}
 }
@@ -87,7 +88,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
 
 		const service = accessor.textFileService;
-		service.setConfirmResult(ConfirmResult.CANCEL);
+		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -103,7 +104,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
 
 		const service = accessor.textFileService;
-		service.setConfirmResult(ConfirmResult.DONT_SAVE);
+		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
 		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
 		await model.load();
@@ -129,7 +130,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
 
 		const service = accessor.textFileService;
-		service.setConfirmResult(ConfirmResult.SAVE);
+		accessor.fileDialogService.setConfirmResult(ConfirmResult.SAVE);
 		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
 		await model.load();
@@ -429,7 +430,7 @@ suite('Files - TextFileService', () => {
 				accessor.electronService.windowCount = Promise.resolve(2);
 			}
 			// Set cancel to force a veto if hot exit does not trigger
-			service.setConfirmResult(ConfirmResult.CANCEL);
+			accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
 
 			await model.load();
 			model.textEditorModel!.setValue('foo');
