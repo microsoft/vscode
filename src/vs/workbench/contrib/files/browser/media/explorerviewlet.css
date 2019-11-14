@@ -133,10 +133,8 @@
 	border-radius: 3px;
 }
 
-.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.active,
 .explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover,
-.explorer-viewlet .monaco-list:focus .monaco-list-row.selected .explorer-item .monaco-icon-name-container.multiple > .label-name:last-child,
-.explorer-viewlet .monaco-list:focus .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name:last-child {
+.explorer-viewlet .monaco-list:focus .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active {
 	text-decoration: underline;
 }
 

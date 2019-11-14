@@ -84,6 +84,11 @@ export const OpenEditorsVisibleContext = new RawContextKey<boolean>('openEditors
 export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true);
 export const ExplorerFocusedContext = new RawContextKey<boolean>('explorerViewletFocus', true);
 
+// compressed nodes
+export const ExplorerCompressedFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFocus', true);
+export const ExplorerCompressedFirstFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFirstFocus', true);
+export const ExplorerCompressedLastFocusContext = new RawContextKey<boolean>('explorerViewletCompressedLastFocus', true);
+
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, FilesExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
 export const ExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, ExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
 

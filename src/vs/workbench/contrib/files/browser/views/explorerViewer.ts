@@ -115,6 +115,57 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 	}
 }
 
+export interface ICompressedNavigationController {
+	readonly current: ExplorerItem;
+	readonly index: number;
+	readonly count: number;
+	reset(): void;
+	previous(): void;
+	next(): void;
+}
+
+export class CompressedNavigationController implements ICompressedNavigationController {
+
+	private _index: number;
+	private labels: HTMLElement[];
+
+	get index(): number { return this._index; }
+	get count(): number { return this.items.length; }
+	get current(): ExplorerItem { return this.items[this._index]!; }
+
+	constructor(private items: ExplorerItem[], templateData: IFileTemplateData) {
+		this._index = items.length - 1;
+		this.labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
+		DOM.addClass(this.labels[this._index], 'active');
+	}
+
+	reset(): void {
+		DOM.removeClass(this.labels[this._index], 'active');
+		this._index = this.items.length - 1;
+		DOM.addClass(this.labels[this._index], 'active');
+	}
+
+	previous(): void {
+		if (this._index <= 0) {
+			return;
+		}
+
+		DOM.removeClass(this.labels[this._index], 'active');
+		this._index--;
+		DOM.addClass(this.labels[this._index], 'active');
+	}
+
+	next(): void {
+		if (this._index >= this.items.length - 1) {
+			return;
+		}
+
+		DOM.removeClass(this.labels[this._index], 'active');
+		this._index++;
+		DOM.addClass(this.labels[this._index], 'active');
+	}
+}
+
 export interface IFileTemplateData {
 	elementDisposable: IDisposable;
 	label: IResourceLabel;
@@ -126,6 +177,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
+	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
 
 	constructor(
 		private labels: ResourceLabels,
@@ -189,6 +241,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 			const disposables = new DisposableStore();
 			disposables.add(this.renderStat(stat, label, node.filterData, templateData));
+
+			const compressedNavigationController = new CompressedNavigationController(node.element.elements, templateData);
+
+			this.compressedNavigationControllers.set(stat, compressedNavigationController);
+			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
 
 			templateData.elementDisposable = disposables;
 		}
@@ -304,13 +361,17 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		});
 	}
 
-	disposeElement?(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
+	disposeElement(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
 		templateData.elementDisposable.dispose();
 	}
 
 	disposeTemplate(templateData: IFileTemplateData): void {
 		templateData.elementDisposable.dispose();
 		templateData.label.dispose();
+	}
+
+	getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController | undefined {
+		return this.compressedNavigationControllers.get(stat);
 	}
 
 	dispose(): void {
