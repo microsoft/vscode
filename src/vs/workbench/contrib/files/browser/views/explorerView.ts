@@ -673,6 +673,24 @@ export class ExplorerView extends ViewletPanel {
 		this.updateCompressedNavigationContextKeys(this.compressedNavigationController);
 	}
 
+	firstCompressedStat(): void {
+		if (!this.compressedNavigationController) {
+			return;
+		}
+
+		this.compressedNavigationController.first();
+		this.updateCompressedNavigationContextKeys(this.compressedNavigationController);
+	}
+
+	lastCompressedStat(): void {
+		if (!this.compressedNavigationController) {
+			return;
+		}
+
+		this.compressedNavigationController.last();
+		this.updateCompressedNavigationContextKeys(this.compressedNavigationController);
+	}
+
 	private updateCompressedNavigationContextKeys(controller: ICompressedNavigationController): void {
 		this.compressedFocusFirstContext.set(controller.index === 0);
 		this.compressedFocusLastContext.set(controller.index === controller.count - 1);

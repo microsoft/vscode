@@ -11,7 +11,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, IExplorerService, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext } from 'vs/workbench/contrib/files/common/files';
+import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, IExplorerService, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
@@ -80,6 +80,8 @@ export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace'
 
 export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
 export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
+export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
+export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -599,8 +601,8 @@ CommandsRegistry.registerCommand({
 // Compressed item navigation
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
+	weight: KeybindingWeight.WorkbenchContrib + 10,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
 	primary: KeyCode.LeftArrow,
 	id: PREVIOUS_COMPRESSED_FOLDER,
 	handler: (accessor) => {
@@ -618,8 +620,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
+	weight: KeybindingWeight.WorkbenchContrib + 10,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
 	primary: KeyCode.RightArrow,
 	id: NEXT_COMPRESSED_FOLDER,
 	handler: (accessor) => {
@@ -633,5 +635,43 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const explorer = viewlet as ExplorerViewlet;
 		const view = explorer.getExplorerView();
 		view.nextCompressedStat();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib + 10,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
+	primary: KeyCode.Home,
+	id: FIRST_COMPRESSED_FOLDER,
+	handler: (accessor) => {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = viewletService.getActiveViewlet();
+
+		if (viewlet?.getId() !== VIEWLET_ID) {
+			return;
+		}
+
+		const explorer = viewlet as ExplorerViewlet;
+		const view = explorer.getExplorerView();
+		view.firstCompressedStat();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib + 10,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
+	primary: KeyCode.End,
+	id: LAST_COMPRESSED_FOLDER,
+	handler: (accessor) => {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = viewletService.getActiveViewlet();
+
+		if (viewlet?.getId() !== VIEWLET_ID) {
+			return;
+		}
+
+		const explorer = viewlet as ExplorerViewlet;
+		const view = explorer.getExplorerView();
+		view.lastCompressedStat();
 	}
 });

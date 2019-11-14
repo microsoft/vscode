@@ -122,6 +122,8 @@ export interface ICompressedNavigationController {
 	reset(): void;
 	previous(): void;
 	next(): void;
+	first(): void;
+	last(): void;
 }
 
 export class CompressedNavigationController implements ICompressedNavigationController {
@@ -162,6 +164,26 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 
 		DOM.removeClass(this.labels[this._index], 'active');
 		this._index++;
+		DOM.addClass(this.labels[this._index], 'active');
+	}
+
+	first(): void {
+		if (this._index === 0) {
+			return;
+		}
+
+		DOM.removeClass(this.labels[this._index], 'active');
+		this._index = 0;
+		DOM.addClass(this.labels[this._index], 'active');
+	}
+
+	last(): void {
+		if (this._index === this.items.length - 1) {
+			return;
+		}
+
+		DOM.removeClass(this.labels[this._index], 'active');
+		this._index = this.items.length - 1;
 		DOM.addClass(this.labels[this._index], 'active');
 	}
 }
