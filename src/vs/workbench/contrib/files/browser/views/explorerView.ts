@@ -114,6 +114,7 @@ export class ExplorerView extends ViewletPanel {
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
+
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
@@ -122,7 +123,6 @@ export class ExplorerView extends ViewletPanel {
 		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
 		this._register(decorationService.registerDecorationsProvider(decorationProvider));
 		this._register(decorationProvider);
-		this._register(this.resourceContext);
 	}
 
 	get name(): string {
