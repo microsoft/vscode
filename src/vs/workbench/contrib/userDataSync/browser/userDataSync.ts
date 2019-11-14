@@ -155,12 +155,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (!result.confirmed) {
 				return;
 			}
-			try {
-				await this.signIn();
-			} catch (e) {
-				this.notificationService.error(e);
-				return;
-			}
+			await this.signIn();
 		}
 		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
 	}
@@ -170,7 +165,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async signIn(): Promise<void> {
-		return this.authTokenService.login();
+		try {
+			await this.authTokenService.login();
+		} catch (e) {
+			this.notificationService.error(e);
+			throw e;
+		}
 	}
 
 	private async signOut(): Promise<void> {
