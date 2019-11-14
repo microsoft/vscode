@@ -47,7 +47,7 @@
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.0",
     "v8-inspect-profiler": "^0.0.20",
-    "vscode-minimist": "^1.2.1",
+    "vscode-minimist": "^1.2.2",
     "vscode-nsfw": "1.2.8",
     "vscode-proxy-agent": "^0.5.2",
     "vscode-ripgrep": "^1.5.7",
