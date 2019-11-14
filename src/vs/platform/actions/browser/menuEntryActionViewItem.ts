@@ -255,7 +255,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		else if (item.iconLocation) {
 			let iconClass: string;
 
-			if (typeof item.iconLocation?.dark !== 'undefined') {
+			if (item.iconLocation?.dark?.scheme) {
 
 				const iconPathMapKey = item.iconLocation.dark.toString();
 
