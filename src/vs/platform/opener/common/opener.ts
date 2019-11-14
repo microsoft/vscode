@@ -43,7 +43,7 @@ export interface IExternalOpener {
 }
 
 export interface IValidator {
-	shouldOpen(resource: URI): Promise<boolean>;
+	shouldOpen(resource: URI | URL): Promise<boolean>;
 }
 
 export interface IExternalUriResolver {

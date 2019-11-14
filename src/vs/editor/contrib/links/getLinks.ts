@@ -13,18 +13,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { isDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
-
-// in IE11 there is URL but a constructor
-// https://developer.mozilla.org/en-US/docs/Web/API/URL/URL#Browser_compatibility
-const canUseUrl = (function () {
-	try {
-		// tslint:disable-next-line: no-unused-expression
-		new URL('some://thing');
-		return true;
-	} catch {
-		return false;
-	}
-})();
+import { hasURLCtor } from 'vs/base/common/resources';
 
 export class Link implements ILink {
 
@@ -61,7 +50,7 @@ export class Link implements ILink {
 			try {
 				if (URI.isUri(this._link.url)) {
 					return this._link.url;
-				} else if (!canUseUrl) {
+				} else if (!hasURLCtor) {
 					return URI.parse(this._link.url);
 				} else {
 					return new URL(this._link.url);

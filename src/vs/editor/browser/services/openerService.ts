@@ -8,21 +8,13 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
-import * as resources from 'vs/base/common/resources';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { matchesScheme, normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions, ResolveExternalUriOptions, IResolvedExternalUri, IExternalOpener } from 'vs/platform/opener/common/opener';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
 
-function hasScheme(target: URI | URL, scheme: string) {
-	if (URI.isUri(target)) {
-		return equalsIgnoreCase(target.scheme, scheme);
-	} else {
-		return equalsIgnoreCase(target.protocol, scheme + ':');
-	}
-}
 
 export class OpenerService implements IOpenerService {
 
@@ -52,7 +44,7 @@ export class OpenerService implements IOpenerService {
 		// Default opener: maito, http(s), command, and catch-all-editors
 		this._openerAsExternal = {
 			open: async (target: URI | URL, options?: OpenOptions) => {
-				if (options?.openExternal || hasScheme(target, Schemas.mailto) || hasScheme(target, Schemas.http) || hasScheme(target, Schemas.https)) {
+				if (options?.openExternal || matchesScheme(target, Schemas.mailto) || matchesScheme(target, Schemas.http) || matchesScheme(target, Schemas.https)) {
 					// open externally
 					await this._doOpenExternal(target, options);
 					return true;
@@ -63,7 +55,7 @@ export class OpenerService implements IOpenerService {
 
 		this._openerAsCommand = {
 			open: async (target) => {
-				if (!hasScheme(target, Schemas.command)) {
+				if (!matchesScheme(target, Schemas.command)) {
 					return false;
 				}
 				// run command or bail out if command isn't known
@@ -107,7 +99,7 @@ export class OpenerService implements IOpenerService {
 				}
 
 				if (target.scheme === Schemas.file) {
-					target = resources.normalizePath(target); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
+					target = normalizePath(target); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
 				}
 
 				await editorService.openCodeEditor(
@@ -142,17 +134,9 @@ export class OpenerService implements IOpenerService {
 
 	async open(target: URI | URL, options?: OpenOptions): Promise<boolean> {
 
-		const resource = URI.isUri(target) ? target : URI.from(target);
-
-		// no scheme ?!?
-		if (!resource.scheme) {
-			return Promise.resolve(false);
-		}
-
-		//todo@joh adopt validator
 		// check with contributed validators
 		for (const validator of this._validators.toArray()) {
-			if (!(await validator.shouldOpen(resource))) {
+			if (!(await validator.shouldOpen(target))) {
 				return false;
 			}
 		}
