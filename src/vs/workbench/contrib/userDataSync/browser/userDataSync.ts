@@ -6,7 +6,7 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
-import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
@@ -27,6 +27,8 @@ import { IEditorInput } from 'vs/workbench/common/editor';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.Inactive);
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-light.svg`));
@@ -54,6 +56,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
@@ -157,7 +161,50 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 			await this.signIn();
 		}
+		await this.configureSyncOptions();
 		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
+		this.notificationService.info(localize('Sync Started', "Sync Started."));
+	}
+
+	private async configureSyncOptions(): Promise<void> {
+		if (this.storageService.getBoolean('userDataSync.configureOptions.donotAsk', StorageScope.GLOBAL, false)) {
+			return;
+		}
+		return new Promise((c, e) => {
+			const disposables: DisposableStore = new DisposableStore();
+			const quickPick = this.quickInputService.createQuickPick();
+			disposables.add(quickPick);
+			quickPick.placeholder = localize('select configurations to sync', "Choose what to sync");
+			quickPick.canSelectMany = true;
+			const items = [{
+				id: 'configurationSync.enableSettings',
+				label: localize('user settings', "User Settings")
+			}, {
+				id: 'configurationSync.enableExtensions',
+				label: localize('extensions', "Extensions")
+			}];
+			quickPick.items = items;
+			quickPick.selectedItems = items.filter(item => this.configurationService.getValue(item.id));
+			quickPick.customButton = true;
+			quickPick.customLabel = localize('do not ask', "Don't Ask Again");
+			disposables.add(quickPick.onDidCustom(() => {
+				this.storageService.store('userDataSync.configureOptions.donotAsk', true, StorageScope.GLOBAL);
+				quickPick.hide();
+			}));
+			disposables.add(quickPick.onDidAccept(() => quickPick.hide()));
+			disposables.add(quickPick.onDidHide(() => {
+				for (const item of items) {
+					const wasEnabled = this.configurationService.getValue(item.id);
+					const isEnabled = !!quickPick.selectedItems.filter(selected => selected.id === item.id)[0];
+					if (wasEnabled !== isEnabled) {
+						this.configurationService.updateValue(item.id!, isEnabled);
+					}
+				}
+				disposables.dispose();
+				c();
+			}));
+			quickPick.show();
+		});
 	}
 
 	private async turnOff(): Promise<void> {
