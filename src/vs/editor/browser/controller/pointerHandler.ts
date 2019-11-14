@@ -6,11 +6,12 @@
 import * as dom from 'vs/base/browser/dom';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
+import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 'vs/editor/browser/controller/mouseHandler';
 import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
-import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
+import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { isSafari } from 'vs/base/browser/browser';
 
 interface IThrottledGestureEvent {
 	translationX: number;
@@ -185,6 +186,67 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 	}
 }
 
+/**
+ * Currently only tested on iOS 13/ iPadOS.
+ */
+export class PointerEventHandler extends MouseHandler {
+	private _lastPointerType: string;
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
+		super(context, viewController, viewHelper);
+
+		this._register(Gesture.addTarget(this.viewHelper.linesContentDomNode));
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, this.viewHelper.viewDomNode), false)));
+
+		this._lastPointerType = 'mouse';
+
+		this.viewHelper.linesContentDomNode.addEventListener('pointerdown', (e: any) => {
+			const pointerType = <any>e.pointerType;
+			if (pointerType === 'mouse') {
+				this._lastPointerType = 'mouse';
+				return;
+			} else if (pointerType === 'touch') {
+				this._lastPointerType = 'touch';
+			} else {
+				this._lastPointerType = 'pen';
+			}
+		});
+
+		// PonterEvents
+		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
+
+		this._register(pointerEvents.onPointerMoveThrottled(this.viewHelper.viewDomNode,
+			(e) => this._onMouseMove(e),
+			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
+		this._register(pointerEvents.onPointerUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
+		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
+		this._register(pointerEvents.onPointerDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
+	}
+
+	private onTap(event: GestureEvent): void {
+		event.preventDefault();
+		this.viewHelper.focusTextArea();
+		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
+
+		if (target.position) {
+			this.viewController.moveTo(target.position);
+		}
+	}
+
+	private onChange(e: GestureEvent): void {
+		if (this._lastPointerType === 'touch') {
+			this._context.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
+		}
+	}
+
+	public _onMouseDown(e: EditorMouseEvent): void {
+		if (this._lastPointerType !== 'touch') {
+			super._onMouseDown(e);
+		}
+	}
+}
+
 class TouchHandler extends MouseHandler {
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
@@ -221,6 +283,8 @@ export class PointerHandler extends Disposable {
 		super();
 		if (window.navigator.msPointerEnabled) {
 			this.handler = this._register(new MsPointerHandler(context, viewController, viewHelper));
+		} else if (((<any>window).PointerEvent && isSafari)) {
+			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if ((<any>window).TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
 		} else if (window.navigator.pointerEnabled || (<any>window).PointerEvent) {

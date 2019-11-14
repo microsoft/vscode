@@ -399,6 +399,23 @@ export class Color {
 		return new Color(new RGBA(r, g, b, a));
 	}
 
+	makeOpaque(opaqueBackground: Color): Color {
+		if (this.isOpaque() || opaqueBackground.rgba.a !== 1) {
+			// only allow to blend onto a non-opaque color onto a opaque color
+			return this;
+		}
+
+		const { r, g, b, a } = this.rgba;
+
+		// https://stackoverflow.com/questions/12228548/finding-equivalent-color-with-opacity
+		return new Color(new RGBA(
+			opaqueBackground.rgba.r - a * (opaqueBackground.rgba.r - r),
+			opaqueBackground.rgba.g - a * (opaqueBackground.rgba.g - g),
+			opaqueBackground.rgba.b - a * (opaqueBackground.rgba.b - b),
+			1
+		));
+	}
+
 	flatten(...backgrounds: Color[]): Color {
 		const background = backgrounds.reduceRight((accumulator, color) => {
 			return Color._flatten(color, accumulator);

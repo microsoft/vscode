@@ -71,6 +71,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	}
 
 	public async login(callbackUri: URI): Promise<void> {
+		this.setStatus(AuthTokenStatus.SigningIn);
 		const nonce = generateUuid();
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' || callbackUri.scheme === 'http' ? 443 : 80);
 		const state = `${callbackUri.scheme},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
@@ -88,6 +89,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 		const timeoutPromise = new Promise((resolve: (value: IToken) => void, reject) => {
 			const wait = setTimeout(() => {
+				this.setStatus(AuthTokenStatus.Inactive);
 				clearTimeout(wait);
 				reject('Login timed out.');
 			}, 1000 * 60 * 5);

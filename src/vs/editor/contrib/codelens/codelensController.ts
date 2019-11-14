@@ -222,8 +222,10 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	}
 
 	private _disposeAllLenses(decChangeAccessor: IModelDecorationsChangeAccessor | undefined, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor | undefined): void {
-		let helper = new CodeLensHelper();
-		this._lenses.forEach((lens) => lens.dispose(helper, viewZoneChangeAccessor));
+		const helper = new CodeLensHelper();
+		for (const lens of this._lenses) {
+			lens.dispose(helper, viewZoneChangeAccessor);
+		}
 		if (decChangeAccessor) {
 			helper.commit(decChangeAccessor);
 		}

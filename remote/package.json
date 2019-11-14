@@ -15,7 +15,7 @@
     "onigasm-umd": "^2.2.4",
     "semver-umd": "^5.5.3",
     "spdlog": "^0.11.1",
-    "vscode-minimist": "^1.2.1",
+    "vscode-minimist": "^1.2.2",
     "vscode-nsfw": "1.2.8",
     "vscode-proxy-agent": "^0.5.2",
     "vscode-ripgrep": "^1.5.7",

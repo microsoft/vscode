@@ -65,7 +65,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return new EditorMemento(this.getId(), key, Object.create(null), limit, editorGroupService); // do not persist in storage as diff editors are never persisted
 	}
 
-	getTitle(): string | undefined {
+	getTitle(): string {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -219,7 +219,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	protected getAriaLabel(): string {
 		let ariaLabel: string;
-		const inputName = this.input && this.input.getName();
+		const inputName = this.input?.getName();
 		if (this.isReadOnly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
 		} else {

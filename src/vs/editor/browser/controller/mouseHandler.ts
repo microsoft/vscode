@@ -26,7 +26,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 /**
  * Merges mouse events when mouse move events are throttled
  */
-function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory | null) {
+export function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory | null) {
 	return function (lastEvent: EditorMouseEvent, currentEvent: EditorMouseEvent): EditorMouseEvent {
 		let targetIsWidget = false;
 		if (mouseTargetFactory) {
@@ -71,8 +71,7 @@ export class MouseHandler extends ViewEventHandler {
 	protected viewHelper: IPointerHandlerHelper;
 	protected mouseTargetFactory: MouseTargetFactory;
 	private readonly _asyncFocus: RunOnceScheduler;
-
-	private readonly _mouseDownOperation: MouseDownOperation;
+	protected readonly _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime: number;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
@@ -179,7 +178,7 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	private _onMouseMove(e: EditorMouseEvent): void {
+	public _onMouseMove(e: EditorMouseEvent): void {
 		if (this._mouseDownOperation.isActive()) {
 			// In selection/drag operation
 			return;
@@ -196,7 +195,7 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	private _onMouseLeave(e: EditorMouseEvent): void {
+	public _onMouseLeave(e: EditorMouseEvent): void {
 		this.lastMouseLeaveTime = (new Date()).getTime();
 		this.viewController.emitMouseLeave({
 			event: e,
